@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useMemo } from 'react';
-import { Plus, ArrowDown, ArrowUp, ArrowLeftRight, SlidersHorizontal, Search, Calendar, Download, Undo2 } from 'lucide-react';
+import { Plus, ArrowDown, ArrowUp, ArrowLeftRight, SlidersHorizontal, Search, Calendar, Download } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -38,33 +38,6 @@ export default function StockMovements({ movements, stockItems, categories, arti
   const [filterCat, setFilterCat] = useState('all');
   const [filterMonth, setFilterMonth] = useState('all');
   const [modalOpen, setModalOpen] = useState(false);
-  const [reversingId, setReversingId] = useState<string | null>(null);
-
-  const handleReversal = async (movement: StockMovement) => {
-    if (reversingId) return;
-    setReversingId(movement.id);
-    try {
-      const reversalType = movement.type === 'IN' ? 'OUT' : movement.type === 'OUT' ? 'IN' : 'ADJUSTMENT';
-      const reversalQty = movement.type === 'ADJUSTMENT' ? -movement.quantity : movement.quantity;
-      await onAddMovement({
-        articleId: movement.articleId,
-        categoryId: movement.categoryId,
-        productName: movement.productName,
-        color: movement.color,
-        size: movement.size,
-        unitOfMeasure: movement.unitOfMeasure,
-        type: reversalType,
-        reason: movement.reason,
-        quantity: reversalQty,
-        date: new Date().toISOString().split('T')[0],
-        storeId: movement.storeId,
-        toStoreId: movement.toStoreId,
-        notes: `⟲ Contre-passation du mouvement ${movement.id} du ${movement.date}`,
-      });
-    } finally {
-      setReversingId(null);
-    }
-  };
 
   // Mois disponibles
   const months = useMemo(() => {
@@ -240,7 +213,7 @@ export default function StockMovements({ movements, stockItems, categories, arti
             <table className="w-full text-sm">
               <thead>
                 <tr className="bg-stone-50 border-b border-stone-100">
-                  {['Date', 'Type', 'Produit', 'Magasin', 'Raison', 'Quantité', 'Notes', ''].map((h, i) => (
+                  {['Date', 'Type', 'Produit', 'Magasin', 'Raison', 'Quantité', 'Notes'].map((h, i) => (
                     <th key={h || i} className="px-4 py-3 text-left text-[11px] font-black uppercase tracking-widest text-stone-400 whitespace-nowrap">{h}</th>
                   ))}
                 </tr>
@@ -297,14 +270,6 @@ export default function StockMovements({ movements, stockItems, categories, arti
                         </span>
                       </td>
                       <td className="px-4 py-3 text-[10px] text-stone-400 font-medium max-w-[200px] truncate">{m.notes || '—'}</td>
-                      <td className="px-4 py-3 text-right">
-                        <button onClick={() => handleReversal(m)} disabled={reversingId === m.id}
-                          title="Contre-passer ce mouvement"
-                          aria-label={`Contre-passer le mouvement du ${m.date} (${m.productName})`}
-                          className="h-7 w-7 rounded-lg bg-stone-100 text-stone-400 hover:bg-amber-100 hover:text-amber-600 flex items-center justify-center transition-colors disabled:opacity-50 ml-auto">
-                          <Undo2 className="w-3.5 h-3.5" />
-                        </button>
-                      </td>
                     </tr>
                   );
                 })}

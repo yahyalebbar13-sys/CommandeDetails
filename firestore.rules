@@ -42,7 +42,7 @@ service cloud.firestore {
     // voit tous les magasins, comme l'admin propriétaire.
     function isFullAccessCommercial() {
       let acc = isSignedIn() ? accessDoc() : null;
-      return acc != null && acc.get('role', 'COMMERCIAL') == 'ADMIN';
+      return acc != null && (acc.get('role', 'COMMERCIAL') == 'ADMIN' || acc.get('storeId', '') == 'ADMIN');
     }
 
     // Compte marqué readOnly=true (ex: comptable externe) : lecture seule,

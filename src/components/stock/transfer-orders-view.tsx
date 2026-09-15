@@ -190,6 +190,11 @@ export default function TransferOrdersView({ transferOrders, stockItems, stores,
   const handleValidateTransfer = async () => {
     if (!firestore || !adminUid || !validateModal.order) return;
     const order = validateModal.order;
+    if (order.status === 'VALIDATED') {
+      toast({ title: 'Déjà validé', description: 'Ce transfert a déjà été réceptionné et validé.' });
+      setValidateModal({ open: false });
+      return;
+    }
 
     try {
       const now = new Date().toISOString();

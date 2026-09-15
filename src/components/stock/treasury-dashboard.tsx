@@ -13,6 +13,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { exportCheckRemittancePDF } from '@/lib/pdf-export-reports';
+import { useToast } from '@/hooks/use-toast';
 
 const fmt = (n: number) => n.toLocaleString('fr-MA', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
@@ -50,7 +51,7 @@ export default function TreasuryDashboard({
   const [activeTab, setActiveTab] = useState<'PORTFOLIO' | 'REMITTANCES'>('PORTFOLIO');
 
   const [viewScan, setViewScan] = useState<string | null>(null);
-  const [companyFilter, setCompanyFilter] = useState<'ALL' | 'URGENT_7D' | 'LEBTEX' | 'ROBE IN BOX' | 'UNASSIGNED'>('ALL');
+  const [companyFilter, setCompanyFilter] = useState<'ALL' | 'URGENT_7D' | 'LEBTEX' | 'ROBE IN BOX' | 'UNASSIGNED' | 'CLEARED'>('ALL');
   const [assigningId, setAssigningId] = useState<string | null>(null);
   const [isArbitrageExpanded, setIsArbitrageExpanded] = useState(false);
 
@@ -116,16 +117,26 @@ export default function TreasuryDashboard({
     return { directCash, pendingEffects, clearedEffects, rejectedEffects, lebtexTotal, lebtexCount, robeTotal, robeCount, unassignedUrgentCount };
   }, [payments]);
 
-  // Liste des effets en attente
-  const allPendingPayments = useMemo(() => {
+  // Tous les effets de commerce (chèques, lettres de change, billets à ordre) hors rejetés
+  const allPaperPayments = useMemo(() => {
     return payments
-      .filter(p => (p.method === 'CHEQUE' || p.method === 'EFFET' || p.method === 'LC' || p.method === 'LCN') && p.status !== 'CLEARED' && p.status !== 'REJECTED')
+      .filter(p => (p.method === 'CHEQUE' || p.method === 'EFFET' || p.method === 'LC' || p.method === 'LCN') && p.status !== 'REJECTED')
       .sort((a, b) => {
         const d1 = a.dueDate || '9999-12-31';
         const d2 = b.dueDate || '9999-12-31';
         return d1.localeCompare(d2);
       });
   }, [payments]);
+
+  // Liste des effets en attente d'encaissement
+  const allPendingPayments = useMemo(() => {
+    return allPaperPayments.filter(p => p.status !== 'CLEARED');
+  }, [allPaperPayments]);
+
+  // Liste des effets déjà encaissés
+  const allClearedPayments = useMemo(() => {
+    return allPaperPayments.filter(p => p.status === 'CLEARED');
+  }, [allPaperPayments]);
 
   // Effets urgents sans société à J-7 (strictement dans les 7 jours à venir)
   const urgentUnassignedPayments = useMemo(() => {
@@ -141,17 +152,20 @@ export default function TreasuryDashboard({
     if (companyFilter === 'URGENT_7D') {
       return urgentUnassignedPayments;
     }
+    if (companyFilter === 'CLEARED') {
+      return allClearedPayments;
+    }
     if (companyFilter === 'LEBTEX') {
-      return allPendingPayments.filter(p => p.cashingCompany === 'LEBTEX');
+      return allPaperPayments.filter(p => p.cashingCompany === 'LEBTEX');
     }
     if (companyFilter === 'ROBE IN BOX') {
-      return allPendingPayments.filter(p => p.cashingCompany === 'ROBE IN BOX');
+      return allPaperPayments.filter(p => p.cashingCompany === 'ROBE IN BOX');
     }
     if (companyFilter === 'UNASSIGNED') {
       return allPendingPayments.filter(p => !p.cashingCompany);
     }
-    return allPendingPayments;
-  }, [allPendingPayments, urgentUnassignedPayments, companyFilter]);
+    return allPaperPayments;
+  }, [allPaperPayments, allPendingPayments, allClearedPayments, urgentUnassignedPayments, companyFilter]);
 
   // Échéancier prévisionnel
   const forecastData = useMemo(() => {
@@ -235,7 +249,7 @@ export default function TreasuryDashboard({
       setRemiseModalIncludedIds(preselectedIds);
     } else {
       // Par défaut : tous les effets affectés à cette société et pas encore remis
-      const ids = allPendingPayments
+      const ids = allPaperPayments
         .filter(p => p.cashingCompany === company && !p.remittanceId)
         .map(p => p.id);
       setRemiseModalIncludedIds(ids);
@@ -245,11 +259,11 @@ export default function TreasuryDashboard({
   // Calcul du montant total de la remise en cours d'émission
   const modalRemisePayments = useMemo(() => {
     if (!remiseModalCompany) return [];
-    return allPendingPayments.filter(p => 
+    return allPaperPayments.filter(p => 
       p.cashingCompany === remiseModalCompany && 
       remiseModalIncludedIds.includes(p.id)
     );
-  }, [remiseModalCompany, remiseModalIncludedIds, allPendingPayments]);
+  }, [remiseModalCompany, remiseModalIncludedIds, allPaperPayments]);
 
   const modalRemiseTotal = useMemo(() => {
     return modalRemisePayments.reduce((s, p) => s + (p.amount || 0), 0);
@@ -487,7 +501,12 @@ export default function TreasuryDashboard({
               </div>
             </div>
 
-            <div className="bg-white p-5 rounded-3xl border border-stone-200 shadow-sm flex items-center justify-between">
+            <div
+              onClick={() => setCompanyFilter('ALL')}
+              className={`p-5 rounded-3xl border shadow-sm flex items-center justify-between cursor-pointer transition-all ${
+                companyFilter === 'ALL' ? 'bg-blue-50/50 border-blue-300 ring-2 ring-blue-500/20' : 'bg-white border-stone-200 hover:border-blue-300'
+              }`}
+            >
               <div>
                 <p className="text-[10px] font-black text-stone-400 uppercase tracking-widest">Portefeuille Effets</p>
                 <p className="text-xl font-black text-blue-900 mt-1">{fmt(stats.pendingEffects)} <span className="text-xs">MAD</span></p>
@@ -498,13 +517,18 @@ export default function TreasuryDashboard({
               </div>
             </div>
 
-            <div className="bg-white p-5 rounded-3xl border border-stone-200 shadow-sm flex items-center justify-between">
+            <div
+              onClick={() => setCompanyFilter('CLEARED')}
+              className={`p-5 rounded-3xl border shadow-sm flex items-center justify-between cursor-pointer transition-all ${
+                companyFilter === 'CLEARED' ? 'bg-emerald-50/50 border-emerald-300 ring-2 ring-emerald-500/20' : 'bg-white border-stone-200 hover:border-emerald-300'
+              }`}
+            >
               <div>
                 <p className="text-[10px] font-black text-stone-400 uppercase tracking-widest">Effets Encaissés</p>
-                <p className="text-xl font-black text-stone-900 mt-1">{fmt(stats.clearedEffects)} <span className="text-xs">MAD</span></p>
-                <p className="text-[10px] font-bold text-emerald-600 mt-0.5">Crédités en compte</p>
+                <p className="text-xl font-black text-emerald-800 mt-1">{fmt(stats.clearedEffects)} <span className="text-xs">MAD</span></p>
+                <p className="text-[10px] font-bold text-emerald-600 mt-0.5">{allClearedPayments.length} effet(s) crédités</p>
               </div>
-              <div className="w-10 h-10 rounded-2xl bg-stone-100 text-stone-600 flex items-center justify-center">
+              <div className="w-10 h-10 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
                 <CheckCircle2 className="w-5 h-5" />
               </div>
             </div>
@@ -638,7 +662,7 @@ export default function TreasuryDashboard({
                       : 'text-stone-500 hover:text-stone-900'
                   }`}
                 >
-                  Tous ({allPendingPayments.length})
+                  Tous ({allPaperPayments.length})
                 </button>
 
                 {urgentUnassignedPayments.length > 0 && (
@@ -663,7 +687,7 @@ export default function TreasuryDashboard({
                       : 'text-emerald-700 hover:bg-emerald-50'
                   }`}
                 >
-                  LEBTEX ({stats.lebtexCount})
+                  LEBTEX ({allPaperPayments.filter(p => p.cashingCompany === 'LEBTEX').length})
                 </button>
 
                 <button
@@ -674,7 +698,19 @@ export default function TreasuryDashboard({
                       : 'text-purple-700 hover:bg-purple-50'
                   }`}
                 >
-                  ROBE IN BOX ({stats.robeCount})
+                  ROBE IN BOX ({allPaperPayments.filter(p => p.cashingCompany === 'ROBE IN BOX').length})
+                </button>
+
+                <button
+                  onClick={() => setCompanyFilter('CLEARED')}
+                  className={`px-3 py-1.5 rounded-xl text-[10px] font-black uppercase transition-all flex items-center gap-1 ${
+                    companyFilter === 'CLEARED'
+                      ? 'bg-emerald-700 text-white shadow-sm'
+                      : 'text-emerald-700 hover:bg-emerald-50'
+                  }`}
+                >
+                  <CheckCircle2 className="w-3 h-3" />
+                  <span>Encaissés ({allClearedPayments.length})</span>
                 </button>
 
                 <button
@@ -685,7 +721,7 @@ export default function TreasuryDashboard({
                       : 'text-stone-500 hover:text-stone-900'
                   }`}
                 >
-                  Non assignés
+                  Non assignés ({allPendingPayments.filter(p => !p.cashingCompany).length})
                 </button>
               </div>
             </div>
@@ -905,15 +941,22 @@ export default function TreasuryDashboard({
                                 </Button>
                               )}
 
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-7 w-7 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 rounded-lg"
-                                onClick={() => onUpdatePaymentStatus(p.id, 'CLEARED')}
-                                title="Marquer comme Encaissé"
-                              >
-                                <Check className="w-3.5 h-3.5" />
-                              </Button>
+                              {p.status === 'CLEARED' ? (
+                                <span className="inline-flex items-center gap-1 bg-emerald-100 text-emerald-800 text-[10px] font-black px-2 py-1 rounded-lg border border-emerald-200">
+                                  <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                                  Encaissé
+                                </span>
+                              ) : (
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-7 w-7 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 rounded-lg"
+                                  onClick={() => onUpdatePaymentStatus(p.id, 'CLEARED')}
+                                  title="Marquer comme Encaissé"
+                                >
+                                  <Check className="w-3.5 h-3.5" />
+                                </Button>
+                              )}
 
                               {(() => {
                                 const impayeCheck = canDeclareImpaye(p);
