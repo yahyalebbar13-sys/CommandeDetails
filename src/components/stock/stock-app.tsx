@@ -71,8 +71,14 @@ function getInitialQtyForStore(item: any, activeStore: string, userStoreId: stri
     return 0;
   }
 
+  // Vue Globale admin : seul le stock des entrepôts compte. Le stock des
+  // magasins (CHRIFA, Derb Omar, IDAA) tourne trop vite pour être pertinent
+  // au niveau global — il reste visible uniquement dans la vue du magasin.
   if (activeStore === 'ALL') {
-    return Object.values(byStore).reduce((sum: number, val: any) => sum + (Number(val) || 0), 0);
+    return Object.entries(byStore).reduce((sum, [sId, val]) => {
+      if (isWarehouseStore(sId, stores)) return sum + (Number(val) || 0);
+      return sum;
+    }, 0);
   }
 
   if (activeStore === 'ALL_MAIN') {
@@ -132,8 +138,10 @@ export function computeStockItems(
   };
 
   const isVisibleForUser = (storeId: string | undefined) => {
-    if (activeStore === 'ALL') return true;
     const sId = storeId || 'CHRIFA';
+
+    // Vue Globale admin : seul le stock des entrepôts compte (voir getInitialQtyForStore).
+    if (activeStore === 'ALL') return isWarehouseStore(sId, stores);
 
     if (activeStore === 'ALL_MAIN') {
       return sId === userStoreId || (!userStoreId && sId === 'CHRIFA');
@@ -1954,7 +1962,7 @@ export default function StockApp() {
                   </div>
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="ALL"><Globe className="inline w-3.5 h-3.5 mr-1.5 -mt-0.5" />Vue Globale (Tous)</SelectItem>
+                  <SelectItem value="ALL"><Globe className="inline w-3.5 h-3.5 mr-1.5 -mt-0.5" />Vue Globale (Entrepôts)</SelectItem>
                   {stores.filter(s => s.type !== 'WAREHOUSE').map(s => (
                     <SelectItem key={s.id} value={s.id}>
                       <StoreIcon className="inline w-3.5 h-3.5 mr-1.5 -mt-0.5" />Magasin {s.name}

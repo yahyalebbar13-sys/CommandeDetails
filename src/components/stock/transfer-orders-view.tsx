@@ -102,22 +102,26 @@ export default function TransferOrdersView({ transferOrders, stockItems, stores,
 
     try {
       const now = new Date().toISOString();
+      // Transfert confirmé immédiatement : plus d'étape "Réceptionner" séparée —
+      // le stock source et destination sont mis à jour dans le même mouvement.
+      const validatedItems = selectedItems.map(item => ({ ...item, receivedQty: item.sentQty }));
       const transferData: Omit<TransferOrder, 'id'> = {
         fromStore: fromStore as StoreLocation,
         toStore: toStore as StoreLocation,
-        status: 'PENDING',
-        items: selectedItems,
+        status: 'VALIDATED',
+        items: validatedItems,
         date: now,
+        receivedDate: now,
         createdAt: serverTimestamp(),
       };
 
       const docRef = await addDoc(collection(firestore, 'users', adminUid, 'transferOrders'), transferData);
 
-      // Create OUT movements atomically via batch
+      // Mouvements OUT (source) + IN (destination) dans le même batch atomique
       const batch = writeBatch(firestore);
       for (const item of selectedItems) {
-        const movRef = doc(collection(firestore, 'users', adminUid, 'stockMovements'));
-        batch.set(movRef, {
+        const outRef = doc(collection(firestore, 'users', adminUid, 'stockMovements'));
+        batch.set(outRef, {
           articleId: item.realArticleId || item.articleId,
           categoryId: item.categoryId,
           productName: item.nameFR || item.productName,
@@ -132,27 +136,54 @@ export default function TransferOrdersView({ transferOrders, stockItems, stores,
           toStoreId: toStore,
           quantity: item.sentQty,
           date: now.split('T')[0],
-          notes: `Bon de transfert ${docRef.id} vers ${getStoreLabel(toStore)}`,
+          notes: `Transfert ${docRef.id} vers ${getStoreLabel(toStore)}`,
+          createdAt: serverTimestamp()
+        });
+        const inRef = doc(collection(firestore, 'users', adminUid, 'stockMovements'));
+        batch.set(inRef, {
+          articleId: item.realArticleId || item.articleId,
+          categoryId: item.categoryId,
+          productName: item.nameFR || item.productName,
+          nameFR: item.nameFR,
+          color: item.color,
+          size: item.size,
+          quality: item.quality,
+          unitOfMeasure: item.unitOfMeasure,
+          type: 'IN',
+          reason: 'TRANSFERT',
+          storeId: toStore,
+          toStoreId: toStore,
+          fromStoreId: fromStore,
+          quantity: item.sentQty,
+          date: now.split('T')[0],
+          notes: `Transfert ${docRef.id} depuis ${getStoreLabel(fromStore)}`,
           createdAt: serverTimestamp()
         });
       }
       await batch.commit();
 
       logAudit(firestore, adminUid, {
-        action: 'TRANSFER_CREATED',
+        action: 'TRANSFER_VALIDATED',
         userId: user?.uid || '',
         userEmail: user?.email || '',
         entityType: 'transfer',
         entityId: docRef.id,
-        description: `Transfert ${getStoreLabel(fromStore)} → ${getStoreLabel(toStore)} · ${selectedItems.length} référence(s), ${selectedItems.reduce((s, i) => s + i.sentQty, 0)} unité(s)`,
+        description: `Transfert confirmé ${getStoreLabel(fromStore)} → ${getStoreLabel(toStore)} · ${selectedItems.length} référence(s), ${selectedItems.reduce((s, i) => s + i.sentQty, 0)} unité(s)`,
         metadata: { fromStore, toStore, itemCount: selectedItems.length },
       });
 
-      toast({ title: 'Bon de transfert créé', description: 'Les articles sont en transit.' });
+      toast({ title: 'Transfert confirmé', description: 'Le stock a été mis à jour immédiatement à la source et à la destination.' });
       setCreateModal(false);
       setSelectedItems([]);
-    } catch (e) {
-      toast({ variant: 'destructive', title: 'Erreur', description: 'Impossible de créer le bon.' });
+    } catch (e: any) {
+      const isPermission = e?.code === 'permission-denied' || /permission/i.test(String(e?.message || ''));
+      toast({
+        variant: 'destructive',
+        title: 'Erreur',
+        description: isPermission
+          ? "Vous n'avez pas les droits pour confirmer un transfert vers ce magasin. Demandez à un compte ayant accès aux deux magasins de l'effectuer."
+          : 'Impossible de créer le bon.'
+      });
     }
   };
 
