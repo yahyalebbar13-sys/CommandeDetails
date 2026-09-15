@@ -20,7 +20,9 @@ import {
   CheckCircle2,
   AlertCircle,
   Search,
-  Warehouse
+  Warehouse,
+  Truck,
+  Sunrise,
 } from 'lucide-react';
 import {
   BarChart,
@@ -40,7 +42,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
-import type { StockMovement, StockItem, Sale, StoreLocation, Store, ClientPayment, Invoice } from '@/lib/types';
+import type { StockMovement, StockItem, Sale, StoreLocation, Store, ClientPayment, Invoice, TransferOrder } from '@/lib/types';
 
 type StockView = 'dashboard' | 'pos' | 'stock' | 'sales' | 'movements' | 'alerts';
 
@@ -55,6 +57,7 @@ interface StockDashboardProps {
   invoices?: Invoice[];
   clients?: any[];
   payments?: ClientPayment[];
+  transferOrders?: TransferOrder[];
   userRole?: 'ADMIN' | 'COMMERCIAL';
   activeStore: StoreLocation | 'ALL' | 'ALL_MAIN';
   stores: Store[];
@@ -86,6 +89,7 @@ export default function StockDashboard({
   invoices = [],
   clients = [],
   payments = [],
+  transferOrders = [],
   userRole = 'ADMIN',
   activeStore,
   stores,
@@ -493,6 +497,48 @@ export default function StockDashboard({
     displayStockItems.filter(i => i.minThreshold != null && (Number(i.currentQty) || 0) <= i.minThreshold).length,
     [displayStockItems]
   );
+
+  // ── Résumé d'ouverture de journée ──────────────────────────────────────────
+  const yesterdayStr = useMemo(() => {
+    const d = new Date(today);
+    d.setDate(d.getDate() - 1);
+    return d.toISOString().split('T')[0];
+  }, [today]);
+
+  const dayBrief = useMemo(() => {
+    const inMyScope = (storeId?: string) => {
+      if (effectiveStoreId === 'ALL' || effectiveStoreId === 'ALL_MAIN') return true;
+      return storeId === effectiveStoreId || (!storeId && effectiveStoreId === 'CHRIFA');
+    };
+
+    const yesterdaySales = normalizedSales.filter(s => s.date === yesterdayStr && inMyScope(s.storeId));
+    const caYesterday = yesterdaySales.reduce((s, v) => s + v.totalAmount, 0);
+
+    const in7Days = new Date(today);
+    in7Days.setDate(in7Days.getDate() + 7);
+    const in7DaysStr = in7Days.toISOString().split('T')[0];
+    const duePayments = payments.filter(p => {
+      const isPaper = p.method === 'CHEQUE' || p.method === 'EFFET' || p.method === 'LC' || (p.method as string) === 'LCN';
+      if (!isPaper || p.status !== 'PENDING' || !p.dueDate) return false;
+      if (p.dueDate < todayStr || p.dueDate > in7DaysStr) return false;
+      return inMyScope(p.storeId);
+    });
+    const dueAmount = duePayments.reduce((s, p) => s + (Number(p.amount) || 0), 0);
+
+    const pendingTransfers = transferOrders.filter(t => {
+      if (t.status !== 'PENDING') return false;
+      if (effectiveStoreId === 'ALL' || effectiveStoreId === 'ALL_MAIN') return true;
+      return t.toStore === effectiveStoreId || t.fromStore === effectiveStoreId;
+    });
+
+    const overdueInvoices = invoices.filter(inv => {
+      if (inv.status === 'PAID' || inv.status === 'CANCELLED') return false;
+      if (!inv.dueDate || inv.dueDate >= todayStr) return false;
+      return inMyScope(inv.storeId);
+    });
+
+    return { caYesterday, nbSalesYesterday: yesterdaySales.length, duePayments, dueAmount, pendingTransfers, overdueInvoices };
+  }, [normalizedSales, yesterdayStr, payments, transferOrders, invoices, effectiveStoreId, today, todayStr]);
 
   // Ventes du jour
   const todaySales = useMemo(() =>
@@ -946,6 +992,48 @@ export default function StockDashboard({
           ===================================================================== */}
       {activeTab === 'overview' && (
         <div className="space-y-6 animate-in fade-in duration-300">
+
+          {/* ── RÉSUMÉ D'OUVERTURE DE JOURNÉE ── */}
+          <div className="bg-white rounded-3xl shadow-lg border border-stone-100 p-5">
+            <div className="flex items-center gap-2 mb-4">
+              <div className="p-2 bg-orange-50 rounded-xl"><Sunrise className="w-4 h-4 text-orange-500" /></div>
+              <h3 className="text-sm font-black text-stone-900 uppercase tracking-tight">Résumé du jour</h3>
+              <span className="text-[9px] font-bold text-stone-400">{today.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })}</span>
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              <button onClick={() => onNavigate('sales' as any)} className="text-left p-3.5 rounded-2xl bg-stone-50 hover:bg-stone-100 transition-colors border border-stone-100">
+                <p className="text-[9px] font-black uppercase text-stone-400 tracking-widest">Ventes hier</p>
+                <p className="text-lg font-black text-stone-900 mt-1">{dayBrief.nbSalesYesterday}</p>
+                <p className="text-[10px] font-bold text-stone-500">{fmt$(dayBrief.caYesterday)}</p>
+              </button>
+              <button
+                onClick={() => onNavigate('cheques-impayes' as any)}
+                className={`text-left p-3.5 rounded-2xl border transition-colors ${dayBrief.duePayments.length > 0 ? 'bg-amber-50 hover:bg-amber-100 border-amber-200' : 'bg-stone-50 hover:bg-stone-100 border-stone-100'}`}
+              >
+                <p className={`text-[9px] font-black uppercase tracking-widest ${dayBrief.duePayments.length > 0 ? 'text-amber-600' : 'text-stone-400'}`}>Échéances 7j</p>
+                <p className="text-lg font-black text-stone-900 mt-1">{dayBrief.duePayments.length}</p>
+                <p className="text-[10px] font-bold text-stone-500">{fmt$(dayBrief.dueAmount)}</p>
+              </button>
+              <button
+                onClick={() => onNavigate('transfers' as any)}
+                className={`text-left p-3.5 rounded-2xl border transition-colors ${dayBrief.pendingTransfers.length > 0 ? 'bg-blue-50 hover:bg-blue-100 border-blue-200' : 'bg-stone-50 hover:bg-stone-100 border-stone-100'}`}
+              >
+                <p className={`text-[9px] font-black uppercase tracking-widest flex items-center gap-1 ${dayBrief.pendingTransfers.length > 0 ? 'text-blue-600' : 'text-stone-400'}`}>
+                  <Truck className="w-3 h-3" />Transferts en attente
+                </p>
+                <p className="text-lg font-black text-stone-900 mt-1">{dayBrief.pendingTransfers.length}</p>
+                <p className="text-[10px] font-bold text-stone-500">à réceptionner</p>
+              </button>
+              <button
+                onClick={() => onNavigate('invoices' as any)}
+                className={`text-left p-3.5 rounded-2xl border transition-colors ${dayBrief.overdueInvoices.length > 0 ? 'bg-red-50 hover:bg-red-100 border-red-200' : 'bg-stone-50 hover:bg-stone-100 border-stone-100'}`}
+              >
+                <p className={`text-[9px] font-black uppercase tracking-widest ${dayBrief.overdueInvoices.length > 0 ? 'text-red-600' : 'text-stone-400'}`}>Factures échues</p>
+                <p className="text-lg font-black text-stone-900 mt-1">{dayBrief.overdueInvoices.length}</p>
+                <p className="text-[10px] font-bold text-stone-500">non réglées</p>
+              </button>
+            </div>
+          </div>
 
           {/* KPIS PRINCIPAUX */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">

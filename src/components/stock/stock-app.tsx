@@ -2072,6 +2072,7 @@ export default function StockApp() {
                 invoices={invoices}
                 clients={clients}
                 payments={payments}
+                transferOrders={transferOrders}
                 onNavigate={(v) => setActiveView(v as any)}
               />
             )}
