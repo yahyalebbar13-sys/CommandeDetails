@@ -297,8 +297,8 @@ export default function StockWarehouses({
                     <p className="text-[10px] text-stone-400 font-bold font-mono uppercase">
                       CODE: {w.id}
                     </p>
-                    <span className="text-[9px] text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full font-bold">
-                      Stock CHRIFA
+                    <span className="text-[9px] text-blue-700 bg-blue-50 px-2 py-0.5 rounded-full font-bold">
+                      Entrepôt de Stockage
                     </span>
                   </div>
                 </div>

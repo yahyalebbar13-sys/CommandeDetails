@@ -60,22 +60,12 @@ function getInitialQtyForStore(item: any, activeStore: string, userStoreId: stri
     return Object.values(byStore).reduce((sum: number, val: any) => sum + (Number(val) || 0), 0);
   }
 
-  // Les entrepôts représentent le stock du magasin CHRIFA uniquement (ou ALL_MAIN)
-  if (activeStore === 'CHRIFA' || activeStore === 'ALL_MAIN') {
-    let sum = Number(byStore['CHRIFA']) || 0;
-    if (userStoreId && userStoreId !== 'CHRIFA' && byStore[userStoreId] && activeStore === 'ALL_MAIN') {
-      sum += (Number(byStore[userStoreId]) || 0);
-    }
-    for (const s of stores) {
-      if (s.type === 'WAREHOUSE' && byStore[s.id]) {
-        sum += (Number(byStore[s.id]) || 0);
-      }
-    }
-    return sum;
+  if (activeStore === 'ALL_MAIN') {
+    const sId = userStoreId || 'CHRIFA';
+    return Number(byStore[sId]) || 0;
   }
 
-  // Pour les autres magasins (ex: DERB_OMAR, IDAA) : STRICTEMENT leur propre stock
-  // Pour un entrepôt spécifique sélectionné : son stock propre
+  // Pour un magasin spécifique ou un entrepôt spécifique sélectionné : strictement son stock propre
   return Number(byStore[activeStore]) || 0;
 }
 
@@ -124,21 +114,10 @@ export function computeStockItems(
     const sId = storeId || 'CHRIFA';
     
     if (activeStore === 'ALL_MAIN') {
-      if (sId === userStoreId) return true;
-      if (sId === 'CHRIFA') return true;
-      const s = stores.find(x => x.id === sId);
-      if (s && (s.isMain || s.type === 'WAREHOUSE')) return true;
-      return false;
+      return sId === userStoreId || (!userStoreId && sId === 'CHRIFA');
     }
 
-    if (activeStore === 'CHRIFA') {
-      if (sId === 'CHRIFA') return true;
-      const s = stores.find(x => x.id === sId);
-      if (s && s.type === 'WAREHOUSE') return true; // Les entrepôts représentent le stock de Chrifa
-      return false;
-    }
-
-    // Autres magasins (DERB_OMAR, IDAA, etc.) ou entrepôt individuel : strictement leur propre stock
+    // Tout magasin ou entrepôt individuel : strictement son propre stock
     return sId === activeStore;
   };
 
@@ -147,8 +126,17 @@ export function computeStockItems(
     for (const m of targetMovs) {
       if (isOldArrivalMovement(m)) continue;
       if (m.reason === 'TRANSFERT') {
-        if (m.storeId) qtyByStore[m.storeId] = (qtyByStore[m.storeId] || 0) - m.quantity;
-        if (m.toStoreId) qtyByStore[m.toStoreId] = (qtyByStore[m.toStoreId] || 0) + m.quantity;
+        if (m.type === 'OUT') {
+          const src = m.storeId || 'CHRIFA';
+          qtyByStore[src] = (qtyByStore[src] || 0) - m.quantity;
+        } else if (m.type === 'IN') {
+          const dest = m.storeId || m.toStoreId || 'CHRIFA';
+          qtyByStore[dest] = (qtyByStore[dest] || 0) + m.quantity;
+        } else {
+          // Mouvement legacy sans type explicite
+          if (m.storeId) qtyByStore[m.storeId] = (qtyByStore[m.storeId] || 0) - m.quantity;
+          if (m.toStoreId) qtyByStore[m.toStoreId] = (qtyByStore[m.toStoreId] || 0) + m.quantity;
+        }
       } else {
         const sId = m.storeId || 'CHRIFA';
         qtyByStore[sId] = qtyByStore[sId] || 0;
@@ -268,8 +256,14 @@ export function computeStockItems(
           if (isOldArrivalMovement(m)) continue;
           if (m.reason === 'TRANSFERT') {
             if (activeStore === 'ALL') continue;
-            if (isVisibleForUser(m.storeId)) mouvOUT += m.quantity;
-            if (isVisibleForUser(m.toStoreId)) mouvIN += m.quantity;
+            if (m.type === 'OUT') {
+              if (isVisibleForUser(m.storeId)) mouvOUT += m.quantity;
+            } else if (m.type === 'IN') {
+              if (isVisibleForUser(m.storeId || m.toStoreId)) mouvIN += m.quantity;
+            } else {
+              if (isVisibleForUser(m.storeId)) mouvOUT += m.quantity;
+              if (isVisibleForUser(m.toStoreId)) mouvIN += m.quantity;
+            }
           } else {
             if (isVisibleForUser(m.storeId)) {
               if (m.type === 'IN') mouvIN += m.quantity;
@@ -347,8 +341,14 @@ export function computeStockItems(
           if (isOldArrivalMovement(m)) continue;
           if (m.reason === 'TRANSFERT') {
             if (activeStore === 'ALL') continue; // Transfert interne = 0 impact global
-            if (isVisibleForUser(m.storeId)) mouvOUT += m.quantity;
-            if (isVisibleForUser(m.toStoreId)) mouvIN += m.quantity;
+            if (m.type === 'OUT') {
+              if (isVisibleForUser(m.storeId)) mouvOUT += m.quantity;
+            } else if (m.type === 'IN') {
+              if (isVisibleForUser(m.storeId || m.toStoreId)) mouvIN += m.quantity;
+            } else {
+              if (isVisibleForUser(m.storeId)) mouvOUT += m.quantity;
+              if (isVisibleForUser(m.toStoreId)) mouvIN += m.quantity;
+            }
           } else {
             if (isVisibleForUser(m.storeId)) {
               if (m.type === 'IN') mouvIN += m.quantity;
@@ -422,8 +422,14 @@ export function computeStockItems(
           if (isOldArrivalMovement(m)) continue;
           if (m.reason === 'TRANSFERT') {
             if (activeStore === 'ALL') continue;
-            if (isVisibleForUser(m.storeId)) mouvOUT += m.quantity;
-            if (isVisibleForUser(m.toStoreId)) mouvIN += m.quantity;
+            if (m.type === 'OUT') {
+              if (isVisibleForUser(m.storeId)) mouvOUT += m.quantity;
+            } else if (m.type === 'IN') {
+              if (isVisibleForUser(m.storeId || m.toStoreId)) mouvIN += m.quantity;
+            } else {
+              if (isVisibleForUser(m.storeId)) mouvOUT += m.quantity;
+              if (isVisibleForUser(m.toStoreId)) mouvIN += m.quantity;
+            }
           } else {
             if (isVisibleForUser(m.storeId)) {
               if (m.type === 'IN') mouvIN += m.quantity;
@@ -485,8 +491,14 @@ export function computeStockItems(
       if (isOldArrivalMovement(m)) continue;
       if (m.reason === 'TRANSFERT') {
         if (activeStore === 'ALL') continue;
-        if (isVisibleForUser(m.storeId)) mouvOUT += m.quantity;
-        if (isVisibleForUser(m.toStoreId)) mouvIN += m.quantity;
+        if (m.type === 'OUT') {
+          if (isVisibleForUser(m.storeId)) mouvOUT += m.quantity;
+        } else if (m.type === 'IN') {
+          if (isVisibleForUser(m.storeId || m.toStoreId)) mouvIN += m.quantity;
+        } else {
+          if (isVisibleForUser(m.storeId)) mouvOUT += m.quantity;
+          if (isVisibleForUser(m.toStoreId)) mouvIN += m.quantity;
+        }
       } else {
         if (isVisibleForUser(m.storeId)) {
           if (m.type === 'IN') mouvIN += m.quantity;
@@ -785,35 +797,33 @@ export default function StockApp() {
   // Filtrer les données selon le magasin actif pour les vues (sauf Admin "ALL")
   const filteredSales = useMemo(() => sales.filter(s => {
     if (activeStore === 'ALL') return true;
-    if (activeStore === 'ALL_MAIN' || activeStore === 'CHRIFA') return isChrifaOrWarehouse(s.storeId);
     return s.storeId === activeStore;
-  }), [sales, activeStore, stores]);
+  }), [sales, activeStore]);
 
   const filteredClients = useMemo(() => clients.filter(c => {
     if (activeStore === 'ALL') return true;
-    if (activeStore === 'ALL_MAIN' || activeStore === 'CHRIFA') return isChrifaOrWarehouse(c.storeId);
-    return c.storeId === activeStore;
-  }), [clients, activeStore, stores]);
+    return c.storeId === activeStore || !c.storeId;
+  }), [clients, activeStore]);
 
   const filteredOrders = useMemo(() => orders.filter(o => {
     if (activeStore === 'ALL') return true;
-    if (activeStore === 'ALL_MAIN' || activeStore === 'CHRIFA') return isChrifaOrWarehouse(o.storeId);
     return o.storeId === activeStore;
-  }), [orders, activeStore, stores]);
+  }), [orders, activeStore]);
 
   const filteredInvoices = useMemo(() => invoices.filter(i => {
     if (activeStore === 'ALL') return true;
-    if (activeStore === 'ALL_MAIN' || activeStore === 'CHRIFA') return isChrifaOrWarehouse(i.storeId);
     return i.storeId === activeStore;
-  }), [invoices, activeStore, stores]);
+  }), [invoices, activeStore]);
 
   const filteredMovements = useMemo(() => movements.filter(m => {
     if (activeStore === 'ALL') return true;
-    if (activeStore === 'ALL_MAIN' || activeStore === 'CHRIFA') return isChrifaOrWarehouse(m.storeId) || isChrifaOrWarehouse(m.toStoreId);
     return m.storeId === activeStore || m.toStoreId === activeStore;
-  }), [movements, activeStore, stores]);
-  const isIncludedInAllMain = (storeId: string | undefined) => !storeId || storeId === activeStore || activeStore === 'ALL';
-  const filteredTransfers = useMemo(() => transferOrders.filter(t => activeStore === 'ALL' || (activeStore === 'ALL_MAIN' && (isIncludedInAllMain(t.fromStore) || isIncludedInAllMain(t.toStore))) || t.fromStore === activeStore || t.toStore === activeStore), [transferOrders, activeStore, stores]);
+  }), [movements, activeStore]);
+
+  const filteredTransfers = useMemo(() => transferOrders.filter(t => {
+    if (activeStore === 'ALL') return true;
+    return t.fromStore === activeStore || t.toStore === activeStore;
+  }), [transferOrders, activeStore]);
   const filteredPayments = useMemo(() => {
     return payments.filter(p => {
       if (activeStore === 'ALL') return true;
@@ -1371,7 +1381,7 @@ export default function StockApp() {
         purchasePricePerUnit: unitPrice,
         stockEntryDate: exp.date || new Date().toISOString().split('T')[0],
         supplierId: exp.supplierName || 'Marché local',
-        initialQtyByStore: { [targetStore]: Number(exp.quantity) },
+        initialQtyByStore: { [targetStore]: 0 },
         createdAt: serverTimestamp(),
       };
       await setDoc(doc(firestore, 'users', effectiveUid, 'articles', artId), cleanUndefined(articlePayload));

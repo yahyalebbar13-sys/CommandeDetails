@@ -54,6 +54,15 @@ export default function TransferOrdersView({ transferOrders, stockItems, stores,
 
   const addArticleToTransfer = (item: StockItem) => {
     if (selectedItems.find(i => i.articleId === item.articleId)) return;
+    const availableInSource = fromStore && item.qtyByStore ? ((item.qtyByStore as any)[fromStore] || 0) : item.currentQty;
+    if (availableInSource <= 0) {
+      toast({
+        variant: 'destructive',
+        title: 'Stock insuffisant',
+        description: `L'article "${item.productName}" n'a aucun stock dans l'emplacement source sélectionné (${getStoreLabel(fromStore)}).`
+      });
+      return;
+    }
     setSelectedItems(prev => [...prev, {
       articleId: item.articleId,
       categoryId: item.categoryId,
@@ -63,7 +72,7 @@ export default function TransferOrdersView({ transferOrders, stockItems, stores,
       size: item.size,
       quality: item.quality,
       unitOfMeasure: item.unitOfMeasure,
-      sentQty: 1
+      sentQty: Math.min(1, availableInSource)
     }]);
     setArticleSearch('');
   };
@@ -73,6 +82,22 @@ export default function TransferOrdersView({ transferOrders, stockItems, stores,
     if (!fromStore || !toStore) return toast({ variant: 'destructive', title: 'Erreur', description: 'Veuillez sélectionner la source et la destination.' });
     if (fromStore === toStore) return toast({ variant: 'destructive', title: 'Erreur', description: 'Source et destination doivent être différentes.' });
     
+    // Vérification stricte des stocks sources disponibles
+    for (const item of selectedItems) {
+      const originalStock = stockItems.find(s => s.articleId === item.articleId);
+      const available = fromStore && originalStock?.qtyByStore ? ((originalStock.qtyByStore as any)[fromStore] || 0) : (originalStock?.currentQty || 0);
+      if (item.sentQty <= 0) {
+        return toast({ variant: 'destructive', title: 'Quantité invalide', description: `Veuillez spécifier une quantité valide pour ${item.productName}.` });
+      }
+      if (item.sentQty > available) {
+        return toast({
+          variant: 'destructive',
+          title: 'Stock insuffisant',
+          description: `Quantité demandée (${item.sentQty}) supérieure au stock disponible (${available}) à ${getStoreLabel(fromStore)} pour ${item.productName}.`
+        });
+      }
+    }
+
     try {
       const now = new Date().toISOString();
       const transferData: Omit<TransferOrder, 'id'> = {
@@ -105,7 +130,7 @@ export default function TransferOrdersView({ transferOrders, stockItems, stores,
           toStoreId: toStore,
           quantity: item.sentQty,
           date: now.split('T')[0],
-          notes: `Bon de transfert ${docRef.id}`,
+          notes: `Bon de transfert ${docRef.id} vers ${getStoreLabel(toStore)}`,
           createdAt: serverTimestamp()
         });
       }
@@ -162,10 +187,12 @@ export default function TransferOrdersView({ transferOrders, stockItems, stores,
             unitOfMeasure: item.unitOfMeasure,
             type: 'IN',
             reason: 'TRANSFERT',
+            storeId: order.toStore,
             toStoreId: order.toStore,
+            fromStoreId: order.fromStore,
             quantity: item.receivedQty,
             date: now.split('T')[0],
-            notes: `Réception Bon de transfert ${order.id}`,
+            notes: `Réception Bon de transfert ${order.id} depuis ${getStoreLabel(order.fromStore)}`,
             createdAt: serverTimestamp()
           });
         }
@@ -184,7 +211,7 @@ export default function TransferOrdersView({ transferOrders, stockItems, stores,
             quality: item.quality,
             unitOfMeasure: item.unitOfMeasure,
             type: 'OUT',
-            reason: 'ADJUSTMENT',
+            reason: 'PERTE',
             storeId: order.toStore,
             quantity: discrepancy,
             date: now.split('T')[0],
@@ -316,27 +343,33 @@ export default function TransferOrdersView({ transferOrders, stockItems, stores,
           <div className="space-y-6">
             <div className="flex gap-4">
               <div className="flex-1 space-y-2">
-                <label className="text-[10px] font-black uppercase text-stone-500">De (Source)</label>
-                <select value={fromStore} onChange={e => setFromStore(e.target.value)} className="w-full h-10 px-3 bg-white border border-stone-200 rounded-xl text-sm font-bold outline-none">
+                <label className="text-[10px] font-black uppercase text-stone-500">De (Emplacement Source)</label>
+                <select value={fromStore} onChange={e => {
+                  setFromStore(e.target.value);
+                  setSelectedItems([]); // Réinitialiser car les stocks sources changent
+                }} className="w-full h-10 px-3 bg-white border border-stone-200 rounded-xl text-sm font-bold outline-none">
                   <option value="" disabled>Choisir l'origine...</option>
                   {stores.map(s => (
-                    <option key={s.id} value={s.id}>{s.name}</option>
+                    <option key={s.id} value={s.id}>{s.type === 'WAREHOUSE' ? '🏢' : '🏪'} {s.name}</option>
                   ))}
                 </select>
               </div>
               <div className="flex-1 space-y-2">
-                <label className="text-[10px] font-black uppercase text-stone-500">Vers (Destination)</label>
+                <label className="text-[10px] font-black uppercase text-stone-500">Vers (Emplacement Destination)</label>
                 <select value={toStore} onChange={e => setToStore(e.target.value)} className="w-full h-10 px-3 bg-white border border-stone-200 rounded-xl text-sm font-bold outline-none">
                   <option value="" disabled>Choisir la destination...</option>
                   {stores.map(s => (
-                    <option key={s.id} value={s.id}>{s.name}</option>
+                    <option key={s.id} value={s.id}>{s.type === 'WAREHOUSE' ? '🏢' : '🏪'} {s.name}</option>
                   ))}
                 </select>
               </div>
             </div>
 
             <div className="space-y-4">
-              <label className="text-[10px] font-black uppercase text-stone-500">Articles à transférer</label>
+              <div className="flex items-center justify-between">
+                <label className="text-[10px] font-black uppercase text-stone-500">Articles à transférer</label>
+                <span className="text-[10px] font-bold text-stone-400">Origine active : <strong className="text-stone-700">{getStoreLabel(fromStore)}</strong></span>
+              </div>
               
               {/* Search & Add */}
               <div className="relative">
@@ -345,15 +378,20 @@ export default function TransferOrdersView({ transferOrders, stockItems, stores,
                 
                 {articleSearch && (
                   <div className="absolute top-full left-0 right-0 mt-2 max-h-48 overflow-y-auto bg-white border border-stone-200 rounded-xl shadow-xl z-50 p-2">
-                    {stockItems.filter(i => i.productName.toLowerCase().includes(articleSearch.toLowerCase()) || i.color?.toLowerCase().includes(articleSearch.toLowerCase()) || i.quality?.toLowerCase().includes(articleSearch.toLowerCase())).slice(0, 10).map(item => (
-                      <button key={item.articleId} onClick={() => addArticleToTransfer(item)} className="w-full text-left px-3 py-2 hover:bg-stone-50 rounded-lg flex items-center justify-between">
-                        <div>
-                          <p className="text-xs font-bold">{item.productName}</p>
-                          <p className="text-[10px] text-stone-400">{[item.quality, item.color, item.size].filter(Boolean).join(' · ')}</p>
-                        </div>
-                        <span className="text-[10px] font-black bg-emerald-100 text-emerald-800 px-2 py-1 rounded-md">Stock: {item.currentQty}</span>
-                      </button>
-                    ))}
+                    {stockItems.filter(i => i.productName.toLowerCase().includes(articleSearch.toLowerCase()) || i.color?.toLowerCase().includes(articleSearch.toLowerCase()) || i.quality?.toLowerCase().includes(articleSearch.toLowerCase())).slice(0, 10).map(item => {
+                      const availInSrc = fromStore && item.qtyByStore ? ((item.qtyByStore as any)[fromStore] || 0) : item.currentQty;
+                      return (
+                        <button key={item.articleId} onClick={() => addArticleToTransfer(item)} className="w-full text-left px-3 py-2 hover:bg-stone-50 rounded-lg flex items-center justify-between">
+                          <div>
+                            <p className="text-xs font-bold">{item.productName}</p>
+                            <p className="text-[10px] text-stone-400">{[item.quality, item.color, item.size].filter(Boolean).join(' · ')}</p>
+                          </div>
+                          <span className={`text-[10px] font-black px-2 py-1 rounded-md ${availInSrc > 0 ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-700'}`}>
+                            Dispo {getStoreLabel(fromStore)}: {availInSrc}
+                          </span>
+                        </button>
+                      );
+                    })}
                   </div>
                 )}
               </div>
@@ -369,22 +407,40 @@ export default function TransferOrdersView({ transferOrders, stockItems, stores,
                     </tr>
                   </thead>
                   <tbody>
-                    {selectedItems.map((item, idx) => (
-                      <tr key={item.articleId} className="border-b border-stone-100 last:border-0">
-                        <td className="px-4 py-2 text-xs font-bold text-stone-700">{item.productName} {[item.quality ? `[${item.quality}]` : '', item.color, item.size].filter(Boolean).join(' · ')}</td>
-                        <td className="px-4 py-2">
-                          <Input type="number" min={1} value={item.sentQty} onChange={e => {
-                            const val = parseFloat(e.target.value) || 0;
-                            setSelectedItems(prev => prev.map((p, i) => i === idx ? { ...p, sentQty: val } : p));
-                          }} className="h-8 text-xs font-bold text-center" />
-                        </td>
-                        <td className="px-4 py-2">
-                          <button onClick={() => setSelectedItems(prev => prev.filter((_, i) => i !== idx))} className="text-red-500 hover:text-red-700">
-                            <X className="w-4 h-4" />
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
+                    {selectedItems.map((item, idx) => {
+                      const originalStock = stockItems.find(s => s.articleId === item.articleId);
+                      const availInSrc = fromStore && originalStock?.qtyByStore ? ((originalStock.qtyByStore as any)[fromStore] || 0) : (originalStock?.currentQty || 0);
+
+                      return (
+                        <tr key={item.articleId} className="border-b border-stone-100 last:border-0">
+                          <td className="px-4 py-2 text-xs font-bold text-stone-700">
+                            <div>
+                              <p>{item.productName} {[item.quality ? `[${item.quality}]` : '', item.color, item.size].filter(Boolean).join(' · ')}</p>
+                              <p className="text-[10px] text-stone-400 font-normal">Dispo source: <strong className="text-emerald-700">{availInSrc}</strong></p>
+                            </div>
+                          </td>
+                          <td className="px-4 py-2">
+                            <Input
+                              type="number"
+                              min={1}
+                              max={availInSrc}
+                              value={item.sentQty}
+                              onChange={e => {
+                                const val = parseFloat(e.target.value) || 0;
+                                const bounded = Math.max(0, Math.min(val, availInSrc));
+                                setSelectedItems(prev => prev.map((p, i) => i === idx ? { ...p, sentQty: bounded } : p));
+                              }}
+                              className="h-8 text-xs font-bold text-center"
+                            />
+                          </td>
+                          <td className="px-4 py-2">
+                            <button onClick={() => setSelectedItems(prev => prev.filter((_, i) => i !== idx))} className="text-red-500 hover:text-red-700">
+                              <X className="w-4 h-4" />
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })}
                     {selectedItems.length === 0 && (
                       <tr><td colSpan={3} className="px-4 py-8 text-center text-stone-400 text-xs font-bold">Aucun article sélectionné.</td></tr>
                     )}

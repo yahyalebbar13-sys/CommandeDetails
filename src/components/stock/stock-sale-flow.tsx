@@ -295,13 +295,32 @@ export default function StockSaleFlow({
     [clients, clientSearch]
   );
 
+  // ── Résolution intelligente du magasin / entrepôt source ──
+  const resolveSourceStore = useCallback((item: StockItem, preferredStore?: string): string => {
+    // 1. Si un magasin préféré est spécifié et a du stock > 0
+    if (preferredStore && item.qtyByStore && ((item.qtyByStore as any)[preferredStore] || 0) > 0) {
+      return preferredStore;
+    }
+    // 2. Si le magasin de la caisse active a du stock > 0
+    if (selectedStoreId && item.qtyByStore && ((item.qtyByStore as any)[selectedStoreId] || 0) > 0) {
+      return selectedStoreId;
+    }
+    // 3. Trouver le magasin ou l'entrepôt physique qui dispose du stock le plus élevé
+    if (item.qtyByStore) {
+      const sorted = Object.entries(item.qtyByStore)
+        .filter(([_, q]) => (q as number) > 0)
+        .sort((a, b) => (b[1] as number) - (a[1] as number));
+      if (sorted.length > 0) {
+        return sorted[0][0];
+      }
+    }
+    // 4. Fallback par défaut
+    return preferredStore || selectedStoreId || (stores?.[0]?.id || 'CHRIFA');
+  }, [selectedStoreId, stores]);
+
   // ── Actions ──
   const openAddModal = (item: StockItem) => {
-    let defStore = undefined;
-    if (item.qtyByStore) {
-      const storesWithStock = Object.entries(item.qtyByStore).filter(([_, q]) => (q as number) > 0);
-      if (storesWithStock.length === 1) defStore = storesWithStock[0][0];
-    }
+    const defStore = resolveSourceStore(item, selectedStoreId);
     // Trouver si une autre couleur/variante de ce même produit est déjà dans le panier avec un prix
     const existingSameProd = cart.find(l => l.item.productName === item.productName && l.unitPrice > 0);
     const initialPrice = existingSameProd?.unitPrice ?? (item.sellingPrice || 0);
@@ -311,21 +330,22 @@ export default function StockSaleFlow({
 
   const addToCart = () => {
     if (!addModal.item || addModal.qty <= 0) return;
-    const itemStockLimit = addModal.sourceStore && addModal.item.qtyByStore 
-      ? (addModal.item.qtyByStore as any)[addModal.sourceStore] || 0 
+    const finalStore = addModal.sourceStore || resolveSourceStore(addModal.item, selectedStoreId);
+    const itemStockLimit = finalStore && addModal.item.qtyByStore 
+      ? (addModal.item.qtyByStore as any)[finalStore] || 0 
       : addModal.item.currentQty;
 
     setCart(prev => {
-      const ex = prev.find(l => l.item.articleId === addModal.item!.articleId && l.sourceStore === addModal.sourceStore);
+      const ex = prev.find(l => l.item.articleId === addModal.item!.articleId && l.sourceStore === finalStore);
       if (ex) {
-        return prev.map(l => l.item.articleId === addModal.item!.articleId && l.sourceStore === addModal.sourceStore
+        return prev.map(l => l.item.articleId === addModal.item!.articleId && l.sourceStore === finalStore
           ? { ...l, qty: Math.min(l.qty + addModal.qty, itemStockLimit), unitPrice: addModal.unitPrice }
           : (l.item.productName === addModal.item!.productName ? { ...l, unitPrice: addModal.unitPrice } : l)
         );
       }
       // Ajouter la nouvelle variante et harmoniser les variantes existantes du même produit avec ce prix
       const newCart = prev.map(l => l.item.productName === addModal.item!.productName ? { ...l, unitPrice: addModal.unitPrice } : l);
-      return [...newCart, { item: addModal.item!, qty: addModal.qty, unitPrice: addModal.unitPrice, sourceStore: addModal.sourceStore }];
+      return [...newCart, { item: addModal.item!, qty: addModal.qty, unitPrice: addModal.unitPrice, sourceStore: finalStore }];
     });
     setAddModal({ open: false, qty: 1, unitPrice: 0 });
   };
@@ -353,22 +373,25 @@ export default function StockSaleFlow({
     });
   };
 
+  const updateCartStore = (articleId: string, newStoreId: string) => {
+    setCart(prev => prev.map(l => {
+      if (l.item.articleId !== articleId) return l;
+      const maxQty = l.item.qtyByStore ? ((l.item.qtyByStore as any)[newStoreId] || l.item.currentQty) : l.item.currentQty;
+      return {
+        ...l,
+        sourceStore: newStoreId,
+        qty: Math.max(1, Math.min(l.qty, Math.max(1, maxQty)))
+      };
+    }));
+  };
+
   const removeFromCart = (articleId: string) => {
     setCart(prev => prev.filter(l => l.item.articleId !== articleId));
   };
 
   // Quick add: 1-click for single-store, modal for multi-store
   const quickAddToCart = (item: StockItem, customPrice?: number) => {
-    const storesWithStock = item.qtyByStore
-      ? Object.entries(item.qtyByStore).filter(([_, q]) => (q as number) > 0)
-      : [];
-
-    if (storesWithStock.length > 1) {
-      openAddModal(item);
-      return;
-    }
-
-    const sourceStore = storesWithStock.length === 1 ? storesWithStock[0][0] : undefined;
+    const sourceStore = resolveSourceStore(item, selectedStoreId);
     const existingSameProd = cart.find(l => l.item.productName === item.productName && l.unitPrice > 0);
     const price = customPrice !== undefined 
       ? customPrice 
@@ -393,12 +416,7 @@ export default function StockSaleFlow({
   };
 
   const setVariantQtyInCart = (item: StockItem, qty: number, customPrice?: number) => {
-    const storesWithStock = item.qtyByStore ? Object.entries(item.qtyByStore).filter(([_, q]) => (q as number) > 0) : [];
-    if (storesWithStock.length > 1 && qty > 0) {
-      openAddModal(item);
-      return;
-    }
-    const sourceStore = storesWithStock.length === 1 ? storesWithStock[0][0] : undefined;
+    const sourceStore = resolveSourceStore(item, selectedStoreId);
     const existingSameProd = cart.find(l => l.item.productName === item.productName && l.unitPrice > 0);
     const price = customPrice !== undefined 
       ? customPrice 
@@ -492,6 +510,7 @@ export default function StockSaleFlow({
       const movements: any[] = [];
 
       for (const l of cart) {
+        const resolvedStore = l.sourceStore || resolveSourceStore(l.item, selectedStoreId);
         let remainingQty = l.qty;
         // The item might be a merged "virtual variant" with originalItems
         const subItems: StockItem[] = (l.item as any).originalItems || [l.item];
@@ -499,8 +518,8 @@ export default function StockSaleFlow({
         for (const sub of subItems) {
           if (remainingQty <= 0) break;
           // For a specific store if sourceStore is set, otherwise overall currentQty
-          const availableInSub = l.sourceStore && sub.qtyByStore 
-            ? ((sub.qtyByStore as any)[l.sourceStore] || 0) 
+          const availableInSub = resolvedStore && sub.qtyByStore 
+            ? ((sub.qtyByStore as any)[resolvedStore] || 0) 
             : sub.currentQty;
             
           if (availableInSub <= 0) continue;
@@ -521,7 +540,7 @@ export default function StockSaleFlow({
             purchasePricePerUnit: sub.purchasePricePerUnit || 0,
             costPrice: sub.purchasePricePerUnit || 0,
             totalPrice: take * l.unitPrice,
-            storeId: l.sourceStore || undefined,
+            storeId: resolvedStore,
           });
 
           movements.push({
@@ -542,7 +561,7 @@ export default function StockSaleFlow({
             quantity: take,
             date: today,
             notes: selectedClient ? `Vente client : ${selectedClient.name}` : 'Vente Comptoir',
-            storeId: l.sourceStore || null,
+            storeId: resolvedStore,
           });
 
           remainingQty -= take;
@@ -565,7 +584,7 @@ export default function StockSaleFlow({
             purchasePricePerUnit: lastSub.purchasePricePerUnit || 0,
             costPrice: lastSub.purchasePricePerUnit || 0,
             totalPrice: remainingQty * l.unitPrice,
-            storeId: l.sourceStore || undefined,
+            storeId: resolvedStore,
           });
           movements.push({
             articleId: lastSub.articleId,
@@ -585,7 +604,7 @@ export default function StockSaleFlow({
             quantity: remainingQty,
             date: today,
             notes: (selectedClient ? `Vente client : ${selectedClient.name}` : 'Vente Comptoir') + ` ⚠️ [Dépassement stock: +${remainingQty}]`,
-            storeId: l.sourceStore || selectedStoreId || null,
+            storeId: resolvedStore,
           });
         }
       }
@@ -1141,11 +1160,27 @@ export default function StockSaleFlow({
                       {item.size && (
                         <span className="text-[10px] font-bold bg-stone-50 text-stone-600 px-2 py-1 rounded-lg border border-stone-100">T. {item.size}</span>
                       )}
-                      {sourceStore && (
-                        <span className="text-[9px] font-black text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
-                          Magasin: {sourceStore}
-                        </span>
-                      )}
+                      <div className="flex items-center gap-1.5 bg-stone-50 px-2 py-0.5 rounded-lg border border-stone-200">
+                        <span className="text-[9px] font-black text-stone-500 uppercase">Emplacement:</span>
+                        <select
+                          value={sourceStore || resolveSourceStore(item, selectedStoreId)}
+                          onChange={e => updateCartStore(item.articleId, e.target.value)}
+                          className="h-6 text-[10px] font-black bg-white rounded border border-stone-300 text-stone-800 px-1 outline-none focus:border-violet-500 cursor-pointer"
+                        >
+                          {stores && stores.length > 0 ? (
+                            stores.map(s => {
+                              const q = item.qtyByStore ? ((item.qtyByStore as any)[s.id] || 0) : 0;
+                              return (
+                                <option key={s.id} value={s.id}>
+                                  {s.type === 'WAREHOUSE' ? '🏢' : '🏪'} {s.name} ({q} dispo)
+                                </option>
+                              );
+                            })
+                          ) : (
+                            <option value={sourceStore || selectedStoreId}>{sourceStore || selectedStoreId}</option>
+                          )}
+                        </select>
+                      </div>
                       <span className="text-[10px] text-stone-300 font-bold">{item.categoryId}</span>
                       {cart.filter(l => l.item.productName === item.productName).length > 1 && (
                         <span className="text-[9px] font-black text-violet-700 bg-violet-50 px-2 py-0.5 rounded-md border border-violet-200/60" title="Prix unifié pour toutes les couleurs">
