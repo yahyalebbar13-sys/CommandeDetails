@@ -10,6 +10,10 @@ export type Store = {
   type: StoreType;
   isMain: boolean;
   accessEmail?: string;
+  // ── Fiabilité du stock ──
+  lastInventoryDate?: string;        // Date (YYYY-MM-DD) du dernier inventaire physique clôturé
+  lastInventoryItemCount?: number;   // Nombre d'articles comptés lors du dernier inventaire
+  lastInventoryVarianceCount?: number; // Nombre d'articles avec écart lors du dernier inventaire
 };
 
 export type GeneralCategory = {

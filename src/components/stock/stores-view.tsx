@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState } from 'react';
-import { Store as StoreIcon, Plus, Save, Trash2, ShieldAlert, Package } from 'lucide-react';
+import { Store as StoreIcon, Plus, Save, Trash2, ShieldAlert, Package, Star, KeyRound, ClipboardCheck } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
@@ -14,6 +14,17 @@ import type { Store } from '@/lib/types';
 interface StoresViewProps {
   stores: Store[];
   adminUid: string | null;
+}
+
+/** Fiabilité du stock : fraîcheur du dernier inventaire physique clôturé. */
+function inventoryReliability(lastInventoryDate?: string): { label: string; cls: string } {
+  if (!lastInventoryDate) {
+    return { label: 'Jamais inventorié', cls: 'bg-stone-100 text-stone-500 border-stone-200' };
+  }
+  const days = Math.floor((Date.now() - new Date(lastInventoryDate).getTime()) / (1000 * 60 * 60 * 24));
+  if (days <= 30) return { label: `Inventorié il y a ${days} j`, cls: 'bg-emerald-50 text-emerald-700 border-emerald-200' };
+  if (days <= 60) return { label: `Inventorié il y a ${days} j`, cls: 'bg-amber-50 text-amber-700 border-amber-200' };
+  return { label: `Inventorié il y a ${days} j`, cls: 'bg-red-50 text-red-700 border-red-200' };
 }
 
 export default function StoresView({ stores, adminUid }: StoresViewProps) {
@@ -180,8 +191,8 @@ export default function StoresView({ stores, adminUid }: StoresViewProps) {
                     {store.type === 'WAREHOUSE' ? 'Entrepôt' : 'Magasin'}
                   </span>
                   {store.isMain && (
-                    <span className="inline-flex items-center px-2 py-1 rounded-md text-[8px] font-black uppercase tracking-widest bg-amber-100 text-amber-800 border border-amber-300">
-                      ⭐ Principal
+                    <span className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-[8px] font-black uppercase tracking-widest bg-amber-100 text-amber-800 border border-amber-300">
+                      <Star className="w-2.5 h-2.5" />Principal
                     </span>
                   )}
                 </div>
@@ -192,8 +203,8 @@ export default function StoresView({ stores, adminUid }: StoresViewProps) {
                     <Package className="w-3 h-3" />Stock CHRIFA · Sans identifiant
                   </p>
                 ) : store.accessEmail ? (
-                  <p className="text-[10px] text-stone-500 font-bold mt-1">
-                    🔑 Identifiant: <span className="font-mono text-emerald-700">{store.name}</span> (ou {store.accessEmail})
+                  <p className="text-[10px] text-stone-500 font-bold mt-1 flex items-center gap-1">
+                    <KeyRound className="w-3 h-3" />Identifiant: <span className="font-mono text-emerald-700">{store.name}</span> (ou {store.accessEmail})
                   </p>
                 ) : null}
               </div>
@@ -206,6 +217,18 @@ export default function StoresView({ stores, adminUid }: StoresViewProps) {
                 </button>
               </div>
             </div>
+            {(() => {
+              const rel = inventoryReliability(store.lastInventoryDate);
+              return (
+                <div className={`flex items-center gap-2 px-3 py-2 rounded-xl border text-[9px] font-black uppercase tracking-wider ${rel.cls}`}>
+                  <ClipboardCheck className="w-3.5 h-3.5 shrink-0" />
+                  <span>{rel.label}</span>
+                  {store.lastInventoryVarianceCount != null && store.lastInventoryVarianceCount > 0 && (
+                    <span className="ml-auto opacity-70 normal-case font-bold">{store.lastInventoryVarianceCount} écart(s)</span>
+                  )}
+                </div>
+              );
+            })()}
           </div>
         ))}
         {stores.length === 0 && (

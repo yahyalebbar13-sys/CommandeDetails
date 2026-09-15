@@ -24,6 +24,7 @@ import { ADMIN_EMAIL, getLocalDateString } from '@/lib/constants';
 import { isArrivalOlderThanOneMonth } from '@/lib/status-utils';
 import StockDashboard   from './stock-dashboard';
 import StockMovements   from './stock-movements';
+import BlindInventory   from './blind-inventory';
 import StockAlerts      from './stock-alerts';
 import StockSaleFlow    from './stock-sale-flow';
 // import StockSales       from './stock-sales';
@@ -48,7 +49,7 @@ import ChequesImpayesView from './cheques-impayes-view';
 import CommercialExpensesView from './commercial-expenses-view';
 import { Landmark } from 'lucide-react';
 
-type StockView = 'dashboard' | 'sale' | 'stock' | 'analytics' | 'clients' | 'orders' | 'invoices' | 'cheques-impayes' | 'expenses' | 'movements' | 'alerts' | 'arrivals' | 'transfers' | 'stores' | 'warehouses' | 'treasury' | 'reconciliation' | 'audit';
+type StockView = 'dashboard' | 'sale' | 'stock' | 'analytics' | 'clients' | 'orders' | 'invoices' | 'cheques-impayes' | 'expenses' | 'movements' | 'alerts' | 'arrivals' | 'transfers' | 'stores' | 'warehouses' | 'treasury' | 'reconciliation' | 'audit' | 'inventory';
 
 // ─── Calcul du stock courant ─────────────────────────────────────────────────
 
@@ -778,6 +779,7 @@ export default function StockApp() {
   const storesRef        = useMemoFirebase(() => (!firestore || !adminUid || !user) ? null : collection(firestore, 'users', adminUid, 'stores'),            [firestore, adminUid, user]);
   const expensesRef      = useMemoFirebase(() => (!firestore || !adminUid || !user) ? null : collection(firestore, 'users', adminUid, 'commercialExpenses'),[firestore, adminUid, user]);
   const remittancesRef   = useMemoFirebase(() => (!firestore || !adminUid || !user) ? null : collection(firestore, 'users', adminUid, 'checkRemittances'),    [firestore, adminUid, user]);
+  const auditLogRef      = useMemoFirebase(() => (!firestore || !adminUid || !user) ? null : collection(firestore, 'users', adminUid, 'auditLog'),           [firestore, adminUid, user]);
 
   const { data: rawArticles,    isLoading: loadingArt  } = useCollection(articlesRef);
   const { data: rawCategories,  isLoading: loadingCat  } = useCollection(categoriesRef);
@@ -793,6 +795,7 @@ export default function StockApp() {
   const { data: rawStores,      isLoading: loadingStores } = useCollection(storesRef);
   const { data: rawExpenses } = useCollection(expensesRef);
   const { data: rawRemittances } = useCollection(remittancesRef);
+  const { data: rawAuditLog } = useCollection(auditLogRef);
 
   const articles        = rawArticles    || [];
   const categories      = rawCategories  || [];
@@ -808,6 +811,7 @@ export default function StockApp() {
   const stores          = rawStores      || [];
   const expenses        = (rawExpenses    || []) as CommercialExpense[];
   const remittances     = (rawRemittances || []) as CheckRemittance[];
+  const auditLogEntries = (rawAuditLog    || []) as any[];
 
   // Initialisation du magasin pour le commercial
   useEffect(() => {
@@ -1278,6 +1282,35 @@ export default function StockApp() {
     }
   }, [user, firestore, adminUid, toast]);
 
+  // ── Inventaire physique ───────────────────────────────────────────────────
+  const handleFinalizeInventorySession = useCallback(async (storeId: string, itemCount: number, varianceCount: number) => {
+    if (!user || !firestore) return;
+    const effectiveUid = adminUid || user.uid;
+    const today = getLocalDateString();
+    try {
+      await setDoc(doc(firestore, 'users', effectiveUid, 'stores', storeId), {
+        lastInventoryDate: today,
+        lastInventoryItemCount: itemCount,
+        lastInventoryVarianceCount: varianceCount,
+      }, { merge: true });
+
+      logAudit(firestore, effectiveUid, {
+        action: 'INVENTORY_RECONCILED',
+        userId: user.uid,
+        userEmail: user.email || '',
+        entityType: 'stockMovement',
+        entityId: storeId,
+        description: `Inventaire clôturé pour ${storeId} · ${itemCount} article(s) comptés, ${varianceCount} écart(s)`,
+        metadata: { storeId, itemCount, varianceCount },
+      });
+
+      toast({ title: 'Inventaire clôturé', description: `${itemCount} article(s) comptés · ${varianceCount} écart(s) ajusté(s).` });
+    } catch (err: any) {
+      console.error('Erreur lors de la clôture de l\'inventaire:', err);
+      toast({ variant: 'destructive', title: 'Erreur', description: err?.message || "Impossible de clôturer l'inventaire." });
+    }
+  }, [user, firestore, adminUid, toast]);
+
   // ── Paiements clients ─────────────────────────────────────────────────────
   const handleRecordMultiplePayments = useCallback(async (
     paymentList: Omit<ClientPayment, 'id' | 'createdAt'>[],
@@ -1733,6 +1766,7 @@ export default function StockApp() {
     { id: 'arrivals',  label: 'Arrivages',     category: 'logistique', icon: Anchor,          badge: pendingArrivals, color: 'amber', adminOrMainOnly: true },
     { id: 'movements', label: 'Mouvements',    category: 'logistique', icon: ArrowLeftRight },
     { id: 'transfers', label: 'Transferts',    category: 'logistique', icon: Truck,           color: 'blue' },
+    { id: 'inventory', label: 'Inventaire',    category: 'logistique', icon: ClipboardList,   color: 'amber' },
 
     { id: 'treasury',  label: 'Trésorerie',    category: 'finance', icon: Landmark,        badge: urgent7DaysEffects.length > 0 ? urgent7DaysEffects.length : undefined, color: 'emerald', adminOnly: true },
     { id: 'reconciliation', label: 'Rappro. Bancaire', category: 'finance', icon: ArrowLeftRight, color: 'blue', adminOnly: true },
@@ -2182,11 +2216,23 @@ export default function StockApp() {
             {activeView === 'movements' && (
               <StockMovements activeStore={activeStore} movements={filteredMovements} stockItems={stockItems} categories={categories} articles={articles} stores={stores} onAddMovement={handleAddMovement} />
             )}
+            {activeView === 'inventory' && (
+              <BlindInventory
+                stockItems={stockItems}
+                categories={categories}
+                generalCategories={generalCategories}
+                activeStore={activeStore}
+                stores={stores}
+                adminUid={adminUid}
+                onAddMovement={handleAddMovement}
+                onFinalizeSession={handleFinalizeInventorySession}
+              />
+            )}
             {activeView === 'alerts' && (
               <StockAlerts stockItems={stockItems} articles={articles} categories={categories} movements={filteredMovements} activeStore={activeStore} onNavigate={setActiveView} adminUid={adminUid} onAddMovement={handleAddMovement} />
             )}
             {activeView === 'audit' && (
-              <AuditLogView entries={[]} />
+              <AuditLogView entries={auditLogEntries} />
             )}
             {activeView === 'transfers' && (
               <TransferOrdersView
