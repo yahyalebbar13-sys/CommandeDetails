@@ -383,7 +383,7 @@ export default function StockInvoices({ invoices, clients, payments, onRecordPay
       <div className="bg-gradient-to-br from-violet-900 to-violet-700 p-8 rounded-3xl shadow-2xl relative overflow-hidden">
         <div className="absolute bottom-0 left-1/3 w-64 h-64 bg-violet-400/10 rounded-full translate-y-1/2 blur-3xl" />
         <div className="relative z-10">
-          <p className="text-[9px] font-black text-violet-300 uppercase tracking-[0.3em] mb-1">Comptabilité</p>
+          <p className="text-[11px] font-black text-violet-300 uppercase tracking-[0.3em] mb-1">Comptabilité</p>
           <h1 className="text-3xl font-black text-white uppercase tracking-tighter mb-4">Bons de <span className="text-violet-300">Commande</span></h1>
           <div className="grid grid-cols-3 gap-3">
             {[
@@ -393,7 +393,7 @@ export default function StockInvoices({ invoices, clients, payments, onRecordPay
             ].map(({ label, value, color }) => (
               <div key={label} className="bg-white/10 rounded-2xl p-4">
                 <p className={`text-xl font-black ${color}`}>{value}</p>
-                <p className="text-[8px] font-black text-violet-300 uppercase tracking-widest mt-1">{label}</p>
+                <p className="text-[11px] font-black text-violet-300 uppercase tracking-widest mt-1">{label}</p>
               </div>
             ))}
           </div>
@@ -460,7 +460,7 @@ export default function StockInvoices({ invoices, clients, payments, onRecordPay
             <table className="w-full">
               <thead><tr className="bg-stone-50 border-b border-stone-100">
                 {['N° Bon', 'Date', 'Échéance', 'Client', 'Montant', 'Payé', 'Solde Dû', 'Statut', 'Actions'].map(h => (
-                  <th key={h} className="px-4 py-3 text-left text-[8px] font-black uppercase tracking-widest text-stone-400 whitespace-nowrap">{h}</th>
+                  <th key={h} className="px-4 py-3 text-left text-[11px] font-black uppercase tracking-widest text-stone-400 whitespace-nowrap">{h}</th>
                 ))}
               </tr></thead>
               <tbody className="divide-y divide-stone-50">
@@ -483,7 +483,7 @@ export default function StockInvoices({ invoices, clients, payments, onRecordPay
                         {fmt$(inv.remainingBalance)}
                       </td>
                       <td className="px-4 py-3">
-                        <span className={`text-[8px] font-black uppercase px-2 py-0.5 rounded-lg border ${badge.cls}`}>{badge.label}</span>
+                        <span className={`text-[11px] font-black uppercase px-2 py-0.5 rounded-lg border ${badge.cls}`}>{badge.label}</span>
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -523,7 +523,7 @@ export default function StockInvoices({ invoices, clients, payments, onRecordPay
               </tbody>
             </table>
             <div className="px-4 py-3 bg-stone-50 border-t border-stone-100 flex justify-between items-center flex-wrap gap-2">
-              <span className="text-[9px] font-black text-stone-400 uppercase tracking-widest">{filtered.length} facture{filtered.length > 1 ? 's' : ''}</span>
+              <span className="text-[11px] font-black text-stone-400 uppercase tracking-widest">{filtered.length} facture{filtered.length > 1 ? 's' : ''}</span>
               <div className="flex gap-4">
                 <span className="text-[10px] font-black text-stone-700">CA : {fmt$(totalCA)}</span>
                 <span className="text-[10px] font-black text-emerald-700">Encaissé : {fmt$(totalPaid)}</span>
@@ -609,7 +609,7 @@ export default function StockInvoices({ invoices, clients, payments, onRecordPay
                 </p>
               </div>
               <div className="text-right">
-                <span className="text-[9px] font-black uppercase tracking-widest text-emerald-200">Solde Dû</span>
+                <span className="text-[11px] font-black uppercase tracking-widest text-emerald-200">Solde Dû</span>
                 <p className="text-2xl font-black text-white">{fmt$(payInvoiceRemaining)} MAD</p>
               </div>
             </div>
@@ -617,15 +617,15 @@ export default function StockInvoices({ invoices, clients, payments, onRecordPay
             {/* Suivi récapitulatif */}
             <div className="grid grid-cols-3 gap-3 mt-4 pt-4 border-t border-white/10 text-center">
               <div className="bg-white/10 rounded-xl p-2.5">
-                <span className="text-[8px] font-black uppercase tracking-widest text-emerald-200">Reste Dû</span>
+                <span className="text-[11px] font-black uppercase tracking-widest text-emerald-200">Reste Dû</span>
                 <p className="text-sm font-black text-white mt-0.5">{fmt$(payInvoiceRemaining)} MAD</p>
               </div>
               <div className="bg-white/10 rounded-xl p-2.5">
-                <span className="text-[8px] font-black uppercase tracking-widest text-emerald-200">Total Saisi</span>
+                <span className="text-[11px] font-black uppercase tracking-widest text-emerald-200">Total Saisi</span>
                 <p className="text-sm font-black text-white mt-0.5">{fmt$(totalInvoicePaymentEntered)} MAD</p>
               </div>
               <div className="bg-white/10 rounded-xl p-2.5">
-                <span className="text-[8px] font-black uppercase tracking-widest text-emerald-200">État</span>
+                <span className="text-[11px] font-black uppercase tracking-widest text-emerald-200">État</span>
                 <p className={`text-sm font-black mt-0.5 ${
                   totalInvoicePaymentEntered === 0 ? 'text-emerald-200' :
                   diffInvoiceBalance === 0 ? 'text-emerald-300' :
@@ -662,7 +662,7 @@ export default function StockInvoices({ invoices, clients, payments, onRecordPay
                     variant="outline"
                     size="sm"
                     onClick={() => addPayLine('CASH')}
-                    className="h-7 text-[9px] font-black rounded-lg uppercase tracking-wider text-stone-600 hover:text-emerald-700 hover:border-emerald-300">
+                    className="h-7 text-[11px] font-black rounded-lg uppercase tracking-wider text-stone-600 hover:text-emerald-700 hover:border-emerald-300">
                     + Espèces
                   </Button>
                   <Button
@@ -670,7 +670,7 @@ export default function StockInvoices({ invoices, clients, payments, onRecordPay
                     variant="outline"
                     size="sm"
                     onClick={() => addPayLine('CHEQUE')}
-                    className="h-7 text-[9px] font-black rounded-lg uppercase tracking-wider text-stone-600 hover:text-blue-700 hover:border-blue-300">
+                    className="h-7 text-[11px] font-black rounded-lg uppercase tracking-wider text-stone-600 hover:text-blue-700 hover:border-blue-300">
                     + Chèque
                   </Button>
                   <Button
@@ -678,7 +678,7 @@ export default function StockInvoices({ invoices, clients, payments, onRecordPay
                     variant="outline"
                     size="sm"
                     onClick={() => addPayLine('EFFET')}
-                    className="h-7 text-[9px] font-black rounded-lg uppercase tracking-wider text-stone-600 hover:text-amber-700 hover:border-amber-300">
+                    className="h-7 text-[11px] font-black rounded-lg uppercase tracking-wider text-stone-600 hover:text-amber-700 hover:border-amber-300">
                     + LC (Effet)
                   </Button>
                   <Button
@@ -686,7 +686,7 @@ export default function StockInvoices({ invoices, clients, payments, onRecordPay
                     variant="outline"
                     size="sm"
                     onClick={() => addPayLine('VIREMENT')}
-                    className="h-7 text-[9px] font-black rounded-lg uppercase tracking-wider text-stone-600 hover:text-purple-700 hover:border-purple-300">
+                    className="h-7 text-[11px] font-black rounded-lg uppercase tracking-wider text-stone-600 hover:text-purple-700 hover:border-purple-300">
                     + Virement
                   </Button>
                 </div>
@@ -695,7 +695,7 @@ export default function StockInvoices({ invoices, clients, payments, onRecordPay
               {payLines.map((line, idx) => (
                 <div key={line.id} className="p-4 rounded-2xl border-2 border-stone-100 bg-stone-50/60 hover:border-stone-200 transition-all space-y-3">
                   <div className="flex items-center justify-between">
-                    <span className="text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-lg bg-stone-200 text-stone-700">
+                    <span className="text-[11px] font-black uppercase tracking-wider px-2 py-0.5 rounded-lg bg-stone-200 text-stone-700">
                       Règlement #{idx + 1}
                     </span>
                     {payLines.length > 1 && (
@@ -712,7 +712,7 @@ export default function StockInvoices({ invoices, clients, payments, onRecordPay
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div className="space-y-1">
-                      <Label className="text-[9px] font-black text-stone-500 uppercase tracking-widest">Mode de paiement *</Label>
+                      <Label className="text-[11px] font-black text-stone-500 uppercase tracking-widest">Mode de paiement *</Label>
                       <Select value={line.method} onValueChange={v => updatePayLine(line.id, { method: v as PaymentMethod })}>
                         <SelectTrigger className="h-10 rounded-xl border-stone-200 bg-white font-bold text-xs">
                           <SelectValue />
@@ -729,7 +729,7 @@ export default function StockInvoices({ invoices, clients, payments, onRecordPay
 
                     <div className="space-y-1">
                       <div className="flex justify-between items-center">
-                        <Label className="text-[9px] font-black text-stone-500 uppercase tracking-widest">Montant (MAD) *</Label>
+                        <Label className="text-[11px] font-black text-stone-500 uppercase tracking-widest">Montant (MAD) *</Label>
                         {diffInvoiceBalance > 0 && parseFloat(line.amount || '0') !== payInvoiceRemaining && (
                           <button
                             type="button"
@@ -737,7 +737,7 @@ export default function StockInvoices({ invoices, clients, payments, onRecordPay
                               const otherSum = payLines.filter(l => l.id !== line.id).reduce((s, l) => s + (parseFloat(l.amount) || 0), 0);
                               updatePayLine(line.id, { amount: String(Math.max(0, payInvoiceRemaining - otherSum)) });
                             }}
-                            className="text-[8px] font-bold text-emerald-600 hover:underline">
+                            className="text-[11px] font-bold text-emerald-600 hover:underline">
                             Compléter le reste
                           </button>
                         )}
@@ -759,7 +759,7 @@ export default function StockInvoices({ invoices, clients, payments, onRecordPay
                     <div className="pt-3 border-t border-stone-200/60 space-y-3">
                       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                         <div className="space-y-1">
-                          <Label className="text-[9px] font-black text-stone-500 uppercase tracking-widest">Banque</Label>
+                          <Label className="text-[11px] font-black text-stone-500 uppercase tracking-widest">Banque</Label>
                           <Input
                             placeholder="Ex: Attijariwafa, BCP, BMCE..."
                             value={line.bankName}
@@ -768,7 +768,7 @@ export default function StockInvoices({ invoices, clients, payments, onRecordPay
                           />
                         </div>
                         <div className="space-y-1">
-                          <Label className="text-[9px] font-black text-stone-500 uppercase tracking-widest">
+                          <Label className="text-[11px] font-black text-stone-500 uppercase tracking-widest">
                             {line.method === 'CHEQUE' ? 'N° de Chèque' : 'N° LC / Effet'}
                           </Label>
                           <Input
@@ -779,7 +779,7 @@ export default function StockInvoices({ invoices, clients, payments, onRecordPay
                           />
                         </div>
                         <div className="space-y-1">
-                          <Label className="text-[9px] font-black text-stone-500 uppercase tracking-widest">Date d'échéance</Label>
+                          <Label className="text-[11px] font-black text-stone-500 uppercase tracking-widest">Date d'échéance</Label>
                           <Input
                             type="date"
                             value={line.dueDate}
@@ -792,13 +792,13 @@ export default function StockInvoices({ invoices, clients, payments, onRecordPay
                       {/* Photo / Scan OBLIGATOIRE pour chèque et LC */}
                       <div className="space-y-1.5">
                         <div className="flex items-center justify-between">
-                          <Label className="text-[9px] font-black uppercase tracking-widest flex items-center gap-1.5 text-amber-800">
+                          <Label className="text-[11px] font-black uppercase tracking-widest flex items-center gap-1.5 text-amber-800">
                             <Camera className="w-3.5 h-3.5 text-amber-600" />
                             <span>Scan / Photo du {line.method === 'CHEQUE' ? 'Chèque' : 'la LC'}</span>
                             <span className="text-red-500 font-black">* OBLIGATOIRE</span>
                           </Label>
                           {!line.scannedImageUrl && (
-                            <span className="text-[8px] font-black uppercase tracking-wider text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full">
+                            <span className="text-[11px] font-black uppercase tracking-wider text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full">
                               Scan requis avant validation
                             </span>
                           )}
@@ -865,7 +865,7 @@ export default function StockInvoices({ invoices, clients, payments, onRecordPay
                   {line.method === 'VIREMENT' && (
                     <div className="pt-3 border-t border-stone-200/60 grid grid-cols-1 sm:grid-cols-2 gap-3">
                       <div className="space-y-1">
-                        <Label className="text-[9px] font-black text-stone-500 uppercase tracking-widest">Banque</Label>
+                        <Label className="text-[11px] font-black text-stone-500 uppercase tracking-widest">Banque</Label>
                         <Input
                           placeholder="Ex: Attijariwafa, CIH..."
                           value={line.bankName}
@@ -874,7 +874,7 @@ export default function StockInvoices({ invoices, clients, payments, onRecordPay
                         />
                       </div>
                       <div className="space-y-1">
-                        <Label className="text-[9px] font-black text-stone-500 uppercase tracking-widest">N° Référence Virement</Label>
+                        <Label className="text-[11px] font-black text-stone-500 uppercase tracking-widest">N° Référence Virement</Label>
                         <Input
                           placeholder="Ex: VIR-2026-9901"
                           value={line.checkNumber}
@@ -886,7 +886,7 @@ export default function StockInvoices({ invoices, clients, payments, onRecordPay
                   )}
 
                   <div className="space-y-1">
-                    <Label className="text-[9px] font-black text-stone-500 uppercase tracking-widest">Notes / Réf.</Label>
+                    <Label className="text-[11px] font-black text-stone-500 uppercase tracking-widest">Notes / Réf.</Label>
                     <Input
                       placeholder="Commentaire sur ce versement..."
                       value={line.notes}
@@ -943,7 +943,7 @@ export default function StockInvoices({ invoices, clients, payments, onRecordPay
             <table className="w-full">
               <thead><tr className="bg-stone-50 border-b border-stone-100">
                 {['Produit', 'Couleur', 'Taille', 'Qté', 'Prix unit.', 'Total'].map(h => (
-                  <th key={h} className="px-4 py-3 text-left text-[8px] font-black uppercase tracking-widest text-stone-400">{h}</th>
+                  <th key={h} className="px-4 py-3 text-left text-[11px] font-black uppercase tracking-widest text-stone-400">{h}</th>
                 ))}
               </tr></thead>
               <tbody className="divide-y divide-stone-50">
@@ -971,14 +971,14 @@ export default function StockInvoices({ invoices, clients, payments, onRecordPay
             {/* Historique paiements */}
             {viewInvoice && invPayments(viewInvoice.id).length > 0 && (
               <div className="border-t border-stone-100 p-5">
-                <p className="text-[9px] font-black text-stone-400 uppercase tracking-widest mb-3">Historique des paiements</p>
+                <p className="text-[11px] font-black text-stone-400 uppercase tracking-widest mb-3">Historique des paiements</p>
                 <div className="space-y-2">
                   {invPayments(viewInvoice.id).map(p => (
                     <div key={p.id} className="flex justify-between items-center bg-emerald-50 rounded-xl px-4 py-2.5">
                       <div>
-                        <span className="text-[9px] font-black bg-stone-100 text-stone-600 px-2 py-0.5 rounded uppercase mr-2">{p.method}</span>
-                        <span className="text-[9px] font-bold text-stone-500">{p.date}</span>
-                        {p.notes && <span className="text-[9px] text-stone-400 ml-2">· {p.notes}</span>}
+                        <span className="text-[11px] font-black bg-stone-100 text-stone-600 px-2 py-0.5 rounded uppercase mr-2">{p.method}</span>
+                        <span className="text-[11px] font-bold text-stone-500">{p.date}</span>
+                        {p.notes && <span className="text-[11px] text-stone-400 ml-2">· {p.notes}</span>}
                       </div>
                       <span className="font-black text-emerald-700">{fmt$(p.amount)}</span>
                     </div>

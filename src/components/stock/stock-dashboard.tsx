@@ -733,18 +733,18 @@ export default function StockDashboard({
     <div className="space-y-6 animate-in fade-in duration-500">
 
       {/* ── HEADER PRINCIPAL AVEC SÉLECTEUR D'ONGLET ── */}
-      <header className="bg-gradient-to-br from-emerald-900 via-emerald-800 to-stone-900 p-7 md:p-8 rounded-3xl shadow-2xl relative overflow-hidden">
-        <div className="absolute top-0 right-0 w-80 h-80 bg-emerald-400/10 rounded-full -translate-y-1/2 translate-x-1/2 blur-3xl" />
-        <div className="absolute bottom-0 left-1/4 w-64 h-64 bg-emerald-600/10 rounded-full translate-y-1/2 blur-2xl" />
+      <header className="bg-gradient-to-br from-[#3D2E17] via-[#2A2014] to-[#1E1B15] p-7 md:p-8 rounded-3xl shadow-2xl relative overflow-hidden">
+        <div className="absolute top-0 right-0 w-80 h-80 bg-[#CC8626]/10 rounded-full -translate-y-1/2 translate-x-1/2 blur-3xl" />
+        <div className="absolute bottom-0 left-1/4 w-64 h-64 bg-[#CC8626]/10 rounded-full translate-y-1/2 blur-2xl" />
 
         <div className="relative z-10 flex flex-col md:flex-row md:items-end justify-between gap-6">
           <div>
             <div className="flex items-center gap-2 mb-2">
-              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-widest bg-emerald-400/20 text-emerald-300 border border-emerald-400/30">
+              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-widest bg-[#CC8626]/20 text-[#E0A24C] border border-[#CC8626]/30">
                 ● Données Fiabilisées
               </span>
               {userRole === 'ADMIN' && (
-                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-widest bg-amber-400/20 text-amber-300 border border-amber-400/30">
+                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-widest bg-blue-400/20 text-blue-300 border border-blue-400/30">
                   Vue Administrateur
                 </span>
               )}
@@ -752,22 +752,22 @@ export default function StockDashboard({
 
             <h1 className="text-3xl md:text-4xl font-black text-white uppercase tracking-tighter leading-tight">
               Tableau de Bord<br />
-              <span className="text-emerald-400">Stock & Ventes</span>
+              <span className="text-[#E0A24C]">Stock & Ventes</span>
             </h1>
 
-            <p className="text-emerald-200/80 text-xs font-bold mt-2 flex items-center gap-1.5">
-              <Calendar className="w-3.5 h-3.5 text-emerald-400" />
+            <p className="text-[#C9B89A] text-xs font-bold mt-2 flex items-center gap-1.5">
+              <Calendar className="w-3.5 h-3.5 text-[#E0A24C]" />
               {today.toLocaleDateString('fr-FR', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
             </p>
           </div>
 
-          <div className="flex bg-emerald-950/60 p-1.5 rounded-2xl border border-emerald-700/50 backdrop-blur-md shrink-0">
+          <div className="flex bg-black/25 p-1.5 rounded-2xl border border-white/10 backdrop-blur-md shrink-0">
             <button
               onClick={() => setActiveTab('overview')}
               className={`px-5 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all duration-300 flex items-center gap-2 ${
                 activeTab === 'overview'
-                  ? 'bg-white text-emerald-950 shadow-xl'
-                  : 'text-emerald-100 hover:text-white hover:bg-emerald-800/50'
+                  ? 'bg-white text-[#2A2014] shadow-xl'
+                  : 'text-[#C9B89A] hover:text-white hover:bg-white/10'
               }`}
             >
               <Activity className="w-4 h-4" /> Aperçu Global
@@ -778,8 +778,8 @@ export default function StockDashboard({
                 onClick={() => setActiveTab('sales')}
                 className={`px-5 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all duration-300 flex items-center gap-2 ${
                   activeTab === 'sales'
-                    ? 'bg-white text-emerald-950 shadow-xl'
-                    : 'text-emerald-100 hover:text-white hover:bg-emerald-800/50'
+                    ? 'bg-white text-[#2A2014] shadow-xl'
+                    : 'text-[#C9B89A] hover:text-white hover:bg-white/10'
                 }`}
               >
                 <TrendingUp className="w-4 h-4" /> Ventes & Marges
@@ -905,7 +905,7 @@ export default function StockDashboard({
         {/* DATES PERSONNALISÉES */}
         <div className="flex items-center gap-3 pt-3 border-t border-stone-100 flex-wrap">
           <div className="flex items-center gap-2">
-            <span className="text-[9px] font-black uppercase tracking-wider text-stone-400">Du :</span>
+            <span className="text-[11px] font-black uppercase tracking-wider text-stone-400">Du :</span>
             <input
               type="date"
               value={dateRange.from}
@@ -918,7 +918,7 @@ export default function StockDashboard({
           </div>
 
           <div className="flex items-center gap-2">
-            <span className="text-[9px] font-black uppercase tracking-wider text-stone-400">Au :</span>
+            <span className="text-[11px] font-black uppercase tracking-wider text-stone-400">Au :</span>
             <input
               type="date"
               value={dateRange.to}
@@ -998,11 +998,11 @@ export default function StockDashboard({
             <div className="flex items-center gap-2 mb-4">
               <div className="p-2 bg-orange-50 rounded-xl"><Sunrise className="w-4 h-4 text-orange-500" /></div>
               <h3 className="text-sm font-black text-stone-900 uppercase tracking-tight">Résumé du jour</h3>
-              <span className="text-[9px] font-bold text-stone-400">{today.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })}</span>
+              <span className="text-[11px] font-bold text-stone-400">{today.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })}</span>
             </div>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
               <button onClick={() => onNavigate('sales' as any)} className="text-left p-3.5 rounded-2xl bg-stone-50 hover:bg-stone-100 transition-colors border border-stone-100">
-                <p className="text-[9px] font-black uppercase text-stone-400 tracking-widest">Ventes hier</p>
+                <p className="text-[11px] font-black uppercase text-stone-400 tracking-widest">Ventes hier</p>
                 <p className="text-lg font-black text-stone-900 mt-1">{dayBrief.nbSalesYesterday}</p>
                 <p className="text-[10px] font-bold text-stone-500">{fmt$(dayBrief.caYesterday)}</p>
               </button>
@@ -1010,7 +1010,7 @@ export default function StockDashboard({
                 onClick={() => onNavigate('cheques-impayes' as any)}
                 className={`text-left p-3.5 rounded-2xl border transition-colors ${dayBrief.duePayments.length > 0 ? 'bg-amber-50 hover:bg-amber-100 border-amber-200' : 'bg-stone-50 hover:bg-stone-100 border-stone-100'}`}
               >
-                <p className={`text-[9px] font-black uppercase tracking-widest ${dayBrief.duePayments.length > 0 ? 'text-amber-600' : 'text-stone-400'}`}>Échéances 7j</p>
+                <p className={`text-[11px] font-black uppercase tracking-widest ${dayBrief.duePayments.length > 0 ? 'text-amber-600' : 'text-stone-400'}`}>Échéances 7j</p>
                 <p className="text-lg font-black text-stone-900 mt-1">{dayBrief.duePayments.length}</p>
                 <p className="text-[10px] font-bold text-stone-500">{fmt$(dayBrief.dueAmount)}</p>
               </button>
@@ -1018,7 +1018,7 @@ export default function StockDashboard({
                 onClick={() => onNavigate('transfers' as any)}
                 className={`text-left p-3.5 rounded-2xl border transition-colors ${dayBrief.pendingTransfers.length > 0 ? 'bg-blue-50 hover:bg-blue-100 border-blue-200' : 'bg-stone-50 hover:bg-stone-100 border-stone-100'}`}
               >
-                <p className={`text-[9px] font-black uppercase tracking-widest flex items-center gap-1 ${dayBrief.pendingTransfers.length > 0 ? 'text-blue-600' : 'text-stone-400'}`}>
+                <p className={`text-[11px] font-black uppercase tracking-widest flex items-center gap-1 ${dayBrief.pendingTransfers.length > 0 ? 'text-blue-600' : 'text-stone-400'}`}>
                   <Truck className="w-3 h-3" />Transferts en attente
                 </p>
                 <p className="text-lg font-black text-stone-900 mt-1">{dayBrief.pendingTransfers.length}</p>
@@ -1028,7 +1028,7 @@ export default function StockDashboard({
                 onClick={() => onNavigate('invoices' as any)}
                 className={`text-left p-3.5 rounded-2xl border transition-colors ${dayBrief.overdueInvoices.length > 0 ? 'bg-red-50 hover:bg-red-100 border-red-200' : 'bg-stone-50 hover:bg-stone-100 border-stone-100'}`}
               >
-                <p className={`text-[9px] font-black uppercase tracking-widest ${dayBrief.overdueInvoices.length > 0 ? 'text-red-600' : 'text-stone-400'}`}>Factures échues</p>
+                <p className={`text-[11px] font-black uppercase tracking-widest ${dayBrief.overdueInvoices.length > 0 ? 'text-red-600' : 'text-stone-400'}`}>Factures échues</p>
                 <p className="text-lg font-black text-stone-900 mt-1">{dayBrief.overdueInvoices.length}</p>
                 <p className="text-[10px] font-bold text-stone-500">non réglées</p>
               </button>
@@ -1045,10 +1045,10 @@ export default function StockDashboard({
                 <CardContent className="p-5">
                   <div className="flex items-center justify-between mb-3">
                     <div className="p-2.5 bg-emerald-50 rounded-2xl"><Boxes className="w-5 h-5 text-emerald-600" /></div>
-                    <span className="text-[9px] font-black uppercase px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800">Coût Achat</span>
+                    <span className="text-[11px] font-black uppercase px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800">Coût Achat</span>
                   </div>
                   <p className="text-2xl font-black text-stone-900 leading-none">{fmtN(totalStockQty)} unités</p>
-                  <p className="text-[9px] font-black text-stone-400 uppercase tracking-widest mt-1.5">
+                  <p className="text-[11px] font-black text-stone-400 uppercase tracking-widest mt-1.5">
                     Quantité Totale en Stock · {totalRefs} référence{totalRefs > 1 ? 's' : ''}
                   </p>
                   <p className="text-[10px] font-bold text-stone-500 mt-1">
@@ -1065,10 +1065,10 @@ export default function StockDashboard({
                 <CardContent className="p-5">
                   <div className="flex items-center justify-between mb-3">
                     <div className="p-2.5 bg-emerald-50 rounded-2xl"><TrendingUp className="w-5 h-5 text-emerald-600" /></div>
-                    <span className="text-[9px] font-black uppercase px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800">Aujourd'hui</span>
+                    <span className="text-[11px] font-black uppercase px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800">Aujourd'hui</span>
                   </div>
                   <p className="text-2xl font-black text-stone-900 leading-none">{fmt$(caToday)}</p>
-                  <p className="text-[9px] font-black text-stone-400 uppercase tracking-widest mt-1.5">Ventes Aujourd'hui</p>
+                  <p className="text-[11px] font-black text-stone-400 uppercase tracking-widest mt-1.5">Ventes Aujourd'hui</p>
                   <p className="text-[10px] font-bold text-stone-500 mt-1">{nbSalesToday} transaction(s)</p>
                 </CardContent>
               </Card>
@@ -1081,10 +1081,10 @@ export default function StockDashboard({
                 <CardContent className="p-5">
                   <div className="flex items-center justify-between mb-3">
                     <div className="p-2.5 bg-teal-50 rounded-2xl"><DollarSign className="w-5 h-5 text-teal-600" /></div>
-                    <span className="text-[9px] font-black uppercase px-2 py-0.5 rounded-full bg-teal-100 text-teal-800">Prix Public</span>
+                    <span className="text-[11px] font-black uppercase px-2 py-0.5 rounded-full bg-teal-100 text-teal-800">Prix Public</span>
                   </div>
                   <p className="text-2xl font-black text-stone-900 leading-none">{fmt$(totalSellingValue)}</p>
-                  <p className="text-[9px] font-black text-stone-400 uppercase tracking-widest mt-1.5">Valeur Vente Estimée</p>
+                  <p className="text-[11px] font-black text-stone-400 uppercase tracking-widest mt-1.5">Valeur Vente Estimée</p>
                   <p className="text-[10px] font-bold text-teal-700 mt-1">
                     Marge latente : +{fmt$(Math.max(0, totalSellingValue - totalStockValue))}
                   </p>
@@ -1096,10 +1096,10 @@ export default function StockDashboard({
                 <CardContent className="p-5">
                   <div className="flex items-center justify-between mb-3">
                     <div className="p-2.5 bg-blue-50 rounded-2xl"><ShoppingBag className="w-5 h-5 text-blue-600" /></div>
-                    <span className="text-[9px] font-black uppercase px-2 py-0.5 rounded-full bg-blue-100 text-blue-800">Ce mois</span>
+                    <span className="text-[11px] font-black uppercase px-2 py-0.5 rounded-full bg-blue-100 text-blue-800">Ce mois</span>
                   </div>
                   <p className="text-2xl font-black text-stone-900 leading-none">{fmt$(caMonth)}</p>
-                  <p className="text-[9px] font-black text-stone-400 uppercase tracking-widest mt-1.5">CA ce mois-ci</p>
+                  <p className="text-[11px] font-black text-stone-400 uppercase tracking-widest mt-1.5">CA ce mois-ci</p>
                   <p className="text-[10px] font-bold text-stone-500 mt-1">{nbSalesMonth} ventes</p>
                 </CardContent>
               </Card>
@@ -1111,10 +1111,10 @@ export default function StockDashboard({
               <CardContent className="p-5">
                 <div className="flex items-center justify-between mb-3">
                   <div className="p-2.5 bg-violet-50 rounded-2xl"><TrendingUp className="w-5 h-5 text-violet-600" /></div>
-                  <span className="text-[9px] font-black uppercase px-2 py-0.5 rounded-full bg-violet-100 text-violet-800">Période Active</span>
+                  <span className="text-[11px] font-black uppercase px-2 py-0.5 rounded-full bg-violet-100 text-violet-800">Période Active</span>
                 </div>
                 <p className="text-2xl font-black text-stone-900 leading-none">{fmt$(periodCA)}</p>
-                <p className="text-[9px] font-black text-stone-400 uppercase tracking-widest mt-1.5">Chiffre d'Affaires</p>
+                <p className="text-[11px] font-black text-stone-400 uppercase tracking-widest mt-1.5">Chiffre d'Affaires</p>
                 <p className="text-[10px] font-bold text-stone-500 mt-1">
                   {userRole === 'ADMIN' ? (
                     <span className="text-emerald-700">Marge : +{fmt$(periodMargin)} ({periodMarginRate.toFixed(1)}%)</span>
@@ -1136,7 +1136,7 @@ export default function StockDashboard({
                   {alertCount > 0 && <span className="w-2.5 h-2.5 rounded-full bg-red-500 animate-ping" />}
                 </div>
                 <p className="text-2xl font-black text-stone-900 leading-none">{fmtN(alertCount)}</p>
-                <p className="text-[9px] font-black text-stone-400 uppercase tracking-widest mt-1.5">Alertes Stock</p>
+                <p className="text-[11px] font-black text-stone-400 uppercase tracking-widest mt-1.5">Alertes Stock</p>
                 <p className={`text-[10px] font-bold mt-1 ${alertCount > 0 ? 'text-red-600' : 'text-emerald-700'}`}>
                   {alertCount > 0 ? 'Stock bas ou rupture' : 'Tous les stocks sont optimaux'}
                 </p>
@@ -1204,29 +1204,29 @@ export default function StockDashboard({
 
                   <div className="grid grid-cols-3 gap-3 pt-2">
                     <div className="bg-emerald-50/70 p-3.5 rounded-2xl border border-emerald-100">
-                      <p className="text-[9px] font-black text-emerald-800 uppercase tracking-wider flex items-center gap-1">
+                      <p className="text-[11px] font-black text-emerald-800 uppercase tracking-wider flex items-center gap-1">
                         <CheckCircle2 className="w-3 h-3 text-emerald-600" /> Déjà Encaissé
                       </p>
                       <p className="text-lg font-black text-emerald-950 mt-1.5">{fmt$(periodConfirmed)}</p>
-                      <p className="text-[9px] font-bold text-emerald-700 mt-1">
+                      <p className="text-[11px] font-bold text-emerald-700 mt-1">
                         {periodCA > 0 ? ((periodConfirmed / periodCA) * 100).toFixed(0) : 0}% du total
                       </p>
                     </div>
 
                     <div className="bg-amber-50/70 p-3.5 rounded-2xl border border-amber-100">
-                      <p className="text-[9px] font-black text-amber-800 uppercase tracking-wider flex items-center gap-1">
+                      <p className="text-[11px] font-black text-amber-800 uppercase tracking-wider flex items-center gap-1">
                         <Clock className="w-3 h-3 text-amber-600" /> Chèques / LC
                       </p>
                       <p className="text-lg font-black text-amber-950 mt-1.5">{fmt$(periodPending)}</p>
-                      <p className="text-[9px] font-bold text-amber-700 mt-1">En attente d'échéance</p>
+                      <p className="text-[11px] font-bold text-amber-700 mt-1">En attente d'échéance</p>
                     </div>
 
                     <div className="bg-red-50/70 p-3.5 rounded-2xl border border-red-100">
-                      <p className="text-[9px] font-black text-red-800 uppercase tracking-wider flex items-center gap-1">
+                      <p className="text-[11px] font-black text-red-800 uppercase tracking-wider flex items-center gap-1">
                         <AlertCircle className="w-3 h-3 text-red-600" /> Reste Dû
                       </p>
                       <p className="text-lg font-black text-red-950 mt-1.5">{fmt$(periodDebt)}</p>
-                      <p className="text-[9px] font-bold text-red-700 mt-1">À crédit / Impayés</p>
+                      <p className="text-[11px] font-bold text-red-700 mt-1">À crédit / Impayés</p>
                     </div>
                   </div>
                 </CardContent>
@@ -1267,7 +1267,7 @@ export default function StockDashboard({
             <div className="lg:col-span-2 bg-white rounded-3xl shadow-xl p-6 border border-stone-100">
               <div className="flex items-center justify-between mb-5">
                 <div>
-                  <p className="text-[9px] font-black text-stone-400 uppercase tracking-widest">
+                  <p className="text-[11px] font-black text-stone-400 uppercase tracking-widest">
                     {userRole === 'ADMIN' ? 'Valeur Marchande en Stock' : 'Volumes en Stock'}
                   </p>
                   <h3 className="text-lg font-black text-stone-900 uppercase tracking-tight">Top Catégories</h3>
@@ -1312,7 +1312,7 @@ export default function StockDashboard({
             {/* GRAPHIQUE RÉPARTITION VENTES PAR MAGASIN */}
             <div className="bg-white rounded-3xl shadow-xl p-6 border border-stone-100 flex flex-col justify-between">
               <div>
-                <p className="text-[9px] font-black text-stone-400 uppercase tracking-widest mb-1">Période Active</p>
+                <p className="text-[11px] font-black text-stone-400 uppercase tracking-widest mb-1">Période Active</p>
                 <h3 className="text-lg font-black text-stone-900 uppercase tracking-tight mb-4">Ventes par Magasin</h3>
               </div>
 
@@ -1373,7 +1373,7 @@ export default function StockDashboard({
             <div className="bg-white rounded-3xl shadow-xl p-6 border border-stone-100">
               <div className="flex items-center justify-between mb-4">
                 <div>
-                  <p className="text-[9px] font-black text-stone-400 uppercase tracking-widest">Performances Période</p>
+                  <p className="text-[11px] font-black text-stone-400 uppercase tracking-widest">Performances Période</p>
                   <h3 className="text-lg font-black text-stone-900 uppercase tracking-tight">Top Produits Vendus</h3>
                 </div>
                 {userRole === 'ADMIN' && (
@@ -1419,7 +1419,7 @@ export default function StockDashboard({
             <div className="bg-white rounded-3xl shadow-xl p-6 border border-stone-100">
               <div className="flex items-center justify-between mb-4">
                 <div>
-                  <p className="text-[9px] font-black text-stone-400 uppercase tracking-widest">Activité Récente</p>
+                  <p className="text-[11px] font-black text-stone-400 uppercase tracking-widest">Activité Récente</p>
                   <h3 className="text-lg font-black text-stone-900 uppercase tracking-tight">Derniers Mouvements</h3>
                 </div>
                 <Button
@@ -1533,7 +1533,7 @@ export default function StockDashboard({
               <div className="h-1.5 bg-violet-500 absolute top-0 left-0 right-0" />
               <div className="p-2.5 bg-violet-50 rounded-2xl w-fit mb-3"><DollarSign className="w-5 h-5 text-violet-600" /></div>
               <p className="text-2xl font-black text-stone-900 leading-none">{fmt$(periodCA)}</p>
-              <p className="text-[9px] font-black text-stone-400 uppercase tracking-widest mt-1.5">Chiffre d'Affaires Net</p>
+              <p className="text-[11px] font-black text-stone-400 uppercase tracking-widest mt-1.5">Chiffre d'Affaires Net</p>
               <p className="text-[10px] font-bold text-stone-500 mt-1">{filteredSales.length} vente(s) enregistrée(s)</p>
             </div>
 
@@ -1541,7 +1541,7 @@ export default function StockDashboard({
               <div className="h-1.5 bg-stone-500 absolute top-0 left-0 right-0" />
               <div className="p-2.5 bg-stone-100 rounded-2xl w-fit mb-3"><BarChart3 className="w-5 h-5 text-stone-600" /></div>
               <p className="text-2xl font-black text-stone-900 leading-none">{fmt$(periodCost)}</p>
-              <p className="text-[9px] font-black text-stone-400 uppercase tracking-widest mt-1.5">Coût d'Achat Réel (COGS)</p>
+              <p className="text-[11px] font-black text-stone-400 uppercase tracking-widest mt-1.5">Coût d'Achat Réel (COGS)</p>
               <p className="text-[10px] font-bold text-stone-500 mt-1">
                 {periodCA > 0 ? ((periodCost / periodCA) * 100).toFixed(1) : 0}% du Chiffre d'Affaires
               </p>
@@ -1551,7 +1551,7 @@ export default function StockDashboard({
               <div className="h-1.5 bg-emerald-500 absolute top-0 left-0 right-0" />
               <div className="p-2.5 bg-emerald-50 rounded-2xl w-fit mb-3"><TrendingUp className="w-5 h-5 text-emerald-600" /></div>
               <p className="text-2xl font-black text-emerald-900 leading-none">{fmt$(periodMargin)}</p>
-              <p className="text-[9px] font-black text-stone-400 uppercase tracking-widest mt-1.5">Marge Brute Réalisée</p>
+              <p className="text-[11px] font-black text-stone-400 uppercase tracking-widest mt-1.5">Marge Brute Réalisée</p>
               <p className="text-[10px] font-bold text-emerald-700 mt-1">
                 Taux de marge réel : {periodMarginRate.toFixed(1)}%
               </p>
@@ -1561,7 +1561,7 @@ export default function StockDashboard({
               <div className="h-1.5 bg-blue-500 absolute top-0 left-0 right-0" />
               <div className="p-2.5 bg-blue-50 rounded-2xl w-fit mb-3"><ShoppingBag className="w-5 h-5 text-blue-600" /></div>
               <p className="text-2xl font-black text-stone-900 leading-none">{fmt$(avgTicket)}</p>
-              <p className="text-[9px] font-black text-stone-400 uppercase tracking-widest mt-1.5">Ticket Moyen</p>
+              <p className="text-[11px] font-black text-stone-400 uppercase tracking-widest mt-1.5">Ticket Moyen</p>
               <p className="text-[10px] font-bold text-stone-500 mt-1">{fmtN(periodUnitsSold)} articles vendus</p>
             </div>
           </div>
@@ -1570,7 +1570,7 @@ export default function StockDashboard({
           <div className="bg-gradient-to-br from-stone-900 via-stone-800 to-emerald-950 p-6 rounded-3xl shadow-xl text-white">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-4">
               <div>
-                <p className="text-[9px] font-black text-emerald-400 uppercase tracking-widest">Trésorerie & Risque Client</p>
+                <p className="text-[11px] font-black text-emerald-400 uppercase tracking-widest">Trésorerie & Risque Client</p>
                 <h3 className="text-xl font-black uppercase tracking-tight">Statut des Règlements de la Période</h3>
               </div>
               <div className="text-right">
@@ -1618,7 +1618,7 @@ export default function StockDashboard({
 
               {/* GRAPHIQUE 1 : CA VS COÛT PAR MOIS */}
               <div className="bg-white rounded-3xl shadow-xl p-6 border border-stone-100">
-                <p className="text-[9px] font-black text-stone-400 uppercase tracking-widest mb-1">Évolution</p>
+                <p className="text-[11px] font-black text-stone-400 uppercase tracking-widest mb-1">Évolution</p>
                 <h3 className="text-lg font-black text-stone-900 uppercase tracking-tight mb-5">CA vs Coût Réel par mois</h3>
                 <ResponsiveContainer width="100%" height={230}>
                   <BarChart data={monthlyTrends} margin={{ top: 0, right: 10, left: 0, bottom: 30 }}>
@@ -1633,7 +1633,7 @@ export default function StockDashboard({
 
               {/* GRAPHIQUE 2 : MARGE BRUTE PAR MOIS */}
               <div className="bg-white rounded-3xl shadow-xl p-6 border border-stone-100">
-                <p className="text-[9px] font-black text-stone-400 uppercase tracking-widest mb-1">Rentabilité</p>
+                <p className="text-[11px] font-black text-stone-400 uppercase tracking-widest mb-1">Rentabilité</p>
                 <h3 className="text-lg font-black text-stone-900 uppercase tracking-tight mb-5">Marge Brute par mois (MAD)</h3>
                 <ResponsiveContainer width="100%" height={230}>
                   <LineChart data={monthlyTrends} margin={{ top: 0, right: 10, left: 0, bottom: 30 }}>
@@ -1654,7 +1654,7 @@ export default function StockDashboard({
 
             {/* TOP PRODUITS */}
             <div className="bg-white rounded-3xl shadow-xl p-6 border border-stone-100">
-              <p className="text-[9px] font-black text-stone-400 uppercase tracking-widest mb-1">Classement</p>
+              <p className="text-[11px] font-black text-stone-400 uppercase tracking-widest mb-1">Classement</p>
               <h3 className="text-lg font-black text-stone-900 uppercase tracking-tight mb-4">Top Produits les Plus Rentables</h3>
 
               {topProducts.length === 0 ? (
@@ -1687,7 +1687,7 @@ export default function StockDashboard({
             {/* JOURNAL DES VENTES & FACTURES */}
             <div className="bg-white rounded-3xl shadow-xl border border-stone-100 overflow-hidden flex flex-col">
               <div className="p-6 pb-4 border-b border-stone-100">
-                <p className="text-[9px] font-black text-stone-400 uppercase tracking-widest mb-1">Détails & Audit</p>
+                <p className="text-[11px] font-black text-stone-400 uppercase tracking-widest mb-1">Détails & Audit</p>
                 <h3 className="text-lg font-black text-stone-900 uppercase tracking-tight">Journal des Ventes ({filteredSales.length})</h3>
               </div>
 
@@ -1715,7 +1715,7 @@ export default function StockDashboard({
                               {sale.clientName}
                             </p>
                             <span
-                              className="text-[8px] font-black uppercase px-1.5 py-0.5 rounded-md text-white shrink-0"
+                              className="text-[11px] font-black uppercase px-1.5 py-0.5 rounded-md text-white shrink-0"
                               style={{ backgroundColor: stColor }}
                             >
                               {storeName}
@@ -1759,7 +1759,7 @@ export default function StockDashboard({
           <div className="bg-gradient-to-r from-violet-800 to-stone-900 p-6 text-white">
             <div className="flex items-center justify-between">
               <div>
-                <span className="text-[9px] font-black uppercase px-2 py-0.5 rounded-full bg-white/20 text-white">
+                <span className="text-[11px] font-black uppercase px-2 py-0.5 rounded-full bg-white/20 text-white">
                   Détail de la Vente
                 </span>
                 <DialogTitle className="text-xl font-black uppercase tracking-tight mt-1.5">
@@ -1799,7 +1799,7 @@ export default function StockDashboard({
                         {(item.color || item.size) && ` · ${[item.color, item.size].filter(Boolean).join(' / ')}`}
                       </p>
                       {userRole === 'ADMIN' && (
-                        <p className="text-[9px] font-bold text-stone-500 mt-0.5">
+                        <p className="text-[11px] font-bold text-stone-500 mt-0.5">
                           Coût unitaire d'achat : {fmt$(item.unitCost)}
                         </p>
                       )}

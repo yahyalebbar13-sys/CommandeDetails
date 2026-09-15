@@ -130,7 +130,7 @@ export default function BlindInventory({
           <div>
             <div className="flex items-center gap-3 mb-2">
               <ClipboardCheck className="w-6 h-6 text-amber-300" />
-              <p className="text-[9px] font-black text-amber-300 uppercase tracking-[0.3em]">Inventaire Physique</p>
+              <p className="text-[11px] font-black text-amber-300 uppercase tracking-[0.3em]">Inventaire Physique</p>
             </div>
             <h1 className="text-3xl font-black text-white uppercase tracking-tighter">
               Session de Comptage
@@ -142,12 +142,12 @@ export default function BlindInventory({
           <div className="flex items-center gap-3">
             <div className="text-right">
               <p className="text-3xl font-black text-white">{session.length}</p>
-              <p className="text-[9px] font-black text-amber-400 uppercase tracking-widest mt-1">Comptés</p>
+              <p className="text-[11px] font-black text-amber-400 uppercase tracking-widest mt-1">Comptés</p>
             </div>
             {varianceCount > 0 && (
               <div className="text-right border-l border-amber-500/30 pl-3">
                 <p className="text-3xl font-black text-orange-200">{varianceCount}</p>
-                <p className="text-[9px] font-black text-amber-400 uppercase tracking-widest mt-1">Écarts</p>
+                <p className="text-[11px] font-black text-amber-400 uppercase tracking-widest mt-1">Écarts</p>
               </div>
             )}
           </div>
@@ -207,11 +207,11 @@ export default function BlindInventory({
 
                 <div className="grid grid-cols-2 gap-4">
                   <div className="p-4 bg-stone-50 rounded-2xl border border-stone-100">
-                    <p className="text-[9px] font-black text-stone-400 uppercase tracking-widest">Stock théorique</p>
+                    <p className="text-[11px] font-black text-stone-400 uppercase tracking-widest">Stock théorique</p>
                     <p className="text-2xl font-black text-stone-900 mt-1">{theoreticalQty(selected)} <span className="text-xs font-bold text-stone-400">{selected.unitOfMeasure}</span></p>
                   </div>
                   <div className="p-4 bg-emerald-50 rounded-2xl border border-emerald-100">
-                    <p className="text-[9px] font-black text-emerald-600 uppercase tracking-widest">Quantité comptée</p>
+                    <p className="text-[11px] font-black text-emerald-600 uppercase tracking-widest">Quantité comptée</p>
                     <Input
                       type="number" min={0} step="any" autoFocus
                       value={countedValue}
@@ -282,10 +282,10 @@ export default function BlindInventory({
                   <div key={i} className={`p-3 rounded-2xl border ${diff === 0 ? 'bg-stone-50 border-stone-100' : diff > 0 ? 'bg-blue-50 border-blue-100' : 'bg-red-50 border-red-100'}`}>
                     <p className="text-[10px] font-black text-stone-900 leading-tight">{l.productName}</p>
                     {(l.color || l.size || l.quality) && (
-                      <p className="text-[8px] font-bold text-stone-400 mt-0.5">{[l.quality, l.color, l.size].filter(Boolean).join(' · ')}</p>
+                      <p className="text-[11px] font-bold text-stone-400 mt-0.5">{[l.quality, l.color, l.size].filter(Boolean).join(' · ')}</p>
                     )}
                     <div className="flex justify-between items-center mt-2 pt-2 border-t border-black/5">
-                      <span className="text-[9px] font-bold text-stone-400">Théo. {l.theoretical} → Compté {l.counted}</span>
+                      <span className="text-[11px] font-bold text-stone-400">Théo. {l.theoretical} → Compté {l.counted}</span>
                       <span className={`text-xs font-black ${diff === 0 ? 'text-emerald-600' : diff > 0 ? 'text-blue-600' : 'text-red-600'}`}>
                         {diff === 0 ? 'RAS' : (diff > 0 ? '+' : '') + diff}
                       </span>

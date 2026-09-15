@@ -247,7 +247,7 @@ export default function BankReconciliationView({ payments, clients }: BankReconc
         <div className="relative z-10">
           <div className="flex items-center gap-3 mb-2">
             <Landmark className="w-6 h-6 text-blue-300" />
-            <p className="text-[9px] font-black text-blue-300 uppercase tracking-[0.3em]">Comptabilité · Attijariwafa Bank</p>
+            <p className="text-[11px] font-black text-blue-300 uppercase tracking-[0.3em]">Comptabilité · Attijariwafa Bank</p>
           </div>
           <h1 className="text-3xl font-black text-white uppercase tracking-tighter">
             Rapprochement <span className="text-blue-300">Bancaire Attijari</span>
@@ -290,7 +290,7 @@ export default function BankReconciliationView({ payments, clients }: BankReconc
                       {acc.name}
                     </h3>
                     {isSelected && (
-                      <span className={`text-[9px] font-black px-2 py-0.5 rounded-full text-white uppercase shrink-0 ${
+                      <span className={`text-[11px] font-black px-2 py-0.5 rounded-full text-white uppercase shrink-0 ${
                         isLebtex ? 'bg-emerald-600' : 'bg-purple-600'
                       }`}>
                         Actif
@@ -310,7 +310,7 @@ export default function BankReconciliationView({ payments, clients }: BankReconc
       {/* ── Toolbar ── */}
       <div className="bg-white rounded-2xl shadow-lg border border-stone-100 p-4 flex flex-wrap gap-3 items-end">
         <div>
-          <Label className="text-[9px] font-black uppercase tracking-widest text-stone-500 mb-1 block">Période</Label>
+          <Label className="text-[11px] font-black uppercase tracking-widest text-stone-500 mb-1 block">Période</Label>
           <Input type="month" value={period} onChange={e => setPeriod(e.target.value)}
             className="h-10 w-40 rounded-xl border-stone-200 font-bold text-sm" />
         </div>
@@ -362,7 +362,7 @@ export default function BankReconciliationView({ payments, clients }: BankReconc
               <Icon className={`w-4 h-4 ${color}`} />
             </div>
             <p className={`text-lg font-black ${color}`}>{value} <span className="text-xs text-stone-400">MAD</span></p>
-            <p className="text-[8px] font-black text-stone-400 uppercase tracking-widest mt-1">{label}</p>
+            <p className="text-[11px] font-black text-stone-400 uppercase tracking-widest mt-1">{label}</p>
           </div>
         ))}
       </div>
@@ -402,14 +402,14 @@ export default function BankReconciliationView({ payments, clients }: BankReconc
             <table className="w-full text-left border-collapse">
               <thead>
                 <tr className="bg-stone-50 border-b border-stone-100">
-                  <th className="px-5 py-3 text-[9px] font-black text-stone-400 uppercase tracking-widest">Date</th>
-                  <th className="px-5 py-3 text-[9px] font-black text-stone-400 uppercase tracking-widest">Libellé</th>
-                  <th className="px-5 py-3 text-[9px] font-black text-stone-400 uppercase tracking-widest">Réf.</th>
-                  <th className="px-5 py-3 text-right text-[9px] font-black text-stone-400 uppercase tracking-widest">Crédit</th>
-                  <th className="px-5 py-3 text-right text-[9px] font-black text-stone-400 uppercase tracking-widest">Débit</th>
-                  <th className="px-5 py-3 text-center text-[9px] font-black text-stone-400 uppercase tracking-widest">Statut</th>
-                  <th className="px-5 py-3 text-[9px] font-black text-stone-400 uppercase tracking-widest">Rapproché avec</th>
-                  <th className="px-5 py-3 text-right text-[9px] font-black text-stone-400 uppercase tracking-widest">Actions</th>
+                  <th className="px-5 py-3 text-[11px] font-black text-stone-400 uppercase tracking-widest">Date</th>
+                  <th className="px-5 py-3 text-[11px] font-black text-stone-400 uppercase tracking-widest">Libellé</th>
+                  <th className="px-5 py-3 text-[11px] font-black text-stone-400 uppercase tracking-widest">Réf.</th>
+                  <th className="px-5 py-3 text-right text-[11px] font-black text-stone-400 uppercase tracking-widest">Crédit</th>
+                  <th className="px-5 py-3 text-right text-[11px] font-black text-stone-400 uppercase tracking-widest">Débit</th>
+                  <th className="px-5 py-3 text-center text-[11px] font-black text-stone-400 uppercase tracking-widest">Statut</th>
+                  <th className="px-5 py-3 text-[11px] font-black text-stone-400 uppercase tracking-widest">Rapproché avec</th>
+                  <th className="px-5 py-3 text-right text-[11px] font-black text-stone-400 uppercase tracking-widest">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-stone-50">
@@ -436,7 +436,7 @@ export default function BankReconciliationView({ payments, clients }: BankReconc
                         {t.debit > 0 ? `-${fmt(t.debit)}` : '—'}
                       </td>
                       <td className="px-5 py-3 text-center">
-                        <span className={`inline-block px-2.5 py-1 rounded-lg text-[9px] font-black uppercase ${
+                        <span className={`inline-block px-2.5 py-1 rounded-lg text-[11px] font-black uppercase ${
                           t.status === 'MATCHED' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'
                         }`}>
                           {t.status === 'MATCHED' ? '✓ Rapproché' : 'En attente'}
@@ -489,12 +489,12 @@ export default function BankReconciliationView({ payments, clients }: BankReconc
             <table className="w-full text-left border-collapse">
               <thead>
                 <tr className="bg-stone-50 border-b border-stone-100">
-                  <th className="px-5 py-3 text-[9px] font-black text-stone-400 uppercase tracking-widest">Date</th>
-                  <th className="px-5 py-3 text-[9px] font-black text-stone-400 uppercase tracking-widest">Client</th>
-                  <th className="px-5 py-3 text-[9px] font-black text-stone-400 uppercase tracking-widest">Mode</th>
-                  <th className="px-5 py-3 text-[9px] font-black text-stone-400 uppercase tracking-widest">N° Chèque/Effet</th>
-                  <th className="px-5 py-3 text-right text-[9px] font-black text-stone-400 uppercase tracking-widest">Montant</th>
-                  <th className="px-5 py-3 text-center text-[9px] font-black text-stone-400 uppercase tracking-widest">Statut</th>
+                  <th className="px-5 py-3 text-[11px] font-black text-stone-400 uppercase tracking-widest">Date</th>
+                  <th className="px-5 py-3 text-[11px] font-black text-stone-400 uppercase tracking-widest">Client</th>
+                  <th className="px-5 py-3 text-[11px] font-black text-stone-400 uppercase tracking-widest">Mode</th>
+                  <th className="px-5 py-3 text-[11px] font-black text-stone-400 uppercase tracking-widest">N° Chèque/Effet</th>
+                  <th className="px-5 py-3 text-right text-[11px] font-black text-stone-400 uppercase tracking-widest">Montant</th>
+                  <th className="px-5 py-3 text-center text-[11px] font-black text-stone-400 uppercase tracking-widest">Statut</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-stone-50">
@@ -519,7 +519,7 @@ export default function BankReconciliationView({ payments, clients }: BankReconc
                     <td className="px-5 py-3 text-xs font-mono text-stone-500">{p.checkNumber || '—'}</td>
                     <td className="px-5 py-3 text-right text-xs font-black text-stone-900">{fmt(p.amount)}</td>
                     <td className="px-5 py-3 text-center">
-                      <span className="inline-block px-2.5 py-1 rounded-lg text-[9px] font-black uppercase bg-amber-100 text-amber-700">
+                      <span className="inline-block px-2.5 py-1 rounded-lg text-[11px] font-black uppercase bg-amber-100 text-amber-700">
                         Non trouvé en banque
                       </span>
                     </td>
@@ -582,7 +582,7 @@ export default function BankReconciliationView({ payments, clients }: BankReconc
           {matchModal.transaction && (
             <div className="space-y-4 flex-1 overflow-hidden flex flex-col">
               <div className="bg-blue-50 rounded-xl p-4 border border-blue-100">
-                <p className="text-[9px] font-black text-blue-500 uppercase tracking-widest mb-1">Transaction bancaire</p>
+                <p className="text-[11px] font-black text-blue-500 uppercase tracking-widest mb-1">Transaction bancaire</p>
                 <p className="text-sm font-black text-stone-900">{matchModal.transaction.label}</p>
                 <p className="text-xs text-stone-500 mt-1">
                   {matchModal.transaction.date} · <strong className="text-emerald-600">{fmt(matchModal.transaction.credit)} MAD</strong>
@@ -590,7 +590,7 @@ export default function BankReconciliationView({ payments, clients }: BankReconc
                 </p>
               </div>
               <div>
-                <Label className="text-[9px] font-black uppercase tracking-widest text-stone-500 mb-1 block">
+                <Label className="text-[11px] font-black uppercase tracking-widest text-stone-500 mb-1 block">
                   Sélectionner le paiement correspondant
                 </Label>
                 <Input placeholder="Rechercher client, montant, N° chèque..." value={matchSearch}
@@ -616,7 +616,7 @@ export default function BankReconciliationView({ payments, clients }: BankReconc
                           {fmt(p.amount)} MAD
                         </p>
                         {Math.abs(p.amount - matchModal.transaction!.credit) < 0.01 && (
-                          <span className="text-[8px] font-black text-emerald-600 bg-emerald-100 px-1.5 py-0.5 rounded uppercase">Montant exact</span>
+                          <span className="text-[11px] font-black text-emerald-600 bg-emerald-100 px-1.5 py-0.5 rounded uppercase">Montant exact</span>
                         )}
                       </div>
                     </div>

@@ -431,7 +431,7 @@ export default function TreasuryDashboard({
                     return (
                       <div key={p.id} className="bg-white p-2.5 rounded-xl border border-amber-200/90 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 shadow-xs text-xs">
                         <div className="flex items-center gap-2 min-w-0 flex-wrap">
-                          <span className="text-[9px] font-black uppercase px-2 py-0.5 rounded bg-amber-100 text-amber-900 font-mono">
+                          <span className="text-[11px] font-black uppercase px-2 py-0.5 rounded bg-amber-100 text-amber-900 font-mono">
                             {p.method} {p.checkNumber ? `N° ${p.checkNumber}` : ''}
                           </span>
                           <span className="font-black text-stone-900 truncate max-w-[180px]">
@@ -441,7 +441,7 @@ export default function TreasuryDashboard({
                           <span className="font-bold text-amber-950 font-mono">
                             {fmt(p.amount)} MAD
                           </span>
-                          <span className={`text-[9px] font-black px-1.5 py-0.5 rounded-full ${
+                          <span className={`text-[11px] font-black px-1.5 py-0.5 rounded-full ${
                             isToday ? 'bg-orange-500 text-white' : 'bg-amber-500 text-white'
                           }`}>
                             {isToday ? "Aujourd'hui" : `J-${days}`}
@@ -807,7 +807,7 @@ export default function TreasuryDashboard({
                                 }`}>
                                   {p.dueDate}
                                 </span>
-                                <span className={`text-[9px] font-bold mt-0.5 ${
+                                <span className={`text-[11px] font-bold mt-0.5 ${
                                   isOverdue ? 'text-red-600' : isUrgent ? 'text-amber-600 font-black' : 'text-stone-400'
                                 }`}>
                                   {days !== null && (
@@ -832,7 +832,7 @@ export default function TreasuryDashboard({
                                   onClick={() => handleAssign(p.id, 'ROBE IN BOX')}
                                   title="Basculer vers ROBE IN BOX"
                                   disabled={isAssigning}
-                                  className="text-[9px] font-bold text-stone-400 hover:text-purple-600 p-1 hover:bg-purple-50 rounded"
+                                  className="text-[11px] font-bold text-stone-400 hover:text-purple-600 p-1 hover:bg-purple-50 rounded"
                                 >
                                   <RefreshCw className="w-3 h-3" />
                                 </button>
@@ -847,7 +847,7 @@ export default function TreasuryDashboard({
                                   onClick={() => handleAssign(p.id, 'LEBTEX')}
                                   title="Basculer vers LEBTEX"
                                   disabled={isAssigning}
-                                  className="text-[9px] font-bold text-stone-400 hover:text-emerald-600 p-1 hover:bg-emerald-50 rounded"
+                                  className="text-[11px] font-bold text-stone-400 hover:text-emerald-600 p-1 hover:bg-emerald-50 rounded"
                                 >
                                   <RefreshCw className="w-3 h-3" />
                                 </button>
@@ -857,7 +857,7 @@ export default function TreasuryDashboard({
                                 <button
                                   onClick={() => handleAssign(p.id, 'LEBTEX')}
                                   disabled={isAssigning}
-                                  className="h-7 px-2 rounded-lg font-black text-[9px] uppercase bg-emerald-600 text-white hover:bg-emerald-700 shadow-sm flex items-center gap-1"
+                                  className="h-7 px-2 rounded-lg font-black text-[11px] uppercase bg-emerald-600 text-white hover:bg-emerald-700 shadow-sm flex items-center gap-1"
                                 >
                                   <Building2 className="w-2.5 h-2.5" />
                                   LEBTEX
@@ -865,7 +865,7 @@ export default function TreasuryDashboard({
                                 <button
                                   onClick={() => handleAssign(p.id, 'ROBE IN BOX')}
                                   disabled={isAssigning}
-                                  className="h-7 px-2 rounded-lg font-black text-[9px] uppercase bg-purple-600 text-white hover:bg-purple-700 shadow-sm flex items-center gap-1"
+                                  className="h-7 px-2 rounded-lg font-black text-[11px] uppercase bg-purple-600 text-white hover:bg-purple-700 shadow-sm flex items-center gap-1"
                                 >
                                   <Sparkles className="w-2.5 h-2.5" />
                                   ROBE IN BOX
@@ -877,7 +877,7 @@ export default function TreasuryDashboard({
                           {/* Statut de Remise */}
                           <td className="px-4 py-3.5">
                             {p.remittanceRef ? (
-                              <span className="inline-flex items-center gap-1 text-[9px] font-black text-amber-800 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-lg">
+                              <span className="inline-flex items-center gap-1 text-[11px] font-black text-amber-800 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-lg">
                                 <FileText className="w-3 h-3" />
                                 {p.remittanceRef}
                               </span>

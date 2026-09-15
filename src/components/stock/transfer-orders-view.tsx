@@ -259,7 +259,7 @@ export default function TransferOrdersView({ transferOrders, stockItems, stores,
         <div className="absolute top-0 right-0 w-64 h-64 bg-blue-500/10 rounded-full -translate-y-1/2 translate-x-1/2 blur-3xl" />
         <div className="relative z-10 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
-            <p className="text-[9px] font-black text-blue-300 uppercase tracking-[0.3em] mb-1">Logistique Interne</p>
+            <p className="text-[11px] font-black text-blue-300 uppercase tracking-[0.3em] mb-1">Logistique Interne</p>
             <h1 className="text-3xl font-black text-white uppercase tracking-tighter">
               Bons de <span className="text-blue-300">Transfert</span>
             </h1>

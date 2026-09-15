@@ -97,7 +97,7 @@ function StockHeader({
       <div className="absolute inset-0 bg-gradient-to-r from-emerald-900/30 to-transparent pointer-events-none" />
       <div className="relative z-10 flex items-start justify-between flex-wrap gap-6">
         <div>
-          <p className="text-[8px] font-black text-emerald-400 uppercase tracking-[0.4em] mb-1">Stock Physique Validé</p>
+          <p className="text-[11px] font-black text-emerald-400 uppercase tracking-[0.4em] mb-1">Stock Physique Validé</p>
           <h2 className="text-3xl font-black text-white uppercase tracking-tighter leading-none">
             Fiches de <span className="text-emerald-400">Stock</span>
           </h2>
@@ -113,7 +113,7 @@ function StockHeader({
             <div key={label} className="bg-white/10 backdrop-blur-sm rounded-2xl px-4 py-3 text-center">
               <Icon className={`w-4 h-4 ${color} mx-auto mb-1`} />
               <p className={`text-[14px] font-black ${color} leading-none`}>{value}</p>
-              <p className="text-[7px] font-black text-stone-500 uppercase tracking-widest mt-1">{label}</p>
+              <p className="text-[10px] font-black text-stone-500 uppercase tracking-widest mt-1">{label}</p>
             </div>
           ))}
         </div>
@@ -209,7 +209,7 @@ function ProductFiche({
       {/* Breadcrumb — caché en mode inline */}
       {!inline && (
         <div className="flex items-center gap-2">
-          <button onClick={onBack} className="flex items-center gap-1.5 text-[9px] font-black text-stone-500 hover:text-stone-900 uppercase tracking-widest transition-colors bg-stone-100 hover:bg-stone-200 px-3 py-1.5 rounded-lg">
+          <button onClick={onBack} className="flex items-center gap-1.5 text-[11px] font-black text-stone-500 hover:text-stone-900 uppercase tracking-widest transition-colors bg-stone-100 hover:bg-stone-200 px-3 py-1.5 rounded-lg">
             <ChevronLeft className="w-3.5 h-3.5" /> Retour
           </button>
         </div>
@@ -233,17 +233,17 @@ function ProductFiche({
           </div>
           <div className="flex flex-wrap items-center gap-x-6 gap-y-4 justify-end">
             <div className="text-center">
-              <p className="text-[8px] font-black text-stone-400 uppercase tracking-widest mb-1">Entrées</p>
+              <p className="text-[11px] font-black text-stone-400 uppercase tracking-widest mb-1">Entrées</p>
               <p className="text-lg font-black text-emerald-600">+{fmt(totalIn)}</p>
             </div>
             <div className="w-px h-8 bg-stone-100 hidden sm:block"></div>
             <div className="text-center">
-              <p className="text-[8px] font-black text-stone-400 uppercase tracking-widest mb-1">Sorties</p>
+              <p className="text-[11px] font-black text-stone-400 uppercase tracking-widest mb-1">Sorties</p>
               <p className="text-lg font-black text-rose-600">{totalOut > 0 ? `-${fmt(totalOut)}` : '0'}</p>
             </div>
             <div className="w-px h-8 bg-stone-100 hidden sm:block"></div>
             <div className="text-center">
-              <p className="text-[8px] font-black text-stone-400 uppercase tracking-widest mb-1">En Stock</p>
+              <p className="text-[11px] font-black text-stone-400 uppercase tracking-widest mb-1">En Stock</p>
               <p className={`text-2xl font-black ${isAlert ? 'text-amber-600' : 'text-stone-900'}`}>{fmt(currentQty)} <span className="text-xs text-stone-400">{article.unitOfMeasure}</span></p>
             </div>
             
@@ -251,11 +251,11 @@ function ProductFiche({
               <>
                 <div className="w-px h-8 bg-stone-100 hidden sm:block"></div>
                 <div className="text-center bg-stone-50 rounded-xl px-4 py-2 border border-stone-100">
-                  <p className="text-[8px] font-black text-stone-500 uppercase tracking-widest mb-1">Coût unitaire moy.</p>
+                  <p className="text-[11px] font-black text-stone-500 uppercase tracking-widest mb-1">Coût unitaire moy.</p>
                   <p className="text-lg font-black text-violet-600">{fmtDec(avgCost)} <span className="text-[10px] text-stone-400">MAD</span></p>
                 </div>
                 <div className="text-center bg-emerald-50 rounded-xl px-4 py-2 border border-emerald-100">
-                  <p className="text-[8px] font-black text-emerald-700 uppercase tracking-widest mb-1">Valeur du Stock</p>
+                  <p className="text-[11px] font-black text-emerald-700 uppercase tracking-widest mb-1">Valeur du Stock</p>
                   <p className="text-2xl font-black text-emerald-600">{fmt(totalValue)} <span className="text-[10px] text-emerald-400">MAD</span></p>
                 </div>
               </>
@@ -290,7 +290,7 @@ function ProductFiche({
         {/* Fiche technique de la qualité sélectionnée */}
         {firstGroupVar && (firstGroupVar.gsm || firstGroupVar.fabricWidth || firstGroupVar.rollLength || firstGroupVar.packagingPerBag || firstGroupVar.slider || firstGroupVar.sliderType || firstGroupVar.zipperType) && (
           <div className="bg-violet-50/70 border border-violet-100 rounded-2xl px-5 py-3 flex flex-wrap items-center gap-3">
-            <span className="text-[9px] font-black text-violet-800 uppercase tracking-widest flex items-center gap-1.5">
+            <span className="text-[11px] font-black text-violet-800 uppercase tracking-widest flex items-center gap-1.5">
               <Tag className="w-3 h-3 text-violet-600" /> Spécifications techniques ({selectedGroup}) :
             </span>
             {firstGroupVar.gsm && (
@@ -339,16 +339,16 @@ function ProductFiche({
             <table className="w-full text-xs">
               <thead>
                 <tr className="border-b border-stone-100">
-                  <th className="px-6 py-3 text-left font-black text-stone-400 uppercase tracking-widest text-[8px]">Couleur</th>
-                  {!hasQualities && selectedGroup === 'STANDARD' && <th className="px-6 py-3 text-left font-black text-stone-400 uppercase tracking-widest text-[8px]">Taille</th>}
-                  <th className="px-6 py-3 text-right font-black text-stone-400 uppercase tracking-widest text-[8px]">Seuil Min.</th>
-                  <th className="px-6 py-3 text-right font-black text-emerald-600/70 uppercase tracking-widest text-[8px]">Entrées</th>
-                  <th className="px-6 py-3 text-right font-black text-rose-600/70 uppercase tracking-widest text-[8px]">Sorties</th>
-                  <th className="px-6 py-3 text-right font-black text-stone-800 uppercase tracking-widest text-[9px]">Stock Réel</th>
-                  <th className="px-6 py-3 text-left font-black text-stone-400 uppercase tracking-widest text-[8px]">Répartition (par entrepôt)</th>
-                  {userRole === 'ADMIN' && <th className="px-6 py-3 text-right font-black text-violet-600/70 uppercase tracking-widest text-[8px]">Coût Unitaire</th>}
-                  {userRole === 'ADMIN' && <th className="px-6 py-3 text-right font-black text-emerald-600/70 uppercase tracking-widest text-[8px]">Valeur</th>}
-                  <th className="px-6 py-3 text-right font-black text-stone-400 uppercase tracking-widest text-[8px]">Statut</th>
+                  <th className="px-6 py-3 text-left font-black text-stone-400 uppercase tracking-widest text-[11px]">Couleur</th>
+                  {!hasQualities && selectedGroup === 'STANDARD' && <th className="px-6 py-3 text-left font-black text-stone-400 uppercase tracking-widest text-[11px]">Taille</th>}
+                  <th className="px-6 py-3 text-right font-black text-stone-400 uppercase tracking-widest text-[11px]">Seuil Min.</th>
+                  <th className="px-6 py-3 text-right font-black text-emerald-600/70 uppercase tracking-widest text-[11px]">Entrées</th>
+                  <th className="px-6 py-3 text-right font-black text-rose-600/70 uppercase tracking-widest text-[11px]">Sorties</th>
+                  <th className="px-6 py-3 text-right font-black text-stone-800 uppercase tracking-widest text-[11px]">Stock Réel</th>
+                  <th className="px-6 py-3 text-left font-black text-stone-400 uppercase tracking-widest text-[11px]">Répartition (par entrepôt)</th>
+                  {userRole === 'ADMIN' && <th className="px-6 py-3 text-right font-black text-violet-600/70 uppercase tracking-widest text-[11px]">Coût Unitaire</th>}
+                  {userRole === 'ADMIN' && <th className="px-6 py-3 text-right font-black text-emerald-600/70 uppercase tracking-widest text-[11px]">Valeur</th>}
+                  <th className="px-6 py-3 text-right font-black text-stone-400 uppercase tracking-widest text-[11px]">Statut</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-stone-50">
@@ -378,7 +378,7 @@ function ProductFiche({
                           <div className="flex flex-wrap gap-1.5">
                             {Object.entries(v.qtyByStore).map(([sId, q]: any) => q > 0 && (
                               <div key={sId} className="flex items-center gap-1 bg-stone-100 border border-stone-200 px-2 py-0.5 rounded-md">
-                                <span className="text-[8px] font-black uppercase text-stone-500 tracking-wider">
+                                <span className="text-[11px] font-black uppercase text-stone-500 tracking-wider">
                                   {sId === 'ENTREPOT' ? 'Entrepôt' : sId === 'CHRIFA' ? 'CHRIFA' : sId === 'DERB_OMAR' ? 'Derb omar' : sId === 'IDAA' ? 'IDAA' : sId.replace('_', ' ')}:
                                 </span>
                                 <span className="text-[10px] font-bold text-stone-700">{fmt(q)}</span>
@@ -389,15 +389,15 @@ function ProductFiche({
                           <span className="text-stone-300">—</span>
                         )}
                       </td>
-                      {userRole === 'ADMIN' && <td className="px-6 py-4 text-right font-bold text-violet-600">{fmtDec(v.purchasePricePerUnit || article.purchasePricePerUnit || 0)} <span className="text-[9px] text-stone-400">MAD</span></td>}
-                      {userRole === 'ADMIN' && <td className="px-6 py-4 text-right font-black text-emerald-600">{fmt(v.totalValue)} <span className="text-[9px] text-stone-400">MAD</span></td>}
+                      {userRole === 'ADMIN' && <td className="px-6 py-4 text-right font-bold text-violet-600">{fmtDec(v.purchasePricePerUnit || article.purchasePricePerUnit || 0)} <span className="text-[11px] text-stone-400">MAD</span></td>}
+                      {userRole === 'ADMIN' && <td className="px-6 py-4 text-right font-black text-emerald-600">{fmt(v.totalValue)} <span className="text-[11px] text-stone-400">MAD</span></td>}
                       <td className="px-6 py-4 text-right">
                         {isRupt ? (
-                          <span className="text-[9px] font-black text-red-600 bg-red-50 px-2.5 py-1 rounded-full uppercase">Rupture</span>
+                          <span className="text-[11px] font-black text-red-600 bg-red-50 px-2.5 py-1 rounded-full uppercase">Rupture</span>
                         ) : isAlerte ? (
-                          <span className="text-[9px] font-black text-amber-600 bg-amber-50 px-2.5 py-1 rounded-full uppercase">Alerte</span>
+                          <span className="text-[11px] font-black text-amber-600 bg-amber-50 px-2.5 py-1 rounded-full uppercase">Alerte</span>
                         ) : (
-                          <span className="text-[9px] font-black text-emerald-600 bg-emerald-50 px-2.5 py-1 rounded-full uppercase">OK</span>
+                          <span className="text-[11px] font-black text-emerald-600 bg-emerald-50 px-2.5 py-1 rounded-full uppercase">OK</span>
                         )}
                       </td>
                     </tr>
@@ -429,7 +429,7 @@ function ProductFiche({
                     <tr key={i} className="hover:bg-stone-50 transition-colors">
                       <td className="px-6 py-3 text-stone-500 font-bold whitespace-nowrap">{mv.date || '—'}</td>
                       <td className="px-6 py-3">
-                        <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[8px] font-black uppercase ${
+                        <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-black uppercase ${
                           isIN  ? 'bg-emerald-50 text-emerald-700' :
                           isOUT ? 'bg-rose-50 text-rose-700' :
                                   'bg-amber-50 text-amber-700'
@@ -455,7 +455,7 @@ function ProductFiche({
               </tbody>
               <tfoot>
                 <tr className="bg-stone-900 text-white border-t-2 border-stone-700">
-                  <td colSpan={3} className="px-5 py-3 text-[8px] font-black text-stone-400 uppercase tracking-widest">Totaux</td>
+                  <td colSpan={3} className="px-5 py-3 text-[11px] font-black text-stone-400 uppercase tracking-widest">Totaux</td>
                   <td className="px-5 py-3 text-right font-black text-emerald-400">+{fmt(totalIn)}</td>
                   <td className="px-5 py-3 text-right font-black text-rose-400">{totalOut > 0 ? `-${fmt(totalOut)}` : '—'}</td>
                   <td className="px-5 py-3 text-right font-black text-white text-[14px]">{fmt(article.currentQty)}</td>
@@ -538,11 +538,11 @@ function ProductsTable({
       {headerProp && <div className="mb-6">{headerProp}</div>}
       {/* Breadcrumb */}
       <div className="flex items-center gap-2">
-        <button onClick={onBack} className="flex items-center gap-1.5 text-[9px] font-black text-stone-500 hover:text-stone-900 uppercase tracking-widest transition-colors">
+        <button onClick={onBack} className="flex items-center gap-1.5 text-[11px] font-black text-stone-500 hover:text-stone-900 uppercase tracking-widest transition-colors">
           <ChevronLeft className="w-3.5 h-3.5" /> Retour
         </button>
         <span className="text-stone-200">/</span>
-        <span className="text-[9px] font-black text-stone-900 uppercase tracking-widest">{subCatName}</span>
+        <span className="text-[11px] font-black text-stone-900 uppercase tracking-widest">{subCatName}</span>
       </div>
 
       {alertCount > 0 && (
@@ -563,7 +563,7 @@ function ProductsTable({
               {subCatName} · {items.length} produit{items.length !== 1 ? 's' : ''}
             </span>
           </div>
-          <div className="flex gap-4 text-[9px] font-bold text-stone-400">
+          <div className="flex gap-4 text-[11px] font-bold text-stone-400">
             <span>Stock : <strong className="text-stone-700">{fmt(totalQty)}</strong></span>
             {userRole === 'ADMIN' && (
               <span>Valeur : <strong className="text-emerald-700">{fmt(totalVal)} MAD</strong></span>
@@ -572,7 +572,7 @@ function ProductsTable({
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 p-6">
           {groupedVariants.length === 0 ? (
-            <div className="col-span-full py-16 text-center text-stone-300 text-[9px] font-black uppercase tracking-widest">
+            <div className="col-span-full py-16 text-center text-stone-300 text-[11px] font-black uppercase tracking-widest">
               Aucun article validé dans cette sous-catégorie
             </div>
           ) : (
@@ -605,15 +605,15 @@ function ProductsTable({
                         <Package className="w-5 h-5" style={{ color }} />
                       </div>
                       {isAlert ? (
-                        <div className="bg-amber-100 text-amber-700 px-2.5 py-1 rounded-full text-[9px] font-black uppercase flex items-center gap-1">
+                        <div className="bg-amber-100 text-amber-700 px-2.5 py-1 rounded-full text-[11px] font-black uppercase flex items-center gap-1">
                           <AlertTriangle className="w-3 h-3" /> Alerte
                         </div>
                       ) : isRupture ? (
-                        <div className="bg-red-100 text-red-700 px-2.5 py-1 rounded-full text-[9px] font-black uppercase">
+                        <div className="bg-red-100 text-red-700 px-2.5 py-1 rounded-full text-[11px] font-black uppercase">
                           Rupture
                         </div>
                       ) : (
-                        <div className="bg-emerald-100 text-emerald-700 px-2.5 py-1 rounded-full text-[9px] font-black uppercase">
+                        <div className="bg-emerald-100 text-emerald-700 px-2.5 py-1 rounded-full text-[11px] font-black uppercase">
                           OK
                         </div>
                       )}
@@ -623,7 +623,7 @@ function ProductsTable({
                       {a.nameFR || a.productName}
                     </h3>
                     {a.nameFR && a.nameFR.toLowerCase() !== a.productName.toLowerCase() && (
-                      <p className="text-[9px] font-bold text-stone-400 uppercase truncate mt-0.5">
+                      <p className="text-[11px] font-bold text-stone-400 uppercase truncate mt-0.5">
                         {a.productName}
                       </p>
                     )}
@@ -633,24 +633,24 @@ function ProductsTable({
                         return (
                           <>
                             {distinctQualities.length > 1 && (
-                              <span className="text-[9px] font-black bg-violet-100 border border-violet-200 text-violet-700 px-2 py-0.5 rounded-md uppercase">
+                              <span className="text-[11px] font-black bg-violet-100 border border-violet-200 text-violet-700 px-2 py-0.5 rounded-md uppercase">
                                 {distinctQualities.length} déclinaisons
                               </span>
                             )}
                             {distinctQualities.length === 1 && (
-                              <span className="text-[9px] font-black bg-violet-100 border border-violet-200 text-violet-700 px-2 py-0.5 rounded-md uppercase">
+                              <span className="text-[11px] font-black bg-violet-100 border border-violet-200 text-violet-700 px-2 py-0.5 rounded-md uppercase">
                                 {distinctQualities[0]}
                               </span>
                             )}
                             {isMulti ? (
-                              <span className="text-[9px] font-bold bg-stone-50 border border-stone-100 text-stone-500 px-2 py-0.5 rounded-md uppercase">
+                              <span className="text-[11px] font-bold bg-stone-50 border border-stone-100 text-stone-500 px-2 py-0.5 rounded-md uppercase">
                                 {variants.length} variantes
                               </span>
                             ) : (
                               <>
-                                {a.size  && <span className="text-[9px] font-bold bg-stone-50 border border-stone-100 text-stone-500 px-2 py-0.5 rounded-md uppercase">{a.size}</span>}
-                                {a.color && <span className="text-[9px] font-bold bg-stone-50 border border-stone-100 text-stone-500 px-2 py-0.5 rounded-md uppercase">{a.color}</span>}
-                                {a.gsm && <span className="text-[9px] font-bold bg-blue-50 border border-blue-100 text-blue-700 px-2 py-0.5 rounded-md uppercase">{a.gsm}g/m²</span>}
+                                {a.size  && <span className="text-[11px] font-bold bg-stone-50 border border-stone-100 text-stone-500 px-2 py-0.5 rounded-md uppercase">{a.size}</span>}
+                                {a.color && <span className="text-[11px] font-bold bg-stone-50 border border-stone-100 text-stone-500 px-2 py-0.5 rounded-md uppercase">{a.color}</span>}
+                                {a.gsm && <span className="text-[11px] font-bold bg-blue-50 border border-blue-100 text-blue-700 px-2 py-0.5 rounded-md uppercase">{a.gsm}g/m²</span>}
                               </>
                             )}
                           </>
@@ -661,15 +661,15 @@ function ProductsTable({
                   <div className="mt-auto pt-4 border-t border-stone-100">
                     <div className="flex justify-between items-end mb-3">
                       <div>
-                        <p className="text-[9px] font-black text-stone-400 uppercase tracking-widest mb-0.5">Stock Réel</p>
+                        <p className="text-[11px] font-black text-stone-400 uppercase tracking-widest mb-0.5">Stock Réel</p>
                         <p className={`text-2xl font-black leading-none ${totalCurrent === 0 ? 'text-red-600' : isAlert ? 'text-amber-600' : 'text-stone-900'}`}>
                           {fmt(totalCurrent)} <span className="text-[10px] text-stone-400 font-bold">{a.unitOfMeasure}</span>
                         </p>
                       </div>
                       {userRole === 'ADMIN' && (
                         <div className="text-right">
-                          <p className="text-[9px] font-black text-stone-400 uppercase tracking-widest mb-0.5">Valeur FIFO</p>
-                          <p className="text-sm font-black text-violet-700">{fmt(fifoVal)} <span className="text-[9px]">MAD</span></p>
+                          <p className="text-[11px] font-black text-stone-400 uppercase tracking-widest mb-0.5">Valeur FIFO</p>
+                          <p className="text-sm font-black text-violet-700">{fmt(fifoVal)} <span className="text-[11px]">MAD</span></p>
                         </div>
                       )}
                     </div>
@@ -896,14 +896,14 @@ export default function StockFiches({
         <StockHeader totalRefs={totalRefs} totalStock={totalStock} totalVal={totalVal} alertCount={alertCount} userRole={userRole} />
         {actionBar}
         <div className="flex items-center gap-2">
-          <button onClick={() => setSelGenCat(null)} className="flex items-center gap-1.5 text-[9px] font-black text-stone-500 hover:text-stone-900 uppercase tracking-widest transition-colors">
+          <button onClick={() => setSelGenCat(null)} className="flex items-center gap-1.5 text-[11px] font-black text-stone-500 hover:text-stone-900 uppercase tracking-widest transition-colors">
             <ChevronLeft className="w-3.5 h-3.5" /> Retour
           </button>
           <span className="text-stone-200">/</span>
           <div className="flex items-center gap-2"><div className="w-2 h-2 rounded-full" style={{ backgroundColor: lineColor }} />
-            <span className="text-[9px] font-black text-stone-900 uppercase tracking-widest">{gc?.nameFR || gc?.name}</span>
+            <span className="text-[11px] font-black text-stone-900 uppercase tracking-widest">{gc?.nameFR || gc?.name}</span>
             {gc?.nameFR && gc.nameFR !== gc.name && (
-              <span className="text-[9px] font-bold text-stone-400 uppercase tracking-tight">({gc.name})</span>
+              <span className="text-[11px] font-bold text-stone-400 uppercase tracking-tight">({gc.name})</span>
             )}
           </div>
         </div>
@@ -930,7 +930,7 @@ export default function StockFiches({
                         <Layers className="w-3.5 h-3.5" />
                       </div>
                       {alerts > 0 && (
-                        <span className="text-[7px] font-black bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-full uppercase flex items-center gap-0.5">
+                        <span className="text-[10px] font-black bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-full uppercase flex items-center gap-0.5">
                           <AlertTriangle className="w-2.5 h-2.5" /> {alerts}
                         </span>
                       )}
@@ -940,19 +940,19 @@ export default function StockFiches({
                         {sc.nameFR || sc.name}
                       </h3>
                       {sc.nameFR && sc.nameFR !== sc.name && (
-                        <p className="text-[8px] font-bold text-stone-400 uppercase tracking-tight mt-0.5">
+                        <p className="text-[11px] font-bold text-stone-400 uppercase tracking-tight mt-0.5">
                           {sc.name}
                         </p>
                       )}
-                      <p className="text-[8px] text-stone-400 font-bold mt-0.5">{items.length} référence{items.length !== 1 ? 's' : ''}</p>
+                      <p className="text-[11px] text-stone-400 font-bold mt-0.5">{items.length} référence{items.length !== 1 ? 's' : ''}</p>
                     </div>
                     <div className="space-y-1 pt-2 border-t border-stone-50">
-                      <div className="flex justify-between text-[8px]">
+                      <div className="flex justify-between text-[11px]">
                         <span className="text-stone-400 font-black uppercase">Stock</span>
                         <span className="font-black text-stone-800">{fmt(qty)}</span>
                       </div>
                       {userRole === 'ADMIN' && (
-                        <div className="flex justify-between text-[8px]">
+                        <div className="flex justify-between text-[11px]">
                           <span className="text-stone-400 font-black uppercase">Valeur</span>
                           <span className="font-black" style={{ color }}>{val > 0 ? `${fmt(val)} MAD` : '—'}</span>
                         </div>
@@ -1042,7 +1042,7 @@ export default function StockFiches({
           </div>
           <div>
             <p className="text-stone-500 font-black uppercase text-[11px] tracking-widest">Aucun pôle configuré ou en stock</p>
-            <p className="text-stone-300 text-[9px] font-bold mt-2">
+            <p className="text-stone-300 text-[11px] font-bold mt-2">
               Les pôles et lignes sont synchronisés avec la gestion des groupes.
             </p>
           </div>
@@ -1089,11 +1089,11 @@ export default function StockFiches({
                     <h3 className="text-lg font-black text-stone-900 uppercase tracking-tighter flex items-center gap-2">
                       {group.title}
                     </h3>
-                    <span className="text-[9px] font-black text-stone-500 bg-stone-100 px-2.5 py-0.5 rounded-full uppercase">
+                    <span className="text-[11px] font-black text-stone-500 bg-stone-100 px-2.5 py-0.5 rounded-full uppercase">
                       {group.items.length} pôle{group.items.length > 1 ? 's' : ''} · {groupRefs} ref.
                     </span>
                     {groupAlerts > 0 && (
-                      <span className="text-[9px] font-black text-amber-700 bg-amber-100 px-2.5 py-0.5 rounded-full uppercase flex items-center gap-1">
+                      <span className="text-[11px] font-black text-amber-700 bg-amber-100 px-2.5 py-0.5 rounded-full uppercase flex items-center gap-1">
                         <AlertTriangle className="w-2.5 h-2.5" /> {groupAlerts} alerte{groupAlerts > 1 ? 's' : ''}
                       </span>
                     )}
@@ -1127,7 +1127,7 @@ export default function StockFiches({
                               <Layers className="w-3.5 h-3.5" />
                             </div>
                             {gcAlertCount > 0 && (
-                              <span className="text-[8px] font-black bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full uppercase flex items-center gap-1">
+                              <span className="text-[11px] font-black bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full uppercase flex items-center gap-1">
                                 <AlertTriangle className="w-2.5 h-2.5" /> {gcAlertCount}
                               </span>
                             )}
@@ -1137,21 +1137,21 @@ export default function StockFiches({
                               {gc.nameFR || gc.name}
                             </h3>
                             {gc.nameFR && gc.nameFR !== gc.name && (
-                              <p className="text-[8px] font-bold text-stone-400 uppercase tracking-wider mt-0.5">
+                              <p className="text-[11px] font-bold text-stone-400 uppercase tracking-wider mt-0.5">
                                 {gc.name}
                               </p>
                             )}
-                            <p className="text-[8px] text-stone-400 font-bold mt-0.5">
+                            <p className="text-[11px] text-stone-400 font-bold mt-0.5">
                               {subCount} famille{subCount !== 1 ? 's' : ''} · {gcItems.length} ref.
                             </p>
                           </div>
                           <div className="space-y-1 pt-2 border-t border-stone-50">
-                            <div className="flex justify-between text-[9px]">
+                            <div className="flex justify-between text-[11px]">
                               <span className="text-stone-400 font-black uppercase">Stock</span>
                               <span className="font-black text-stone-800">{fmt(gcQty)}</span>
                             </div>
                             {userRole === 'ADMIN' && (
-                              <div className="flex justify-between text-[9px]">
+                              <div className="flex justify-between text-[11px]">
                                 <span className="text-stone-400 font-black uppercase">Valeur MAD</span>
                                 <span className="font-black" style={{ color: lineColor }}>
                                   {gcVal > 0 ? `${fmt(gcVal)} MAD` : '—'}

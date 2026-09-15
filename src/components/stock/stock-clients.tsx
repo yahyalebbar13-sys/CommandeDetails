@@ -382,7 +382,7 @@ export default function StockClients({ clients, orders, invoices, payments, user
     <div className="space-y-5 animate-in fade-in duration-300">
       {/* Header client */}
       <div className="bg-gradient-to-br from-violet-900 to-violet-800 p-6 rounded-3xl shadow-xl">
-        <button onClick={() => { setSelected(null); setEditMode(false); }} className="flex items-center gap-1.5 text-violet-300 hover:text-white text-[9px] font-black uppercase tracking-wider mb-3 transition-colors">
+        <button onClick={() => { setSelected(null); setEditMode(false); }} className="flex items-center gap-1.5 text-violet-300 hover:text-white text-[11px] font-black uppercase tracking-wider mb-3 transition-colors">
           <ChevronLeft className="w-3.5 h-3.5" /> Tous les clients
         </button>
         <div className="flex items-start justify-between gap-4">
@@ -399,12 +399,12 @@ export default function StockClients({ clients, orders, invoices, payments, user
               )}
               <div className="flex flex-wrap gap-3 mt-1">
                 {(editMode ? (editForm.phone ?? selected.phone) : selected.phone) && (
-                  <span className="text-[9px] font-bold text-violet-200 flex items-center gap-1">
+                  <span className="text-[11px] font-bold text-violet-200 flex items-center gap-1">
                     <Phone className="w-2.5 h-2.5" /> {editMode ? editForm.phone ?? selected.phone : selected.phone}
                   </span>
                 )}
                 {(editMode ? (editForm.email ?? selected.email) : selected.email) && (
-                  <span className="text-[9px] font-bold text-violet-200 flex items-center gap-1">
+                  <span className="text-[11px] font-bold text-violet-200 flex items-center gap-1">
                     <Mail className="w-2.5 h-2.5" /> {editMode ? editForm.email ?? selected.email : selected.email}
                   </span>
                 )}
@@ -430,19 +430,19 @@ export default function StockClients({ clients, orders, invoices, payments, user
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-5">
           <div className="bg-white/10 rounded-xl p-3">
             <p className="text-lg font-black text-white">{fmt$(selCA)}</p>
-            <p className="text-[8px] font-black text-violet-300 uppercase tracking-widest mt-0.5">CA Total</p>
+            <p className="text-[11px] font-black text-violet-300 uppercase tracking-widest mt-0.5">CA Total</p>
           </div>
           <div className="bg-white/10 rounded-xl p-3">
             <p className="text-lg font-black text-emerald-300">{fmt$(selPaid)}</p>
-            <p className="text-[8px] font-black text-violet-300 uppercase tracking-widest mt-0.5">Total Payé / Saisi</p>
+            <p className="text-[11px] font-black text-violet-300 uppercase tracking-widest mt-0.5">Total Payé / Saisi</p>
           </div>
           <div className="bg-white/10 rounded-xl p-3 border border-red-400/30">
             <p className={`text-lg font-black ${selBalance > 0 ? 'text-rose-300' : 'text-emerald-300'}`}>{fmt$(selBalance)}</p>
-            <p className="text-[8px] font-black text-rose-200 uppercase tracking-widest mt-0.5">Reste Dû (Impayés)</p>
+            <p className="text-[11px] font-black text-rose-200 uppercase tracking-widest mt-0.5">Reste Dû (Impayés)</p>
           </div>
           <div className="bg-white/10 rounded-xl p-3 border border-amber-400/30">
             <p className={`text-lg font-black ${selPendingChecks > 0 ? 'text-amber-300' : 'text-stone-300'}`}>{fmt$(selPendingChecks)}</p>
-            <p className="text-[8px] font-black text-amber-200 uppercase tracking-widest mt-0.5">Chèques / LC en attente</p>
+            <p className="text-[11px] font-black text-amber-200 uppercase tracking-widest mt-0.5">Chèques / LC en attente</p>
           </div>
         </div>
         
@@ -468,14 +468,14 @@ export default function StockClients({ clients, orders, invoices, payments, user
             { key: 'notes', label: 'Notes', placeholder: 'Remarques...' },
           ].map(({ key, label, placeholder }) => (
             <div key={key} className="space-y-1">
-              <Label className="text-[9px] font-black text-stone-500 uppercase tracking-widest">{label}</Label>
+              <Label className="text-[11px] font-black text-stone-500 uppercase tracking-widest">{label}</Label>
               <Input value={(editForm as any)[key] ?? (selected as any)[key] ?? ''} placeholder={placeholder}
                 onChange={e => setEditForm(f => ({ ...f, [key]: e.target.value }))}
                 className="h-9 rounded-xl border-stone-200 font-bold text-sm" />
             </div>
           ))}
           <div className="space-y-1">
-            <Label className="text-[9px] font-black text-stone-500 uppercase tracking-widest">Catégorie</Label>
+            <Label className="text-[11px] font-black text-stone-500 uppercase tracking-widest">Catégorie</Label>
             <Select value={editForm.category ?? selected.category ?? ''} onValueChange={v => setEditForm(f => ({ ...f, category: v as any }))}>
               <SelectTrigger className="h-9 rounded-xl border-stone-200 text-sm font-bold">
                 <SelectValue placeholder="Catégorie" />
@@ -488,7 +488,7 @@ export default function StockClients({ clients, orders, invoices, payments, user
             </Select>
           </div>
           <div className="space-y-1">
-            <Label className="text-[9px] font-black text-stone-500 uppercase tracking-widest">Plafond de crédit</Label>
+            <Label className="text-[11px] font-black text-stone-500 uppercase tracking-widest">Plafond de crédit</Label>
             <Input type="number" value={editForm.creditLimit ?? selected.creditLimit ?? ''} placeholder="0"
               onChange={e => setEditForm(f => ({ ...f, creditLimit: parseFloat(e.target.value) || 0 }))}
               className="h-9 rounded-xl border-stone-200 font-bold text-sm" />
@@ -548,7 +548,7 @@ export default function StockClients({ clients, orders, invoices, payments, user
                     <thead>
                       <tr className="bg-stone-50 border-b border-stone-100">
                         {['Date', 'Facture N°', 'Montant Total', 'Déjà Payé', 'Reste à Payer', 'Statut', 'Action'].map(h => (
-                          <th key={h} className="px-4 py-3 text-left text-[8px] font-black uppercase tracking-widest text-stone-400">{h}</th>
+                          <th key={h} className="px-4 py-3 text-left text-[11px] font-black uppercase tracking-widest text-stone-400">{h}</th>
                         ))}
                       </tr>
                     </thead>
@@ -561,7 +561,7 @@ export default function StockClients({ clients, orders, invoices, payments, user
                           <td className="px-4 py-3 text-[10px] font-bold text-emerald-600">{fmt$(inv.paidAmount)} MAD</td>
                           <td className="px-4 py-3 text-[10px] font-black text-rose-600">{fmt$(inv.remainingBalance)} MAD</td>
                           <td className="px-4 py-3">
-                            <span className={`text-[8px] font-black uppercase px-2 py-0.5 rounded-lg ${statusColors[inv.status] || 'bg-stone-100 text-stone-600'}`}>
+                            <span className={`text-[11px] font-black uppercase px-2 py-0.5 rounded-lg ${statusColors[inv.status] || 'bg-stone-100 text-stone-600'}`}>
                               {statusLabels[inv.status] || inv.status}
                             </span>
                           </td>
@@ -582,7 +582,7 @@ export default function StockClients({ clients, orders, invoices, payments, user
                                 }]);
                                 setGlobalPaymentOpen(true);
                               }}
-                              className="h-7 px-3 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-[9px] uppercase rounded-lg"
+                              className="h-7 px-3 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-[11px] uppercase rounded-lg"
                             >
                               Régler
                             </Button>
@@ -618,7 +618,7 @@ export default function StockClients({ clients, orders, invoices, payments, user
                     <thead>
                       <tr className="bg-stone-50 border-b border-stone-100">
                         {['Date Reçu', 'Type', 'N° Pièce', 'Banque', 'Échéance', 'Montant', 'Statut'].map(h => (
-                          <th key={h} className="px-4 py-3 text-left text-[8px] font-black uppercase tracking-widest text-stone-400">{h}</th>
+                          <th key={h} className="px-4 py-3 text-left text-[11px] font-black uppercase tracking-widest text-stone-400">{h}</th>
                         ))}
                       </tr>
                     </thead>
@@ -632,7 +632,7 @@ export default function StockClients({ clients, orders, invoices, payments, user
                           <td className="px-4 py-3 text-[10px] font-black text-rose-600">{p.dueDate || '—'}</td>
                           <td className="px-4 py-3 text-[10px] font-black text-stone-900">{fmt$(p.amount)} MAD</td>
                           <td className="px-4 py-3">
-                            <span className="text-[8px] font-black uppercase px-2 py-0.5 rounded-lg bg-amber-100 text-amber-800 border border-amber-200">
+                            <span className="text-[11px] font-black uppercase px-2 py-0.5 rounded-lg bg-amber-100 text-amber-800 border border-amber-200">
                               En attente
                             </span>
                           </td>
@@ -650,7 +650,7 @@ export default function StockClients({ clients, orders, invoices, payments, user
           <table className="w-full">
             <thead><tr className="bg-stone-50 border-b border-stone-100">
               {['Date', 'Montant', 'Payé', 'Solde', 'Statut'].map(h => (
-                <th key={h} className="px-4 py-3 text-left text-[8px] font-black uppercase tracking-widest text-stone-400">{h}</th>
+                <th key={h} className="px-4 py-3 text-left text-[11px] font-black uppercase tracking-widest text-stone-400">{h}</th>
               ))}
             </tr></thead>
             <tbody className="divide-y divide-stone-50">
@@ -660,7 +660,7 @@ export default function StockClients({ clients, orders, invoices, payments, user
                   <td className="px-4 py-3 text-[10px] font-black text-stone-900">{fmt$(inv.totalAfterDiscount)}</td>
                   <td className="px-4 py-3 text-[10px] font-bold text-emerald-600">{fmt$(inv.paidAmount)}</td>
                   <td className="px-4 py-3 text-[10px] font-black text-red-600">{fmt$(inv.remainingBalance)}</td>
-                  <td className="px-4 py-3"><span className={`text-[8px] font-black uppercase px-2 py-0.5 rounded-lg ${statusColors[inv.status]}`}>{statusLabels[inv.status]}</span></td>
+                  <td className="px-4 py-3"><span className={`text-[11px] font-black uppercase px-2 py-0.5 rounded-lg ${statusColors[inv.status]}`}>{statusLabels[inv.status]}</span></td>
                 </tr>
               ))}
             </tbody>
@@ -671,7 +671,7 @@ export default function StockClients({ clients, orders, invoices, payments, user
           <table className="w-full">
             <thead><tr className="bg-stone-50 border-b border-stone-100">
               {['Date', 'Articles', 'Total', 'Statut'].map(h => (
-                <th key={h} className="px-4 py-3 text-left text-[8px] font-black uppercase tracking-widest text-stone-400">{h}</th>
+                <th key={h} className="px-4 py-3 text-left text-[11px] font-black uppercase tracking-widest text-stone-400">{h}</th>
               ))}
             </tr></thead>
             <tbody className="divide-y divide-stone-50">
@@ -680,7 +680,7 @@ export default function StockClients({ clients, orders, invoices, payments, user
                   <td className="px-4 py-3 text-[10px] font-bold text-stone-500">{ord.date}</td>
                   <td className="px-4 py-3 text-[10px] font-bold text-stone-600">{ord.items.length} article{ord.items.length > 1 ? 's' : ''}</td>
                   <td className="px-4 py-3 text-[10px] font-black text-stone-900">{fmt$(ord.totalAfterDiscount)}</td>
-                  <td className="px-4 py-3"><span className={`text-[8px] font-black uppercase px-2 py-0.5 rounded-lg ${statusColors[ord.status]}`}>{statusLabels[ord.status]}</span></td>
+                  <td className="px-4 py-3"><span className={`text-[11px] font-black uppercase px-2 py-0.5 rounded-lg ${statusColors[ord.status]}`}>{statusLabels[ord.status]}</span></td>
                 </tr>
               ))}
             </tbody>
@@ -691,7 +691,7 @@ export default function StockClients({ clients, orders, invoices, payments, user
           <table className="w-full">
             <thead><tr className="bg-stone-50 border-b border-stone-100">
               {['Date', 'Montant', 'Méthode', 'Notes'].map(h => (
-                <th key={h} className="px-4 py-3 text-left text-[8px] font-black uppercase tracking-widest text-stone-400">{h}</th>
+                <th key={h} className="px-4 py-3 text-left text-[11px] font-black uppercase tracking-widest text-stone-400">{h}</th>
               ))}
             </tr></thead>
             <tbody className="divide-y divide-stone-50">
@@ -699,7 +699,7 @@ export default function StockClients({ clients, orders, invoices, payments, user
                 <tr key={p.id} className="hover:bg-stone-50/50">
                   <td className="px-4 py-3 text-[10px] font-bold text-stone-500">{p.date}</td>
                   <td className="px-4 py-3 text-[10px] font-black text-emerald-700">{fmt$(p.amount)}</td>
-                  <td className="px-4 py-3"><span className="text-[8px] font-black bg-stone-100 text-stone-600 px-2 py-0.5 rounded uppercase">{p.method}</span></td>
+                  <td className="px-4 py-3"><span className="text-[11px] font-black bg-stone-100 text-stone-600 px-2 py-0.5 rounded uppercase">{p.method}</span></td>
                   <td className="px-4 py-3 text-[10px] text-stone-400 font-bold">{p.notes || '—'}</td>
                 </tr>
               ))}
@@ -713,7 +713,7 @@ export default function StockClients({ clients, orders, invoices, payments, user
                 <thead>
                   <tr className="bg-stone-50 border-b border-stone-100">
                     {['Date saisie', 'Type', 'N° Pièce', 'Banque', 'Échéance', 'Montant', 'Scan'].map(h => (
-                      <th key={h} className="px-4 py-3 text-left text-[8px] font-black uppercase tracking-widest text-stone-400">{h}</th>
+                      <th key={h} className="px-4 py-3 text-left text-[11px] font-black uppercase tracking-widest text-stone-400">{h}</th>
                     ))}
                   </tr>
                 </thead>
@@ -736,13 +736,13 @@ export default function StockClients({ clients, orders, invoices, payments, user
                           <button
                             type="button"
                             onClick={() => setViewScanUrl(p.scannedImageUrl!)}
-                            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-50 text-emerald-700 hover:bg-emerald-100 font-bold border border-emerald-200 transition-colors text-[9px]"
+                            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-50 text-emerald-700 hover:bg-emerald-100 font-bold border border-emerald-200 transition-colors text-[11px]"
                           >
                             <Camera className="w-3 h-3" />
                             Voir scan
                           </button>
                         ) : (
-                          <span className="text-stone-300 text-[9px] font-bold italic">—</span>
+                          <span className="text-stone-300 text-[11px] font-bold italic">—</span>
                         )}
                       </td>
                     </tr>
@@ -761,7 +761,7 @@ export default function StockClients({ clients, orders, invoices, payments, user
                 <p className="text-xs font-bold text-emerald-200 mt-1">Client : <span className="text-white uppercase font-black">{selected?.name}</span></p>
               </div>
               <div className="text-right">
-                <span className="text-[9px] font-black uppercase tracking-widest text-emerald-200">Solde Actuel Dû</span>
+                <span className="text-[11px] font-black uppercase tracking-widest text-emerald-200">Solde Actuel Dû</span>
                 <p className="text-2xl font-black text-white">{fmt$(selBalance)} MAD</p>
               </div>
             </div>
@@ -769,17 +769,17 @@ export default function StockClients({ clients, orders, invoices, payments, user
             {/* Suivi récapitulatif en temps réel */}
             <div className="grid grid-cols-3 gap-3 mt-4 pt-4 border-t border-white/10 text-center">
               <div className="bg-white/10 rounded-xl p-2.5">
-                <span className="text-[8px] font-black uppercase tracking-widest text-emerald-200">Total à régler</span>
+                <span className="text-[11px] font-black uppercase tracking-widest text-emerald-200">Total à régler</span>
                 <p className="text-sm font-black text-white mt-0.5">{fmt$(selBalance)} MAD</p>
               </div>
               <div className="bg-white/10 rounded-xl p-2.5">
-                <span className="text-[8px] font-black uppercase tracking-widest text-emerald-200">Total Saisi</span>
+                <span className="text-[11px] font-black uppercase tracking-widest text-emerald-200">Total Saisi</span>
                 <p className={`text-sm font-black mt-0.5 ${totalPaymentEntered > 0 ? 'text-white' : 'text-emerald-300'}`}>
                   {fmt$(totalPaymentEntered)} MAD
                 </p>
               </div>
               <div className="bg-white/10 rounded-xl p-2.5">
-                <span className="text-[8px] font-black uppercase tracking-widest text-emerald-200">État</span>
+                <span className="text-[11px] font-black uppercase tracking-widest text-emerald-200">État</span>
                 <p className={`text-sm font-black mt-0.5 ${
                   totalPaymentEntered === 0 ? 'text-emerald-200' :
                   diffBalance === 0 ? 'text-emerald-300' :
@@ -823,7 +823,7 @@ export default function StockClients({ clients, orders, invoices, payments, user
                     variant="outline"
                     size="sm"
                     onClick={() => addPaymentLine('CASH')}
-                    className="h-7 text-[9px] font-black rounded-lg uppercase tracking-wider text-stone-600 hover:text-emerald-700 hover:border-emerald-300">
+                    className="h-7 text-[11px] font-black rounded-lg uppercase tracking-wider text-stone-600 hover:text-emerald-700 hover:border-emerald-300">
                     + Espèces
                   </Button>
                   <Button
@@ -831,7 +831,7 @@ export default function StockClients({ clients, orders, invoices, payments, user
                     variant="outline"
                     size="sm"
                     onClick={() => addPaymentLine('CHEQUE')}
-                    className="h-7 text-[9px] font-black rounded-lg uppercase tracking-wider text-stone-600 hover:text-blue-700 hover:border-blue-300">
+                    className="h-7 text-[11px] font-black rounded-lg uppercase tracking-wider text-stone-600 hover:text-blue-700 hover:border-blue-300">
                     + Chèque
                   </Button>
                   <Button
@@ -839,7 +839,7 @@ export default function StockClients({ clients, orders, invoices, payments, user
                     variant="outline"
                     size="sm"
                     onClick={() => addPaymentLine('EFFET')}
-                    className="h-7 text-[9px] font-black rounded-lg uppercase tracking-wider text-stone-600 hover:text-amber-700 hover:border-amber-300">
+                    className="h-7 text-[11px] font-black rounded-lg uppercase tracking-wider text-stone-600 hover:text-amber-700 hover:border-amber-300">
                     + LC (Effet)
                   </Button>
                   <Button
@@ -847,7 +847,7 @@ export default function StockClients({ clients, orders, invoices, payments, user
                     variant="outline"
                     size="sm"
                     onClick={() => addPaymentLine('VIREMENT')}
-                    className="h-7 text-[9px] font-black rounded-lg uppercase tracking-wider text-stone-600 hover:text-purple-700 hover:border-purple-300">
+                    className="h-7 text-[11px] font-black rounded-lg uppercase tracking-wider text-stone-600 hover:text-purple-700 hover:border-purple-300">
                     + Virement
                   </Button>
                 </div>
@@ -856,7 +856,7 @@ export default function StockClients({ clients, orders, invoices, payments, user
               {paymentLines.map((line, idx) => (
                 <div key={line.id} className="p-4 rounded-2xl border-2 border-stone-100 bg-stone-50/60 hover:border-stone-200 transition-all space-y-3">
                   <div className="flex items-center justify-between">
-                    <span className="text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-lg bg-stone-200 text-stone-700">
+                    <span className="text-[11px] font-black uppercase tracking-wider px-2 py-0.5 rounded-lg bg-stone-200 text-stone-700">
                       Règlement #{idx + 1}
                     </span>
                     {paymentLines.length > 1 && (
@@ -873,7 +873,7 @@ export default function StockClients({ clients, orders, invoices, payments, user
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div className="space-y-1">
-                      <Label className="text-[9px] font-black text-stone-500 uppercase tracking-widest">Mode de paiement *</Label>
+                      <Label className="text-[11px] font-black text-stone-500 uppercase tracking-widest">Mode de paiement *</Label>
                       <Select value={line.method} onValueChange={v => updatePaymentLine(line.id, { method: v as PaymentMethod })}>
                         <SelectTrigger className="h-10 rounded-xl border-stone-200 bg-white font-bold text-xs">
                           <SelectValue />
@@ -890,7 +890,7 @@ export default function StockClients({ clients, orders, invoices, payments, user
 
                     <div className="space-y-1">
                       <div className="flex justify-between items-center">
-                        <Label className="text-[9px] font-black text-stone-500 uppercase tracking-widest">Montant (MAD) *</Label>
+                        <Label className="text-[11px] font-black text-stone-500 uppercase tracking-widest">Montant (MAD) *</Label>
                         {diffBalance > 0 && parseFloat(line.amount || '0') !== selBalance && (
                           <button
                             type="button"
@@ -898,7 +898,7 @@ export default function StockClients({ clients, orders, invoices, payments, user
                               const otherSum = paymentLines.filter(l => l.id !== line.id).reduce((s, l) => s + (parseFloat(l.amount) || 0), 0);
                               updatePaymentLine(line.id, { amount: String(Math.max(0, selBalance - otherSum)) });
                             }}
-                            className="text-[8px] font-bold text-emerald-600 hover:underline">
+                            className="text-[11px] font-bold text-emerald-600 hover:underline">
                             Compléter le reste
                           </button>
                         )}
@@ -920,7 +920,7 @@ export default function StockClients({ clients, orders, invoices, payments, user
                     <div className="pt-3 border-t border-stone-200/60 space-y-3">
                       <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
                         <div className="space-y-1">
-                          <Label className="text-[9px] font-black text-stone-500 uppercase tracking-widest">
+                          <Label className="text-[11px] font-black text-stone-500 uppercase tracking-widest">
                             Banque Tirée
                           </Label>
                           <Input
@@ -931,7 +931,7 @@ export default function StockClients({ clients, orders, invoices, payments, user
                           />
                         </div>
                         <div className="space-y-1">
-                          <Label className="text-[9px] font-black text-stone-500 uppercase tracking-widest">
+                          <Label className="text-[11px] font-black text-stone-500 uppercase tracking-widest">
                             {line.method === 'CHEQUE' ? 'N° de Chèque' : 'N° LC / Effet'}
                           </Label>
                           <Input
@@ -942,7 +942,7 @@ export default function StockClients({ clients, orders, invoices, payments, user
                           />
                         </div>
                         <div className="space-y-1">
-                          <Label className="text-[9px] font-black text-stone-500 uppercase tracking-widest">
+                          <Label className="text-[11px] font-black text-stone-500 uppercase tracking-widest">
                             Date d'échéance
                           </Label>
                           <Input
@@ -954,7 +954,7 @@ export default function StockClients({ clients, orders, invoices, payments, user
                         </div>
                         {userRole === 'ADMIN' && (
                           <div className="space-y-1">
-                            <Label className="text-[9px] font-black text-stone-500 uppercase tracking-widest">
+                            <Label className="text-[11px] font-black text-stone-500 uppercase tracking-widest">
                               Société Attijari
                             </Label>
                             <Select
@@ -977,13 +977,13 @@ export default function StockClients({ clients, orders, invoices, payments, user
                       {/* Photo / Scan OBLIGATOIRE pour chèque et LC */}
                       <div className="space-y-1.5">
                         <div className="flex items-center justify-between">
-                          <Label className="text-[9px] font-black uppercase tracking-widest flex items-center gap-1.5 text-amber-800">
+                          <Label className="text-[11px] font-black uppercase tracking-widest flex items-center gap-1.5 text-amber-800">
                             <Camera className="w-3.5 h-3.5 text-amber-600" />
                             <span>Scan / Photo du {line.method === 'CHEQUE' ? 'Chèque' : 'la LC'}</span>
                             <span className="text-red-500 font-black">* OBLIGATOIRE</span>
                           </Label>
                           {!line.scannedImageUrl && (
-                            <span className="text-[8px] font-black uppercase tracking-wider text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full">
+                            <span className="text-[11px] font-black uppercase tracking-wider text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full">
                               Scan requis avant validation
                             </span>
                           )}
@@ -1055,7 +1055,7 @@ export default function StockClients({ clients, orders, invoices, payments, user
                   {line.method === 'VIREMENT' && (
                     <div className="pt-3 border-t border-stone-200/60 grid grid-cols-1 sm:grid-cols-2 gap-3">
                       <div className="space-y-1">
-                        <Label className="text-[9px] font-black text-stone-500 uppercase tracking-widest">Banque émettrice / réceptrice</Label>
+                        <Label className="text-[11px] font-black text-stone-500 uppercase tracking-widest">Banque émettrice / réceptrice</Label>
                         <Input
                           placeholder="Ex: Attijariwafa, CIH..."
                           value={line.bankName}
@@ -1064,7 +1064,7 @@ export default function StockClients({ clients, orders, invoices, payments, user
                         />
                       </div>
                       <div className="space-y-1">
-                        <Label className="text-[9px] font-black text-stone-500 uppercase tracking-widest">N° Référence Virement</Label>
+                        <Label className="text-[11px] font-black text-stone-500 uppercase tracking-widest">N° Référence Virement</Label>
                         <Input
                           placeholder="Ex: VIR-2026-9901"
                           value={line.checkNumber}
@@ -1077,7 +1077,7 @@ export default function StockClients({ clients, orders, invoices, payments, user
 
                   {/* Remarques / Référence libre */}
                   <div className="space-y-1">
-                    <Label className="text-[9px] font-black text-stone-500 uppercase tracking-widest">Notes / Référence libre</Label>
+                    <Label className="text-[11px] font-black text-stone-500 uppercase tracking-widest">Notes / Référence libre</Label>
                     <Input
                       placeholder="Commentaire ou numéro de reçu..."
                       value={line.notes}
@@ -1156,7 +1156,7 @@ export default function StockClients({ clients, orders, invoices, payments, user
         <div className="absolute top-0 right-0 w-64 h-64 bg-violet-400/10 rounded-full -translate-y-1/2 translate-x-1/2 blur-3xl" />
         <div className="relative z-10 flex items-center justify-between gap-4">
           <div>
-            <p className="text-[9px] font-black text-violet-300 uppercase tracking-[0.3em] mb-1">CRM</p>
+            <p className="text-[11px] font-black text-violet-300 uppercase tracking-[0.3em] mb-1">CRM</p>
             <h1 className="text-3xl font-black text-white uppercase tracking-tighter">Dossiers <span className="text-violet-300">Clients</span></h1>
             <p className="text-violet-300/70 text-xs font-bold mt-2">{clients.length} client{clients.length > 1 ? 's' : ''} enregistré{clients.length > 1 ? 's' : ''}</p>
           </div>
@@ -1177,7 +1177,7 @@ export default function StockClients({ clients, orders, invoices, payments, user
         ].map(({ label, value }) => (
           <div key={label} className="bg-white rounded-2xl shadow-xl border border-stone-100 p-5">
             <p className="text-2xl font-black text-stone-900">{value}</p>
-            <p className="text-[8px] font-black text-stone-400 uppercase tracking-widest mt-1">{label}</p>
+            <p className="text-[11px] font-black text-stone-400 uppercase tracking-widest mt-1">{label}</p>
           </div>
         ))}
       </div>
@@ -1240,27 +1240,27 @@ export default function StockClients({ clients, orders, invoices, payments, user
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 mb-0.5">
                         <p className="font-black text-stone-900 uppercase tracking-tight truncate">{c.name}</p>
-                        {c.creditBlocked && <span className="bg-red-500 text-white text-[8px] font-black uppercase px-1.5 py-0.5 rounded">Bloqué</span>}
+                        {c.creditBlocked && <span className="bg-red-500 text-white text-[11px] font-black uppercase px-1.5 py-0.5 rounded">Bloqué</span>}
                       </div>
                       {c.category && CATEGORY_BADGE[c.category] && (
-                        <span className={`inline-block text-[8px] font-black uppercase px-1.5 py-0.5 rounded mb-1 ${CATEGORY_BADGE[c.category].cls}`}>
+                        <span className={`inline-block text-[11px] font-black uppercase px-1.5 py-0.5 rounded mb-1 ${CATEGORY_BADGE[c.category].cls}`}>
                           {CATEGORY_BADGE[c.category].label}
                         </span>
                       )}
-                      {c.ice && <p className="text-[9px] font-bold text-stone-500 mt-0.5">ICE: {c.ice}</p>}
-                      {c.phone && <p className="text-[9px] font-bold text-stone-400 flex items-center gap-1 mt-0.5"><Phone className="w-2.5 h-2.5" />{c.phone}</p>}
-                      {c.email && <p className="text-[9px] font-bold text-stone-400 flex items-center gap-1"><Mail className="w-2.5 h-2.5" />{c.email}</p>}
+                      {c.ice && <p className="text-[11px] font-bold text-stone-500 mt-0.5">ICE: {c.ice}</p>}
+                      {c.phone && <p className="text-[11px] font-bold text-stone-400 flex items-center gap-1 mt-0.5"><Phone className="w-2.5 h-2.5" />{c.phone}</p>}
+                      {c.email && <p className="text-[11px] font-bold text-stone-400 flex items-center gap-1"><Mail className="w-2.5 h-2.5" />{c.email}</p>}
                     </div>
                   </div>
 
                   <div className="space-y-2 mb-4">
-                    <div className="flex justify-between text-[9px] font-bold text-stone-400">
+                    <div className="flex justify-between text-[11px] font-bold text-stone-400">
                       <span>{nOrd} commande{nOrd > 1 ? 's' : ''}</span>
                       <span>{nInv} facture{nInv > 1 ? 's' : ''}</span>
                     </div>
                     <div className="flex justify-between items-center">
-                      <span className="text-[9px] font-black text-stone-500 uppercase">CA: {fmt$(ca)}</span>
-                      <span className={`text-[9px] font-black px-2 py-0.5 rounded-lg ${
+                      <span className="text-[11px] font-black text-stone-500 uppercase">CA: {fmt$(ca)}</span>
+                      <span className={`text-[11px] font-black px-2 py-0.5 rounded-lg ${
                         balance === 0 ? 'bg-emerald-100 text-emerald-700' :
                         balance < ca * 0.5 ? 'bg-orange-100 text-orange-700' :
                         'bg-red-100 text-red-700'
@@ -1269,14 +1269,14 @@ export default function StockClients({ clients, orders, invoices, payments, user
                       </span>
                     </div>
                     {pendingChecks > 0 && (
-                      <div className="text-[8px] font-bold text-amber-800 bg-amber-50 px-2 py-1 rounded-lg border border-amber-200 flex justify-between items-center">
+                      <div className="text-[11px] font-bold text-amber-800 bg-amber-50 px-2 py-1 rounded-lg border border-amber-200 flex justify-between items-center">
                         <span>Chèques/LC en attente:</span>
                         <span className="font-black">{fmt$(pendingChecks)} MAD</span>
                       </div>
                     )}
                     {c.creditLimit && c.creditLimit > 0 ? (
                       <div className="mt-2">
-                        <div className="flex justify-between text-[8px] font-bold uppercase tracking-widest text-stone-400 mb-1">
+                        <div className="flex justify-between text-[11px] font-bold uppercase tracking-widest text-stone-400 mb-1">
                           <span>Crédit utilisé</span>
                           <span>{fmt$(balance)} / {fmt$(c.creditLimit)} MAD</span>
                         </div>
@@ -1289,7 +1289,7 @@ export default function StockClients({ clients, orders, invoices, payments, user
                   </div>
 
                   <Button onClick={() => setSelected(c)}
-                    className="w-full bg-stone-50 hover:bg-violet-50 hover:text-violet-700 text-stone-600 font-black uppercase text-[9px] h-9 rounded-xl border border-stone-100 hover:border-violet-200 transition-all">
+                    className="w-full bg-stone-50 hover:bg-violet-50 hover:text-violet-700 text-stone-600 font-black uppercase text-[11px] h-9 rounded-xl border border-stone-100 hover:border-violet-200 transition-all">
                     Voir le dossier
                   </Button>
                 </div>
@@ -1316,7 +1316,7 @@ export default function StockClients({ clients, orders, invoices, payments, user
               { key: 'notes', label: 'Notes', placeholder: 'Informations complémentaires...' },
             ].map(({ key, label, placeholder }) => (
               <div key={key} className="space-y-1">
-                <Label className="text-[9px] font-black text-stone-500 uppercase tracking-widest">{label}</Label>
+                <Label className="text-[11px] font-black text-stone-500 uppercase tracking-widest">{label}</Label>
                 <Input value={(form as any)[key]} placeholder={placeholder}
                   onChange={e => setForm(f => ({ ...f, [key]: e.target.value }))}
                   className="h-10 rounded-xl border-stone-200 font-bold text-sm" />
@@ -1324,7 +1324,7 @@ export default function StockClients({ clients, orders, invoices, payments, user
             ))}
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1">
-                <Label className="text-[9px] font-black text-stone-500 uppercase tracking-widest">Catégorie</Label>
+                <Label className="text-[11px] font-black text-stone-500 uppercase tracking-widest">Catégorie</Label>
                 <Select value={(form as any).category || undefined} onValueChange={v => setForm(f => ({ ...f, category: v }))}>
                   <SelectTrigger className="h-10 rounded-xl border-stone-200 font-bold text-sm"><SelectValue placeholder="Catégorie..." /></SelectTrigger>
                   <SelectContent>
@@ -1335,7 +1335,7 @@ export default function StockClients({ clients, orders, invoices, payments, user
                 </Select>
               </div>
               <div className="space-y-1">
-                <Label className="text-[9px] font-black text-stone-500 uppercase tracking-widest">Plafond de crédit</Label>
+                <Label className="text-[11px] font-black text-stone-500 uppercase tracking-widest">Plafond de crédit</Label>
                 <Input type="number" value={(form as any).creditLimit || ''} placeholder="0"
                   onChange={e => setForm(f => ({ ...f, creditLimit: parseFloat(e.target.value) || 0 }))}
                   className="h-10 rounded-xl border-stone-200 font-bold text-sm" />

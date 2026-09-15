@@ -98,7 +98,7 @@ export default function StockAlerts({ stockItems, articles, categories, movement
       <div className="bg-gradient-to-br from-red-900 to-red-800 p-8 rounded-3xl shadow-2xl relative overflow-hidden">
         <div className="absolute top-0 right-0 w-64 h-64 bg-red-500/10 rounded-full -translate-y-1/2 translate-x-1/2 blur-3xl" />
         <div className="relative z-10">
-          <p className="text-[9px] font-black text-red-300 uppercase tracking-[0.3em] mb-1">Surveillance en temps réel</p>
+          <p className="text-[11px] font-black text-red-300 uppercase tracking-[0.3em] mb-1">Surveillance en temps réel</p>
           <h1 className="text-3xl font-black text-white uppercase tracking-tighter">
             Centre des <span className="text-red-300">Alertes</span>
           </h1>
@@ -141,7 +141,7 @@ export default function StockAlerts({ stockItems, articles, categories, movement
           <div className="flex items-center gap-2">
             <XCircle className="w-5 h-5 text-red-500" />
             <h2 className="text-lg font-black text-stone-900 uppercase tracking-tighter">Ruptures de Stock</h2>
-            <span className="bg-red-100 text-red-700 text-[9px] font-black px-2 py-0.5 rounded-full uppercase">{ruptureItems.length}</span>
+            <span className="bg-red-100 text-red-700 text-[11px] font-black px-2 py-0.5 rounded-full uppercase">{ruptureItems.length}</span>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {ruptureItems.map(item => (
@@ -160,7 +160,7 @@ export default function StockAlerts({ stockItems, articles, categories, movement
           <div className="flex items-center gap-2">
             <AlertTriangle className="w-5 h-5 text-orange-500" />
             <h2 className="text-lg font-black text-stone-900 uppercase tracking-tighter">Stock Bas</h2>
-            <span className="bg-orange-100 text-orange-700 text-[9px] font-black px-2 py-0.5 rounded-full uppercase">
+            <span className="bg-orange-100 text-orange-700 text-[11px] font-black px-2 py-0.5 rounded-full uppercase">
               {lowStockItems.filter(i => i.currentQty > 0).length}
             </span>
           </div>
@@ -181,7 +181,7 @@ export default function StockAlerts({ stockItems, articles, categories, movement
           <div className="flex items-center gap-2">
             <Bell className="w-5 h-5 text-amber-500" />
             <h2 className="text-lg font-black text-stone-900 uppercase tracking-tighter">Rappels de Commande</h2>
-            <span className="bg-amber-100 text-amber-700 text-[9px] font-black px-2 py-0.5 rounded-full uppercase">{reorderItems.length}</span>
+            <span className="bg-amber-100 text-amber-700 text-[11px] font-black px-2 py-0.5 rounded-full uppercase">{reorderItems.length}</span>
           </div>
           <div className="bg-white rounded-2xl shadow-lg border border-amber-100 overflow-hidden divide-y divide-amber-50">
             {reorderItems.map(({ cat, alert }) => (
@@ -191,9 +191,9 @@ export default function StockAlerts({ stockItems, articles, categories, movement
                 }`} />
                 <div className="flex-1 min-w-0">
                   <p className="text-[11px] font-black text-stone-800 uppercase">{cat.name}</p>
-                  <p className="text-[9px] font-bold text-stone-400">{alert!.season.season}</p>
+                  <p className="text-[11px] font-bold text-stone-400">{alert!.season.season}</p>
                 </div>
-                <span className={`text-[9px] font-black px-2.5 py-1 rounded-full uppercase ${
+                <span className={`text-[11px] font-black px-2.5 py-1 rounded-full uppercase ${
                   alert!.level === 'OVERDUE' ? 'bg-red-100 text-red-700' :
                   alert!.level === 'URGENT' ? 'bg-orange-100 text-orange-700' : 'bg-amber-100 text-amber-700'
                 }`}>
@@ -225,13 +225,13 @@ export default function StockAlerts({ stockItems, articles, categories, movement
             {noThresholdItems.slice(0, 8).map(item => (
               <button key={item.articleId}
                 onClick={() => { setThresholdItem(item); setThresholdValue(''); }}
-                className="text-[9px] font-black px-3 py-1.5 bg-white border border-stone-200 rounded-xl text-stone-600 hover:border-emerald-400 hover:text-emerald-700 transition-colors uppercase"
+                className="text-[11px] font-black px-3 py-1.5 bg-white border border-stone-200 rounded-xl text-stone-600 hover:border-emerald-400 hover:text-emerald-700 transition-colors uppercase"
               >
                 {item.productName.length > 25 ? item.productName.substring(0, 25) + '…' : item.productName}
               </button>
             ))}
             {noThresholdItems.length > 8 && (
-              <span className="text-[9px] font-bold text-stone-400 px-3 py-1.5">+{noThresholdItems.length - 8} autres</span>
+              <span className="text-[11px] font-bold text-stone-400 px-3 py-1.5">+{noThresholdItems.length - 8} autres</span>
             )}
           </div>
         </section>
@@ -249,7 +249,7 @@ export default function StockAlerts({ stockItems, articles, categories, movement
               Stock actuel : <strong>{thresholdItem?.currentQty} {thresholdItem?.unitOfMeasure}</strong>
             </p>
             <div className="space-y-1.5">
-              <Label className="text-[9px] font-black uppercase tracking-widest text-stone-500">
+              <Label className="text-[11px] font-black uppercase tracking-widest text-stone-500">
                 Seuil minimal ({thresholdItem?.unitOfMeasure})
               </Label>
               <Input
@@ -259,7 +259,7 @@ export default function StockAlerts({ stockItems, articles, categories, movement
                 placeholder="Ex: 500"
                 className="h-11 text-xl font-black rounded-xl border-stone-200"
               />
-              <p className="text-[9px] text-stone-400 font-bold">
+              <p className="text-[11px] text-stone-400 font-bold">
                 Une alerte sera déclenchée quand le stock passe sous ce seuil.
               </p>
             </div>
@@ -307,24 +307,24 @@ function AlertCard({ item, level, onOrder, onThreshold }: {
           <div className="min-w-0">
             <p className="text-[11px] font-black text-stone-800 uppercase leading-tight">{item.nameFR || item.productName}</p>
             <div className="flex flex-wrap items-center gap-1.5 mt-0.5">
-              <span className="text-[9px] font-bold text-stone-400">{item.categoryNameFR || item.categoryId}</span>
+              <span className="text-[11px] font-bold text-stone-400">{item.categoryNameFR || item.categoryId}</span>
               {item.quality && (
-                <span className="bg-violet-100 text-violet-700 font-black text-[8px] px-1.5 py-0.2 rounded uppercase">
+                <span className="bg-violet-100 text-violet-700 font-black text-[11px] px-1.5 py-0.2 rounded uppercase">
                   {item.quality}
                 </span>
               )}
-              {item.color && <span className="text-[8px] font-bold bg-stone-100 text-stone-600 px-1 rounded uppercase">{item.color}</span>}
-              {item.size && <span className="text-[8px] font-bold bg-stone-100 text-stone-600 px-1 rounded uppercase">T. {item.size}</span>}
+              {item.color && <span className="text-[11px] font-bold bg-stone-100 text-stone-600 px-1 rounded uppercase">{item.color}</span>}
+              {item.size && <span className="text-[11px] font-bold bg-stone-100 text-stone-600 px-1 rounded uppercase">T. {item.size}</span>}
             </div>
           </div>
-          <span className={`shrink-0 text-[9px] font-black px-2 py-0.5 rounded-full uppercase ${isRupture ? 'bg-red-100 text-red-700' : 'bg-orange-100 text-orange-700'}`}>
+          <span className={`shrink-0 text-[11px] font-black px-2 py-0.5 rounded-full uppercase ${isRupture ? 'bg-red-100 text-red-700' : 'bg-orange-100 text-orange-700'}`}>
             {isRupture ? 'Rupture' : 'Bas'}
           </span>
         </div>
 
         {/* Barre de niveau */}
         <div className="space-y-1">
-          <div className="flex justify-between text-[8px] font-black uppercase">
+          <div className="flex justify-between text-[11px] font-black uppercase">
             <span className="text-stone-400">Stock actuel</span>
             <span className={isRupture ? 'text-red-600' : 'text-orange-600'}>
               {(Number(item.currentQty) || 0).toLocaleString('fr-FR')} / {(Number(item.minThreshold) || 0).toLocaleString('fr-FR')} {item.unitOfMeasure}
@@ -340,11 +340,11 @@ function AlertCard({ item, level, onOrder, onThreshold }: {
 
         <div className="flex gap-2 pt-1">
           <Button onClick={onOrder} size="sm"
-            className="flex-1 h-8 bg-emerald-600 hover:bg-emerald-700 text-white text-[9px] font-black uppercase tracking-wider rounded-xl gap-1">
+            className="flex-1 h-8 bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-black uppercase tracking-wider rounded-xl gap-1">
             <Plus className="w-3 h-3" /> Entrée
           </Button>
           <Button onClick={onThreshold} size="sm" variant="outline"
-            className="h-8 px-3 text-[9px] font-black uppercase tracking-wider rounded-xl border-stone-200 hover:border-emerald-400">
+            className="h-8 px-3 text-[11px] font-black uppercase tracking-wider rounded-xl border-stone-200 hover:border-emerald-400">
             <Settings className="w-3 h-3" />
           </Button>
         </div>

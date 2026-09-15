@@ -114,7 +114,7 @@ export default function StockOrders({ orders, clients, onUpdateStatus, onConvert
         <div className="absolute top-0 right-0 w-64 h-64 bg-white/5 rounded-full -translate-y-1/2 translate-x-1/2 blur-3xl" />
         <div className="relative z-10 flex items-center justify-between gap-4">
           <div>
-            <p className="text-[9px] font-black text-stone-400 uppercase tracking-[0.3em] mb-1">Ventes</p>
+            <p className="text-[11px] font-black text-stone-400 uppercase tracking-[0.3em] mb-1">Ventes</p>
             <h1 className="text-3xl font-black text-white uppercase tracking-tighter">Bons de <span className="text-stone-400">Commande</span></h1>
             <p className="text-stone-500 text-xs font-bold mt-2">{orders.length} BC · Total : {fmt$(totalAmount)}</p>
           </div>
@@ -160,7 +160,7 @@ export default function StockOrders({ orders, clients, onUpdateStatus, onConvert
             <table className="w-full">
               <thead><tr className="bg-stone-50 border-b border-stone-100">
                 {['N° BC', 'Date', 'Client', 'Articles', 'Total', 'Statut', 'Actions'].map(h => (
-                  <th key={h} className="px-4 py-3 text-left text-[8px] font-black uppercase tracking-widest text-stone-400 whitespace-nowrap">{h}</th>
+                  <th key={h} className="px-4 py-3 text-left text-[11px] font-black uppercase tracking-widest text-stone-400 whitespace-nowrap">{h}</th>
                 ))}
               </tr></thead>
               <tbody className="divide-y divide-stone-50">
@@ -175,7 +175,7 @@ export default function StockOrders({ orders, clients, onUpdateStatus, onConvert
                       <td className="px-4 py-3 text-[10px] font-bold text-stone-500">{order.items.length} art.</td>
                       <td className="px-4 py-3 text-[10px] font-black text-stone-900">{fmt$(order.totalAfterDiscount)}</td>
                       <td className="px-4 py-3">
-                        <span className={`text-[8px] font-black uppercase px-2 py-0.5 rounded-lg border ${badge.cls}`}>{badge.label}</span>
+                        <span className={`text-[11px] font-black uppercase px-2 py-0.5 rounded-lg border ${badge.cls}`}>{badge.label}</span>
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -207,7 +207,7 @@ export default function StockOrders({ orders, clients, onUpdateStatus, onConvert
               </tbody>
             </table>
             <div className="px-4 py-3 bg-stone-50 border-t border-stone-100 flex justify-between items-center">
-              <span className="text-[9px] font-black text-stone-400 uppercase tracking-widest">{filtered.length} BC</span>
+              <span className="text-[11px] font-black text-stone-400 uppercase tracking-widest">{filtered.length} BC</span>
               <span className="text-[10px] font-black text-stone-700">Total filtré : {fmt$(totalAmount)}</span>
             </div>
           </>
@@ -229,7 +229,7 @@ export default function StockOrders({ orders, clients, onUpdateStatus, onConvert
             <table className="w-full">
               <thead><tr className="bg-stone-50 border-b border-stone-100">
                 {['Produit', 'Couleur', 'Taille', 'Qté', 'Prix unit.', 'Total'].map(h => (
-                  <th key={h} className="px-4 py-3 text-left text-[8px] font-black uppercase tracking-widest text-stone-400">{h}</th>
+                  <th key={h} className="px-4 py-3 text-left text-[11px] font-black uppercase tracking-widest text-stone-400">{h}</th>
                 ))}
               </tr></thead>
               <tbody className="divide-y divide-stone-50">

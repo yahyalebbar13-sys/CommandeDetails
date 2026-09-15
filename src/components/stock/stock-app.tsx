@@ -1917,7 +1917,7 @@ export default function StockApp() {
             >
               <Search className="w-3.5 h-3.5 shrink-0" />
               <span className="text-[12px] font-medium flex-1 text-left">Rechercher...</span>
-              <span className="text-[9px] font-black bg-[#1E1B15] rounded px-1.5 py-0.5 shrink-0">Ctrl K</span>
+              <span className="text-[11px] font-black bg-[#1E1B15] rounded px-1.5 py-0.5 shrink-0">Ctrl K</span>
             </button>
           </div>
 
@@ -2337,7 +2337,7 @@ export default function StockApp() {
                     <div className="absolute top-0 right-0 w-72 h-72 bg-emerald-500/10 rounded-full -translate-y-1/2 translate-x-1/2 blur-3xl" />
                     <div className="relative z-10 flex flex-col md:flex-row md:items-center md:justify-between gap-6">
                       <div>
-                        <p className="text-[9px] font-black text-stone-500 uppercase tracking-[0.3em] mb-2">Logistique Import</p>
+                        <p className="text-[11px] font-black text-stone-500 uppercase tracking-[0.3em] mb-2">Logistique Import</p>
                         <h2 className="text-3xl font-black text-white uppercase tracking-tighter">
                           Arrivages <span className="text-emerald-500">StockVue</span>
                         </h2>
@@ -2353,19 +2353,19 @@ export default function StockApp() {
                       {/* KPI Badges */}
                       <div className="flex flex-wrap items-center gap-3">
                         <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-2xl px-5 py-3 cursor-pointer hover:bg-emerald-500/20 transition-all" onClick={() => setArrivalFilter('ENTERED_10D')}>
-                          <p className="text-[8px] font-black uppercase tracking-widest text-emerald-400">Entrés en stock (≤ 10j)</p>
+                          <p className="text-[11px] font-black uppercase tracking-widest text-emerald-400">Entrés en stock (≤ 10j)</p>
                           <p className="text-2xl font-black text-emerald-400 mt-0.5">{arrivalsStats.entered10D}</p>
                         </div>
                         <div className="bg-amber-500/10 border border-amber-500/20 rounded-2xl px-5 py-3 cursor-pointer hover:bg-amber-500/20 transition-all" onClick={() => setArrivalFilter('PENDING')}>
-                          <p className="text-[8px] font-black uppercase tracking-widest text-amber-400">En attente d'entrée</p>
+                          <p className="text-[11px] font-black uppercase tracking-widest text-amber-400">En attente d'entrée</p>
                           <p className="text-2xl font-black text-amber-400 mt-0.5">{arrivalsStats.pending}</p>
                         </div>
                         <div className="bg-white/5 border border-white/10 rounded-2xl px-5 py-3">
-                          <p className="text-[8px] font-black uppercase tracking-widest text-stone-400">Total Références</p>
+                          <p className="text-[11px] font-black uppercase tracking-widest text-stone-400">Total Références</p>
                           <p className="text-2xl font-black text-white mt-0.5">{totalRefsFiltered}</p>
                         </div>
                         <div className="bg-white/5 border border-white/10 rounded-2xl px-5 py-3">
-                          <p className="text-[8px] font-black uppercase tracking-widest text-stone-400">Total Pièces</p>
+                          <p className="text-[11px] font-black uppercase tracking-widest text-stone-400">Total Pièces</p>
                           <p className="text-2xl font-black text-white mt-0.5">{(Number(totalPiecesFiltered) || 0).toLocaleString()}</p>
                         </div>
                       </div>
@@ -2485,22 +2485,22 @@ export default function StockApp() {
                             <div>
                               <div className="flex items-start justify-between gap-3">
                                 <div>
-                                  <p className="text-[9px] font-black text-stone-400 uppercase tracking-widest">{f.supplierId || f.supplier || 'Fournisseur'}</p>
+                                  <p className="text-[11px] font-black text-stone-400 uppercase tracking-widest">{f.supplierId || f.supplier || 'Fournisseur'}</p>
                                   <h3 className="text-xl font-black text-stone-900 uppercase tracking-tight mt-0.5">{f.id}</h3>
                                 </div>
                                 <div className="flex flex-col items-end gap-1">
                                   {isEnteredInStock ? (
                                     <>
-                                      <span className="inline-flex items-center gap-1.5 bg-emerald-100 text-emerald-800 text-[9px] font-black uppercase px-2.5 py-1 rounded-full">
+                                      <span className="inline-flex items-center gap-1.5 bg-emerald-100 text-emerald-800 text-[11px] font-black uppercase px-2.5 py-1 rounded-full">
                                         <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" /> En stock
                                       </span>
-                                      <span className="inline-flex items-center gap-1 text-[8px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+                                      <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
                                         <Clock className="w-2.5 h-2.5 text-emerald-600" />
                                         {formatDaysAgo(stockEntryDate)}
                                       </span>
                                     </>
                                   ) : (
-                                    <span className="inline-flex items-center gap-1.5 bg-amber-100 text-amber-800 text-[9px] font-black uppercase px-2.5 py-1 rounded-full">
+                                    <span className="inline-flex items-center gap-1.5 bg-amber-100 text-amber-800 text-[11px] font-black uppercase px-2.5 py-1 rounded-full">
                                       <Anchor className="w-3.5 h-3.5 text-amber-600" /> En attente de stock
                                     </span>
                                   )}
@@ -2509,17 +2509,17 @@ export default function StockApp() {
 
                               <div className="grid grid-cols-3 gap-2 text-center mt-4">
                                 <div className="bg-stone-50 rounded-xl p-2.5">
-                                  <p className="text-[8px] font-black text-stone-400 uppercase">Arrivée</p>
+                                  <p className="text-[11px] font-black text-stone-400 uppercase">Arrivée</p>
                                   <p className="text-[10px] font-black text-stone-700 mt-0.5">{f.arrivalDate || '—'}</p>
                                 </div>
                                 <div className={`rounded-xl p-2.5 ${isEnteredInStock ? 'bg-emerald-50' : 'bg-amber-50'}`}>
-                                  <p className={`text-[8px] font-black uppercase ${isEnteredInStock ? 'text-emerald-600' : 'text-amber-600'}`}>Entrée Stock</p>
+                                  <p className={`text-[11px] font-black uppercase ${isEnteredInStock ? 'text-emerald-600' : 'text-amber-600'}`}>Entrée Stock</p>
                                   <p className={`text-[10px] font-black mt-0.5 ${isEnteredInStock ? 'text-emerald-800' : 'text-amber-800'}`}>
                                     {stockEntryDate || 'En attente'}
                                   </p>
                                 </div>
                                 <div className="bg-stone-50 rounded-xl p-2.5">
-                                  <p className="text-[8px] font-black text-stone-400 uppercase">Articles</p>
+                                  <p className="text-[11px] font-black text-stone-400 uppercase">Articles</p>
                                   <p className="text-[10px] font-black text-stone-900 mt-0.5">
                                     {artCount} réf. ({(Number(totalQty) || 0).toLocaleString()} pcs)
                                   </p>
@@ -2529,7 +2529,7 @@ export default function StockApp() {
                               {/* Aperçu des articles */}
                               {factureArts.length > 0 && (
                                 <div className="mt-4 pt-3 border-t border-stone-100 space-y-1.5">
-                                  <p className="text-[8px] font-black text-stone-400 uppercase tracking-wider">Aperçu articles :</p>
+                                  <p className="text-[11px] font-black text-stone-400 uppercase tracking-wider">Aperçu articles :</p>
                                   <div className="space-y-1 max-h-28 overflow-y-auto pr-1">
                                     {factureArts.slice(0, 4).map((a: any) => (
                                       <div key={a.id} className="flex items-center justify-between text-[10px] bg-stone-50 px-2 py-1 rounded-lg">
@@ -2538,7 +2538,7 @@ export default function StockApp() {
                                       </div>
                                     ))}
                                     {factureArts.length > 4 && (
-                                      <p className="text-[8px] font-bold text-stone-400 text-center">+ {factureArts.length - 4} autre(s) article(s)</p>
+                                      <p className="text-[11px] font-bold text-stone-400 text-center">+ {factureArts.length - 4} autre(s) article(s)</p>
                                     )}
                                   </div>
                                 </div>
@@ -2549,16 +2549,16 @@ export default function StockApp() {
                               {!isEnteredInStock ? (
                                 <button
                                   onClick={() => setPassToStockId(f.id)}
-                                  className="w-full flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white font-black uppercase text-[9px] tracking-widest px-4 py-3 rounded-xl transition-all shadow-md shadow-emerald-600/20 hover:scale-[1.01] active:scale-95 cursor-pointer"
+                                  className="w-full flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white font-black uppercase text-[11px] tracking-widest px-4 py-3 rounded-xl transition-all shadow-md shadow-emerald-600/20 hover:scale-[1.01] active:scale-95 cursor-pointer"
                                 >
                                   <Archive className="w-3.5 h-3.5" />
                                   📥 Valider l'Entrée en Stock + Coût de Revient
                                 </button>
                               ) : (
-                                <div className="w-full flex items-center justify-center gap-1.5 bg-emerald-50 text-emerald-800 border border-emerald-200 font-black uppercase text-[9px] tracking-widest px-3 py-2.5 rounded-xl select-none">
+                                <div className="w-full flex items-center justify-center gap-1.5 bg-emerald-50 text-emerald-800 border border-emerald-200 font-black uppercase text-[11px] tracking-widest px-3 py-2.5 rounded-xl select-none">
                                   <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
                                   <span>Entrée validée {stockEntryDate ? `(${stockEntryDate})` : (isArrivalOlderThanOneMonth(f.arrivalDate) ? '(Historique)' : '')}</span>
-                                  <span className="text-[8px] bg-emerald-200/70 text-emerald-900 px-1.5 py-0.5 rounded font-black flex items-center gap-1 ml-1">
+                                  <span className="text-[11px] bg-emerald-200/70 text-emerald-900 px-1.5 py-0.5 rounded font-black flex items-center gap-1 ml-1">
                                     <Lock className="w-2.5 h-2.5" /> Verrouillé
                                   </span>
                                 </div>
@@ -2578,7 +2578,7 @@ export default function StockApp() {
 
       {/* ── Footer ── */}
       <footer className="border-t border-stone-200 bg-white py-3">
-        <div className="max-w-[1600px] mx-auto px-8 flex flex-wrap justify-between items-center gap-2 text-stone-400 text-[9px] font-black uppercase tracking-[0.15em]">
+        <div className="max-w-[1600px] mx-auto px-8 flex flex-wrap justify-between items-center gap-2 text-stone-400 text-[11px] font-black uppercase tracking-[0.15em]">
           <p>© 2025 STOCK MANAGER — BUSINESS EDITION</p>
           <div className="flex gap-4">
             <span>{stockItems.length} Références</span>
@@ -2635,7 +2635,7 @@ export default function StockApp() {
                   <div key={p.id} className="p-4 rounded-2xl border border-stone-200 bg-stone-50/50 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                     <div>
                       <div className="flex items-center gap-2">
-                        <span className="text-[9px] font-black uppercase px-2 py-0.5 bg-violet-100 text-violet-800 rounded">
+                        <span className="text-[11px] font-black uppercase px-2 py-0.5 bg-violet-100 text-violet-800 rounded">
                           {p.method}
                         </span>
                         <span className="text-xs font-black text-stone-900">{clientName}</span>

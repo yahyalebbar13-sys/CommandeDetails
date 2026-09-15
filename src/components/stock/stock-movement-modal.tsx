@@ -122,7 +122,7 @@ export function ProductPicker({
       const subCatsAll = categories.filter(c => (stockByCat[c.name]?.length || 0) > 0);
       return (
         <div className="space-y-2">
-          <p className="text-[8px] font-black text-stone-400 uppercase tracking-widest">Choisir une famille</p>
+          <p className="text-[11px] font-black text-stone-400 uppercase tracking-widest">Choisir une famille</p>
           <div className="grid grid-cols-2 gap-2 max-h-[200px] overflow-y-auto">
             {subCatsAll.map((sc, idx) => {
               const count = stockByCat[sc.name]?.length || 0;
@@ -135,8 +135,8 @@ export function ProductPicker({
                 >
                   <Layers className="w-3 h-3 shrink-0" style={{ color }} />
                   <div>
-                    <p className="text-[9px] font-black text-stone-800 uppercase">{sc.nameFR || sc.name}</p>
-                    <p className="text-[7px] text-stone-400 font-bold">{count} réf.</p>
+                    <p className="text-[11px] font-black text-stone-800 uppercase">{sc.nameFR || sc.name}</p>
+                    <p className="text-[10px] text-stone-400 font-bold">{count} réf.</p>
                   </div>
                 </button>
               );
@@ -148,7 +148,7 @@ export function ProductPicker({
 
     return (
       <div className="space-y-2">
-        <p className="text-[8px] font-black text-stone-400 uppercase tracking-widest">1 · Choisir une famille</p>
+        <p className="text-[11px] font-black text-stone-400 uppercase tracking-widest">1 · Choisir une famille</p>
         <div className="grid grid-cols-2 gap-2 max-h-[200px] overflow-y-auto pr-1">
           {genCatsWS.map((gc, idx) => {
             const gcSubs  = categories.filter(c => c.generalCategoryId === gc.id);
@@ -162,8 +162,8 @@ export function ProductPicker({
               >
                 <Layers className="w-3.5 h-3.5 shrink-0" style={{ color }} />
                 <div>
-                  <p className="text-[9px] font-black text-stone-800 uppercase leading-tight">{gc.nameFR || gc.name}</p>
-                  <p className="text-[7px] text-stone-400 font-bold">{gcItems.length} réf. en stock</p>
+                  <p className="text-[11px] font-black text-stone-800 uppercase leading-tight">{gc.nameFR || gc.name}</p>
+                  <p className="text-[10px] text-stone-400 font-bold">{gcItems.length} réf. en stock</p>
                 </div>
               </button>
             );
@@ -180,13 +180,13 @@ export function ProductPicker({
       <div className="space-y-2">
         <div className="flex items-center gap-2">
           <button type="button" onClick={() => { setStep('gencat'); setSelGenCat(null); }}
-            className="flex items-center gap-1 text-[8px] font-black text-stone-400 hover:text-stone-700 uppercase tracking-widest transition-colors">
+            className="flex items-center gap-1 text-[11px] font-black text-stone-400 hover:text-stone-700 uppercase tracking-widest transition-colors">
             <ChevronLeft className="w-3 h-3" /> Retour
           </button>
           <span className="text-stone-200">/</span>
-          <span className="text-[8px] font-black text-stone-700 uppercase">{gc?.nameFR || gc?.name}</span>
+          <span className="text-[11px] font-black text-stone-700 uppercase">{gc?.nameFR || gc?.name}</span>
         </div>
-        <p className="text-[8px] font-black text-stone-400 uppercase tracking-widest">2 · Choisir une sous-catégorie</p>
+        <p className="text-[11px] font-black text-stone-400 uppercase tracking-widest">2 · Choisir une sous-catégorie</p>
         <div className="grid grid-cols-2 gap-2 max-h-[200px] overflow-y-auto pr-1">
           {subCatsWS.map((sc, idx) => {
             const count = stockByCat[sc.name]?.length || 0;
@@ -199,8 +199,8 @@ export function ProductPicker({
               >
                 <Layers className="w-3 h-3 shrink-0" style={{ color }} />
                 <div>
-                  <p className="text-[9px] font-black text-stone-800 uppercase leading-tight">{sc.nameFR || sc.name}</p>
-                  <p className="text-[7px] text-stone-400 font-bold">{count} réf.</p>
+                  <p className="text-[11px] font-black text-stone-800 uppercase leading-tight">{sc.nameFR || sc.name}</p>
+                  <p className="text-[10px] text-stone-400 font-bold">{count} réf.</p>
                 </div>
               </button>
             );
@@ -232,25 +232,25 @@ export function ProductPicker({
       <div className="flex items-center gap-2">
         <button type="button"
           onClick={() => { setStep('subcat'); setSelSubCat(null); setSearch(''); }}
-          className="flex items-center gap-1 text-[8px] font-black text-stone-400 hover:text-stone-700 uppercase tracking-widest transition-colors">
+          className="flex items-center gap-1 text-[11px] font-black text-stone-400 hover:text-stone-700 uppercase tracking-widest transition-colors">
           <ChevronLeft className="w-3 h-3" /> Retour
         </button>
         <span className="text-stone-200">/</span>
-        <span className="text-[8px] font-black text-stone-700 uppercase">{sc?.name}</span>
+        <span className="text-[11px] font-black text-stone-700 uppercase">{sc?.name}</span>
       </div>
-      <p className="text-[8px] font-black text-stone-400 uppercase tracking-widest">3 · Produit + variante (couleur / taille)</p>
+      <p className="text-[11px] font-black text-stone-400 uppercase tracking-widest">3 · Produit + variante (couleur / taille)</p>
 
       {products.length > 5 && (
         <div className="relative">
           <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3 h-3 text-stone-300" />
           <input type="text" placeholder="Rechercher nom, couleur, taille..."
             value={search} onChange={e => setSearch(e.target.value)}
-            className="w-full pl-7 pr-3 py-2 text-[9px] font-bold border border-stone-200 rounded-xl focus:outline-none focus:ring-1 focus:ring-stone-400" />
+            className="w-full pl-7 pr-3 py-2 text-[11px] font-bold border border-stone-200 rounded-xl focus:outline-none focus:ring-1 focus:ring-stone-400" />
         </div>
       )}
 
       {grouped.size === 0 && (
-        <p className="text-center text-stone-300 text-[9px] font-black uppercase py-6">Aucun produit trouvé</p>
+        <p className="text-center text-stone-300 text-[11px] font-black uppercase py-6">Aucun produit trouvé</p>
       )}
 
       <div className="space-y-2 max-h-[340px] overflow-y-auto pr-1">
@@ -276,11 +276,11 @@ export function ProductPicker({
                       title={[v.color, v.size].filter(Boolean).join(' N°') || name}
                     />
                   ))}
-                  {variants.length > 6 && <span className="text-[6px] font-black text-stone-400 ml-1">+{variants.length - 6}</span>}
+                  {variants.length > 6 && <span className="text-[10px] font-black text-stone-400 ml-1">+{variants.length - 6}</span>}
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="text-[10px] font-black text-stone-900 uppercase tracking-tight truncate">{name}</p>
-                  <p className="text-[7px] font-bold text-stone-400">
+                  <p className="text-[10px] font-bold text-stone-400">
                     {variants.length} variante{variants.length > 1 ? 's' : ''} · total stock :&nbsp;
                     <span className="font-black" style={{ color: totalQty === 0 ? '#ef4444' : '#059669' }}>{fmt(totalQty)}</span>
                   </p>
@@ -296,7 +296,7 @@ export function ProductPicker({
                     className={`w-full flex items-center justify-between px-4 py-3 text-left transition-colors ${
                       totalQty === 0 ? 'opacity-40 cursor-not-allowed' : 'hover:bg-emerald-50 active:bg-emerald-100'
                     }`}>
-                    <span className="text-[9px] font-bold text-stone-500 uppercase">{variants[0].unitOfMeasure}</span>
+                    <span className="text-[11px] font-bold text-stone-500 uppercase">{variants[0].unitOfMeasure}</span>
                     <span className={`text-[10px] font-black ${totalQty === 0 ? 'text-red-400' : 'text-emerald-600'}`}>
                       {totalQty === 0 ? 'RUPTURE' : `${fmt(totalQty)} en stock  →`}
                     </span>
@@ -322,19 +322,19 @@ export function ProductPicker({
                       {/* Pastille couleur */}
                       <div className="w-8 h-8 rounded-lg border border-stone-200 shrink-0 flex items-center justify-center"
                         style={{ backgroundColor: swatch || '#f5f5f4' }}>
-                        {!swatch && <span className="text-[7px] text-stone-300 font-bold">—</span>}
+                        {!swatch && <span className="text-[10px] text-stone-300 font-bold">—</span>}
                       </div>
 
                       {/* Qualité + couleur + taille */}
                       <div className="w-28 shrink-0">
                         {si.quality && (
-                          <span className="inline-block text-[8px] font-black bg-violet-100 text-violet-700 px-1 py-0.2 rounded uppercase mb-0.5">
+                          <span className="inline-block text-[11px] font-black bg-violet-100 text-violet-700 px-1 py-0.2 rounded uppercase mb-0.5">
                             {si.quality}
                           </span>
                         )}
-                        {si.color && <p className="text-[9px] font-black text-stone-800 uppercase leading-none">{si.color}</p>}
-                        {si.size  && <p className="text-[8px] font-bold text-stone-500 leading-none mt-0.5">N° {si.size}</p>}
-                        {!si.quality && !si.color && !si.size && <p className="text-[8px] text-stone-400 font-bold">Standard</p>}
+                        {si.color && <p className="text-[11px] font-black text-stone-800 uppercase leading-none">{si.color}</p>}
+                        {si.size  && <p className="text-[11px] font-bold text-stone-500 leading-none mt-0.5">N° {si.size}</p>}
+                        {!si.quality && !si.color && !si.size && <p className="text-[11px] text-stone-400 font-bold">Standard</p>}
                       </div>
 
                       {/* Barre stock proportionnelle */}
@@ -349,14 +349,14 @@ export function ProductPicker({
                         <p className="text-[18px] font-black leading-none" style={{ color: isEmpty ? '#d1d5db' : barColor }}>
                           {fmt(si.currentQty)}
                         </p>
-                        <p className="text-[6px] font-bold text-stone-400 uppercase">{si.unitOfMeasure}</p>
+                        <p className="text-[10px] font-bold text-stone-400 uppercase">{si.unitOfMeasure}</p>
                       </div>
 
                       {/* Statut */}
                       <div className="w-14 text-right shrink-0">
-                        {isEmpty  && <span className="text-[7px] font-black text-red-400 bg-red-50 px-1.5 py-0.5 rounded uppercase block">Rupture</span>}
-                        {!isEmpty && isAlert && <span className="text-[7px] font-black text-amber-500 bg-amber-50 px-1.5 py-0.5 rounded uppercase block">⚠ Bas</span>}
-                        {!isEmpty && !isAlert && <span className="text-[7px] font-black text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded uppercase block">✓ OK</span>}
+                        {isEmpty  && <span className="text-[10px] font-black text-red-400 bg-red-50 px-1.5 py-0.5 rounded uppercase block">Rupture</span>}
+                        {!isEmpty && isAlert && <span className="text-[10px] font-black text-amber-500 bg-amber-50 px-1.5 py-0.5 rounded uppercase block">⚠ Bas</span>}
+                        {!isEmpty && !isAlert && <span className="text-[10px] font-black text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded uppercase block">✓ OK</span>}
                       </div>
                     </button>
                   );
@@ -476,7 +476,7 @@ export default function StockMovementModal({
                 <DialogTitle className="text-lg font-black uppercase tracking-tight leading-none">
                   {typeConf.label}
                 </DialogTitle>
-                <p className="text-[9px] font-bold opacity-80 uppercase tracking-widest mt-1">
+                <p className="text-[11px] font-bold opacity-80 uppercase tracking-widest mt-1">
                   Enregistrer un mouvement de stock
                 </p>
               </div>
@@ -488,7 +488,7 @@ export default function StockMovementModal({
             {(Object.keys(TYPE_CONFIG) as StockMovementType[]).map(t => (
               <button key={t} type="button"
                 onClick={() => setForm(f => ({ ...f, type: t, reason: '', articleId: '' }))}
-                className={`flex-1 py-2 rounded-xl text-[9px] font-black uppercase tracking-wider transition-all border ${
+                className={`flex-1 py-2 rounded-xl text-[11px] font-black uppercase tracking-wider transition-all border ${
                   form.type === t
                     ? 'bg-white text-stone-900 border-white shadow-lg'
                     : 'bg-white/10 text-white border-white/20 hover:bg-white/20'
@@ -517,11 +517,11 @@ export default function StockMovementModal({
             // Produit sélectionné — fiche avec champs étiquetés
             <div className="space-y-2">
               <div className="flex items-center justify-between">
-                <Label className="text-[9px] font-black uppercase tracking-widest text-stone-500">Produit sélectionné</Label>
+                <Label className="text-[11px] font-black uppercase tracking-widest text-stone-500">Produit sélectionné</Label>
                 <button
                   type="button"
                   onClick={() => setForm(f => ({ ...f, articleId: '' }))}
-                  className="text-[7px] font-black text-stone-400 hover:text-red-600 uppercase tracking-widest underline decoration-dotted transition-colors"
+                  className="text-[10px] font-black text-stone-400 hover:text-red-600 uppercase tracking-widest underline decoration-dotted transition-colors"
                 >
                   ✕ Changer
                 </button>
@@ -538,26 +538,26 @@ export default function StockMovementModal({
                     <p className="text-[11px] font-black text-stone-900 uppercase tracking-tight leading-none truncate">
                       {selectedStock?.nameFR || selectedStock?.productName}
                     </p>
-                    <p className="text-[7px] font-bold text-stone-400 mt-0.5">{selectedStock?.categoryNameFR || selectedStock?.categoryId}</p>
+                    <p className="text-[10px] font-bold text-stone-400 mt-0.5">{selectedStock?.categoryNameFR || selectedStock?.categoryId}</p>
                   </div>
                 </div>
 
                 {/* Grille des attributs */}
                 <div className="grid grid-cols-3 divide-x divide-stone-100 border-b border-stone-100">
                   <div className="px-3 py-2.5 text-center">
-                    <p className="text-[6px] font-black text-stone-400 uppercase tracking-widest mb-0.5">Couleur</p>
+                    <p className="text-[10px] font-black text-stone-400 uppercase tracking-widest mb-0.5">Couleur</p>
                     {selectedStock?.color
                       ? <p className="text-[10px] font-black text-stone-800 uppercase">{selectedStock.color}</p>
-                      : <p className="text-[9px] text-stone-300 font-bold">—</p>}
+                      : <p className="text-[11px] text-stone-300 font-bold">—</p>}
                   </div>
                   <div className="px-3 py-2.5 text-center">
-                    <p className="text-[6px] font-black text-stone-400 uppercase tracking-widest mb-0.5">Taille / N°</p>
+                    <p className="text-[10px] font-black text-stone-400 uppercase tracking-widest mb-0.5">Taille / N°</p>
                     {selectedStock?.size
                       ? <p className="text-[10px] font-black text-stone-800 uppercase">{selectedStock.size}</p>
-                      : <p className="text-[9px] text-stone-300 font-bold">—</p>}
+                      : <p className="text-[11px] text-stone-300 font-bold">—</p>}
                   </div>
                   <div className="px-3 py-2.5 text-center">
-                    <p className="text-[6px] font-black text-stone-400 uppercase tracking-widest mb-0.5">Unité</p>
+                    <p className="text-[10px] font-black text-stone-400 uppercase tracking-widest mb-0.5">Unité</p>
                     <p className="text-[10px] font-black text-stone-800 uppercase">{selectedStock?.unitOfMeasure || '—'}</p>
                   </div>
                 </div>
@@ -565,29 +565,29 @@ export default function StockMovementModal({
                 {/* Stock actuel + simulation */}
                 <div className="px-4 py-3 flex items-center justify-between gap-3">
                   <div>
-                    <p className="text-[6px] font-black text-stone-400 uppercase tracking-widest">Stock actuel</p>
+                    <p className="text-[10px] font-black text-stone-400 uppercase tracking-widest">Stock actuel</p>
                     <p className="text-[16px] font-black text-stone-900 leading-none mt-0.5">
                       {fmt(selectedStock?.currentQty || 0)}
-                      <span className="text-[9px] font-bold text-stone-400 ml-1">{selectedStock?.unitOfMeasure}</span>
+                      <span className="text-[11px] font-bold text-stone-400 ml-1">{selectedStock?.unitOfMeasure}</span>
                     </p>
                   </div>
                   {form.type === 'OUT' && Number(form.quantity) > 0 && (
                     <div className="text-right">
-                      <p className="text-[6px] font-black text-stone-400 uppercase tracking-widest">Après sortie</p>
+                      <p className="text-[10px] font-black text-stone-400 uppercase tracking-widest">Après sortie</p>
                       <p className={`text-[16px] font-black leading-none mt-0.5 ${
                         (selectedStock?.currentQty || 0) - Number(form.quantity) < 0 ? 'text-red-600' : 'text-emerald-600'
                       }`}>
                         {fmt((selectedStock?.currentQty || 0) - Number(form.quantity))}
-                        <span className="text-[9px] font-bold ml-1">{selectedStock?.unitOfMeasure}</span>
+                        <span className="text-[11px] font-bold ml-1">{selectedStock?.unitOfMeasure}</span>
                       </p>
                     </div>
                   )}
                   {form.type === 'IN' && Number(form.quantity) > 0 && (
                     <div className="text-right">
-                      <p className="text-[6px] font-black text-stone-400 uppercase tracking-widest">Après entrée</p>
+                      <p className="text-[10px] font-black text-stone-400 uppercase tracking-widest">Après entrée</p>
                       <p className="text-[16px] font-black text-emerald-600 leading-none mt-0.5">
                         {fmt((selectedStock?.currentQty || 0) + Number(form.quantity))}
-                        <span className="text-[9px] font-bold ml-1">{selectedStock?.unitOfMeasure}</span>
+                        <span className="text-[11px] font-bold ml-1">{selectedStock?.unitOfMeasure}</span>
                       </p>
                     </div>
                   )}
@@ -601,7 +601,7 @@ export default function StockMovementModal({
             <>
               {/* Raison */}
               <div className="space-y-1.5">
-                <Label className="text-[9px] font-black uppercase tracking-widest text-stone-500">Raison *</Label>
+                <Label className="text-[11px] font-black uppercase tracking-widest text-stone-500">Raison *</Label>
                 <Select
                   value={form.reason}
                   onValueChange={v => {
@@ -635,7 +635,7 @@ export default function StockMovementModal({
               {/* Sélection du Magasin ou Entrepôt (si non forcé) */}
               {canChooseStore && (
                 <div className="space-y-1.5">
-                  <Label className="text-[9px] font-black uppercase tracking-widest text-stone-500">
+                  <Label className="text-[11px] font-black uppercase tracking-widest text-stone-500">
                     {form.type === 'IN' && form.reason === 'ARRIVAGE'
                       ? 'Entrepôt (Destination Arrivage) *'
                       : form.type === 'IN'
@@ -659,7 +659,7 @@ export default function StockMovementModal({
               {/* Quantité + Date */}
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1.5">
-                  <Label className="text-[9px] font-black uppercase tracking-widest text-stone-500">
+                  <Label className="text-[11px] font-black uppercase tracking-widest text-stone-500">
                     Quantité * {selectedStock && <span className="font-normal text-stone-400 normal-case">({selectedStock.unitOfMeasure})</span>}
                   </Label>
                   <Input
@@ -672,7 +672,7 @@ export default function StockMovementModal({
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <Label className="text-[9px] font-black uppercase tracking-widest text-stone-500">Date *</Label>
+                  <Label className="text-[11px] font-black uppercase tracking-widest text-stone-500">Date *</Label>
                   <Input
                     type="date" required
                     value={form.date}
@@ -684,7 +684,7 @@ export default function StockMovementModal({
 
               {/* Notes */}
               <div className="space-y-1.5">
-                <Label className="text-[9px] font-black uppercase tracking-widest text-stone-500">Notes (optionnel)</Label>
+                <Label className="text-[11px] font-black uppercase tracking-widest text-stone-500">Notes (optionnel)</Label>
                 <Input
                   placeholder="Réf. bon de livraison, client, remarque..."
                   value={form.notes}
@@ -697,7 +697,7 @@ export default function StockMovementModal({
               {form.type === 'OUT' && selectedStock && Number(form.quantity) > selectedStock.currentQty && (
                 <div className="flex items-center gap-2 px-3 py-2.5 bg-red-50 rounded-xl border border-red-200">
                   <AlertTriangle className="w-3.5 h-3.5 text-red-600 shrink-0" />
-                  <span className="text-[9px] font-black text-red-600 uppercase tracking-wider">
+                  <span className="text-[11px] font-black text-red-600 uppercase tracking-wider">
                     Quantité supérieure au stock disponible ({selectedStock.currentQty} {selectedStock.unitOfMeasure})
                   </span>
                 </div>

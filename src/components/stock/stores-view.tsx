@@ -171,7 +171,7 @@ export default function StoresView({ stores, adminUid }: StoresViewProps) {
     <div className="space-y-6 animate-in fade-in duration-500">
       <div className="bg-gradient-to-br from-stone-800 to-stone-900 p-8 rounded-3xl shadow-xl flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <p className="text-[9px] font-black text-stone-400 uppercase tracking-[0.3em] mb-1">Configuration</p>
+          <p className="text-[11px] font-black text-stone-400 uppercase tracking-[0.3em] mb-1">Configuration</p>
           <h1 className="text-3xl font-black text-white uppercase tracking-tighter">
             Lieux de <span className="text-emerald-400">Stockage</span>
           </h1>
@@ -187,11 +187,11 @@ export default function StoresView({ stores, adminUid }: StoresViewProps) {
             <div className="flex items-start justify-between">
               <div>
                 <div className="flex items-center gap-2 mb-2">
-                  <span className={`inline-flex items-center px-2 py-1 rounded-md text-[8px] font-black uppercase tracking-widest ${store.type === 'WAREHOUSE' ? 'bg-blue-100 text-blue-700' : 'bg-emerald-100 text-emerald-700'}`}>
+                  <span className={`inline-flex items-center px-2 py-1 rounded-md text-[11px] font-black uppercase tracking-widest ${store.type === 'WAREHOUSE' ? 'bg-blue-100 text-blue-700' : 'bg-emerald-100 text-emerald-700'}`}>
                     {store.type === 'WAREHOUSE' ? 'Entrepôt' : 'Magasin'}
                   </span>
                   {store.isMain && (
-                    <span className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-[8px] font-black uppercase tracking-widest bg-amber-100 text-amber-800 border border-amber-300">
+                    <span className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-black uppercase tracking-widest bg-amber-100 text-amber-800 border border-amber-300">
                       <Star className="w-2.5 h-2.5" />Principal
                     </span>
                   )}
@@ -199,7 +199,7 @@ export default function StoresView({ stores, adminUid }: StoresViewProps) {
                 <h3 className="text-xl font-black text-stone-900">{store.name}</h3>
                 <p className="text-[10px] text-stone-400 font-bold font-mono mt-1">ID: {store.id}</p>
                 {store.type === 'WAREHOUSE' ? (
-                  <p className="text-[9px] text-blue-700 font-bold mt-1 flex items-center gap-1">
+                  <p className="text-[11px] text-blue-700 font-bold mt-1 flex items-center gap-1">
                     <Package className="w-3 h-3" />Stock CHRIFA · Sans identifiant
                   </p>
                 ) : store.accessEmail ? (
@@ -220,7 +220,7 @@ export default function StoresView({ stores, adminUid }: StoresViewProps) {
             {(() => {
               const rel = inventoryReliability(store.lastInventoryDate);
               return (
-                <div className={`flex items-center gap-2 px-3 py-2 rounded-xl border text-[9px] font-black uppercase tracking-wider ${rel.cls}`}>
+                <div className={`flex items-center gap-2 px-3 py-2 rounded-xl border text-[11px] font-black uppercase tracking-wider ${rel.cls}`}>
                   <ClipboardCheck className="w-3.5 h-3.5 shrink-0" />
                   <span>{rel.label}</span>
                   {store.lastInventoryVarianceCount != null && store.lastInventoryVarianceCount > 0 && (
@@ -252,7 +252,7 @@ export default function StoresView({ stores, adminUid }: StoresViewProps) {
             <div className="space-y-2">
               <label className="text-[10px] font-black uppercase tracking-widest text-stone-500">Identifiant (Code unique)</label>
               <Input value={editingStore.id || ''} onChange={e => setEditingStore(s => ({ ...s, id: e.target.value }))} placeholder="Ex: TIT_MELLIL" className="h-12 rounded-xl font-bold font-mono uppercase" disabled={!!stores.find(s => s.id === editingStore.id)} />
-              <p className="text-[9px] text-stone-400 font-bold">Sans espaces ni caractères spéciaux. Ne peut plus être modifié une fois créé.</p>
+              <p className="text-[11px] text-stone-400 font-bold">Sans espaces ni caractères spéciaux. Ne peut plus être modifié une fois créé.</p>
             </div>
             <div className="space-y-2">
               <label className="text-[10px] font-black uppercase tracking-widest text-stone-500">Type de lieu</label>

@@ -76,7 +76,7 @@ function SectionLabel({ icon, label }: { icon: React.ReactNode; label: string })
   return (
     <div className="flex items-center gap-2 -mb-1">
       <div className="p-1.5 bg-stone-100 rounded-lg text-stone-500">{icon}</div>
-      <span className="text-[9px] font-black text-stone-400 uppercase tracking-[0.2em]">{label}</span>
+      <span className="text-[11px] font-black text-stone-400 uppercase tracking-[0.2em]">{label}</span>
       <div className="flex-1 h-px bg-stone-100" />
     </div>
   );
@@ -407,7 +407,7 @@ export default function CommercialExpensesView({
           });
           return (
             <SelectGroup key={key}>
-              <SelectLabel className="text-[9px] text-stone-400 font-black uppercase tracking-widest bg-stone-50 py-1.5">{display}</SelectLabel>
+              <SelectLabel className="text-[11px] text-stone-400 font-black uppercase tracking-widest bg-stone-50 py-1.5">{display}</SelectLabel>
               {sorted.map((sc: any) => (
                 <SelectItem key={sc.id || sc.name} value={sc.name} className="font-bold pl-6 text-[11px]">
                   {sc.nameFR || sc.name}
@@ -712,7 +712,7 @@ export default function CommercialExpensesView({
         <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
           <div>
             <div className="flex items-center gap-2 mb-2">
-              <span className="text-[9px] font-black uppercase tracking-[0.3em] text-amber-400 bg-amber-950/60 border border-amber-800/60 px-3 py-1 rounded-full">
+              <span className="text-[11px] font-black uppercase tracking-[0.3em] text-amber-400 bg-amber-950/60 border border-amber-800/60 px-3 py-1 rounded-full">
                 Gestion Commerciale & Dépenses
               </span>
             </div>
@@ -749,7 +749,7 @@ export default function CommercialExpensesView({
         {/* Total Mois */}
         <div className="bg-white rounded-2xl p-4 sm:p-5 border border-stone-100 shadow-sm">
           <div className="flex items-center justify-between mb-2">
-            <span className="text-[9px] font-black uppercase tracking-widest text-stone-500 bg-stone-100 px-2 py-0.5 rounded-md">
+            <span className="text-[11px] font-black uppercase tracking-widest text-stone-500 bg-stone-100 px-2 py-0.5 rounded-md">
               Ce mois-ci
             </span>
             <Receipt className="w-4 h-4 text-stone-400" />
@@ -757,7 +757,7 @@ export default function CommercialExpensesView({
           <p className="text-xl sm:text-2xl font-black text-stone-900 tracking-tight">
             {fmt$(kpis.totalMonth)}
           </p>
-          <p className="text-[9px] text-stone-400 font-bold mt-1">
+          <p className="text-[11px] text-stone-400 font-bold mt-1">
             Total des frais déclarés
           </p>
         </div>
@@ -765,7 +765,7 @@ export default function CommercialExpensesView({
         {/* Cette semaine */}
         <div className="bg-white rounded-2xl p-4 sm:p-5 border border-stone-100 shadow-sm">
           <div className="flex items-center justify-between mb-2">
-            <span className="text-[9px] font-black uppercase tracking-widest text-blue-700 bg-blue-100 px-2 py-0.5 rounded-md">
+            <span className="text-[11px] font-black uppercase tracking-widest text-blue-700 bg-blue-100 px-2 py-0.5 rounded-md">
               Cette semaine
             </span>
             <Calendar className="w-4 h-4 text-blue-500" />
@@ -773,7 +773,7 @@ export default function CommercialExpensesView({
           <p className="text-xl sm:text-2xl font-black text-blue-700 tracking-tight">
             {fmt$(kpis.totalWeek)}
           </p>
-          <p className="text-[9px] text-stone-400 font-bold mt-1">
+          <p className="text-[11px] text-stone-400 font-bold mt-1">
             Bilan hebdomadaire (Vendredi)
           </p>
         </div>
@@ -781,14 +781,14 @@ export default function CommercialExpensesView({
         {/* Achats Marchandise Marché */}
         <div className="bg-white rounded-2xl p-4 sm:p-5 border border-stone-100 shadow-sm">
           <div className="flex items-center justify-between mb-2">
-            <span className="text-[9px] font-black uppercase tracking-widest text-indigo-700 bg-indigo-100 px-2 py-0.5 rounded-md flex items-center gap-1">
+            <span className="text-[11px] font-black uppercase tracking-widest text-indigo-700 bg-indigo-100 px-2 py-0.5 rounded-md flex items-center gap-1">
               <ShoppingBag className="w-3 h-3" /> Marchandise
             </span>
           </div>
           <p className="text-xl sm:text-2xl font-black text-indigo-600 tracking-tight">
             {fmt$(kpis.totalMarchandise)}
           </p>
-          <p className="text-[9px] text-stone-400 font-bold mt-1">
+          <p className="text-[11px] text-stone-400 font-bold mt-1">
             Achats dépannage marché
           </p>
         </div>
@@ -796,14 +796,14 @@ export default function CommercialExpensesView({
         {/* Carburant */}
         <div className="bg-white rounded-2xl p-4 sm:p-5 border border-stone-100 shadow-sm">
           <div className="flex items-center justify-between mb-2">
-            <span className="text-[9px] font-black uppercase tracking-widest text-amber-700 bg-amber-100 px-2 py-0.5 rounded-md flex items-center gap-1">
+            <span className="text-[11px] font-black uppercase tracking-widest text-amber-700 bg-amber-100 px-2 py-0.5 rounded-md flex items-center gap-1">
               <Fuel className="w-3 h-3" /> Carburant
             </span>
           </div>
           <p className="text-xl sm:text-2xl font-black text-amber-600 tracking-tight">
             {fmt$(kpis.totalCarburant)}
           </p>
-          <p className="text-[9px] text-stone-400 font-bold mt-1">
+          <p className="text-[11px] text-stone-400 font-bold mt-1">
             Gasoil & Essence tournées
           </p>
         </div>
@@ -811,7 +811,7 @@ export default function CommercialExpensesView({
         {/* En attente validation */}
         <div className="bg-white rounded-2xl p-4 sm:p-5 border border-stone-100 shadow-sm col-span-2 lg:col-span-1">
           <div className="flex items-center justify-between mb-2">
-            <span className="text-[9px] font-black uppercase tracking-widest text-orange-700 bg-orange-100 px-2 py-0.5 rounded-md">
+            <span className="text-[11px] font-black uppercase tracking-widest text-orange-700 bg-orange-100 px-2 py-0.5 rounded-md">
               En Attente
             </span>
             <Clock className="w-4 h-4 text-orange-500" />
@@ -819,7 +819,7 @@ export default function CommercialExpensesView({
           <p className="text-xl sm:text-2xl font-black text-orange-600 tracking-tight">
             {fmt$(kpis.totalPending)}
           </p>
-          <p className="text-[9px] text-stone-400 font-bold mt-1">
+          <p className="text-[11px] text-stone-400 font-bold mt-1">
             À valider par la direction
           </p>
         </div>
@@ -966,7 +966,7 @@ export default function CommercialExpensesView({
                                 </span>
                               )}
                               {(expense.stockMovementId || expense.addToStock) && (
-                                <span className="inline-flex items-center gap-1 text-[9px] font-black uppercase text-emerald-800 bg-emerald-100 border border-emerald-300 px-2 py-0.5 rounded-full">
+                                <span className="inline-flex items-center gap-1 text-[11px] font-black uppercase text-emerald-800 bg-emerald-100 border border-emerald-300 px-2 py-0.5 rounded-full">
                                   <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
                                   Entré en stock ({store?.name || (expense.storeId === 'ENTREPOT' ? 'Entrepôt Principal' : (expense.storeId || 'Entrepôt'))})
                                 </span>
@@ -996,15 +996,15 @@ export default function CommercialExpensesView({
                       </td>
                       <td className="py-3 px-4 text-center whitespace-nowrap">
                         {expense.status === 'APPROVED' ? (
-                          <span className="text-[9px] font-black text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full uppercase">
+                          <span className="text-[11px] font-black text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full uppercase">
                             Validé
                           </span>
                         ) : expense.status === 'REIMBURSED' ? (
-                          <span className="text-[9px] font-black text-blue-700 bg-blue-100 px-2 py-0.5 rounded-full uppercase">
+                          <span className="text-[11px] font-black text-blue-700 bg-blue-100 px-2 py-0.5 rounded-full uppercase">
                             Remboursé
                           </span>
                         ) : (
-                          <span className="text-[9px] font-black text-orange-700 bg-orange-100 px-2 py-0.5 rounded-full uppercase">
+                          <span className="text-[11px] font-black text-orange-700 bg-orange-100 px-2 py-0.5 rounded-full uppercase">
                             En attente
                           </span>
                         )}
@@ -1150,7 +1150,7 @@ export default function CommercialExpensesView({
                               });
                               return Object.entries(grouped).map(([letter, items]) => (
                                 <SelectGroup key={letter}>
-                                  <SelectLabel className="text-[9px] text-stone-400 font-black uppercase tracking-widest bg-stone-50 py-1">{letter}</SelectLabel>
+                                  <SelectLabel className="text-[11px] text-stone-400 font-black uppercase tracking-widest bg-stone-50 py-1">{letter}</SelectLabel>
                                   {items.map((gc: any) => (
                                     <SelectItem key={gc.id} value={gc.id} className="font-bold pl-6 text-xs">{gc.displayName}</SelectItem>
                                   ))}
@@ -1509,11 +1509,11 @@ export default function CommercialExpensesView({
                             <div className="flex items-center gap-2">
                               <Sparkles className="w-4 h-4 text-indigo-600 shrink-0" />
                               <div>
-                                <p className="text-[9px] font-black uppercase text-indigo-600 tracking-wider">Désignation Générée</p>
+                                <p className="text-[11px] font-black uppercase text-indigo-600 tracking-wider">Désignation Générée</p>
                                 <p className="text-xs font-black text-indigo-950">{computedArticleName}</p>
                               </div>
                             </div>
-                            <span className="text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-md bg-white text-indigo-700 border border-indigo-200">
+                            <span className="text-[11px] font-black uppercase tracking-widest px-2 py-0.5 rounded-md bg-white text-indigo-700 border border-indigo-200">
                               Catalogue
                             </span>
                           </div>
@@ -1620,7 +1620,7 @@ export default function CommercialExpensesView({
                       <button
                         type="button"
                         onClick={() => handlePriceChange(String(lastOrderInfo.price))}
-                        className="text-[9px] font-black uppercase underline hover:text-amber-950 ml-2"
+                        className="text-[11px] font-black uppercase underline hover:text-amber-950 ml-2"
                       >
                         Appliquer ce prix
                       </button>
@@ -1667,7 +1667,7 @@ export default function CommercialExpensesView({
                         <Building2 className="w-3.5 h-3.5 text-amber-700" />
                         Sélection de l'Entrepôt de destination *
                       </Label>
-                      <span className="text-[9px] font-black uppercase px-2 py-0.5 rounded-md bg-amber-200 text-amber-900">
+                      <span className="text-[11px] font-black uppercase px-2 py-0.5 rounded-md bg-amber-200 text-amber-900">
                         {warehouseOptions.length} entrepôt{warehouseOptions.length > 1 ? 's' : ''}
                       </span>
                     </div>

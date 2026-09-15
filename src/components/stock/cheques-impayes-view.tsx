@@ -329,11 +329,11 @@ export default function ChequesImpayesView({
         <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
           <div>
             <div className="flex items-center gap-2 mb-2">
-              <span className="text-[9px] font-black uppercase tracking-[0.3em] text-rose-400 bg-rose-950/60 border border-rose-800/60 px-3 py-1 rounded-full">
+              <span className="text-[11px] font-black uppercase tracking-[0.3em] text-rose-400 bg-rose-950/60 border border-rose-800/60 px-3 py-1 rounded-full">
                 Gestion Commerciale & Trésorerie
               </span>
               {stats.totalImpayesCount > 0 && (
-                <span className="text-[9px] font-black uppercase tracking-wider text-white bg-rose-600 animate-pulse px-2.5 py-0.5 rounded-full shadow-lg shadow-rose-600/50 flex items-center gap-1">
+                <span className="text-[11px] font-black uppercase tracking-wider text-white bg-rose-600 animate-pulse px-2.5 py-0.5 rounded-full shadow-lg shadow-rose-600/50 flex items-center gap-1">
                   <AlertTriangle className="w-3 h-3" /> {stats.totalImpayesCount} IMPAYÉ(S) DÉTECTÉ(S)
                 </span>
               )}
@@ -380,7 +380,7 @@ export default function ChequesImpayesView({
           }`}
         >
           <div className="flex items-center justify-between mb-2">
-            <span className="text-[9px] font-black uppercase tracking-widest text-rose-600 bg-rose-100 px-2 py-0.5 rounded-md flex items-center gap-1">
+            <span className="text-[11px] font-black uppercase tracking-widest text-rose-600 bg-rose-100 px-2 py-0.5 rounded-md flex items-center gap-1">
               <AlertTriangle className="w-3 h-3" /> Impayés Déclarés
             </span>
           </div>
@@ -391,7 +391,7 @@ export default function ChequesImpayesView({
           <p className="text-xs font-black text-stone-700 mt-1">
             Total : <span className="text-rose-600 font-black">{fmt$(stats.totalImpayesAmount)}</span>
           </p>
-          <p className="text-[9px] text-stone-400 font-bold mt-1">
+          <p className="text-[11px] text-stone-400 font-bold mt-1">
             Rejets bancaires à recouvrer
           </p>
         </div>
@@ -406,7 +406,7 @@ export default function ChequesImpayesView({
           }`}
         >
           <div className="flex items-center justify-between mb-2">
-            <span className="text-[9px] font-black uppercase tracking-widest text-amber-700 bg-amber-100 px-2 py-0.5 rounded-md flex items-center gap-1">
+            <span className="text-[11px] font-black uppercase tracking-widest text-amber-700 bg-amber-100 px-2 py-0.5 rounded-md flex items-center gap-1">
               <Clock className="w-3 h-3" /> En Portefeuille
             </span>
           </div>
@@ -417,7 +417,7 @@ export default function ChequesImpayesView({
           <p className="text-xs font-black text-stone-700 mt-1">
             Total : <span className="text-stone-900 font-black">{fmt$(stats.totalPendingAmount)}</span>
           </p>
-          <p className="text-[9px] text-stone-400 font-bold mt-1">
+          <p className="text-[11px] text-stone-400 font-bold mt-1">
             En attente d'échéance
           </p>
         </div>
@@ -432,7 +432,7 @@ export default function ChequesImpayesView({
           }`}
         >
           <div className="flex items-center justify-between mb-2">
-            <span className="text-[9px] font-black uppercase tracking-widest text-orange-700 bg-orange-100 px-2 py-0.5 rounded-md flex items-center gap-1">
+            <span className="text-[11px] font-black uppercase tracking-widest text-orange-700 bg-orange-100 px-2 py-0.5 rounded-md flex items-center gap-1">
               <AlertCircle className="w-3 h-3" /> Échéance Dépassée
             </span>
           </div>
@@ -443,7 +443,7 @@ export default function ChequesImpayesView({
           <p className="text-xs font-black text-stone-700 mt-1">
             Total : <span className="text-orange-600 font-black">{fmt$(stats.totalOverdueAmount)}</span>
           </p>
-          <p className="text-[9px] text-stone-400 font-bold mt-1">
+          <p className="text-[11px] text-stone-400 font-bold mt-1">
             Non encaissés à ce jour
           </p>
         </div>
@@ -458,7 +458,7 @@ export default function ChequesImpayesView({
           }`}
         >
           <div className="flex items-center justify-between mb-2">
-            <span className="text-[9px] font-black uppercase tracking-widest text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-md flex items-center gap-1">
+            <span className="text-[11px] font-black uppercase tracking-widest text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-md flex items-center gap-1">
               <CheckCircle2 className="w-3 h-3" /> Encaissés
             </span>
           </div>
@@ -469,7 +469,7 @@ export default function ChequesImpayesView({
           <p className="text-xs font-black text-stone-700 mt-1">
             Total : <span className="text-emerald-600 font-black">{fmt$(stats.totalClearedAmount)}</span>
           </p>
-          <p className="text-[9px] text-stone-400 font-bold mt-1">
+          <p className="text-[11px] text-stone-400 font-bold mt-1">
             Fonds reçus en banque
           </p>
         </div>
@@ -598,7 +598,7 @@ export default function ChequesImpayesView({
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse">
               <thead>
-                <tr className="bg-stone-50/80 border-b border-stone-100 text-[9px] font-black uppercase tracking-wider text-stone-500">
+                <tr className="bg-stone-50/80 border-b border-stone-100 text-[11px] font-black uppercase tracking-wider text-stone-500">
                   <th className="py-3.5 px-4">Statut</th>
                   <th className="py-3.5 px-4">Type & N° Pièce</th>
                   <th className="py-3.5 px-4">Client</th>
@@ -653,7 +653,7 @@ export default function ChequesImpayesView({
                       {/* Type & Numéro */}
                       <td className="py-4 px-4">
                         <div className="flex flex-col">
-                          <span className={`text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded w-fit mb-1 ${
+                          <span className={`text-[11px] font-black uppercase tracking-widest px-2 py-0.5 rounded w-fit mb-1 ${
                             isChq ? 'bg-blue-100 text-blue-800' : 'bg-purple-100 text-purple-800'
                           }`}>
                             {isChq ? 'Chèque' : 'Effet / LCN'}
@@ -661,7 +661,7 @@ export default function ChequesImpayesView({
                           <span className="text-xs font-black font-mono text-stone-900 tracking-wider">
                             {p.checkNumber || 'Sans N°'}
                           </span>
-                          <span className="text-[9px] text-stone-400 font-bold mt-0.5">
+                          <span className="text-[11px] text-stone-400 font-bold mt-0.5">
                             Reçu le {p.date}
                           </span>
                         </div>
@@ -685,7 +685,7 @@ export default function ChequesImpayesView({
                               </a>
                             )}
                             {clientBal > 0 && (
-                              <span className="text-[9px] font-bold text-rose-600 bg-rose-50 px-1.5 py-0.5 rounded border border-rose-100">
+                              <span className="text-[11px] font-bold text-rose-600 bg-rose-50 px-1.5 py-0.5 rounded border border-rose-100">
                                 Dû: {fmt$(clientBal)}
                               </span>
                             )}
@@ -701,7 +701,7 @@ export default function ChequesImpayesView({
                             <span>{p.bankName || 'Attijariwafa Bank'}</span>
                           </span>
                           {p.cashingCompany && (
-                            <span className="text-[9px] font-black uppercase text-stone-400 mt-0.5">
+                            <span className="text-[11px] font-black uppercase text-stone-400 mt-0.5">
                               Société: {p.cashingCompany}
                             </span>
                           )}
@@ -793,7 +793,7 @@ export default function ChequesImpayesView({
                                     disabled={isProcessing}
                                     size="sm"
                                     variant="outline"
-                                    className="h-8 px-2.5 text-[9px] font-bold border-stone-200 text-emerald-700 hover:bg-emerald-50 hover:border-emerald-300 rounded-xl"
+                                    className="h-8 px-2.5 text-[11px] font-bold border-stone-200 text-emerald-700 hover:bg-emerald-50 hover:border-emerald-300 rounded-xl"
                                     title="Marquer comme encaissé en banque"
                                   >
                                     <Check className="w-3 h-3" />
@@ -821,7 +821,7 @@ export default function ChequesImpayesView({
                                 disabled={isProcessing}
                                 size="sm"
                                 variant="ghost"
-                                className="h-8 px-2 text-[9px] font-bold text-stone-500 hover:text-stone-900 rounded-xl"
+                                className="h-8 px-2 text-[11px] font-bold text-stone-500 hover:text-stone-900 rounded-xl"
                                 title="Remettre en attente si erreur"
                               >
                                 <RotateCcw className="w-3 h-3" />
@@ -864,7 +864,7 @@ export default function ChequesImpayesView({
               <div>
                 <div className="bg-stone-900 p-6 text-white flex items-center justify-between">
                   <div>
-                    <span className="text-[9px] font-black uppercase tracking-widest text-stone-400 bg-white/10 px-2.5 py-0.5 rounded-full">
+                    <span className="text-[11px] font-black uppercase tracking-widest text-stone-400 bg-white/10 px-2.5 py-0.5 rounded-full">
                       Scan Officiel · {isChq ? 'Chèque Bancaire' : 'Effet / LCN'}
                     </span>
                     <DialogTitle className="text-xl font-black uppercase tracking-tight text-white mt-1">

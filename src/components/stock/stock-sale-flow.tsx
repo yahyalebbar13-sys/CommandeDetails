@@ -870,7 +870,7 @@ export default function StockSaleFlow({
                 }`}>
                   {i < step ? <CheckCircle2 className="w-5 h-5" /> : <Icon className="w-5 h-5" />}
                 </div>
-                <span className={`text-[9px] font-black uppercase tracking-widest hidden sm:block ${
+                <span className={`text-[11px] font-black uppercase tracking-widest hidden sm:block ${
                   i === step ? 'text-violet-600' : i < step ? 'text-emerald-600' : 'text-stone-300'
                 }`}>{label}</span>
               </div>
@@ -886,7 +886,7 @@ export default function StockSaleFlow({
       {step === 0 && (
         <div className="space-y-4">
           <div className="bg-gradient-to-br from-violet-900 to-violet-800 p-6 rounded-3xl shadow-xl">
-            <p className="text-[9px] font-black text-violet-300 uppercase tracking-[0.3em]">Étape 1</p>
+            <p className="text-[11px] font-black text-violet-300 uppercase tracking-[0.3em]">Étape 1</p>
             <h2 className="text-2xl font-black text-white uppercase tracking-tighter mt-1">Sélectionner le client</h2>
           </div>
 
@@ -915,7 +915,7 @@ export default function StockSaleFlow({
               <div className="flex items-center justify-between">
                 <h3 className="text-[10px] font-black text-stone-400 uppercase tracking-widest">Dossier client</h3>
                 <button onClick={() => setShowNewClient(v => !v)}
-                  className="flex items-center gap-1.5 text-[9px] font-black text-violet-600 hover:text-violet-800 uppercase tracking-wider bg-violet-50 px-3 py-1.5 rounded-xl border border-violet-200 transition-colors">
+                  className="flex items-center gap-1.5 text-[11px] font-black text-violet-600 hover:text-violet-800 uppercase tracking-wider bg-violet-50 px-3 py-1.5 rounded-xl border border-violet-200 transition-colors">
                   <UserPlus className="w-3 h-3" /> Nouveau Client
                 </button>
               </div>
@@ -928,7 +928,7 @@ export default function StockSaleFlow({
                     { key: 'email', label: 'Email', placeholder: 'email@example.com' },
                   ].map(({ key, label, placeholder }) => (
                     <div key={key} className="space-y-1">
-                      <Label className="text-[9px] font-black text-stone-500 uppercase tracking-widest">{label}</Label>
+                      <Label className="text-[11px] font-black text-stone-500 uppercase tracking-widest">{label}</Label>
                       <Input placeholder={placeholder} value={(newClientForm as any)[key]}
                         onChange={e => setNewClientForm(f => ({ ...f, [key]: e.target.value }))}
                         className="h-9 rounded-xl border-white bg-white text-sm font-bold" />
@@ -962,7 +962,7 @@ export default function StockSaleFlow({
                           </div>
                           <div className="flex-1 min-w-0">
                             <p className="font-black text-stone-800 text-sm truncate">{c.name}</p>
-                            <p className="text-[9px] text-stone-400 font-bold">{[c.phone, c.email].filter(Boolean).join(' · ')}</p>
+                            <p className="text-[11px] text-stone-400 font-bold">{[c.phone, c.email].filter(Boolean).join(' · ')}</p>
                           </div>
                           {selectedClient?.id === c.id && <CheckCircle2 className="w-5 h-5 text-violet-500 shrink-0" />}
                         </div>
@@ -989,7 +989,7 @@ export default function StockSaleFlow({
           {/* Header */}
           <div className="bg-gradient-to-br from-violet-900 to-violet-800 p-6 rounded-3xl shadow-xl flex items-center justify-between">
             <div>
-              <p className="text-[9px] font-black text-violet-300 uppercase tracking-[0.3em]">Étape 2</p>
+              <p className="text-[11px] font-black text-violet-300 uppercase tracking-[0.3em]">Étape 2</p>
               <h2 className="text-2xl font-black text-white uppercase tracking-tighter mt-1">Sélection des produits</h2>
               <p className="text-violet-300/70 text-xs font-bold mt-1">{selectedClient?.name || 'Comptoir'}</p>
             </div>
@@ -1157,12 +1157,12 @@ export default function StockSaleFlow({
           {/* Header */}
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-[9px] font-black text-stone-400 uppercase tracking-[0.3em]">Étape 3</p>
+              <p className="text-[11px] font-black text-stone-400 uppercase tracking-[0.3em]">Étape 3</p>
               <h2 className="text-xl font-black text-stone-900 uppercase tracking-tight mt-0.5">Récapitulatif</h2>
             </div>
             <div className="text-right">
               <p className="text-2xl font-black text-stone-900">{cartCount}</p>
-              <p className="text-[9px] font-black text-stone-400 uppercase tracking-widest">article{cartCount > 1 ? 's' : ''}</p>
+              <p className="text-[11px] font-black text-stone-400 uppercase tracking-widest">article{cartCount > 1 ? 's' : ''}</p>
             </div>
           </div>
 
@@ -1197,7 +1197,7 @@ export default function StockSaleFlow({
                         <span className="text-[10px] font-bold bg-stone-50 text-stone-600 px-2 py-1 rounded-lg border border-stone-100">T. {item.size}</span>
                       )}
                       <div className="flex items-center gap-1.5 bg-stone-50 px-2 py-0.5 rounded-lg border border-stone-200">
-                        <span className="text-[9px] font-black text-stone-500 uppercase">Emplacement:</span>
+                        <span className="text-[11px] font-black text-stone-500 uppercase">Emplacement:</span>
                         <select
                           value={sourceStore || resolveSourceStore(item, selectedStoreId)}
                           onChange={e => updateCartStore(item.articleId, e.target.value)}
@@ -1219,7 +1219,7 @@ export default function StockSaleFlow({
                       </div>
                       <span className="text-[10px] text-stone-300 font-bold">{item.categoryId}</span>
                       {cart.filter(l => l.item.productName === item.productName).length > 1 && (
-                        <span className="text-[9px] font-black text-violet-700 bg-violet-50 px-2 py-0.5 rounded-md border border-violet-200/60" title="Prix unifié pour toutes les couleurs">
+                        <span className="text-[11px] font-black text-violet-700 bg-violet-50 px-2 py-0.5 rounded-md border border-violet-200/60" title="Prix unifié pour toutes les couleurs">
                           🔗 Prix partagé ({cart.filter(l => l.item.productName === item.productName).length} couleurs)
                         </span>
                       )}
@@ -1252,12 +1252,12 @@ export default function StockSaleFlow({
                   </div>
 
                   <div className="flex items-center gap-2 flex-1">
-                    <span className="text-[9px] font-black text-stone-400 uppercase tracking-widest shrink-0">×</span>
+                    <span className="text-[11px] font-black text-stone-400 uppercase tracking-widest shrink-0">×</span>
                     <Input type="number" min={0} step="any" value={unitPrice || ''}
                       onChange={e => updateCart(item.articleId, 'unitPrice', Number(e.target.value))}
                       placeholder="Prix (MAD)"
                       className="h-9 flex-1 max-w-[140px] text-sm font-black rounded-xl border-stone-200 placeholder:text-stone-300 placeholder:font-normal" />
-                    <span className="text-[9px] font-bold text-stone-400 shrink-0">MAD</span>
+                    <span className="text-[11px] font-bold text-stone-400 shrink-0">MAD</span>
                   </div>
 
                   <div className="text-right shrink-0 min-w-[80px]">
@@ -1271,7 +1271,7 @@ export default function StockSaleFlow({
           {/* Totaux */}
           <div className="bg-white rounded-2xl border border-stone-200 p-5 space-y-4">
             <div className="flex items-center gap-3">
-              <Label className="text-[9px] font-black text-stone-400 uppercase tracking-widest shrink-0 flex items-center gap-1">
+              <Label className="text-[11px] font-black text-stone-400 uppercase tracking-widest shrink-0 flex items-center gap-1">
                 <Percent className="w-3 h-3" /> Remise
               </Label>
               <Input type="number" min={0} max={100} value={discount}
@@ -1299,7 +1299,7 @@ export default function StockSaleFlow({
             </div>
 
             <div className="space-y-1.5 pt-2 border-t border-stone-100">
-              <Label className="text-[9px] font-black text-stone-400 uppercase tracking-widest">Notes</Label>
+              <Label className="text-[11px] font-black text-stone-400 uppercase tracking-widest">Notes</Label>
               <Input placeholder="Référence, instructions..." value={notes}
                 onChange={e => setNotes(e.target.value)}
                 className="h-10 rounded-xl border-stone-200 font-bold text-sm" />
@@ -1323,7 +1323,7 @@ export default function StockSaleFlow({
       {step === 3 && (
         <div className="space-y-4">
           <div className="bg-gradient-to-br from-emerald-900 to-emerald-800 p-6 rounded-3xl shadow-xl">
-            <p className="text-[9px] font-black text-emerald-300 uppercase tracking-[0.3em]">Étape 4</p>
+            <p className="text-[11px] font-black text-emerald-300 uppercase tracking-[0.3em]">Étape 4</p>
             <h2 className="text-2xl font-black text-white uppercase tracking-tighter mt-1">Finaliser la vente</h2>
             <p className="text-emerald-300/70 text-xs font-bold mt-1">
               {selectedClient?.name || 'Comptoir'} · {cart.length} produit{cart.length > 1 ? 's' : ''} · Total : {fmt$(total)} MAD
@@ -1513,7 +1513,7 @@ export default function StockSaleFlow({
                         <div className="space-y-3 pt-2 border-t border-stone-200/60">
                           <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
                             <div className="space-y-1">
-                              <Label className="text-[9px] font-black uppercase text-stone-500">Banque Tirée</Label>
+                              <Label className="text-[11px] font-black uppercase text-stone-500">Banque Tirée</Label>
                               <Input
                                 list="moroccan-banks-sale"
                                 placeholder="Ex: BCP, CIH..."
@@ -1523,7 +1523,7 @@ export default function StockSaleFlow({
                               />
                             </div>
                             <div className="space-y-1">
-                              <Label className="text-[9px] font-black uppercase text-stone-500">
+                              <Label className="text-[11px] font-black uppercase text-stone-500">
                                 {line.method === 'CHEQUE' ? 'N° de Chèque' : 'N° LC / Effet'}
                               </Label>
                               <Input
@@ -1534,7 +1534,7 @@ export default function StockSaleFlow({
                               />
                             </div>
                             <div className="space-y-1">
-                              <Label className="text-[9px] font-black uppercase text-stone-500">Date d'échéance</Label>
+                              <Label className="text-[11px] font-black uppercase text-stone-500">Date d'échéance</Label>
                               <Input
                                 type="date"
                                 value={line.dueDate}
@@ -1544,7 +1544,7 @@ export default function StockSaleFlow({
                             </div>
                             {userRole === 'ADMIN' && (
                               <div className="space-y-1">
-                                <Label className="text-[9px] font-black uppercase text-stone-500">Société Attijari</Label>
+                                <Label className="text-[11px] font-black uppercase text-stone-500">Société Attijari</Label>
                                 <Select
                                   value={line.cashingCompany || 'PENDING'}
                                   onValueChange={v => updateCheckoutPaymentLine(line.id, 'cashingCompany', v === 'PENDING' ? undefined : v as CashingCompany)}
@@ -1565,13 +1565,13 @@ export default function StockSaleFlow({
                           {/* Scan / Photo obligatoire du Chèque / LC */}
                           <div className="space-y-1">
                             <div className="flex items-center justify-between">
-                              <Label className="text-[9px] font-black uppercase tracking-widest flex items-center gap-1.5 text-amber-800">
+                              <Label className="text-[11px] font-black uppercase tracking-widest flex items-center gap-1.5 text-amber-800">
                                 <Camera className="w-3.5 h-3.5 text-amber-600" />
                                 <span>Scan / Photo du {line.method === 'CHEQUE' ? 'Chèque' : 'la LC'}</span>
                                 <span className="text-red-500 font-black">* Obligatoire</span>
                               </Label>
                               {!line.scannedImageUrl && (
-                                <span className="text-[8px] font-black uppercase tracking-wider text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full">
+                                <span className="text-[11px] font-black uppercase tracking-wider text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full">
                                   Scan requis avant validation
                                 </span>
                               )}
@@ -1643,7 +1643,7 @@ export default function StockSaleFlow({
                       {isTransfer && (
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-stone-200/60">
                           <div className="space-y-1">
-                            <Label className="text-[9px] font-black uppercase text-stone-500">Banque</Label>
+                            <Label className="text-[11px] font-black uppercase text-stone-500">Banque</Label>
                             <Input
                               list="moroccan-banks-sale"
                               placeholder="Ex: CIH, BMCE..."
@@ -1653,7 +1653,7 @@ export default function StockSaleFlow({
                             />
                           </div>
                           <div className="space-y-1">
-                            <Label className="text-[9px] font-black uppercase text-stone-500">Réf. Virement</Label>
+                            <Label className="text-[11px] font-black uppercase text-stone-500">Réf. Virement</Label>
                             <Input
                               placeholder="N° référence ou transaction"
                               value={line.checkNumber}
@@ -1707,7 +1707,7 @@ export default function StockSaleFlow({
           <div className="bg-white rounded-2xl shadow-lg border border-stone-100 p-5 space-y-4">
             <div className="grid grid-cols-1 gap-4">
               <div className="space-y-1.5">
-                <Label className="text-[9px] font-black text-stone-500 uppercase tracking-widest">Date de la vente</Label>
+                <Label className="text-[11px] font-black text-stone-500 uppercase tracking-widest">Date de la vente</Label>
                 <Input type="date" value={finalDate} onChange={e => setFinalDate(e.target.value)}
                   className="h-11 rounded-xl border-stone-200 font-bold max-w-sm" />
               </div>
@@ -1715,14 +1715,14 @@ export default function StockSaleFlow({
 
             {/* Récap final */}
             <div className="bg-stone-50 rounded-xl p-4 space-y-1">
-              <p className="text-[9px] font-black text-stone-400 uppercase tracking-widest mb-2">Récapitulatif</p>
+              <p className="text-[11px] font-black text-stone-400 uppercase tracking-widest mb-2">Récapitulatif</p>
               {cart.slice(0, 4).map(({ item, qty, unitPrice }) => (
                 <div key={item.articleId} className="flex justify-between text-[10px] font-bold text-stone-600">
                   <span>{qty}x {item.productName} {item.color || ''} {item.size || ''}</span>
                   <span>{fmt$(qty * unitPrice)}</span>
                 </div>
               ))}
-              {cart.length > 4 && <p className="text-[9px] text-stone-400 font-bold">+{cart.length - 4} autre(s)...</p>}
+              {cart.length > 4 && <p className="text-[11px] text-stone-400 font-bold">+{cart.length - 4} autre(s)...</p>}
               <div className="border-t border-stone-200 pt-2 mt-2 flex justify-between font-black text-stone-900">
                 <span>Total de la vente</span>
                 <span className={paymentStatus === 'PAID' ? 'text-emerald-700' : 'text-amber-700'}>{fmt$(total)}</span>
@@ -1784,7 +1784,7 @@ export default function StockSaleFlow({
           </div>
           <div className="p-5 space-y-4 bg-white">
             <div className="space-y-1.5">
-              <Label className="text-[9px] font-black text-stone-500 uppercase tracking-widest">Quantité</Label>
+              <Label className="text-[11px] font-black text-stone-500 uppercase tracking-widest">Quantité</Label>
               <Input type="number" min={1} max={addModal.sourceStore && addModal.item?.qtyByStore ? (addModal.item.qtyByStore as any)[addModal.sourceStore] : addModal.item?.currentQty} value={addModal.qty}
                 onChange={e => setAddModal(m => {
                   const maxStock = m.sourceStore && m.item?.qtyByStore ? (m.item.qtyByStore as any)[m.sourceStore] : m.item?.currentQty || 999;
@@ -1793,7 +1793,7 @@ export default function StockSaleFlow({
                 className="h-12 text-xl font-black rounded-xl border-stone-200" autoFocus />
             </div>
             <div className="space-y-1.5">
-              <Label className="text-[9px] font-black text-stone-500 uppercase tracking-widest">Prix unitaire</Label>
+              <Label className="text-[11px] font-black text-stone-500 uppercase tracking-widest">Prix unitaire</Label>
               <Input type="number" min={0} step="any" value={addModal.unitPrice}
                 onChange={e => setAddModal(m => ({ ...m, unitPrice: Number(e.target.value) }))}
                 className="h-12 text-xl font-black rounded-xl border-stone-200" />
@@ -1804,7 +1804,7 @@ export default function StockSaleFlow({
             </div>
             {addModal.item?.qtyByStore && Object.keys(addModal.item.qtyByStore).length > 0 && (
               <div className="space-y-1.5 pt-2 border-t border-stone-100">
-                <Label className="text-[9px] font-black text-stone-500 uppercase tracking-widest">Retirer depuis l'emplacement</Label>
+                <Label className="text-[11px] font-black text-stone-500 uppercase tracking-widest">Retirer depuis l'emplacement</Label>
                 <select
                   className="w-full h-10 border border-stone-200 rounded-lg text-xs font-bold text-stone-700 px-3 outline-none focus:border-violet-500 bg-white"
                   value={addModal.sourceStore || ''}
@@ -1848,7 +1848,7 @@ export default function StockSaleFlow({
             if (sizes.length > 0) {
               return (
                 <div className="bg-white px-5 py-3 border-b border-stone-100">
-                  <p className="text-[9px] font-black text-stone-400 uppercase tracking-widest mb-2">Choisir la taille</p>
+                  <p className="text-[11px] font-black text-stone-400 uppercase tracking-widest mb-2">Choisir la taille</p>
                   <div className="flex gap-2 flex-wrap">
                     {sizes.map(size => {
                       const sizeQty = variantModal.variants.filter(v => v.size === size).reduce((s, v) => s + v.currentQty, 0);
@@ -1910,7 +1910,7 @@ export default function StockSaleFlow({
             </div>
           ) : (
             <div className="p-5 max-h-[50vh] overflow-y-auto">
-              <p className="text-[9px] font-black text-stone-400 uppercase tracking-widest mb-3">
+              <p className="text-[11px] font-black text-stone-400 uppercase tracking-widest mb-3">
                 {activeSize ? `Couleurs pour la taille ${activeSize}` : 'Variantes disponibles'}
               </p>
               

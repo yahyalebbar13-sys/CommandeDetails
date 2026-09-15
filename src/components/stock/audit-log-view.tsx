@@ -75,7 +75,7 @@ export default function AuditLogView({ entries }: AuditLogViewProps) {
         <div className="relative z-10">
           <div className="flex items-center gap-3 mb-2">
             <Shield className="w-6 h-6 text-stone-300" />
-            <p className="text-[9px] font-black text-stone-400 uppercase tracking-[0.3em]">Traçabilité</p>
+            <p className="text-[11px] font-black text-stone-400 uppercase tracking-[0.3em]">Traçabilité</p>
           </div>
           <h1 className="text-3xl font-black text-white uppercase tracking-tighter">Journal <span className="text-stone-400">d'Audit</span></h1>
           <p className="text-[10px] font-bold text-stone-500 uppercase tracking-widest mt-2">
@@ -123,7 +123,7 @@ export default function AuditLogView({ entries }: AuditLogViewProps) {
             return (
               <div key={entry.id} className="px-5 py-4 flex items-start gap-4 hover:bg-stone-50/30 transition-colors">
                 <div className="flex-shrink-0 mt-0.5">
-                  <span className={`inline-block px-2.5 py-1 rounded-lg text-[9px] font-black uppercase tracking-wide ${style.cls}`}>
+                  <span className={`inline-block px-2.5 py-1 rounded-lg text-[11px] font-black uppercase tracking-wide ${style.cls}`}>
                     {style.label}
                   </span>
                 </div>
@@ -152,7 +152,7 @@ export default function AuditLogView({ entries }: AuditLogViewProps) {
         )}
         {visible.length > 0 && (
           <div className="px-4 py-3 bg-stone-50 border-t border-stone-100 flex items-center justify-between">
-            <span className="text-[9px] font-black text-stone-400 uppercase tracking-widest">
+            <span className="text-[11px] font-black text-stone-400 uppercase tracking-widest">
               {visible.length} sur {filtered.length} entrée{filtered.length > 1 ? 's' : ''}
             </span>
           </div>

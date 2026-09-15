@@ -130,7 +130,7 @@ export default function StockMovements({ movements, stockItems, categories, arti
         <div className="absolute top-0 right-0 w-64 h-64 bg-emerald-500/5 rounded-full -translate-y-1/2 translate-x-1/2 blur-3xl" />
         <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
-            <p className="text-[9px] font-black text-emerald-400 uppercase tracking-[0.3em] mb-1">Traçabilité complète</p>
+            <p className="text-[11px] font-black text-emerald-400 uppercase tracking-[0.3em] mb-1">Traçabilité complète</p>
             <h1 className="text-3xl font-black text-white uppercase tracking-tighter">Journal des <span className="text-emerald-400">Mouvements</span></h1>
             <p className="text-stone-400 text-xs font-bold mt-2">{movements.length} mouvement{movements.length > 1 ? 's' : ''} enregistré{movements.length > 1 ? 's' : ''}</p>
           </div>
@@ -177,7 +177,7 @@ export default function StockMovements({ movements, stockItems, categories, arti
           <div key={label} className={`bg-white rounded-2xl p-4 shadow-lg border border-${color}-100`}>
             <div className={`flex items-center gap-2 mb-1`}>
               <Icon className={`w-3.5 h-3.5 text-${color}-500`} />
-              <p className={`text-[8px] font-black uppercase tracking-widest text-${color}-500`}>{label}</p>
+              <p className={`text-[11px] font-black uppercase tracking-widest text-${color}-500`}>{label}</p>
             </div>
             <p className={`text-2xl font-black text-${color === 'red' ? 'red' : 'emerald'}-700`}>
               {value > 0 ? '+' : ''}{(Number(value) || 0).toLocaleString('fr-FR')}
@@ -241,7 +241,7 @@ export default function StockMovements({ movements, stockItems, categories, arti
               <thead>
                 <tr className="bg-stone-50 border-b border-stone-100">
                   {['Date', 'Type', 'Produit', 'Magasin', 'Raison', 'Quantité', 'Notes', ''].map((h, i) => (
-                    <th key={h || i} className="px-4 py-3 text-left text-[9px] font-black uppercase tracking-widest text-stone-400 whitespace-nowrap">{h}</th>
+                    <th key={h || i} className="px-4 py-3 text-left text-[11px] font-black uppercase tracking-widest text-stone-400 whitespace-nowrap">{h}</th>
                   ))}
                 </tr>
               </thead>
@@ -258,7 +258,7 @@ export default function StockMovements({ movements, stockItems, categories, arti
                         </div>
                       </td>
                       <td className="px-4 py-3">
-                        <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider border ${ts.bg} ${ts.text} ${ts.border}`}>
+                        <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-black uppercase tracking-wider border ${ts.bg} ${ts.text} ${ts.border}`}>
                           <Icon className="w-3 h-3" />
                           {ts.label}
                         </span>
@@ -266,9 +266,9 @@ export default function StockMovements({ movements, stockItems, categories, arti
                       <td className="px-4 py-3">
                         <p className="text-[11px] font-black text-stone-800 uppercase">{m.productName}</p>
                         {(m.quality || m.color || m.size) && (
-                          <p className="text-[9px] font-bold text-stone-400 mt-0.5 flex items-center gap-1.5 flex-wrap">
+                          <p className="text-[11px] font-bold text-stone-400 mt-0.5 flex items-center gap-1.5 flex-wrap">
                             {m.quality && (
-                              <span className="bg-violet-100 text-violet-700 px-1.5 py-0.5 rounded text-[8px] font-black uppercase">
+                              <span className="bg-violet-100 text-violet-700 px-1.5 py-0.5 rounded text-[11px] font-black uppercase">
                                 {m.quality}
                               </span>
                             )}
@@ -278,16 +278,16 @@ export default function StockMovements({ movements, stockItems, categories, arti
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex flex-col gap-0.5">
-                          <span className="text-[9px] font-black text-stone-600 uppercase">
+                          <span className="text-[11px] font-black text-stone-600 uppercase">
                             {m.storeId ? (m.storeId === 'ENTREPOT' ? 'Entrepôt' : m.storeId.replace('_', ' ')) : 'Entrepôt'}
                           </span>
                           {m.reason === 'TRANSFERT' && m.toStoreId && (
-                            <span className="text-[8px] font-bold text-stone-400 uppercase">→ {m.toStoreId === 'ENTREPOT' ? 'Entrepôt' : m.toStoreId.replace('_', ' ')}</span>
+                            <span className="text-[11px] font-bold text-stone-400 uppercase">→ {m.toStoreId === 'ENTREPOT' ? 'Entrepôt' : m.toStoreId.replace('_', ' ')}</span>
                           )}
                         </div>
                       </td>
                       <td className="px-4 py-3">
-                        <span className="text-[9px] font-black text-stone-600 uppercase bg-stone-100 px-2 py-0.5 rounded-lg">
+                        <span className="text-[11px] font-black text-stone-600 uppercase bg-stone-100 px-2 py-0.5 rounded-lg">
                           {REASON_LABELS[m.reason] || m.reason}
                         </span>
                       </td>
@@ -316,10 +316,10 @@ export default function StockMovements({ movements, stockItems, categories, arti
         {/* Footer tableau */}
         {filtered.length > 0 && (
           <div className="px-4 py-3 bg-stone-50 border-t border-stone-100 flex items-center justify-between">
-            <span className="text-[9px] font-black text-stone-400 uppercase tracking-widest">{filtered.length} mouvement{filtered.length > 1 ? 's' : ''}</span>
+            <span className="text-[11px] font-black text-stone-400 uppercase tracking-widest">{filtered.length} mouvement{filtered.length > 1 ? 's' : ''}</span>
             <div className="flex gap-4">
-              <span className="text-[9px] font-black text-emerald-600 uppercase">+{(Number(totalIN) || 0).toLocaleString('fr-FR')} IN</span>
-              <span className="text-[9px] font-black text-red-600 uppercase">-{(Number(totalOUT) || 0).toLocaleString('fr-FR')} OUT</span>
+              <span className="text-[11px] font-black text-emerald-600 uppercase">+{(Number(totalIN) || 0).toLocaleString('fr-FR')} IN</span>
+              <span className="text-[11px] font-black text-red-600 uppercase">-{(Number(totalOUT) || 0).toLocaleString('fr-FR')} OUT</span>
             </div>
           </div>
         )}

@@ -97,7 +97,7 @@ export default function GlobalSearch({ open, onOpenChange, stockItems, clients, 
             <div className="py-2">
               {matchedProducts.length > 0 && (
                 <div className="px-2 mb-2">
-                  <p className="px-3 py-1.5 text-[9px] font-black uppercase tracking-widest text-stone-400">Produits</p>
+                  <p className="px-3 py-1.5 text-[11px] font-black uppercase tracking-widest text-stone-400">Produits</p>
                   {matchedProducts.map(item => (
                     <button
                       key={item.articleId}
@@ -123,7 +123,7 @@ export default function GlobalSearch({ open, onOpenChange, stockItems, clients, 
 
               {matchedClients.length > 0 && (
                 <div className="px-2 mb-2">
-                  <p className="px-3 py-1.5 text-[9px] font-black uppercase tracking-widest text-stone-400">Clients</p>
+                  <p className="px-3 py-1.5 text-[11px] font-black uppercase tracking-widest text-stone-400">Clients</p>
                   {matchedClients.map(client => (
                     <button
                       key={client.id}
@@ -144,7 +144,7 @@ export default function GlobalSearch({ open, onOpenChange, stockItems, clients, 
 
               {matchedInvoices.length > 0 && (
                 <div className="px-2 mb-2">
-                  <p className="px-3 py-1.5 text-[9px] font-black uppercase tracking-widest text-stone-400">Factures</p>
+                  <p className="px-3 py-1.5 text-[11px] font-black uppercase tracking-widest text-stone-400">Factures</p>
                   {matchedInvoices.map(inv => (
                     <button
                       key={inv.id}
@@ -170,10 +170,10 @@ export default function GlobalSearch({ open, onOpenChange, stockItems, clients, 
         </div>
 
         <div className="px-5 py-2.5 border-t border-stone-100 bg-stone-50/50 flex items-center justify-between">
-          <span className="text-[9px] font-bold text-stone-400 flex items-center gap-1">
+          <span className="text-[11px] font-bold text-stone-400 flex items-center gap-1">
             <CornerDownLeft className="w-3 h-3" /> pour ouvrir
           </span>
-          <span className="text-[9px] font-bold text-stone-400">Ctrl/Cmd + K</span>
+          <span className="text-[11px] font-bold text-stone-400">Ctrl/Cmd + K</span>
         </div>
       </DialogContent>
     </Dialog>
