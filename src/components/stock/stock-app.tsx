@@ -290,7 +290,9 @@ export function computeStockItems(
         for (const m of targetMovs) {
           if (isOldArrivalMovement(m)) continue;
           if (m.reason === 'TRANSFERT') {
-            if (activeStore === 'ALL') continue;
+            // Vue Globale (Entrepôts) : un transfert franchissant la frontière
+            // magasin/entrepôt N'est PAS neutre pour ce sous-ensemble — il faut
+            // le compter comme n'importe quel autre mouvement (voir isVisibleForUser).
             if (m.type === 'OUT') {
               if (isVisibleForUser(m.storeId)) mouvOUT += m.quantity;
             } else if (m.type === 'IN') {
@@ -375,7 +377,9 @@ export function computeStockItems(
         for (const m of targetMovs) {
           if (isOldArrivalMovement(m)) continue;
           if (m.reason === 'TRANSFERT') {
-            if (activeStore === 'ALL') continue; // Transfert interne = 0 impact global
+            // Vue Globale (Entrepôts) : un transfert franchissant la frontière
+            // magasin/entrepôt N'est PAS neutre pour ce sous-ensemble — il faut
+            // le compter comme n'importe quel autre mouvement (voir isVisibleForUser).
             if (m.type === 'OUT') {
               if (isVisibleForUser(m.storeId)) mouvOUT += m.quantity;
             } else if (m.type === 'IN') {
@@ -456,7 +460,9 @@ export function computeStockItems(
         for (const m of targetMovs) {
           if (isOldArrivalMovement(m)) continue;
           if (m.reason === 'TRANSFERT') {
-            if (activeStore === 'ALL') continue;
+            // Vue Globale (Entrepôts) : un transfert franchissant la frontière
+            // magasin/entrepôt N'est PAS neutre pour ce sous-ensemble — il faut
+            // le compter comme n'importe quel autre mouvement (voir isVisibleForUser).
             if (m.type === 'OUT') {
               if (isVisibleForUser(m.storeId)) mouvOUT += m.quantity;
             } else if (m.type === 'IN') {
@@ -525,7 +531,9 @@ export function computeStockItems(
     for (const m of artMovements) {
       if (isOldArrivalMovement(m)) continue;
       if (m.reason === 'TRANSFERT') {
-        if (activeStore === 'ALL') continue;
+        // Vue Globale (Entrepôts) : un transfert franchissant la frontière
+        // magasin/entrepôt N'est PAS neutre pour ce sous-ensemble — il faut
+        // le compter comme n'importe quel autre mouvement (voir isVisibleForUser).
         if (m.type === 'OUT') {
           if (isVisibleForUser(m.storeId)) mouvOUT += m.quantity;
         } else if (m.type === 'IN') {
