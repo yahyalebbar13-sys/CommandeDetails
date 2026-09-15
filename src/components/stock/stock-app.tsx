@@ -55,6 +55,16 @@ type StockView = 'dashboard' | 'sale' | 'stock' | 'analytics' | 'clients' | 'ord
 
 // ─── Calcul du stock courant ─────────────────────────────────────────────────
 
+// Un entrepôt n'est pas un point de vente indépendant : c'est du stock
+// supplémentaire pour CHRIFA (le magasin de vente principal). Derb Omar et
+// IDAA restent des magasins autonomes avec leur propre stock. Tout entrepôt
+// actuel ou futur (type === 'WAREHOUSE') est donc rattaché à CHRIFA.
+function isWarehouseStore(storeId: string | undefined, stores: any[]): boolean {
+  if (!storeId) return false;
+  const store = stores.find(s => s.id === storeId);
+  return store?.type === 'WAREHOUSE';
+}
+
 function getInitialQtyForStore(item: any, activeStore: string, userStoreId: string, stores: any[]): number {
   const byStore = item.initialQtyByStore;
   if (!byStore) {
@@ -68,6 +78,13 @@ function getInitialQtyForStore(item: any, activeStore: string, userStoreId: stri
   if (activeStore === 'ALL_MAIN') {
     const sId = userStoreId || 'CHRIFA';
     return Number(byStore[sId]) || 0;
+  }
+
+  if (activeStore === 'CHRIFA') {
+    return Object.entries(byStore).reduce((sum, [sId, val]) => {
+      if (sId === 'CHRIFA' || isWarehouseStore(sId, stores)) return sum + (Number(val) || 0);
+      return sum;
+    }, 0);
   }
 
   // Pour un magasin spécifique ou un entrepôt spécifique sélectionné : strictement son stock propre
@@ -117,12 +134,17 @@ export function computeStockItems(
   const isVisibleForUser = (storeId: string | undefined) => {
     if (activeStore === 'ALL') return true;
     const sId = storeId || 'CHRIFA';
-    
+
     if (activeStore === 'ALL_MAIN') {
       return sId === userStoreId || (!userStoreId && sId === 'CHRIFA');
     }
 
-    // Tout magasin ou entrepôt individuel : strictement son propre stock
+    // CHRIFA : les entrepôts (actuels et futurs) sont son propre stock, pas des lieux séparés
+    if (activeStore === 'CHRIFA') {
+      return sId === 'CHRIFA' || isWarehouseStore(sId, stores);
+    }
+
+    // Tout autre magasin ou entrepôt individuel : strictement son propre stock
     return sId === activeStore;
   };
 
