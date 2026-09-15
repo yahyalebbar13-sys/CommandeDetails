@@ -25,6 +25,7 @@ import { isArrivalOlderThanOneMonth } from '@/lib/status-utils';
 import StockDashboard   from './stock-dashboard';
 import StockMovements   from './stock-movements';
 import BlindInventory   from './blind-inventory';
+import GlobalSearch     from './global-search';
 import StockAlerts      from './stock-alerts';
 import StockSaleFlow    from './stock-sale-flow';
 // import StockSales       from './stock-sales';
@@ -672,8 +673,21 @@ export default function StockApp() {
   const [userRole, setUserRole] = useState<'ADMIN' | 'COMMERCIAL' | 'UNAUTHORIZED' | 'LOADING'>('LOADING');
   const [adminUid, setAdminUid] = useState<string | null>(null);
   const [userStoreId, setUserStoreId] = useState<string | null>(null);
+  const [isReadOnly, setIsReadOnly] = useState(false);
   const [debugInfo, setDebugInfo] = useState<string>('');
   const [resetConfirmOpen, setResetConfirmOpen] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
+
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        setSearchOpen(v => !v);
+      }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, []);
   const [isResetting, setIsResetting] = useState(false);
 
   const handleResetStockSimulation = async () => {
@@ -745,6 +759,7 @@ export default function StockApp() {
           setActiveStore(data.storeId);
         }
         setUserStoreId(data.storeId);
+        setIsReadOnly(data.readOnly === true);
         setUserRole(data.role || 'COMMERCIAL');
         // activeView sera déterminé dynamiquement dans le useEffect ci-dessous
       } else {
@@ -1866,6 +1881,20 @@ export default function StockApp() {
               <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
               <span className="text-[9px] font-black text-emerald-700 uppercase tracking-widest">Live</span>
             </div>
+            {isReadOnly && (
+              <div className="hidden sm:flex items-center gap-1.5 bg-blue-50 border border-blue-200 rounded-full px-3 py-1" title="Accès consultation uniquement — aucune modification possible">
+                <Lock className="w-3 h-3 text-blue-600" />
+                <span className="text-[9px] font-black text-blue-700 uppercase tracking-widest">Lecture seule</span>
+              </div>
+            )}
+            <button
+              onClick={() => setSearchOpen(true)}
+              className="hidden md:flex items-center gap-2 bg-stone-50 hover:bg-stone-100 border border-stone-200 rounded-xl px-3 h-9 text-stone-400 hover:text-stone-600 transition-colors"
+            >
+              <Search className="w-3.5 h-3.5" />
+              <span className="text-[10px] font-bold">Rechercher...</span>
+              <span className="text-[9px] font-black bg-white border border-stone-200 rounded px-1.5 py-0.5 ml-1">Ctrl K</span>
+            </button>
           </div>
 
           {/* Sélecteur de magasin : Réservé EXCLUSIVEMENT à l'Admin pour basculer dans les 3 magasins */}
@@ -2781,6 +2810,14 @@ export default function StockApp() {
           </div>
         </DialogContent>
       </Dialog>
+      <GlobalSearch
+        open={searchOpen}
+        onOpenChange={setSearchOpen}
+        stockItems={stockItems}
+        clients={clients}
+        invoices={invoices}
+        onNavigate={(v) => setActiveView(v as StockView)}
+      />
     </div>
     </ConfirmProvider>
   );

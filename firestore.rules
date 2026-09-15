@@ -45,6 +45,19 @@ service cloud.firestore {
       return acc != null && acc.get('role', 'COMMERCIAL') == 'ADMIN';
     }
 
+    // Compte marqué readOnly=true (ex: comptable externe) : lecture seule,
+    // aucune écriture quel que soit son rôle par ailleurs.
+    function isReadOnlyCaller() {
+      let acc = isSignedIn() ? accessDoc() : null;
+      return acc != null && acc.get('readOnly', false) == true;
+    }
+
+    // Écriture sur les collections "partagées" (catalogue, config) : comme
+    // hasAccess(), mais refusée à un compte readOnly.
+    function hasWriteAccess(userId) {
+      return isOwner(userId) || (isCommercial() && !isReadOnlyCaller());
+    }
+
     // Lecture : autorise aussi les documents legacy sans storeId (données
     // partagées ou anciennes, non bloquantes) et les comptes role=ADMIN.
     // isOwner() est vérifié en premier via un ternaire pour ne JAMAIS lire
@@ -60,9 +73,10 @@ service cloud.firestore {
     // Création : un simple commercial doit explicitement taguer son propre
     // magasin (pas d'échappatoire "storeId absent" — évite de créer des
     // données globales non attribuées ou d'usurper un autre magasin).
+    // Un compte readOnly ne peut jamais créer de document.
     function canCreateStoreScoped(userId, data) {
       let acc = isOwner(userId) ? null : (isSignedIn() ? accessDoc() : null);
-      return isOwner(userId) || (acc != null && (
+      return isOwner(userId) || (acc != null && acc.get('readOnly', false) != true && (
         acc.get('role', 'COMMERCIAL') == 'ADMIN'
         || ('storeId' in data && data.storeId == acc.get('storeId', null))
       ));
@@ -70,10 +84,10 @@ service cloud.firestore {
 
     // Mise à jour : le document doit rester dans le magasin du commercial,
     // avant ET après modification (empêche de déplacer un document vers/hors
-    // de son propre magasin).
+    // de son propre magasin). Un compte readOnly ne peut jamais modifier.
     function canUpdateStoreScoped(userId, existing, incoming) {
       let acc = isOwner(userId) ? null : (isSignedIn() ? accessDoc() : null);
-      return isOwner(userId) || (acc != null && (
+      return isOwner(userId) || (acc != null && acc.get('readOnly', false) != true && (
         acc.get('role', 'COMMERCIAL') == 'ADMIN'
         || (
           (!('storeId' in existing) || existing.storeId == null || existing.storeId == acc.get('storeId', null))
@@ -83,7 +97,9 @@ service cloud.firestore {
     }
 
     // Transferts : concernent DEUX magasins (source + destination) — un
-    // commercial y a accès si l'un des deux est le sien.
+    // commercial y a accès si l'un des deux est le sien. Cette fonction sert
+    // à la fois à la lecture et à l'écriture ; l'écriture est en plus filtrée
+    // par !isReadOnlyCaller() au niveau des règles create/update ci-dessous.
     function isOwnTransferDoc(userId, data) {
       let acc = isOwner(userId) ? null : (isSignedIn() ? accessDoc() : null);
       return isOwner(userId) || (acc != null && (
@@ -113,7 +129,8 @@ service cloud.firestore {
 
       // generalCategories: owner only (internal admin data)
       match /generalCategories/{id} {
-        allow read, write: if hasAccess(userId);
+        allow read: if hasAccess(userId);
+        allow write: if hasWriteAccess(userId);
       }
 
       // categories: owner can write; a valid client whose clientAccess.adminUid == userId can read
@@ -121,7 +138,7 @@ service cloud.firestore {
         allow read: if hasAccess(userId)
           || (isSignedIn() && exists(/databases/$(database)/documents/clientAccess/$(request.auth.uid))
               && get(/databases/$(database)/documents/clientAccess/$(request.auth.uid)).data.adminUid == userId);
-        allow write: if hasAccess(userId);
+        allow write: if hasWriteAccess(userId);
       }
 
       // designs: sub-collection of categories — same access as parent category
@@ -130,12 +147,13 @@ service cloud.firestore {
         allow read: if hasAccess(userId)
           || (isSignedIn() && exists(/databases/$(database)/documents/clientAccess/$(request.auth.uid))
               && get(/databases/$(database)/documents/clientAccess/$(request.auth.uid)).data.adminUid == userId);
-        allow write: if hasAccess(userId);
+        allow write: if hasWriteAccess(userId);
       }
 
       // suppliers: owner only (financially sensitive)
       match /suppliers/{id} {
-        allow read, write: if hasAccess(userId);
+        allow read: if hasAccess(userId);
+        allow write: if hasWriteAccess(userId);
       }
 
       // articles: owner can write; a valid client whose clientAccess.adminUid == userId can read
@@ -143,7 +161,7 @@ service cloud.firestore {
         allow read: if hasAccess(userId)
           || (isSignedIn() && exists(/databases/$(database)/documents/clientAccess/$(request.auth.uid))
               && get(/databases/$(database)/documents/clientAccess/$(request.auth.uid)).data.adminUid == userId);
-        allow write: if hasAccess(userId);
+        allow write: if hasWriteAccess(userId);
       }
 
       // factures: owner can write; a valid client whose clientAccess.adminUid == userId can read
@@ -151,27 +169,31 @@ service cloud.firestore {
         allow read: if hasAccess(userId)
           || (isSignedIn() && exists(/databases/$(database)/documents/clientAccess/$(request.auth.uid))
               && get(/databases/$(database)/documents/clientAccess/$(request.auth.uid)).data.adminUid == userId);
-        allow write: if hasAccess(userId);
+        allow write: if hasWriteAccess(userId);
       }
 
       // supplierPayments: strictly owner only (financial data)
       match /supplierPayments/{id} {
-        allow read, write: if hasAccess(userId);
+        allow read: if hasAccess(userId);
+        allow write: if hasWriteAccess(userId);
       }
 
       // dp_declarations: customs declarations, owner only
       match /dp_declarations/{id} {
-        allow read, write: if hasAccess(userId);
+        allow read: if hasAccess(userId);
+        allow write: if hasWriteAccess(userId);
       }
 
       // supplierProfiles: fournisseur contact info (adresse, email, tél...), owner only
       match /supplierProfiles/{id} {
-        allow read, write: if hasAccess(userId);
+        allow read: if hasAccess(userId);
+        allow write: if hasWriteAccess(userId);
       }
 
       // checklists: dossier verification checklist, owner only
       match /checklists/{id} {
-        allow read, write: if hasAccess(userId);
+        allow read: if hasAccess(userId);
+        allow write: if hasWriteAccess(userId);
       }
 
       // stockMovements: journal des entrées/sorties physiques — isolé par magasin
@@ -179,7 +201,7 @@ service cloud.firestore {
         allow read: if canReadStoreScoped(userId, resource.data);
         allow create: if canCreateStoreScoped(userId, request.resource.data);
         allow update: if canUpdateStoreScoped(userId, resource.data, request.resource.data);
-        allow delete: if isOwner(userId) || isFullAccessCommercial();
+        allow delete: if isOwner(userId) || (isFullAccessCommercial() && !isReadOnlyCaller());
       }
 
       // sales: transactions de vente rapide — isolé par magasin
@@ -187,21 +209,21 @@ service cloud.firestore {
         allow read: if canReadStoreScoped(userId, resource.data);
         allow create: if canCreateStoreScoped(userId, request.resource.data);
         allow update: if canUpdateStoreScoped(userId, resource.data, request.resource.data);
-        allow delete: if isOwner(userId) || isFullAccessCommercial();
+        allow delete: if isOwner(userId) || (isFullAccessCommercial() && !isReadOnlyCaller());
       }
 
       // transferOrders: concerne deux magasins (source + destination)
       match /transferOrders/{id} {
         allow read: if isOwnTransferDoc(userId, resource.data);
-        allow create: if isOwnTransferDoc(userId, request.resource.data);
-        allow update: if isOwnTransferDoc(userId, resource.data) && isOwnTransferDoc(userId, request.resource.data);
-        allow delete: if isOwner(userId) || isFullAccessCommercial();
+        allow create: if isOwnTransferDoc(userId, request.resource.data) && !isReadOnlyCaller();
+        allow update: if isOwnTransferDoc(userId, resource.data) && isOwnTransferDoc(userId, request.resource.data) && !isReadOnlyCaller();
+        allow delete: if isOwner(userId) || (isFullAccessCommercial() && !isReadOnlyCaller());
       }
 
       // stores: owner can write; a valid client whose clientAccess.adminUid == userId can read
       match /stores/{id} {
         allow read: if hasAccess(userId);
-        allow write: if hasAccess(userId);
+        allow write: if hasWriteAccess(userId);
       }
 
       // clients: dossier clients — isolé par magasin
@@ -209,7 +231,7 @@ service cloud.firestore {
         allow read: if canReadStoreScoped(userId, resource.data);
         allow create: if canCreateStoreScoped(userId, request.resource.data);
         allow update: if canUpdateStoreScoped(userId, resource.data, request.resource.data);
-        allow delete: if isOwner(userId) || isFullAccessCommercial();
+        allow delete: if isOwner(userId) || (isFullAccessCommercial() && !isReadOnlyCaller());
       }
 
       // saleOrders: bons de commande — isolé par magasin
@@ -217,7 +239,7 @@ service cloud.firestore {
         allow read: if canReadStoreScoped(userId, resource.data);
         allow create: if canCreateStoreScoped(userId, request.resource.data);
         allow update: if canUpdateStoreScoped(userId, resource.data, request.resource.data);
-        allow delete: if isOwner(userId) || isFullAccessCommercial();
+        allow delete: if isOwner(userId) || (isFullAccessCommercial() && !isReadOnlyCaller());
       }
 
       // invoices: factures de vente — isolé par magasin
@@ -225,7 +247,7 @@ service cloud.firestore {
         allow read: if canReadStoreScoped(userId, resource.data);
         allow create: if canCreateStoreScoped(userId, request.resource.data);
         allow update: if canUpdateStoreScoped(userId, resource.data, request.resource.data);
-        allow delete: if isOwner(userId) || isFullAccessCommercial();
+        allow delete: if isOwner(userId) || (isFullAccessCommercial() && !isReadOnlyCaller());
       }
 
       // clientPayments: paiements clients — isolé par magasin
@@ -233,12 +255,13 @@ service cloud.firestore {
         allow read: if canReadStoreScoped(userId, resource.data);
         allow create: if canCreateStoreScoped(userId, request.resource.data);
         allow update: if canUpdateStoreScoped(userId, resource.data, request.resource.data);
-        allow delete: if isOwner(userId) || isFullAccessCommercial();
+        allow delete: if isOwner(userId) || (isFullAccessCommercial() && !isReadOnlyCaller());
       }
 
       // baseOrders: modèles de commandes fixes, owner only
       match /baseOrders/{id} {
-        allow read, write: if hasAccess(userId);
+        allow read: if hasAccess(userId);
+        allow write: if hasWriteAccess(userId);
       }
 
       // commercialExpenses: notes de frais des commerciaux — isolé par magasin
@@ -246,18 +269,20 @@ service cloud.firestore {
         allow read: if canReadStoreScoped(userId, resource.data);
         allow create: if canCreateStoreScoped(userId, request.resource.data);
         allow update: if canUpdateStoreScoped(userId, resource.data, request.resource.data);
-        allow delete: if isOwner(userId) || isFullAccessCommercial();
+        allow delete: if isOwner(userId) || (isFullAccessCommercial() && !isReadOnlyCaller());
       }
 
       // checkRemittances: bordereaux de remise de chèques en banque, owner only
       // (opération de trésorerie centrale, pas rattachée à un magasin unique)
       match /checkRemittances/{id} {
-        allow read, write: if hasAccess(userId);
+        allow read: if hasAccess(userId);
+        allow write: if hasWriteAccess(userId);
       }
 
       // auditLog: journal d'audit
       match /auditLog/{id} {
-        allow read, write: if hasAccess(userId);
+        allow read: if hasAccess(userId);
+        allow write: if hasWriteAccess(userId);
       }
     }
 
