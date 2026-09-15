@@ -58,18 +58,6 @@ service cloud.firestore {
       return isOwner(userId) || (isCommercial() && !isReadOnlyCaller());
     }
 
-    // Lecture : autorise aussi les documents legacy sans storeId (données
-    // partagées ou anciennes, non bloquantes) et les comptes role=ADMIN.
-    // isOwner() est vérifié en premier via un ternaire pour ne JAMAIS lire
-    // storeAccess sur le chemin le plus fréquent (l'admin propriétaire).
-    function canReadStoreScoped(userId, data) {
-      let acc = isOwner(userId) ? null : (isSignedIn() ? accessDoc() : null);
-      return isOwner(userId) || (acc != null && (
-        acc.get('role', 'COMMERCIAL') == 'ADMIN'
-        || !('storeId' in data) || data.storeId == null || data.storeId == acc.get('storeId', null)
-      ));
-    }
-
     // Création : un simple commercial doit explicitement taguer son propre
     // magasin (pas d'échappatoire "storeId absent" — évite de créer des
     // données globales non attribuées ou d'usurper un autre magasin).
@@ -196,25 +184,30 @@ service cloud.firestore {
         allow write: if hasWriteAccess(userId);
       }
 
-      // stockMovements: journal des entrées/sorties physiques — isolé par magasin
+      // stockMovements: journal des entrées/sorties physiques
+      // Lecture non filtrée par magasin : l'app charge la collection entière
+      // côté client puis filtre en JS (aucun where() sur storeId) — Firestore
+      // refuse en bloc une requête list() si la règle dépend de resource.data
+      // sans que la requête elle-même prouve le filtre. Écriture restée isolée
+      // par magasin (create/update portent sur un seul document, non concernés).
       match /stockMovements/{id} {
-        allow read: if canReadStoreScoped(userId, resource.data);
+        allow read: if hasAccess(userId);
         allow create: if canCreateStoreScoped(userId, request.resource.data);
         allow update: if canUpdateStoreScoped(userId, resource.data, request.resource.data);
         allow delete: if isOwner(userId) || (isFullAccessCommercial() && !isReadOnlyCaller());
       }
 
-      // sales: transactions de vente rapide — isolé par magasin
+      // sales: transactions de vente rapide (même limitation list() que ci-dessus)
       match /sales/{id} {
-        allow read: if canReadStoreScoped(userId, resource.data);
+        allow read: if hasAccess(userId);
         allow create: if canCreateStoreScoped(userId, request.resource.data);
         allow update: if canUpdateStoreScoped(userId, resource.data, request.resource.data);
         allow delete: if isOwner(userId) || (isFullAccessCommercial() && !isReadOnlyCaller());
       }
 
-      // transferOrders: concerne deux magasins (source + destination)
+      // transferOrders: concerne deux magasins (même limitation list() que ci-dessus)
       match /transferOrders/{id} {
-        allow read: if isOwnTransferDoc(userId, resource.data);
+        allow read: if hasAccess(userId);
         allow create: if isOwnTransferDoc(userId, request.resource.data) && !isReadOnlyCaller();
         allow update: if isOwnTransferDoc(userId, resource.data) && isOwnTransferDoc(userId, request.resource.data) && !isReadOnlyCaller();
         allow delete: if isOwner(userId) || (isFullAccessCommercial() && !isReadOnlyCaller());
@@ -226,33 +219,33 @@ service cloud.firestore {
         allow write: if hasWriteAccess(userId);
       }
 
-      // clients: dossier clients — isolé par magasin
+      // clients: dossier clients (même limitation list() que stockMovements ci-dessus)
       match /clients/{id} {
-        allow read: if canReadStoreScoped(userId, resource.data);
+        allow read: if hasAccess(userId);
         allow create: if canCreateStoreScoped(userId, request.resource.data);
         allow update: if canUpdateStoreScoped(userId, resource.data, request.resource.data);
         allow delete: if isOwner(userId) || (isFullAccessCommercial() && !isReadOnlyCaller());
       }
 
-      // saleOrders: bons de commande — isolé par magasin
+      // saleOrders: bons de commande (même limitation list())
       match /saleOrders/{id} {
-        allow read: if canReadStoreScoped(userId, resource.data);
+        allow read: if hasAccess(userId);
         allow create: if canCreateStoreScoped(userId, request.resource.data);
         allow update: if canUpdateStoreScoped(userId, resource.data, request.resource.data);
         allow delete: if isOwner(userId) || (isFullAccessCommercial() && !isReadOnlyCaller());
       }
 
-      // invoices: factures de vente — isolé par magasin
+      // invoices: factures de vente (même limitation list())
       match /invoices/{id} {
-        allow read: if canReadStoreScoped(userId, resource.data);
+        allow read: if hasAccess(userId);
         allow create: if canCreateStoreScoped(userId, request.resource.data);
         allow update: if canUpdateStoreScoped(userId, resource.data, request.resource.data);
         allow delete: if isOwner(userId) || (isFullAccessCommercial() && !isReadOnlyCaller());
       }
 
-      // clientPayments: paiements clients — isolé par magasin
+      // clientPayments: paiements clients (même limitation list())
       match /clientPayments/{id} {
-        allow read: if canReadStoreScoped(userId, resource.data);
+        allow read: if hasAccess(userId);
         allow create: if canCreateStoreScoped(userId, request.resource.data);
         allow update: if canUpdateStoreScoped(userId, resource.data, request.resource.data);
         allow delete: if isOwner(userId) || (isFullAccessCommercial() && !isReadOnlyCaller());
@@ -264,9 +257,9 @@ service cloud.firestore {
         allow write: if hasWriteAccess(userId);
       }
 
-      // commercialExpenses: notes de frais des commerciaux — isolé par magasin
+      // commercialExpenses: notes de frais des commerciaux (même limitation list())
       match /commercialExpenses/{id} {
-        allow read: if canReadStoreScoped(userId, resource.data);
+        allow read: if hasAccess(userId);
         allow create: if canCreateStoreScoped(userId, request.resource.data);
         allow update: if canUpdateStoreScoped(userId, resource.data, request.resource.data);
         allow delete: if isOwner(userId) || (isFullAccessCommercial() && !isReadOnlyCaller());
