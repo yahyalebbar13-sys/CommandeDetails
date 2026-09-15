@@ -8,6 +8,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { useFirestore, useUser } from '@/firebase';
 import { collection, doc, setDoc, deleteDoc } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
+import { useConfirm } from '@/hooks/use-confirm';
 import type { Store } from '@/lib/types';
 
 interface StoresViewProps {
@@ -19,6 +20,7 @@ export default function StoresView({ stores, adminUid }: StoresViewProps) {
   const { user } = useUser();
   const firestore = useFirestore();
   const { toast } = useToast();
+  const confirm = useConfirm();
 
   const [modalOpen, setModalOpen] = useState(false);
   const [editingStore, setEditingStore] = useState<Partial<Store>>({ type: 'WAREHOUSE' });
@@ -138,7 +140,13 @@ export default function StoresView({ stores, adminUid }: StoresViewProps) {
       return;
     }
 
-    if (!confirm('Êtes-vous sûr de vouloir supprimer ce lieu ? (Peut causer des erreurs si des mouvements y sont liés)')) return;
+    const ok = await confirm({
+      title: 'Supprimer ce magasin',
+      description: 'Êtes-vous sûr de vouloir supprimer ce lieu ? (Peut causer des erreurs si des mouvements y sont liés)',
+      confirmLabel: 'Supprimer',
+      variant: 'destructive',
+    });
+    if (!ok) return;
 
     try {
       await deleteDoc(doc(firestore, 'users', adminUid, 'stores', storeId));

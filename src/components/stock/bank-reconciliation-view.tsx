@@ -12,6 +12,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import type { ClientPayment, Client, BankTransaction, BankReconciliationStatus } from '@/lib/types';
+import { useConfirm } from '@/hooks/use-confirm';
 import * as XLSX from 'xlsx';
 
 const fmt = (n: number) => n.toLocaleString('fr-MA', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -28,6 +29,7 @@ interface BankReconciliationViewProps {
 }
 
 export default function BankReconciliationView({ payments, clients }: BankReconciliationViewProps) {
+  const confirm = useConfirm();
   // ── State séparé hermétiquement par Société ──
   const [selectedCompany, setSelectedCompany] = useState<'LEBTEX' | 'ROBE IN BOX'>('LEBTEX');
   const [companyTransactions, setCompanyTransactions] = useState<Record<'LEBTEX' | 'ROBE IN BOX', BankTransaction[]>>({
@@ -320,10 +322,14 @@ export default function BankReconciliationView({ payments, clients }: BankReconc
         {bankTransactions.length > 0 && (
           <Button
             variant="outline"
-            onClick={() => {
-              if (confirm(`Effacer les ${bankTransactions.length} écritures bancaires importées pour ${selectedCompany} ?`)) {
-                setBankTransactions([]);
-              }
+            onClick={async () => {
+              const ok = await confirm({
+                title: 'Effacer le relevé',
+                description: `Effacer les ${bankTransactions.length} écritures bancaires importées pour ${selectedCompany} ?`,
+                confirmLabel: 'Effacer',
+                variant: 'destructive',
+              });
+              if (ok) setBankTransactions([]);
             }}
             className="border-stone-200 text-stone-500 hover:text-red-600 hover:bg-red-50 text-xs font-bold h-10 rounded-xl gap-1.5 px-3"
             title="Effacer le relevé de cette société"

@@ -300,6 +300,7 @@ export default function StockMovements({ movements, stockItems, categories, arti
                       <td className="px-4 py-3 text-right">
                         <button onClick={() => handleReversal(m)} disabled={reversingId === m.id}
                           title="Contre-passer ce mouvement"
+                          aria-label={`Contre-passer le mouvement du ${m.date} (${m.productName})`}
                           className="h-7 w-7 rounded-lg bg-stone-100 text-stone-400 hover:bg-amber-100 hover:text-amber-600 flex items-center justify-center transition-colors disabled:opacity-50 ml-auto">
                           <Undo2 className="w-3.5 h-3.5" />
                         </button>

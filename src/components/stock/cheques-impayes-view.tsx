@@ -252,7 +252,7 @@ export default function ChequesImpayesView({
       await onUpdatePaymentStatus(paymentId, 'REJECTED');
       const client = p ? clientsMap.get(p.clientId) : null;
       toast({
-        title: "🚨 Impayé Déclaré !",
+        title: "Impayé Déclaré !",
         description: `Le chèque/effet de ${p?.amount ? fmt$(p.amount) : ''} a été marqué comme impayé. Le solde de ${client?.name || 'ce client'} a été réouvert.`,
         variant: "destructive",
       });
@@ -276,7 +276,7 @@ export default function ChequesImpayesView({
     try {
       await onUpdatePaymentStatus(paymentId, 'CLEARED');
       toast({
-        title: "✅ Paiement Encaissé",
+        title: "Paiement Encaissé",
         description: "Le chèque/effet a été marqué comme encaissé avec succès sur le compte bancaire.",
       });
       if (previewPayment?.id === paymentId) {
@@ -480,11 +480,11 @@ export default function ChequesImpayesView({
         {/* Onglets de Statut */}
         <div className="flex flex-wrap items-center gap-2 pb-2 border-b border-stone-100">
           {[
-            { id: 'ALL', label: 'Tous', count: paperPayments.length, color: 'stone' },
-            { id: 'REJECTED', label: '🚨 Impayés', count: stats.totalImpayesCount, color: 'rose' },
-            { id: 'OVERDUE', label: '⚠️ Échus non réglés', count: stats.totalOverdueCount, color: 'orange' },
-            { id: 'PENDING', label: '⏳ En Portefeuille', count: stats.totalPendingCount, color: 'amber' },
-            { id: 'CLEARED', label: '✅ Encaissés', count: stats.totalClearedCount, color: 'emerald' },
+            { id: 'ALL', label: 'Tous', count: paperPayments.length, color: 'stone', icon: null },
+            { id: 'REJECTED', label: 'Impayés', count: stats.totalImpayesCount, color: 'rose', icon: ShieldAlert },
+            { id: 'OVERDUE', label: 'Échus non réglés', count: stats.totalOverdueCount, color: 'orange', icon: AlertTriangle },
+            { id: 'PENDING', label: 'En Portefeuille', count: stats.totalPendingCount, color: 'amber', icon: Clock },
+            { id: 'CLEARED', label: 'Encaissés', count: stats.totalClearedCount, color: 'emerald', icon: CheckCircle2 },
           ].map(tab => {
             const isActive = statusFilter === tab.id;
             return (
@@ -505,6 +505,7 @@ export default function ChequesImpayesView({
                     : 'bg-stone-100 text-stone-600 hover:bg-stone-200'
                 }`}
               >
+                {tab.icon && <tab.icon className="w-3.5 h-3.5" />}
                 <span>{tab.label}</span>
                 <span className={`text-[10px] px-2 py-0.5 rounded-full font-black ${
                   isActive ? 'bg-white/20 text-white' : 'bg-stone-200 text-stone-700'
@@ -553,10 +554,10 @@ export default function ChequesImpayesView({
                 <SelectValue placeholder="Magasin" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="ALL">🏪 Tous les magasins</SelectItem>
+                <SelectItem value="ALL"><Building2 className="inline w-3.5 h-3.5 mr-1.5 -mt-0.5" />Tous les magasins</SelectItem>
                 {stores.filter(s => s.type !== 'WAREHOUSE').map(s => (
                   <SelectItem key={s.id} value={s.id}>
-                    🏪 {s.name}
+                    <Building2 className="inline w-3.5 h-3.5 mr-1.5 -mt-0.5" />{s.name}
                   </SelectItem>
                 ))}
               </SelectContent>

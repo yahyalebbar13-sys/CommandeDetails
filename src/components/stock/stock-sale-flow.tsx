@@ -6,7 +6,7 @@ import {
   Search, Plus, Minus, X, ChevronRight, ChevronLeft,
   UserPlus, Tag, Percent, ArrowRight, Phone, Mail, Printer,
   Banknote, Landmark, FileCheck, Layers, Trash2, CreditCard,
-  Camera, Image as ImageIcon,
+  Camera, Image as ImageIcon, Clock, Building2,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -15,6 +15,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import type { Client, SaleOrder, Invoice, OrderItem, StockItem, PaymentMethod, CashingCompany } from '@/lib/types';
 import { getLocalDateString } from '@/lib/constants';
+import { useToast } from '@/hooks/use-toast';
+import { useConfirm } from '@/hooks/use-confirm';
 
 // ── helpers ──
 const fmt$ = (n: number) => n.toLocaleString('fr-MA', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -93,6 +95,8 @@ export default function StockSaleFlow({
   stores = [], selectedStoreId = 'CHRIFA', onStoreChange,
   onCreateOrder, onCreateInvoice, onCreateClient, onNavigate,
 }: StockSaleFlowProps) {
+  const { toast } = useToast();
+  const confirm = useConfirm();
   const [step, setStep] = useState(0);
   const [saving, setSaving] = useState(false);
   const [done, setDone] = useState(false);
@@ -448,21 +452,44 @@ export default function StockSaleFlow({
   const handleFinalize = async () => {
     if (cart.length === 0 || saving) return;
 
+    // ── Vérification marge négative : empêche de vendre en dessous du prix de revient ──
+    const lossLines = cart.filter(l => (Number(l.item.purchasePricePerUnit) || 0) > 0 && l.unitPrice < (Number(l.item.purchasePricePerUnit) || 0));
+    if (lossLines.length > 0) {
+      const detail = lossLines
+        .map(l => `${l.item.nameFR || l.item.productName} : vendu ${fmt$(l.unitPrice)} MAD, coût ${fmt$(Number(l.item.purchasePricePerUnit))} MAD`)
+        .join('\n');
+      if (userRole !== 'ADMIN') {
+        toast({
+          variant: 'destructive',
+          title: 'Vente à perte bloquée',
+          description: `${lossLines.length} article(s) sont vendus sous leur prix de revient. Seul un administrateur peut valider ce type de vente.\n${detail}`,
+        });
+        return;
+      }
+      const confirmed = await confirm({
+        title: 'Vente à perte détectée',
+        description: `${lossLines.length} article(s) sont vendus en dessous du prix de revient :\n\n${detail}\n\nContinuer quand même ?`,
+        confirmLabel: 'Valider malgré la perte',
+        variant: 'destructive',
+      });
+      if (!confirmed) return;
+    }
+
     const isFullCredit = paymentStatus === 'UNPAID';
     const validLines = isFullCredit ? [] : paymentLines.filter(l => (parseFloat(l.amount) || 0) > 0);
     const totalPaidCalculated = isFullCredit ? 0 : validLines.reduce((s, l) => s + (parseFloat(l.amount) || 0), 0);
     const balanceRemaining = isFullCredit ? total : Math.max(0, total - totalPaidCalculated);
 
     if (!isFullCredit && totalPaidCalculated <= 0) {
-      alert("⚠️ Veuillez saisir au moins un montant payé ou choisir 'À Crédit'.");
+      toast({ variant: 'destructive', title: 'Montant manquant', description: "Veuillez saisir au moins un montant payé ou choisir 'À Crédit'." });
       return;
     }
     if (!isFullCredit && totalPaidCalculated > total + 0.01) {
-      alert(`⚠️ Le montant saisi (${fmt$(totalPaidCalculated)} MAD) dépasse le montant de la vente (${fmt$(total)} MAD).`);
+      toast({ variant: 'destructive', title: 'Montant trop élevé', description: `Le montant saisi (${fmt$(totalPaidCalculated)} MAD) dépasse le montant de la vente (${fmt$(total)} MAD).` });
       return;
     }
     if (!isFullCredit && balanceRemaining > 0.01 && (anonymous || !selectedClient)) {
-      alert("⚠️ Une vente avec reste à crédit nécessite de sélectionner un client identifié (non anonyme).");
+      toast({ variant: 'destructive', title: 'Client requis', description: 'Une vente avec reste à crédit nécessite de sélectionner un client identifié (non anonyme).' });
       return;
     }
 
@@ -472,10 +499,11 @@ export default function StockSaleFlow({
         l => (l.method === 'CHEQUE' || l.method === 'LC' || l.method === 'EFFET' || l.method === 'LCN') && !l.scannedImageUrl?.trim()
       );
       if (missingScanLine) {
-        alert(
-          `⚠️ Le scan ou la photo du chèque / de la LC est OBLIGATOIRE avant de valider la vente (${missingScanLine.method}).\n\n` +
-          `Veuillez prendre une photo ou importer le scan du document.`
-        );
+        toast({
+          variant: 'destructive',
+          title: 'Scan obligatoire',
+          description: `Le scan ou la photo du ${missingScanLine.method} est obligatoire avant de valider la vente. Prenez une photo ou importez le scan du document.`,
+        });
         return;
       }
     }
@@ -484,7 +512,7 @@ export default function StockSaleFlow({
     const debtToAdd = isFullCredit ? total : balanceRemaining;
     if (debtToAdd > 0 && selectedClient) {
       if (selectedClient.creditBlocked) {
-        alert(`⛔ Le crédit est bloqué pour le client "${selectedClient.name}". Veuillez contacter l'administrateur.`);
+        toast({ variant: 'destructive', title: 'Crédit bloqué', description: `Le crédit est bloqué pour le client "${selectedClient.name}". Contactez l'administrateur.` });
         return;
       }
       if (selectedClient.creditLimit != null && selectedClient.creditLimit > 0) {
@@ -493,11 +521,15 @@ export default function StockSaleFlow({
           .reduce((sum, inv) => sum + (inv.remainingBalance ?? (inv.totalAfterDiscount - inv.paidAmount)), 0);
         const newDebt = currentDebt + debtToAdd;
         if (newDebt > selectedClient.creditLimit) {
-          const confirmed = confirm(
-            `⚠️ Attention : Cette vente porterait l'encours du client "${selectedClient.name}" à ${fmt$(newDebt)} MAD, ` +
-            `dépassant le plafond de crédit de ${fmt$(selectedClient.creditLimit)} MAD.\n\n` +
-            `Encours actuel : ${fmt$(currentDebt)} MAD\nNouveau crédit : ${fmt$(debtToAdd)} MAD\n\nContinuer quand même ?`
-          );
+          const confirmed = await confirm({
+            title: 'Dépassement du plafond de crédit',
+            description:
+              `Cette vente porterait l'encours du client "${selectedClient.name}" à ${fmt$(newDebt)} MAD, ` +
+              `dépassant le plafond de crédit de ${fmt$(selectedClient.creditLimit)} MAD.\n\n` +
+              `Encours actuel : ${fmt$(currentDebt)} MAD\nNouveau crédit : ${fmt$(debtToAdd)} MAD`,
+            confirmLabel: 'Continuer quand même',
+            variant: 'destructive',
+          });
           if (!confirmed) return;
         }
       }
@@ -671,7 +703,7 @@ export default function StockSaleFlow({
       setDone(true);
     } catch (err: any) {
       console.error('Erreur lors de la validation de la vente:', err);
-      alert(`Erreur lors de la validation de la vente : ${err?.message || err}`);
+      toast({ variant: 'destructive', title: 'Erreur', description: `Impossible de valider la vente : ${err?.message || err}` });
     } finally {
       setSaving(false);
     }
@@ -862,7 +894,7 @@ export default function StockSaleFlow({
                 className={`p-6 rounded-2xl border-2 text-left transition-all ${
                   anonymous ? 'border-stone-700 bg-stone-900 text-white' : 'border-stone-200 bg-white hover:border-stone-400'
                 }`}>
-                <p className="font-black text-lg uppercase tracking-tighter">🏪 Vente Comptoir</p>
+                <p className="font-black text-lg uppercase tracking-tighter flex items-center gap-2"><ShoppingBag className="w-5 h-5" />Vente Comptoir</p>
                 <p className={`text-[10px] font-bold mt-1 ${anonymous ? 'opacity-60' : 'text-stone-400'}`}>Passer directement aux produits</p>
              </button>
 
@@ -871,7 +903,7 @@ export default function StockSaleFlow({
                 className={`p-6 rounded-2xl border-2 text-left transition-all ${
                   !anonymous ? 'border-violet-600 bg-violet-50 text-violet-900' : 'border-stone-200 bg-white hover:border-violet-200'
                 }`}>
-                <p className="font-black text-lg uppercase tracking-tighter">👤 Vente Client</p>
+                <p className="font-black text-lg uppercase tracking-tighter flex items-center gap-2"><Users className="w-5 h-5" />Vente Client</p>
                 <p className={`text-[10px] font-bold mt-1 ${!anonymous ? 'text-violet-600/70' : 'text-stone-400'}`}>Rechercher ou créer un dossier client</p>
              </button>
           </div>
@@ -1519,9 +1551,9 @@ export default function StockSaleFlow({
                                     <SelectValue />
                                   </SelectTrigger>
                                   <SelectContent>
-                                    <SelectItem value="PENDING">⏳ Arbitrer à J-7</SelectItem>
-                                    <SelectItem value="LEBTEX">🏢 LEBTEX</SelectItem>
-                                    <SelectItem value="ROBE IN BOX">👗 ROBE IN BOX</SelectItem>
+                                    <SelectItem value="PENDING"><Clock className="inline w-3.5 h-3.5 mr-1.5 -mt-0.5" />Arbitrer à J-7</SelectItem>
+                                    <SelectItem value="LEBTEX"><Building2 className="inline w-3.5 h-3.5 mr-1.5 -mt-0.5" />LEBTEX</SelectItem>
+                                    <SelectItem value="ROBE IN BOX"><Building2 className="inline w-3.5 h-3.5 mr-1.5 -mt-0.5" />ROBE IN BOX</SelectItem>
                                   </SelectContent>
                                 </Select>
                               </div>
@@ -1710,7 +1742,7 @@ export default function StockSaleFlow({
           {paymentStatus === 'PAID' && paymentLines.some(l => (parseFloat(l.amount) || 0) > 0 && (l.method === 'CHEQUE' || l.method === 'LC' || l.method === 'EFFET' || l.method === 'LCN') && !l.scannedImageUrl?.trim()) && (
             <div className="flex items-center gap-2.5 p-3.5 bg-amber-50 border border-amber-300 rounded-2xl text-amber-900 text-xs font-bold shadow-sm">
               <Camera className="w-4 h-4 text-amber-600 shrink-0" />
-              <span>⚠️ Le scan ou la photo du chèque / de la LC est obligatoire pour pouvoir valider la vente. Veuillez joindre la photo ci-dessus.</span>
+              <span>Le scan ou la photo du chèque / de la LC est obligatoire pour pouvoir valider la vente. Veuillez joindre la photo ci-dessus.</span>
             </div>
           )}
 

@@ -12,6 +12,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { useFirestore, useUser } from '@/firebase';
 import { doc, setDoc, deleteDoc } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
+import { useConfirm } from '@/hooks/use-confirm';
 import type { Store, StockItem, StockMovement } from '@/lib/types';
 
 const fmt = (n: number) => n.toLocaleString('fr-FR', { maximumFractionDigits: 2 });
@@ -34,6 +35,7 @@ export default function StockWarehouses({
 }: StockWarehousesProps) {
   const firestore = useFirestore();
   const { toast } = useToast();
+  const confirm = useConfirm();
 
   // Filtrer uniquement les entrepôts
   const warehouses = useMemo(() => {
@@ -124,7 +126,13 @@ export default function StockWarehouses({
       return;
     }
 
-    if (!confirm(`Confirmez-vous la suppression définitive de l'entrepôt "${w.name}" (${w.id}) ?`)) return;
+    const ok = await confirm({
+      title: 'Supprimer l\'entrepôt',
+      description: `Confirmez-vous la suppression définitive de l'entrepôt "${w.name}" (${w.id}) ?`,
+      confirmLabel: 'Supprimer',
+      variant: 'destructive',
+    });
+    if (!ok) return;
 
     try {
       await deleteDoc(doc(firestore, 'users', adminUid, 'stores', w.id));

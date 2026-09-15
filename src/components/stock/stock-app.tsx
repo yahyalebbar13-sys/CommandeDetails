@@ -5,7 +5,7 @@ import {
   Loader2, LogOut, LayoutDashboard, List, ArrowLeftRight, Bell, Package,
   Boxes, ShoppingCart, TrendingUp, Users, ClipboardList, FileText, Anchor, Archive, CheckCircle2, Download, Truck, Store as StoreIcon,
   Settings, MapPin, Home, AlertTriangle, Building2, Sparkles, Warehouse, CreditCard, Receipt, Search,
-  Calendar, Clock, Filter, Lock, RotateCcw
+  Calendar, Clock, Filter, Lock, RotateCcw, Globe
 } from 'lucide-react';
 import { useUser, useFirebase, useCollection, useMemoFirebase } from '@/firebase';
 import { signOut } from 'firebase/auth';
@@ -18,6 +18,7 @@ import type {
 } from '@/lib/types';
 import { canDeclareImpaye } from '@/lib/types';
 import { logAudit } from '@/lib/audit-log';
+import { ConfirmProvider } from '@/hooks/use-confirm';
 import { exportCheckRemittancePDF } from '@/lib/pdf-export-reports';
 import { ADMIN_EMAIL, getLocalDateString } from '@/lib/constants';
 import { isArrivalOlderThanOneMonth } from '@/lib/status-utils';
@@ -1034,7 +1035,7 @@ export default function StockApp() {
     a.download = `lebtex-backup-${stamp}.json`;
     a.click();
     URL.revokeObjectURL(url);
-    toast({ title: '✅ Backup téléchargé', description: `lebtex-backup-${stamp}.json` });
+    toast({ title: 'Backup téléchargé', description: `lebtex-backup-${stamp}.json` });
   }, [articles, categories, generalCategories, movements, factures, clients, orders, invoices, payments, sales, user, toast]);
 
   // POS rapide (ancienne vente)
@@ -1061,7 +1062,7 @@ export default function StockApp() {
       });
     }
     await batch.commit();
-    toast({ title: '✅ Vente enregistrée !', description: `Total : ${(Number(sale.totalAmount) || 0).toLocaleString('fr-MA', { minimumFractionDigits: 2 })} — ${sale.items.length} produit(s)` });
+    toast({ title: 'Vente enregistrée !', description: `Total : ${(Number(sale.totalAmount) || 0).toLocaleString('fr-MA', { minimumFractionDigits: 2 })} — ${sale.items.length} produit(s)` });
   }, [user, firestore, toast, activeStore, adminUid, userRole, stores, stockItems]);
 
   // ── Clients ──────────────────────────────────────────────────────────────
@@ -1079,7 +1080,7 @@ export default function StockApp() {
       entityId: ref.id,
       description: `Client créé : ${data.name}`,
     });
-    toast({ title: '✅ Client créé', description: data.name });
+    toast({ title: 'Client créé', description: data.name });
     return { id: ref.id, ...clientData };
   }, [user, firestore, toast, activeStore, adminUid]);
 
@@ -1097,7 +1098,7 @@ export default function StockApp() {
     const mainStoreId = stores.find(s => s.isMain)?.id || 'CHRIFA';
     const storeId = (order as any).storeId || (userRole === 'ADMIN' ? saleStoreId : ((activeStore === 'ALL' || activeStore === 'ALL_MAIN') ? mainStoreId : activeStore));
     const ref = await addDoc(collection(firestore, 'users', effectiveUid, 'saleOrders'), { ...order, storeId, createdAt: serverTimestamp() });
-    toast({ title: '✅ Bon de commande créé', description: `${order.items.length} article(s) · ${(Number(order.totalAfterDiscount) || 0).toLocaleString('fr-MA', { minimumFractionDigits: 2 })}` });
+    toast({ title: 'Bon de commande créé', description: `${order.items.length} article(s) · ${(Number(order.totalAfterDiscount) || 0).toLocaleString('fr-MA', { minimumFractionDigits: 2 })}` });
     return ref.id;
   }, [user, firestore, toast, activeStore, adminUid, stores, userRole, saleStoreId]);
 
@@ -1132,7 +1133,7 @@ export default function StockApp() {
     const orderRef = doc(firestore, 'users', effectiveUid, 'saleOrders', order.id);
     batch.update(orderRef, { status: 'INVOICED' });
     await batch.commit();
-    toast({ title: '✅ Facture créée', description: `BC converti en facture` });
+    toast({ title: 'Facture créée', description: `BC converti en facture` });
     setActiveView('invoices');
   }, [user, firestore, toast, activeStore, adminUid, stores]);
 
@@ -1182,7 +1183,7 @@ export default function StockApp() {
         description: `Vente ${invoice.clientName ? 'à ' + invoice.clientName : 'comptoir'} · ${invoice.items.length} article(s) · ${(Number(invoice.totalAfterDiscount) || 0).toLocaleString('fr-MA', { minimumFractionDigits: 2 })} MAD`,
         metadata: { storeId, totalAfterDiscount: invoice.totalAfterDiscount, status: invoice.status, clientId: (invoice as any).clientId },
       });
-      toast({ title: '✅ Vente enregistrée !', description: `${invoice.items.length} article(s) · ${(Number(invoice.totalAfterDiscount) || 0).toLocaleString('fr-MA', { minimumFractionDigits: 2 })} MAD` });
+      toast({ title: 'Vente enregistrée !', description: `${invoice.items.length} article(s) · ${(Number(invoice.totalAfterDiscount) || 0).toLocaleString('fr-MA', { minimumFractionDigits: 2 })} MAD` });
     } catch (err: any) {
       console.error('Error creating invoice/sale:', err);
       toast({ title: 'Erreur', description: `Impossible d'enregistrer la vente : ${err?.message || err}`, variant: 'destructive' });
@@ -1261,7 +1262,7 @@ export default function StockApp() {
       metadata: { totalAmount, methods, count: paymentList.length },
     });
     toast({
-      title: '✅ Paiement(s) validé(s)',
+      title: 'Paiement(s) validé(s)',
       description: `${(Number(totalAmount) || 0).toLocaleString('fr-MA', { minimumFractionDigits: 2 })} MAD (${methods})`
     });
   }, [user, firestore, adminUid, invoices, toast]);
@@ -1334,13 +1335,13 @@ export default function StockApp() {
 
     if (status === 'REJECTED') {
       toast({
-        title: '🚨 Impayé Enregistré',
+        title: 'Impayé Enregistré',
         description: `Le chèque/effet a été marqué comme IMPAYÉ. Le solde du client a été réouvert.`,
         variant: 'destructive',
       });
     } else if (status === 'CLEARED') {
       toast({
-        title: '✅ Encaissement Validé',
+        title: 'Encaissement Validé',
         description: `Le chèque/effet a été marqué comme ENCAISSÉ avec succès en banque.`,
       });
     } else {
@@ -1359,7 +1360,7 @@ export default function StockApp() {
       depositBank: 'Attijariwafa Bank',
     });
     toast({
-      title: '✅ Société affectée',
+      title: 'Société affectée',
       description: `Effet affecté à ${company} (Attijariwafa Bank)`,
     });
   }, [user, firestore, adminUid, toast]);
@@ -1443,7 +1444,7 @@ export default function StockApp() {
     exportCheckRemittancePDF(createdRemittance);
 
     toast({
-      title: '🏦 Bordereau de Remise Émis !',
+      title: 'Bordereau de Remise Émis !',
       description: `Bordereau ${reference} (${targetPayments.length} chèques · ${(Number(totalAmount) || 0).toLocaleString('fr-MA', { minimumFractionDigits: 2 })} MAD) enregistré. PDF téléchargé !`,
     });
 
@@ -1471,7 +1472,7 @@ export default function StockApp() {
         }
       }
       toast({
-        title: '✅ Remise Encaissée',
+        title: 'Remise Encaissée',
         description: `Tous les chèques du bordereau ont été marqués comme ENCAISSÉS.`,
       });
     } else {
@@ -1566,12 +1567,12 @@ export default function StockApp() {
       const targetStoreObj = stores.find(s => s.id === targetStore);
       const targetStoreName = targetStoreObj?.name || targetStore;
       toast({
-        title: `📦 Marchandise entrée à ${targetStoreName} !`,
+        title: `Marchandise entrée à ${targetStoreName} !`,
         description: `${exp.quantity} ${exp.unitOfMeasure || 'pcs'} de "${exp.articleName}" ajoutés au stock (${targetStoreName}) et dépense enregistrée.`,
       });
     } else {
       toast({
-        title: '✅ Dépense enregistrée',
+        title: 'Dépense enregistrée',
         description: `${(Number(exp.amount) || 0).toLocaleString('fr-MA', { minimumFractionDigits: 2 })} MAD`,
       });
     }
@@ -1733,6 +1734,7 @@ export default function StockApp() {
 
 
   return (
+    <ConfirmProvider>
     <div className="min-h-screen flex flex-col bg-[#f0faf4] font-sans">
 
       {/* ── Navbar ── */}
@@ -1759,15 +1761,15 @@ export default function StockApp() {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="ALL">🌐 Vue Globale (Tous)</SelectItem>
+                  <SelectItem value="ALL"><Globe className="inline w-3.5 h-3.5 mr-1.5 -mt-0.5" />Vue Globale (Tous)</SelectItem>
                   {stores.filter(s => s.type !== 'WAREHOUSE').map(s => (
                     <SelectItem key={s.id} value={s.id}>
-                      🏪 Magasin {s.name}
+                      <StoreIcon className="inline w-3.5 h-3.5 mr-1.5 -mt-0.5" />Magasin {s.name}
                     </SelectItem>
                   ))}
                   {isWarehouse && currentStore && (
                     <SelectItem value={currentStore.id} disabled>
-                      📦 {currentStore.name} (Entrepôt)
+                      <Package className="inline w-3.5 h-3.5 mr-1.5 -mt-0.5" />{currentStore.name} (Entrepôt)
                     </SelectItem>
                   )}
                 </SelectContent>
@@ -2651,5 +2653,6 @@ export default function StockApp() {
         </DialogContent>
       </Dialog>
     </div>
+    </ConfirmProvider>
   );
 }

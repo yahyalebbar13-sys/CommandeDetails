@@ -23,6 +23,75 @@ service cloud.firestore {
       return isOwner(userId) || isCommercial();
     }
 
+    // ── Isolation par magasin ─────────────────────────────────────────────────
+    // Résout le document storeAccess du compte appelant (email brut, email en
+    // minuscule, ou uid — mêmes variantes que isCommercial() pour compatibilité
+    // avec les données existantes).
+    function accessDoc() {
+      let email = request.auth.token.email;
+      return exists(/databases/$(database)/documents/storeAccess/$(email))
+        ? get(/databases/$(database)/documents/storeAccess/$(email)).data
+        : exists(/databases/$(database)/documents/storeAccess/$(email.lower()))
+          ? get(/databases/$(database)/documents/storeAccess/$(email.lower())).data
+          : exists(/databases/$(database)/documents/storeAccess/$(request.auth.uid))
+            ? get(/databases/$(database)/documents/storeAccess/$(request.auth.uid)).data
+            : null;
+    }
+
+    // Un compte storeAccess avec role == 'ADMIN' (responsable multi-magasins)
+    // voit tous les magasins, comme l'admin propriétaire.
+    function isFullAccessCommercial() {
+      let acc = isSignedIn() ? accessDoc() : null;
+      return acc != null && acc.get('role', 'COMMERCIAL') == 'ADMIN';
+    }
+
+    // Lecture : autorise aussi les documents legacy sans storeId (données
+    // partagées ou anciennes, non bloquantes) et les comptes role=ADMIN.
+    // isOwner() est vérifié en premier via un ternaire pour ne JAMAIS lire
+    // storeAccess sur le chemin le plus fréquent (l'admin propriétaire).
+    function canReadStoreScoped(userId, data) {
+      let acc = isOwner(userId) ? null : (isSignedIn() ? accessDoc() : null);
+      return isOwner(userId) || (acc != null && (
+        acc.get('role', 'COMMERCIAL') == 'ADMIN'
+        || !('storeId' in data) || data.storeId == null || data.storeId == acc.get('storeId', null)
+      ));
+    }
+
+    // Création : un simple commercial doit explicitement taguer son propre
+    // magasin (pas d'échappatoire "storeId absent" — évite de créer des
+    // données globales non attribuées ou d'usurper un autre magasin).
+    function canCreateStoreScoped(userId, data) {
+      let acc = isOwner(userId) ? null : (isSignedIn() ? accessDoc() : null);
+      return isOwner(userId) || (acc != null && (
+        acc.get('role', 'COMMERCIAL') == 'ADMIN'
+        || ('storeId' in data && data.storeId == acc.get('storeId', null))
+      ));
+    }
+
+    // Mise à jour : le document doit rester dans le magasin du commercial,
+    // avant ET après modification (empêche de déplacer un document vers/hors
+    // de son propre magasin).
+    function canUpdateStoreScoped(userId, existing, incoming) {
+      let acc = isOwner(userId) ? null : (isSignedIn() ? accessDoc() : null);
+      return isOwner(userId) || (acc != null && (
+        acc.get('role', 'COMMERCIAL') == 'ADMIN'
+        || (
+          (!('storeId' in existing) || existing.storeId == null || existing.storeId == acc.get('storeId', null))
+          && (!('storeId' in incoming) || incoming.storeId == null || incoming.storeId == acc.get('storeId', null))
+        )
+      ));
+    }
+
+    // Transferts : concernent DEUX magasins (source + destination) — un
+    // commercial y a accès si l'un des deux est le sien.
+    function isOwnTransferDoc(userId, data) {
+      let acc = isOwner(userId) ? null : (isSignedIn() ? accessDoc() : null);
+      return isOwner(userId) || (acc != null && (
+        acc.get('role', 'COMMERCIAL') == 'ADMIN'
+        || data.fromStore == acc.get('storeId', null) || data.toStore == acc.get('storeId', null)
+      ));
+    }
+
     // ── Global Config ──────────────────────────────────────────────────────────
     match /publicConfig/{id} {
       allow read: if isSignedIn();
@@ -105,20 +174,28 @@ service cloud.firestore {
         allow read, write: if hasAccess(userId);
       }
 
-      // stockMovements: journal des entrées/sorties physiques, owner only
+      // stockMovements: journal des entrées/sorties physiques — isolé par magasin
       match /stockMovements/{id} {
-        allow read, write: if hasAccess(userId);
+        allow read: if canReadStoreScoped(userId, resource.data);
+        allow create: if canCreateStoreScoped(userId, request.resource.data);
+        allow update: if canUpdateStoreScoped(userId, resource.data, request.resource.data);
+        allow delete: if isOwner(userId) || isFullAccessCommercial();
       }
 
-      // sales: transactions de vente rapide, owner only
+      // sales: transactions de vente rapide — isolé par magasin
       match /sales/{id} {
-        allow read, write: if hasAccess(userId);
+        allow read: if canReadStoreScoped(userId, resource.data);
+        allow create: if canCreateStoreScoped(userId, request.resource.data);
+        allow update: if canUpdateStoreScoped(userId, resource.data, request.resource.data);
+        allow delete: if isOwner(userId) || isFullAccessCommercial();
       }
 
-      // transferOrders: owner can write; a valid client whose clientAccess.adminUid == userId can read
+      // transferOrders: concerne deux magasins (source + destination)
       match /transferOrders/{id} {
-        allow read: if hasAccess(userId);
-        allow write: if hasAccess(userId);
+        allow read: if isOwnTransferDoc(userId, resource.data);
+        allow create: if isOwnTransferDoc(userId, request.resource.data);
+        allow update: if isOwnTransferDoc(userId, resource.data) && isOwnTransferDoc(userId, request.resource.data);
+        allow delete: if isOwner(userId) || isFullAccessCommercial();
       }
 
       // stores: owner can write; a valid client whose clientAccess.adminUid == userId can read
@@ -127,24 +204,36 @@ service cloud.firestore {
         allow write: if hasAccess(userId);
       }
 
-      // clients: dossier clients, owner only
+      // clients: dossier clients — isolé par magasin
       match /clients/{id} {
-        allow read, write: if hasAccess(userId);
+        allow read: if canReadStoreScoped(userId, resource.data);
+        allow create: if canCreateStoreScoped(userId, request.resource.data);
+        allow update: if canUpdateStoreScoped(userId, resource.data, request.resource.data);
+        allow delete: if isOwner(userId) || isFullAccessCommercial();
       }
 
-      // saleOrders: bons de commande, owner only
+      // saleOrders: bons de commande — isolé par magasin
       match /saleOrders/{id} {
-        allow read, write: if hasAccess(userId);
+        allow read: if canReadStoreScoped(userId, resource.data);
+        allow create: if canCreateStoreScoped(userId, request.resource.data);
+        allow update: if canUpdateStoreScoped(userId, resource.data, request.resource.data);
+        allow delete: if isOwner(userId) || isFullAccessCommercial();
       }
 
-      // invoices: factures de vente, owner only
+      // invoices: factures de vente — isolé par magasin
       match /invoices/{id} {
-        allow read, write: if hasAccess(userId);
+        allow read: if canReadStoreScoped(userId, resource.data);
+        allow create: if canCreateStoreScoped(userId, request.resource.data);
+        allow update: if canUpdateStoreScoped(userId, resource.data, request.resource.data);
+        allow delete: if isOwner(userId) || isFullAccessCommercial();
       }
 
-      // clientPayments: paiements clients, owner only
+      // clientPayments: paiements clients — isolé par magasin
       match /clientPayments/{id} {
-        allow read, write: if hasAccess(userId);
+        allow read: if canReadStoreScoped(userId, resource.data);
+        allow create: if canCreateStoreScoped(userId, request.resource.data);
+        allow update: if canUpdateStoreScoped(userId, resource.data, request.resource.data);
+        allow delete: if isOwner(userId) || isFullAccessCommercial();
       }
 
       // baseOrders: modèles de commandes fixes, owner only
@@ -152,12 +241,16 @@ service cloud.firestore {
         allow read, write: if hasAccess(userId);
       }
 
-      // commercialExpenses: notes de frais des commerciaux
+      // commercialExpenses: notes de frais des commerciaux — isolé par magasin
       match /commercialExpenses/{id} {
-        allow read, write: if hasAccess(userId);
+        allow read: if canReadStoreScoped(userId, resource.data);
+        allow create: if canCreateStoreScoped(userId, request.resource.data);
+        allow update: if canUpdateStoreScoped(userId, resource.data, request.resource.data);
+        allow delete: if isOwner(userId) || isFullAccessCommercial();
       }
 
-      // checkRemittances: bordereaux de remise de chèques en banque
+      // checkRemittances: bordereaux de remise de chèques en banque, owner only
+      // (opération de trésorerie centrale, pas rattachée à un magasin unique)
       match /checkRemittances/{id} {
         allow read, write: if hasAccess(userId);
       }

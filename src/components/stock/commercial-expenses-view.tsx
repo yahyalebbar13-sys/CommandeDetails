@@ -592,7 +592,7 @@ export default function CommercialExpensesView({
             addToStock: newAddToStock,
           });
         }
-        toast({ title: '✅ Dépenses enregistrées', description: `${rows.length} lot(s) · ${finalArticleName}` });
+        toast({ title: 'Dépenses enregistrées', description: `${rows.length} lot(s) · ${finalArticleName}` });
         resetForm();
       } catch (err: any) {
         toast({ variant: 'destructive', title: 'Erreur', description: err?.message || 'Action impossible.' });
