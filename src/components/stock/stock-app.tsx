@@ -1197,6 +1197,87 @@ export default function StockApp() {
     await updateDoc(doc(firestore, 'users', effectiveUid, 'invoices', id), { status });
   }, [user, firestore, adminUid]);
 
+  // ── Retours clients (SAV) ────────────────────────────────────────────────
+  const handleProcessReturn = useCallback(async (
+    invoice: Invoice,
+    returnLines: { articleId: string; categoryId: string; productName: string; nameFR?: string; color?: string; size?: string; unitOfMeasure: string; qty: number; unitPrice: number }[]
+  ) => {
+    if (!user || !firestore) return;
+    const effectiveUid = adminUid || user.uid;
+    const validLines = returnLines.filter(l => l.qty > 0);
+    if (validLines.length === 0) return;
+
+    const returnValue = validLines.reduce((s, l) => s + l.qty * l.unitPrice, 0);
+    const today = getLocalDateString();
+
+    try {
+      const batch = writeBatch(firestore);
+
+      for (const line of validLines) {
+        const mRef = doc(collection(firestore, 'users', effectiveUid, 'stockMovements'));
+        batch.set(mRef, {
+          articleId: line.articleId,
+          categoryId: line.categoryId,
+          productName: line.productName,
+          nameFR: line.nameFR || null,
+          color: line.color || null,
+          size: line.size || null,
+          unitOfMeasure: line.unitOfMeasure,
+          type: 'IN',
+          reason: 'RETOUR',
+          storeId: invoice.storeId || 'CHRIFA',
+          quantity: line.qty,
+          date: today,
+          notes: `Retour client sur facture ${invoice.invoiceNumber || invoice.id}${invoice.clientName ? ` (${invoice.clientName})` : ''}`,
+          factureId: invoice.id,
+          createdAt: serverTimestamp(),
+        });
+      }
+
+      const newTotal = Math.max(0, (Number(invoice.totalAfterDiscount) || 0) - returnValue);
+      const newRemaining = Math.max(0, newTotal - (Number(invoice.paidAmount) || 0));
+      const overpaid = (Number(invoice.paidAmount) || 0) > newTotal ? (Number(invoice.paidAmount) || 0) - newTotal : 0;
+      const newStatus: InvoiceStatus = newTotal === 0
+        ? 'PAID'
+        : newRemaining === 0
+          ? 'PAID'
+          : (Number(invoice.paidAmount) || 0) > 0
+            ? 'PARTIAL'
+            : 'UNPAID';
+
+      const invRef = doc(firestore, 'users', effectiveUid, 'invoices', invoice.id);
+      batch.update(invRef, {
+        totalAfterDiscount: newTotal,
+        remainingBalance: newRemaining,
+        status: newStatus,
+        notes: `${invoice.notes ? invoice.notes + ' — ' : ''}Retour du ${today} : -${returnValue.toLocaleString('fr-MA', { minimumFractionDigits: 2 })} MAD`,
+      });
+
+      await batch.commit();
+
+      logAudit(firestore, effectiveUid, {
+        action: 'RETURN_PROCESSED',
+        userId: user.uid,
+        userEmail: user.email || '',
+        entityType: 'invoice',
+        entityId: invoice.id,
+        description: `Retour de ${validLines.length} article(s) sur facture ${invoice.invoiceNumber || invoice.id} · -${returnValue.toLocaleString('fr-MA', { minimumFractionDigits: 2 })} MAD`,
+        metadata: { returnValue, items: validLines.length },
+      });
+
+      toast({
+        title: 'Retour enregistré',
+        description: overpaid > 0
+          ? `Stock remis à jour. Le client a un crédit de ${overpaid.toLocaleString('fr-MA', { minimumFractionDigits: 2 })} MAD à rembourser ou déduire d'un prochain achat.`
+          : `Stock remis à jour · -${returnValue.toLocaleString('fr-MA', { minimumFractionDigits: 2 })} MAD sur la facture.`,
+      });
+    } catch (err: any) {
+      console.error('Erreur lors du traitement du retour:', err);
+      toast({ variant: 'destructive', title: 'Erreur', description: err?.message || "Impossible d'enregistrer le retour." });
+      throw err;
+    }
+  }, [user, firestore, adminUid, toast]);
+
   // ── Paiements clients ─────────────────────────────────────────────────────
   const handleRecordMultiplePayments = useCallback(async (
     paymentList: Omit<ClientPayment, 'id' | 'createdAt'>[],
@@ -1346,7 +1427,7 @@ export default function StockApp() {
       });
     } else {
       toast({
-        title: '⏳ Statut Mis à Jour',
+        title: 'Statut Mis à Jour',
         description: `Le chèque/effet est à nouveau en attente dans le portefeuille.`,
       });
     }
@@ -1949,7 +2030,7 @@ export default function StockApp() {
                   </div>
                   <div>
                     <p className="font-black text-sm uppercase tracking-tight flex items-center gap-2">
-                      <span>⚠️ Alerte Échéance J-7 · Arbitrage Société Requis</span>
+                      <span>Alerte Échéance J-7 · Arbitrage Société Requis</span>
                       <span className="bg-white/20 text-white text-[10px] px-2 py-0.5 rounded-full font-black">
                         {urgent7DaysEffects.length} chèque(s) / LCN
                       </span>
@@ -2049,6 +2130,7 @@ export default function StockApp() {
                 onRecordPayment={handleRecordPayment}
                 onRecordMultiplePayments={handleRecordMultiplePayments}
                 onUpdateStatus={handleUpdateInvoiceStatus}
+                onProcessReturn={handleProcessReturn}
                 onNavigate={setActiveView}
               />
             )}

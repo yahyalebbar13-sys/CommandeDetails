@@ -606,6 +606,7 @@ export type AuditAction =
   | 'CLIENT_CREATED' | 'CLIENT_UPDATED'
   | 'TRANSFER_CREATED' | 'TRANSFER_VALIDATED'
   | 'INVENTORY_RECONCILED'
+  | 'RETURN_PROCESSED'
   | 'SETTINGS_UPDATED';
 
 export type AuditLogEntry = {

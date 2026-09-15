@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useMemo } from 'react';
-import { Search, Eye, Printer, CreditCard, X, Download, Mail, Send, Plus, Trash2, CheckCircle2, Camera, Calendar } from 'lucide-react';
+import { Search, Eye, Printer, CreditCard, X, Download, Mail, Send, Plus, Trash2, CheckCircle2, Camera, Calendar, Banknote, FileCheck, FileText, Landmark, MoreHorizontal, Undo2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -11,6 +11,7 @@ import type { Invoice, InvoiceStatus, Client, ClientPayment, PaymentMethod } fro
 import { exportToFile, formatInvoicesForExport } from '@/lib/export-utils';
 import { exportInvoicesPDF, exportFridaySalesPDF } from '@/lib/pdf-export-reports';
 import { cleanUndefined } from '@/lib/utils';
+import { useToast } from '@/hooks/use-toast';
 
 interface PaymentLineState {
   id: string;
@@ -33,6 +34,10 @@ interface StockInvoicesProps {
     invoiceUpdates?: { invoiceId: string; paidAmount: number; remainingBalance: number; status: InvoiceStatus }[]
   ) => Promise<void>;
   onUpdateStatus: (id: string, status: InvoiceStatus) => Promise<void>;
+  onProcessReturn?: (
+    invoice: Invoice,
+    returnLines: { articleId: string; categoryId: string; productName: string; nameFR?: string; color?: string; size?: string; unitOfMeasure: string; qty: number; unitPrice: number }[]
+  ) => Promise<void>;
   onNavigate: (v: any) => void;
 }
 
@@ -46,7 +51,8 @@ const STATUS_BADGE: Record<InvoiceStatus, { label: string; cls: string }> = {
   CANCELLED: { label: 'Annulé',     cls: 'bg-stone-100 text-stone-500 border-stone-200' },
 };
 
-export default function StockInvoices({ invoices, clients, payments, onRecordPayment, onRecordMultiplePayments, onUpdateStatus, onNavigate }: StockInvoicesProps) {
+export default function StockInvoices({ invoices, clients, payments, onRecordPayment, onRecordMultiplePayments, onUpdateStatus, onProcessReturn, onNavigate }: StockInvoicesProps) {
+  const { toast } = useToast();
   const [filterStatus, setFilterStatus] = useState<string>('all');
   const [filterMonth,  setFilterMonth]  = useState<string>('all');
   const [search, setSearch] = useState('');
@@ -59,6 +65,54 @@ export default function StockInvoices({ invoices, clients, payments, onRecordPay
     { id: '1', amount: '', method: 'CASH', notes: '', bankName: '', checkNumber: '', dueDate: '', scannedImageUrl: '' }
   ]);
   const [saving, setSaving] = useState(false);
+
+  const [returnInvoice, setReturnInvoice] = useState<Invoice | null>(null);
+  const [returnQtys, setReturnQtys] = useState<Record<number, string>>({});
+  const [returningInvoice, setReturningInvoice] = useState(false);
+
+  const openReturnModal = (inv: Invoice) => {
+    setReturnInvoice(inv);
+    setReturnQtys({});
+  };
+
+  const returnTotal = useMemo(() => {
+    if (!returnInvoice) return 0;
+    return returnInvoice.items.reduce((sum, item, idx) => {
+      const qty = Math.min(Number(returnQtys[idx]) || 0, item.qty);
+      return sum + qty * item.unitPrice;
+    }, 0);
+  }, [returnInvoice, returnQtys]);
+
+  const handleSubmitReturn = async () => {
+    if (!returnInvoice || !onProcessReturn) return;
+    const lines = returnInvoice.items
+      .map((item, idx) => ({
+        articleId: item.articleId,
+        categoryId: item.categoryId,
+        productName: item.productName,
+        nameFR: item.nameFR,
+        color: item.color,
+        size: item.size,
+        unitOfMeasure: item.unitOfMeasure,
+        qty: Math.min(Math.max(0, Number(returnQtys[idx]) || 0), item.qty),
+        unitPrice: item.unitPrice,
+      }))
+      .filter(l => l.qty > 0);
+
+    if (lines.length === 0) {
+      toast({ variant: 'destructive', title: 'Aucun retour', description: 'Indiquez une quantité à retourner pour au moins un article.' });
+      return;
+    }
+
+    setReturningInvoice(true);
+    try {
+      await onProcessReturn(returnInvoice, lines);
+      setReturnInvoice(null);
+      setReturnQtys({});
+    } finally {
+      setReturningInvoice(false);
+    }
+  };
 
   const months = useMemo(() => {
     const s = new Set<string>();
@@ -109,7 +163,7 @@ export default function StockInvoices({ invoices, clients, payments, onRecordPay
   const handleSendReminder = async (inv: Invoice) => {
     const client = clients.find(c => c.id === inv.clientId);
     if (!client?.email) {
-      alert('Ce client n\'a pas d\'adresse email configurée.');
+      toast({ variant: 'destructive', title: 'Email manquant', description: "Ce client n'a pas d'adresse email configurée." });
       return;
     }
     setSendingReminder(inv.id);
@@ -127,12 +181,12 @@ export default function StockInvoices({ invoices, clients, payments, onRecordPay
         }),
       });
       if (res.ok) {
-        alert('✅ Relance envoyée avec succès !');
+        toast({ title: 'Relance envoyée', description: `Email envoyé à ${client.email}` });
       } else {
-        alert('❌ Erreur lors de l\'envoi de la relance.');
+        toast({ variant: 'destructive', title: 'Erreur', description: "Erreur lors de l'envoi de la relance." });
       }
     } catch {
-      alert('❌ Erreur réseau.');
+      toast({ variant: 'destructive', title: 'Erreur réseau', description: "Impossible de contacter le serveur." });
     } finally {
       setSendingReminder(null);
     }
@@ -197,7 +251,7 @@ export default function StockInvoices({ invoices, clients, payments, onRecordPay
     if (!payInvoice || saving) return;
     const validLines = payLines.filter(l => (parseFloat(l.amount) || 0) > 0);
     if (validLines.length === 0) {
-      alert('Veuillez saisir au moins un montant valide supérieur à 0.');
+      toast({ variant: 'destructive', title: 'Montant manquant', description: 'Veuillez saisir au moins un montant valide supérieur à 0.' });
       return;
     }
 
@@ -206,10 +260,11 @@ export default function StockInvoices({ invoices, clients, payments, onRecordPay
       l => (l.method === 'CHEQUE' || l.method === 'LC' || l.method === 'EFFET' || l.method === 'LCN') && !l.scannedImageUrl?.trim()
     );
     if (missingScanLine) {
-      alert(
-        `⚠️ Le scan ou la photo du chèque / de la LC est OBLIGATOIRE avant d'enregistrer le paiement (${missingScanLine.method}).\n\n` +
-        `Veuillez prendre une photo ou importer le scan du document.`
-      );
+      toast({
+        variant: 'destructive',
+        title: 'Scan obligatoire',
+        description: `Le scan ou la photo du ${missingScanLine.method} est obligatoire avant d'enregistrer le paiement. Prenez une photo ou importez le scan du document.`,
+      });
       return;
     }
 
@@ -246,7 +301,7 @@ export default function StockInvoices({ invoices, clients, payments, onRecordPay
       setPayInvoice(null);
     } catch (err: any) {
       console.error('Erreur lors du paiement de la facture:', err);
-      alert('❌ Erreur : ' + (err?.message || 'Erreur inconnue'));
+      toast({ variant: 'destructive', title: 'Erreur', description: err?.message || 'Erreur inconnue lors de l\'enregistrement du paiement.' });
     } finally {
       setSaving(false);
     }
@@ -440,6 +495,12 @@ export default function StockInvoices({ invoices, clients, payments, onRecordPay
                             className="w-7 h-7 rounded-lg bg-stone-100 hover:bg-stone-200 text-stone-600 flex items-center justify-center">
                             <Printer className="w-3 h-3" />
                           </button>
+                          {onProcessReturn && inv.status !== 'CANCELLED' && inv.items?.length > 0 && (
+                            <button onClick={() => openReturnModal(inv)} title="Déclarer un retour"
+                              className="w-7 h-7 rounded-lg bg-amber-100 hover:bg-amber-200 text-amber-700 flex items-center justify-center">
+                              <Undo2 className="w-3 h-3" />
+                            </button>
+                          )}
                           {inv.status !== 'PAID' && inv.status !== 'CANCELLED' && (
                             <>
                               <button onClick={() => handleSendReminder(inv)} disabled={sendingReminder === inv.id}
@@ -472,6 +533,69 @@ export default function StockInvoices({ invoices, clients, payments, onRecordPay
           </>
         )}
       </div>
+
+      {/* Modal retour client (SAV) */}
+      <Dialog open={!!returnInvoice} onOpenChange={o => !o && setReturnInvoice(null)}>
+        <DialogContent className="sm:max-w-2xl rounded-3xl border-none shadow-2xl p-0 overflow-hidden">
+          <div className="bg-gradient-to-r from-amber-700 to-orange-600 p-6 text-white">
+            <DialogTitle className="text-lg font-black uppercase tracking-tight flex items-center gap-2">
+              <Undo2 className="w-5 h-5" />Déclarer un retour
+            </DialogTitle>
+            <p className="text-xs text-amber-100 font-bold mt-1">
+              Facture {returnInvoice ? invoiceNumber(returnInvoice) : ''} {returnInvoice?.clientName ? `— ${returnInvoice.clientName}` : ''}
+            </p>
+          </div>
+          <div className="p-6 space-y-4 max-h-[60vh] overflow-y-auto">
+            <p className="text-xs text-stone-500 font-bold">
+              Indiquez la quantité retournée pour chaque article. Le stock sera automatiquement réapprovisionné et le montant dû recalculé.
+            </p>
+            <div className="rounded-2xl border border-stone-200 overflow-hidden">
+              <table className="w-full text-left">
+                <thead className="bg-stone-50 border-b border-stone-200">
+                  <tr>
+                    <th className="px-4 py-2 text-[10px] font-black uppercase text-stone-500">Article</th>
+                    <th className="px-4 py-2 text-[10px] font-black uppercase text-stone-500 w-20 text-right">Vendu</th>
+                    <th className="px-4 py-2 text-[10px] font-black uppercase text-stone-500 w-28">Qté retournée</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {returnInvoice?.items.map((item, idx) => (
+                    <tr key={idx} className="border-b border-stone-100 last:border-0">
+                      <td className="px-4 py-2.5 text-xs font-bold text-stone-700">
+                        {item.nameFR || item.productName} {[item.color, item.size].filter(Boolean).join(' · ')}
+                      </td>
+                      <td className="px-4 py-2.5 text-xs font-black text-stone-500 text-right">{item.qty}</td>
+                      <td className="px-4 py-2.5">
+                        <Input
+                          type="number" min={0} max={item.qty} step="any"
+                          value={returnQtys[idx] ?? ''}
+                          onChange={e => setReturnQtys(prev => ({ ...prev, [idx]: e.target.value }))}
+                          className="h-8 text-xs font-bold text-center border-amber-200 focus-visible:ring-amber-500"
+                          placeholder="0"
+                        />
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <div className="p-3.5 bg-amber-50 border border-amber-200 rounded-2xl flex items-center justify-between">
+              <span className="text-[10px] font-black uppercase text-amber-800">Montant à déduire</span>
+              <span className="text-lg font-black text-amber-900">{fmt$(returnTotal)} MAD</span>
+            </div>
+          </div>
+          <DialogFooter className="p-6 pt-0">
+            <Button variant="ghost" onClick={() => setReturnInvoice(null)} className="flex-1 font-black uppercase text-[10px] rounded-xl h-11">Annuler</Button>
+            <Button
+              onClick={handleSubmitReturn}
+              disabled={returningInvoice || returnTotal <= 0}
+              className="flex-1 bg-amber-600 hover:bg-amber-700 text-white font-black uppercase text-[10px] rounded-xl h-11"
+            >
+              {returningInvoice ? 'Traitement...' : 'Confirmer le retour'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Modal paiement (Multi-modes: Cash, Chèque, LC, Virement) */}
       <Dialog open={!!payInvoice} onOpenChange={o => !o && setPayInvoice(null)}>
@@ -594,11 +718,11 @@ export default function StockInvoices({ invoices, clients, payments, onRecordPay
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="CASH">💵 Espèces (Cash)</SelectItem>
-                          <SelectItem value="CHEQUE">📄 Chèque</SelectItem>
-                          <SelectItem value="EFFET">📜 LC (Lettre de Change / Effet)</SelectItem>
-                          <SelectItem value="VIREMENT">🏦 Virement bancaire</SelectItem>
-                          <SelectItem value="AUTRE">📋 Autre mode</SelectItem>
+                          <SelectItem value="CASH"><Banknote className="inline w-3.5 h-3.5 mr-1.5 -mt-0.5" />Espèces (Cash)</SelectItem>
+                          <SelectItem value="CHEQUE"><FileCheck className="inline w-3.5 h-3.5 mr-1.5 -mt-0.5" />Chèque</SelectItem>
+                          <SelectItem value="EFFET"><FileText className="inline w-3.5 h-3.5 mr-1.5 -mt-0.5" />LC (Lettre de Change / Effet)</SelectItem>
+                          <SelectItem value="VIREMENT"><Landmark className="inline w-3.5 h-3.5 mr-1.5 -mt-0.5" />Virement bancaire</SelectItem>
+                          <SelectItem value="AUTRE"><MoreHorizontal className="inline w-3.5 h-3.5 mr-1.5 -mt-0.5" />Autre mode</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
@@ -786,7 +910,7 @@ export default function StockInvoices({ invoices, clients, payments, onRecordPay
           {payLines.some(l => (parseFloat(l.amount) || 0) > 0 && (l.method === 'CHEQUE' || l.method === 'LC' || l.method === 'EFFET' || l.method === 'LCN') && !l.scannedImageUrl?.trim()) && (
             <div className="px-6 py-2.5 bg-amber-50 border-t border-amber-200 flex items-center gap-2 text-amber-900 text-xs font-bold">
               <Camera className="w-4 h-4 text-amber-600 shrink-0" />
-              <span>⚠️ Le scan ou la photo du chèque / de la LC est obligatoire pour pouvoir enregistrer le paiement.</span>
+              <span>Le scan ou la photo du chèque / de la LC est obligatoire pour pouvoir enregistrer le paiement.</span>
             </div>
           )}
 

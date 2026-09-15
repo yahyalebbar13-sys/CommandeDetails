@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useMemo } from 'react';
-import { UserPlus, Search, Phone, Mail, MapPin, FileText, CreditCard, ChevronLeft, Edit2, Check, X, TrendingDown, Printer, Plus, Trash2, AlertCircle, CheckCircle2, Camera } from 'lucide-react';
+import { UserPlus, Search, Phone, Mail, MapPin, FileText, CreditCard, ChevronLeft, Edit2, Check, X, TrendingDown, Printer, Plus, Trash2, AlertCircle, CheckCircle2, Camera, Clock, Building2, Banknote, FileCheck, Landmark, MoreHorizontal } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -9,6 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import type { Client, SaleOrder, Invoice, ClientPayment, PaymentMethod, InvoiceStatus } from '@/lib/types';
 import { cleanUndefined } from '@/lib/utils';
+import { useToast } from '@/hooks/use-toast';
 
 interface StockClientsProps {
   clients: Client[];
@@ -46,6 +47,7 @@ interface PaymentLineState {
 }
 
 export default function StockClients({ clients, orders, invoices, payments, userRole = 'ADMIN', onCreateClient, onUpdateClient, onRecordPayment, onRecordMultiplePayments, onNavigate }: StockClientsProps) {
+  const { toast } = useToast();
   const [search, setSearch] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('ALL');
   const [unpaidOnlyFilter, setUnpaidOnlyFilter] = useState(false);
@@ -228,7 +230,7 @@ export default function StockClients({ clients, orders, invoices, payments, user
     if (!selected || (!onRecordMultiplePayments && !onRecordPayment)) return;
     const validLines = paymentLines.filter(l => (parseFloat(l.amount) || 0) > 0);
     if (validLines.length === 0) {
-      alert('Veuillez saisir au moins un montant valide supérieur à 0.');
+      toast({ variant: 'destructive', title: 'Montant manquant', description: 'Veuillez saisir au moins un montant valide supérieur à 0.' });
       return;
     }
 
@@ -237,10 +239,11 @@ export default function StockClients({ clients, orders, invoices, payments, user
       l => (l.method === 'CHEQUE' || l.method === 'LC' || l.method === 'EFFET' || l.method === 'LCN') && !l.scannedImageUrl?.trim()
     );
     if (missingScanLine) {
-      alert(
-        `⚠️ Le scan ou la photo du chèque / de la LC est OBLIGATOIRE avant de valider le règlement (${missingScanLine.method}).\n\n` +
-        `Veuillez prendre une photo ou importer le scan du document.`
-      );
+      toast({
+        variant: 'destructive',
+        title: 'Scan obligatoire',
+        description: `Le scan ou la photo du ${missingScanLine.method} est obligatoire avant de valider le règlement. Prenez une photo ou importez le scan du document.`,
+      });
       return;
     }
 
@@ -317,7 +320,7 @@ export default function StockClients({ clients, orders, invoices, payments, user
       setPaymentLines([{ id: '1', amount: '', method: 'CASH', notes: '', bankName: '', checkNumber: '', dueDate: '', scannedImageUrl: '' }]);
     } catch (err: any) {
       console.error('Erreur lors du règlement du solde:', err);
-      alert('❌ Erreur lors de l\'enregistrement : ' + (err?.message || 'Erreur inconnue'));
+      toast({ variant: 'destructive', title: 'Erreur', description: "Impossible d'enregistrer le règlement : " + (err?.message || 'Erreur inconnue') });
     } finally {
       setSaving(false);
     }
@@ -502,7 +505,7 @@ export default function StockClients({ clients, orders, invoices, payments, user
       {/* Tabs */}
       <div className="flex flex-wrap gap-2 bg-stone-100 p-1 rounded-2xl w-fit">
         {[
-          { id: 'impayes' as const, label: `⚠️ Impayés & En attente (${selUnpaidInvoices.length + selPendingEffects.length})`, highlight: (selUnpaidInvoices.length + selPendingEffects.length) > 0 },
+          { id: 'impayes' as const, label: `Impayés & En attente (${selUnpaidInvoices.length + selPendingEffects.length})`, highlight: (selUnpaidInvoices.length + selPendingEffects.length) > 0 },
           { id: 'invoices' as const, label: `Factures (${selInvoices.length})` },
           { id: 'orders' as const, label: `Commandes (${selOrders.length})` },
           { id: 'payments' as const, label: `Paiements (${selPayments.length})` },
@@ -876,11 +879,11 @@ export default function StockClients({ clients, orders, invoices, payments, user
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="CASH">💵 Espèces (Cash)</SelectItem>
-                          <SelectItem value="CHEQUE">📄 Chèque</SelectItem>
-                          <SelectItem value="EFFET">📜 LC (Lettre de Change / Effet)</SelectItem>
-                          <SelectItem value="VIREMENT">🏦 Virement bancaire</SelectItem>
-                          <SelectItem value="AUTRE">📋 Autre mode</SelectItem>
+                          <SelectItem value="CASH"><Banknote className="inline w-3.5 h-3.5 mr-1.5 -mt-0.5" />Espèces (Cash)</SelectItem>
+                          <SelectItem value="CHEQUE"><FileCheck className="inline w-3.5 h-3.5 mr-1.5 -mt-0.5" />Chèque</SelectItem>
+                          <SelectItem value="EFFET"><FileText className="inline w-3.5 h-3.5 mr-1.5 -mt-0.5" />LC (Lettre de Change / Effet)</SelectItem>
+                          <SelectItem value="VIREMENT"><Landmark className="inline w-3.5 h-3.5 mr-1.5 -mt-0.5" />Virement bancaire</SelectItem>
+                          <SelectItem value="AUTRE"><MoreHorizontal className="inline w-3.5 h-3.5 mr-1.5 -mt-0.5" />Autre mode</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
@@ -962,9 +965,9 @@ export default function StockClients({ clients, orders, invoices, payments, user
                                 <SelectValue />
                               </SelectTrigger>
                               <SelectContent>
-                                <SelectItem value="PENDING">⏳ Arbitrer à J-7</SelectItem>
-                                <SelectItem value="LEBTEX">🏢 LEBTEX</SelectItem>
-                                <SelectItem value="ROBE IN BOX">👗 ROBE IN BOX</SelectItem>
+                                <SelectItem value="PENDING"><Clock className="inline w-3.5 h-3.5 mr-1.5 -mt-0.5" />Arbitrer à J-7</SelectItem>
+                                <SelectItem value="LEBTEX"><Building2 className="inline w-3.5 h-3.5 mr-1.5 -mt-0.5" />LEBTEX</SelectItem>
+                                <SelectItem value="ROBE IN BOX"><Building2 className="inline w-3.5 h-3.5 mr-1.5 -mt-0.5" />ROBE IN BOX</SelectItem>
                               </SelectContent>
                             </Select>
                           </div>
@@ -1098,7 +1101,7 @@ export default function StockClients({ clients, orders, invoices, payments, user
           {paymentLines.some(l => (parseFloat(l.amount) || 0) > 0 && (l.method === 'CHEQUE' || l.method === 'LC' || l.method === 'EFFET' || l.method === 'LCN') && !l.scannedImageUrl?.trim()) && (
             <div className="px-6 py-2.5 bg-amber-50 border-t border-amber-200 flex items-center gap-2 text-amber-900 text-xs font-bold">
               <Camera className="w-4 h-4 text-amber-600 shrink-0" />
-              <span>⚠️ Le scan ou la photo du chèque / de la LC est obligatoire pour pouvoir valider le règlement.</span>
+              <span>Le scan ou la photo du chèque / de la LC est obligatoire pour pouvoir valider le règlement.</span>
             </div>
           )}
 
@@ -1209,7 +1212,7 @@ export default function StockClients({ clients, orders, invoices, payments, user
           }`}
         >
           <AlertCircle className={`w-4 h-4 ${unpaidOnlyFilter ? 'text-white' : 'text-rose-500'}`} />
-          {unpaidOnlyFilter ? '⚠️ Avec Impayés (Filtre actif)' : 'Filtrer avec Impayés'}
+          {unpaidOnlyFilter ? 'Avec Impayés (Filtre actif)' : 'Filtrer avec Impayés'}
         </Button>
       </div>
 

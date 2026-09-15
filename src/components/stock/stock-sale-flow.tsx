@@ -6,7 +6,7 @@ import {
   Search, Plus, Minus, X, ChevronRight, ChevronLeft,
   UserPlus, Tag, Percent, ArrowRight, Phone, Mail, Printer,
   Banknote, Landmark, FileCheck, Layers, Trash2, CreditCard,
-  Camera, Image as ImageIcon, Clock, Building2,
+  Camera, Image as ImageIcon, Clock, Building2, FileText,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -1472,10 +1472,10 @@ export default function StockSaleFlow({
                               <SelectValue />
                             </SelectTrigger>
                             <SelectContent>
-                              <SelectItem value="CASH">💵 Espèces (Cash)</SelectItem>
-                              <SelectItem value="CHEQUE">📑 Chèque</SelectItem>
-                              <SelectItem value="LC">📜 LC (Lettre de Change)</SelectItem>
-                              <SelectItem value="VIREMENT">🏦 Virement</SelectItem>
+                              <SelectItem value="CASH"><Banknote className="inline w-3.5 h-3.5 mr-1.5 -mt-0.5" />Espèces (Cash)</SelectItem>
+                              <SelectItem value="CHEQUE"><FileCheck className="inline w-3.5 h-3.5 mr-1.5 -mt-0.5" />Chèque</SelectItem>
+                              <SelectItem value="LC"><FileText className="inline w-3.5 h-3.5 mr-1.5 -mt-0.5" />LC (Lettre de Change)</SelectItem>
+                              <SelectItem value="VIREMENT"><Landmark className="inline w-3.5 h-3.5 mr-1.5 -mt-0.5" />Virement</SelectItem>
                             </SelectContent>
                           </Select>
                         </div>

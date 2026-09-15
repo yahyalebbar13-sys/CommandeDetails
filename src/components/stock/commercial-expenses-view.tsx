@@ -860,9 +860,9 @@ export default function CommercialExpensesView({
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="ALL">Tous les statuts</SelectItem>
-              <SelectItem value="PENDING">⏳ En attente</SelectItem>
-              <SelectItem value="APPROVED">✅ Validé</SelectItem>
-              <SelectItem value="REIMBURSED">💵 Remboursé</SelectItem>
+              <SelectItem value="PENDING"><Clock className="inline w-3.5 h-3.5 mr-1.5 -mt-0.5" />En attente</SelectItem>
+              <SelectItem value="APPROVED"><CheckCircle2 className="inline w-3.5 h-3.5 mr-1.5 -mt-0.5" />Validé</SelectItem>
+              <SelectItem value="REIMBURSED"><DollarSign className="inline w-3.5 h-3.5 mr-1.5 -mt-0.5" />Remboursé</SelectItem>
             </SelectContent>
           </Select>
 
@@ -1674,7 +1674,7 @@ export default function CommercialExpensesView({
 
                     {warehouseOptions.length === 0 ? (
                       <div className="p-3 bg-white rounded-xl border border-amber-300 text-amber-900 text-xs font-medium">
-                        ⚠️ Aucun entrepôt configuré dans le système. Vous pouvez créer vos entrepôts personnalisés dans l'onglet <strong>Paramètres</strong> / <strong>Entrepôts</strong>.
+                        Aucun entrepôt configuré dans le système. Vous pouvez créer vos entrepôts personnalisés dans l'onglet <strong>Paramètres</strong> / <strong>Entrepôts</strong>.
                       </div>
                     ) : (
                       <Select value={newWarehouseId} onValueChange={setNewWarehouseId}>

@@ -1370,8 +1370,10 @@ export default function TreasuryDashboard({
                   </div>
                   <div>
                     <p className="text-[10px] font-black uppercase text-stone-400">Statut :</p>
-                    <p className="font-bold text-stone-900">
-                      {detailRemittance.status === 'ENCAISSE' ? '✅ Encaissé en compte' : '🟡 Déposé en banque'}
+                    <p className="font-bold text-stone-900 flex items-center gap-1.5">
+                      {detailRemittance.status === 'ENCAISSE'
+                        ? <><CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />Encaissé en compte</>
+                        : <><Clock className="w-3.5 h-3.5 text-amber-600" />Déposé en banque</>}
                     </p>
                   </div>
                 </div>

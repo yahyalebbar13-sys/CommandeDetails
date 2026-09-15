@@ -9,7 +9,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import type { StockMovement, StockMovementReason, StockMovementType, StockItem, Store, StoreLocation } from '@/lib/types';
 import {
   ArrowDown, ArrowUp, SlidersHorizontal, PackageCheck,
-  ChevronLeft, Package, Layers, CheckCircle2, AlertTriangle, Search
+  ChevronLeft, Package, Layers, CheckCircle2, AlertTriangle, Search,
+  Undo2, RefreshCw, ShoppingCart, XCircle,
 } from 'lucide-react';
 import { getLocalDateString } from '@/lib/constants';
 
@@ -31,20 +32,20 @@ interface StockMovementModalProps {
   onSubmit: (movement: Omit<StockMovement, 'id' | 'createdAt'>) => Promise<void>;
 }
 
-const REASONS_BY_TYPE: Record<StockMovementType, { value: StockMovementReason; label: string }[]> = {
+const REASONS_BY_TYPE: Record<StockMovementType, { value: StockMovementReason; label: string; icon: any }[]> = {
   IN: [
-    { value: 'ARRIVAGE',   label: '📦 Arrivage fournisseur' },
-    { value: 'RETOUR',     label: '↩️ Retour client' },
-    { value: 'INVENTAIRE', label: '🔄 Ajustement inventaire' },
+    { value: 'ARRIVAGE',   label: 'Arrivage fournisseur', icon: Package },
+    { value: 'RETOUR',     label: 'Retour client', icon: Undo2 },
+    { value: 'INVENTAIRE', label: 'Ajustement inventaire', icon: RefreshCw },
   ],
   OUT: [
-    { value: 'VENTE',      label: '🛒 Vente / Livraison' },
-    { value: 'PERTE',      label: '❌ Perte / Casse' },
-    { value: 'INVENTAIRE', label: '🔄 Ajustement inventaire' },
+    { value: 'VENTE',      label: 'Vente / Livraison', icon: ShoppingCart },
+    { value: 'PERTE',      label: 'Perte / Casse', icon: XCircle },
+    { value: 'INVENTAIRE', label: 'Ajustement inventaire', icon: RefreshCw },
   ],
   ADJUSTMENT: [
-    { value: 'INVENTAIRE', label: '🔄 Régularisation inventaire' },
-    { value: 'PERTE',      label: '❌ Perte / Différence' },
+    { value: 'INVENTAIRE', label: 'Régularisation inventaire', icon: RefreshCw },
+    { value: 'PERTE',      label: 'Perte / Différence', icon: XCircle },
   ],
 };
 
@@ -622,7 +623,9 @@ export default function StockMovementModal({
                   <SelectContent>
                     {reasons.map(r => (
                       <SelectItem key={r.value} value={r.value}>
-                        <span className="font-bold text-sm">{r.label}</span>
+                        <span className="font-bold text-sm inline-flex items-center gap-2">
+                          <r.icon className="w-3.5 h-3.5" />{r.label}
+                        </span>
                       </SelectItem>
                     ))}
                   </SelectContent>

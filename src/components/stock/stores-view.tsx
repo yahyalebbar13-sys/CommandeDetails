@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState } from 'react';
-import { Store as StoreIcon, Plus, Save, Trash2, ShieldAlert } from 'lucide-react';
+import { Store as StoreIcon, Plus, Save, Trash2, ShieldAlert, Package } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
@@ -188,8 +188,8 @@ export default function StoresView({ stores, adminUid }: StoresViewProps) {
                 <h3 className="text-xl font-black text-stone-900">{store.name}</h3>
                 <p className="text-[10px] text-stone-400 font-bold font-mono mt-1">ID: {store.id}</p>
                 {store.type === 'WAREHOUSE' ? (
-                  <p className="text-[9px] text-blue-700 font-bold mt-1">
-                    📦 Stock CHRIFA · Sans identifiant
+                  <p className="text-[9px] text-blue-700 font-bold mt-1 flex items-center gap-1">
+                    <Package className="w-3 h-3" />Stock CHRIFA · Sans identifiant
                   </p>
                 ) : store.accessEmail ? (
                   <p className="text-[10px] text-stone-500 font-bold mt-1">

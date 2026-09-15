@@ -2,10 +2,10 @@
 
 import React, { useState, useMemo } from 'react';
 import { 
-  CreditCard, AlertTriangle, CheckCircle2, Search, Filter, Printer, 
-  Eye, Phone, ArrowUpRight, RotateCcw, Calendar, Building2, 
+  CreditCard, AlertTriangle, CheckCircle2, Search, Filter, Printer,
+  Eye, Phone, ArrowUpRight, RotateCcw, Calendar, Building2,
   FileText, Clock, AlertCircle, Sparkles, Check, X, ShieldAlert,
-  Download, ArrowUpDown, ChevronDown
+  Download, ArrowUpDown, ChevronDown, FileCheck, DollarSign
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -299,7 +299,7 @@ export default function ChequesImpayesView({
     try {
       await onUpdatePaymentStatus(paymentId, 'PENDING');
       toast({
-        title: "⏳ Remis en portefeuille",
+        title: "Remis en portefeuille",
         description: "Le chèque/effet est à nouveau en attente d'encaissement.",
       });
       if (previewPayment?.id === paymentId) {
@@ -542,9 +542,9 @@ export default function ChequesImpayesView({
               <SelectValue placeholder="Moyen de paiement" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="ALL">💳 Tous les moyens (Chèques & LC)</SelectItem>
-              <SelectItem value="CHEQUE">📜 Chèques bancaires uniquement</SelectItem>
-              <SelectItem value="EFFET">📄 Effets / LCN uniquement</SelectItem>
+              <SelectItem value="ALL"><CreditCard className="inline w-3.5 h-3.5 mr-1.5 -mt-0.5" />Tous les moyens (Chèques & LC)</SelectItem>
+              <SelectItem value="CHEQUE"><FileCheck className="inline w-3.5 h-3.5 mr-1.5 -mt-0.5" />Chèques bancaires uniquement</SelectItem>
+              <SelectItem value="EFFET"><FileText className="inline w-3.5 h-3.5 mr-1.5 -mt-0.5" />Effets / LCN uniquement</SelectItem>
             </SelectContent>
           </Select>
 
@@ -569,10 +569,10 @@ export default function ChequesImpayesView({
               <SelectValue placeholder="Trier par" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="dueDate_asc">📅 Échéance la plus proche</SelectItem>
-              <SelectItem value="dueDate_desc">📅 Échéance la plus lointaine</SelectItem>
-              <SelectItem value="amount_desc">💰 Montant le plus élevé</SelectItem>
-              <SelectItem value="date_desc">⏱️ Date de réception récente</SelectItem>
+              <SelectItem value="dueDate_asc"><Calendar className="inline w-3.5 h-3.5 mr-1.5 -mt-0.5" />Échéance la plus proche</SelectItem>
+              <SelectItem value="dueDate_desc"><Calendar className="inline w-3.5 h-3.5 mr-1.5 -mt-0.5" />Échéance la plus lointaine</SelectItem>
+              <SelectItem value="amount_desc"><DollarSign className="inline w-3.5 h-3.5 mr-1.5 -mt-0.5" />Montant le plus élevé</SelectItem>
+              <SelectItem value="date_desc"><Clock className="inline w-3.5 h-3.5 mr-1.5 -mt-0.5" />Date de réception récente</SelectItem>
             </SelectContent>
           </Select>
         </div>
