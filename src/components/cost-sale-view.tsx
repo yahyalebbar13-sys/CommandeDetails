@@ -569,7 +569,7 @@ export default function CostSaleView({ articles, factures, subCategories, genera
                         )}
                       </TableCell>
                       <TableCell className="text-right font-black text-[11px] text-stone-900 py-4">
-                        {row.qty.toLocaleString('fr-MA')}
+                        {(Number(row.qty) || 0).toLocaleString('fr-MA')}
                         <div className="text-[8px] text-stone-400 font-bold uppercase">{row.unit}</div>
                       </TableCell>
                       <TableCell className="text-right font-bold text-[10px] text-stone-600 py-4">

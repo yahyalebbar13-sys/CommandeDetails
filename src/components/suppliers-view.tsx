@@ -869,7 +869,7 @@ function SupplierDetailView({
                       </TableCell>
                       <TableCell className="py-3 font-black text-stone-900 uppercase text-[11px]">{f.id}</TableCell>
                       <TableCell className={`py-3 text-[10px] font-bold ${f.isArrived ? 'text-emerald-600' : 'text-blue-600'}`}>{f.arrivalDate}</TableCell>
-                      <TableCell className="py-3 text-right font-bold text-stone-500 text-[10px]">{f.cbm.toLocaleString('en-US', { maximumFractionDigits: 3 })} m³</TableCell>
+                      <TableCell className="py-3 text-right font-bold text-stone-500 text-[10px]">{(Number(f.cbm) || 0).toLocaleString('en-US', { maximumFractionDigits: 3 })} m³</TableCell>
                       <TableCell className="py-3 text-right font-black text-stone-900 text-[11px]">{Number(f.totalReal).toLocaleString('en-US', { maximumFractionDigits: 3 })} $</TableCell>
                       <TableCell className="py-3 text-right font-black text-amber-600 text-[11px] bg-amber-50/30">{Number(f.declared).toLocaleString('en-US', { maximumFractionDigits: 3 })} $</TableCell>
                       <TableCell className="py-3">

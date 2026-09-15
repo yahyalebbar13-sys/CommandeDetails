@@ -3657,7 +3657,7 @@ export default function CategoriesView({
                           <TableRow key={i} className="hover:bg-stone-50/50 transition-colors">
                             <TableCell className="font-bold text-[10px] text-stone-400 py-3">{row.factureDate}</TableCell>
                             <TableCell className="font-black text-[11px] uppercase text-stone-900 py-3">{row.factureName}</TableCell>
-                            <TableCell className="text-right font-black text-[11px] py-3">{row.qty.toLocaleString()}</TableCell>
+                            <TableCell className="text-right font-black text-[11px] py-3">{(Number(row.qty) || 0).toLocaleString()}</TableCell>
                             <TableCell className="text-right font-black text-[11px] text-sky-700 py-3">{row.valAchatMad > 0 ? row.valAchatMad.toLocaleString('fr-MA', { maximumFractionDigits: 2 }) : '-'}</TableCell>
                             <TableCell className="text-right font-black text-[11px] text-indigo-700 py-3">{row.fraisCmd > 0 ? row.fraisCmd.toLocaleString('fr-MA', { maximumFractionDigits: 2 }) : '-'}</TableCell>
                             <TableCell className="text-right font-black text-[11px] text-orange-700 py-3">{row.totalDouane > 0 ? row.totalDouane.toLocaleString('fr-MA', { maximumFractionDigits: 2 }) : '-'}</TableCell>

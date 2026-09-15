@@ -327,7 +327,7 @@ function AlertCard({ item, level, onOrder, onThreshold }: {
           <div className="flex justify-between text-[8px] font-black uppercase">
             <span className="text-stone-400">Stock actuel</span>
             <span className={isRupture ? 'text-red-600' : 'text-orange-600'}>
-              {item.currentQty.toLocaleString('fr-FR')} / {item.minThreshold?.toLocaleString('fr-FR')} {item.unitOfMeasure}
+              {(Number(item.currentQty) || 0).toLocaleString('fr-FR')} / {(Number(item.minThreshold) || 0).toLocaleString('fr-FR')} {item.unitOfMeasure}
             </span>
           </div>
           <div className="h-2 bg-stone-100 rounded-full overflow-hidden">

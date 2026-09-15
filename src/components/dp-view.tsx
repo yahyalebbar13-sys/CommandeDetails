@@ -528,7 +528,7 @@ export default function DPView({ articles, factures, subCategories, generalCateg
                           </div>
                         </TableCell>
                         <TableCell className="text-right font-black text-[13px] text-stone-900 py-4">
-                          {line.totalQty.toLocaleString('fr-MA')}
+                          {(Number(line.totalQty) || 0).toLocaleString('fr-MA')}
                           <div className="text-[8px] text-stone-400 font-bold uppercase">{line.unit}</div>
                         </TableCell>
                         <TableCell className="text-right font-bold text-[11px] text-stone-600 py-4">

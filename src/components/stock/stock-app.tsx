@@ -960,7 +960,7 @@ export default function StockApp() {
       });
     }
     await batch.commit();
-    toast({ title: '✅ Vente enregistrée !', description: `Total : ${sale.totalAmount.toLocaleString('fr-MA', { minimumFractionDigits: 2 })} — ${sale.items.length} produit(s)` });
+    toast({ title: '✅ Vente enregistrée !', description: `Total : ${(Number(sale.totalAmount) || 0).toLocaleString('fr-MA', { minimumFractionDigits: 2 })} — ${sale.items.length} produit(s)` });
   }, [user, firestore, toast, activeStore, adminUid, userRole, stores]);
 
   // ── Clients ──────────────────────────────────────────────────────────────
@@ -988,7 +988,7 @@ export default function StockApp() {
     const mainStoreId = stores.find(s => s.isMain)?.id || 'CHRIFA';
     const storeId = (order as any).storeId || (userRole === 'ADMIN' ? saleStoreId : ((activeStore === 'ALL' || activeStore === 'ALL_MAIN') ? mainStoreId : activeStore));
     const ref = await addDoc(collection(firestore, 'users', effectiveUid, 'saleOrders'), { ...order, storeId, createdAt: serverTimestamp() });
-    toast({ title: '✅ Bon de commande créé', description: `${order.items.length} article(s) · ${order.totalAfterDiscount.toLocaleString('fr-MA', { minimumFractionDigits: 2 })}` });
+    toast({ title: '✅ Bon de commande créé', description: `${order.items.length} article(s) · ${(Number(order.totalAfterDiscount) || 0).toLocaleString('fr-MA', { minimumFractionDigits: 2 })}` });
     return ref.id;
   }, [user, firestore, toast, activeStore, adminUid, stores, userRole, saleStoreId]);
 
@@ -1064,7 +1064,7 @@ export default function StockApp() {
         }
       }
       await batch.commit();
-      toast({ title: '✅ Vente enregistrée !', description: `${invoice.items.length} article(s) · ${invoice.totalAfterDiscount.toLocaleString('fr-MA', { minimumFractionDigits: 2 })} MAD` });
+      toast({ title: '✅ Vente enregistrée !', description: `${invoice.items.length} article(s) · ${(Number(invoice.totalAfterDiscount) || 0).toLocaleString('fr-MA', { minimumFractionDigits: 2 })} MAD` });
     } catch (err: any) {
       console.error('Error creating invoice/sale:', err);
       toast({ title: 'Erreur', description: `Impossible d'enregistrer la vente : ${err?.message || err}`, variant: 'destructive' });
@@ -1135,7 +1135,7 @@ export default function StockApp() {
     const methods = Array.from(new Set(paymentList.map(p => p.method))).join(', ');
     toast({
       title: '✅ Paiement(s) validé(s)',
-      description: `${totalAmount.toLocaleString('fr-MA', { minimumFractionDigits: 2 })} MAD (${methods})`
+      description: `${(Number(totalAmount) || 0).toLocaleString('fr-MA', { minimumFractionDigits: 2 })} MAD (${methods})`
     });
   }, [user, firestore, adminUid, invoices, toast]);
 
@@ -1307,7 +1307,7 @@ export default function StockApp() {
 
     toast({
       title: '🏦 Bordereau de Remise Émis !',
-      description: `Bordereau ${reference} (${targetPayments.length} chèques · ${totalAmount.toLocaleString('fr-MA', { minimumFractionDigits: 2 })} MAD) enregistré. PDF téléchargé !`,
+      description: `Bordereau ${reference} (${targetPayments.length} chèques · ${(Number(totalAmount) || 0).toLocaleString('fr-MA', { minimumFractionDigits: 2 })} MAD) enregistré. PDF téléchargé !`,
     });
 
     return createdRemittance;
@@ -1381,6 +1381,7 @@ export default function StockApp() {
         purchasePricePerUnit: unitPrice,
         stockEntryDate: exp.date || new Date().toISOString().split('T')[0],
         supplierId: exp.supplierName || 'Marché local',
+        quantity: 0,
         initialQtyByStore: { [targetStore]: 0 },
         createdAt: serverTimestamp(),
       };
@@ -1434,7 +1435,7 @@ export default function StockApp() {
     } else {
       toast({
         title: '✅ Dépense enregistrée',
-        description: `${exp.amount.toLocaleString('fr-MA', { minimumFractionDigits: 2 })} MAD`,
+        description: `${(Number(exp.amount) || 0).toLocaleString('fr-MA', { minimumFractionDigits: 2 })} MAD`,
       });
     }
   }, [user, firestore, adminUid, effectiveSaleStoreId, stores, toast]);
@@ -2101,7 +2102,7 @@ export default function StockApp() {
                         </div>
                         <div className="bg-white/5 border border-white/10 rounded-2xl px-5 py-3">
                           <p className="text-[8px] font-black uppercase tracking-widest text-stone-400">Total Pièces</p>
-                          <p className="text-2xl font-black text-white mt-0.5">{totalPiecesFiltered.toLocaleString()}</p>
+                          <p className="text-2xl font-black text-white mt-0.5">{(Number(totalPiecesFiltered) || 0).toLocaleString()}</p>
                         </div>
                       </div>
                     </div>
@@ -2256,7 +2257,7 @@ export default function StockApp() {
                                 <div className="bg-stone-50 rounded-xl p-2.5">
                                   <p className="text-[8px] font-black text-stone-400 uppercase">Articles</p>
                                   <p className="text-[10px] font-black text-stone-900 mt-0.5">
-                                    {artCount} réf. ({totalQty.toLocaleString()} pcs)
+                                    {artCount} réf. ({(Number(totalQty) || 0).toLocaleString()} pcs)
                                   </p>
                                 </div>
                               </div>
@@ -2380,7 +2381,7 @@ export default function StockApp() {
                         Échéance : <span className="font-mono text-stone-800">{p.dueDate}</span> · Tiré sur {p.bankName || 'Banque'} · N° {p.checkNumber || '—'}
                       </p>
                       <p className="text-sm font-black text-stone-900 mt-1">
-                        {p.amount.toLocaleString('fr-MA', { minimumFractionDigits: 2 })} MAD
+                        {(Number(p.amount) || 0).toLocaleString('fr-MA', { minimumFractionDigits: 2 })} MAD
                       </p>
                     </div>
 
@@ -2429,7 +2430,7 @@ export default function StockApp() {
                       Remise LEBTEX ({pendingLebtexRemisePayments.length})
                     </span>
                     <span className="font-mono text-[11px] opacity-90">
-                      {pendingLebtexTotal.toLocaleString('fr-MA', { minimumFractionDigits: 2 })} MAD
+                      {(Number(pendingLebtexTotal) || 0).toLocaleString('fr-MA', { minimumFractionDigits: 2 })} MAD
                     </span>
                   </Button>
                 )}
@@ -2446,7 +2447,7 @@ export default function StockApp() {
                       Remise ROBE IN BOX ({pendingRobeRemisePayments.length})
                     </span>
                     <span className="font-mono text-[11px] opacity-90">
-                      {pendingRobeTotal.toLocaleString('fr-MA', { minimumFractionDigits: 2 })} MAD
+                      {(Number(pendingRobeTotal) || 0).toLocaleString('fr-MA', { minimumFractionDigits: 2 })} MAD
                     </span>
                   </Button>
                 )}

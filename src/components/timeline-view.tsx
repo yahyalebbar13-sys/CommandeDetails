@@ -320,12 +320,12 @@ function FactureCard({
                 </span>
                 <span className="text-[8px] font-black text-stone-400 flex items-center gap-1">
                   <Package className="w-3 h-3" />
-                  {f.cbm.toLocaleString('fr-FR', { maximumFractionDigits: 2 })} m³
+                  {(Number(f.cbm) || 0).toLocaleString('fr-FR', { maximumFractionDigits: 2 })} m³
                 </span>
               </div>
               <span className="text-[9px] font-black text-stone-700 flex items-center gap-1">
                 <DollarSign className="w-3 h-3 text-stone-400" />
-                {Number(f.totalRealValue).toLocaleString('fr-FR', { maximumFractionDigits: 0 })}
+                {(Number(f.totalRealValue) || 0).toLocaleString('fr-FR', { maximumFractionDigits: 0 })}
               </span>
             </div>
           </div>

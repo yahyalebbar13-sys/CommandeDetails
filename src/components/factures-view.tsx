@@ -539,13 +539,13 @@ export default function FacturesView({
               {selectedFacture.supplierInvoiceAmount > 0 && (
                 <div>
                   <p className="text-[7px] font-bold text-stone-400 uppercase tracking-widest mb-0.5">Facture Transitaire</p>
-                  <p className="text-[12px] font-black text-white">{selectedFacture.supplierInvoiceAmount.toLocaleString()} <span className="text-[8px] font-bold opacity-60 ml-0.5">MAD</span></p>
+                  <p className="text-[12px] font-black text-white">{(Number(selectedFacture.supplierInvoiceAmount) || 0).toLocaleString()} <span className="text-[8px] font-bold opacity-60 ml-0.5">MAD</span></p>
                 </div>
               )}
               {selectedFacture.additionalCostsAmount > 0 && (
                 <div>
                   <p className="text-[7px] font-bold text-stone-400 uppercase tracking-widest mb-0.5">Frais Supp.</p>
-                  <p className="text-[12px] font-black text-stone-300">{selectedFacture.additionalCostsAmount.toLocaleString()} <span className="text-[8px] font-bold opacity-60 ml-0.5">MAD</span></p>
+                  <p className="text-[12px] font-black text-stone-300">{(Number(selectedFacture.additionalCostsAmount) || 0).toLocaleString()} <span className="text-[8px] font-bold opacity-60 ml-0.5">MAD</span></p>
                 </div>
               )}
               {selectedFacture.invoicePaidDhs > 0 && selectedFacture.declaredValue > 0 && (

@@ -180,7 +180,7 @@ export default function StockMovements({ movements, stockItems, categories, arti
               <p className={`text-[8px] font-black uppercase tracking-widest text-${color}-500`}>{label}</p>
             </div>
             <p className={`text-2xl font-black text-${color === 'red' ? 'red' : 'emerald'}-700`}>
-              {value > 0 ? '+' : ''}{value.toLocaleString('fr-FR')}
+              {value > 0 ? '+' : ''}{(Number(value) || 0).toLocaleString('fr-FR')}
             </p>
           </div>
         ))}
@@ -293,7 +293,7 @@ export default function StockMovements({ movements, stockItems, categories, arti
                       </td>
                       <td className="px-4 py-3">
                         <span className={`text-sm font-black ${m.type === 'IN' ? 'text-emerald-600' : m.type === 'OUT' ? 'text-red-600' : 'text-blue-600'}`}>
-                          {m.type === 'IN' ? '+' : m.type === 'OUT' ? '-' : '±'}{m.quantity.toLocaleString('fr-FR')} {m.unitOfMeasure}
+                          {m.type === 'IN' ? '+' : m.type === 'OUT' ? '-' : '±'}{(Number(m.quantity) || 0).toLocaleString('fr-FR')} {m.unitOfMeasure}
                         </span>
                       </td>
                       <td className="px-4 py-3 text-[10px] text-stone-400 font-medium max-w-[200px] truncate">{m.notes || '—'}</td>
@@ -317,8 +317,8 @@ export default function StockMovements({ movements, stockItems, categories, arti
           <div className="px-4 py-3 bg-stone-50 border-t border-stone-100 flex items-center justify-between">
             <span className="text-[9px] font-black text-stone-400 uppercase tracking-widest">{filtered.length} mouvement{filtered.length > 1 ? 's' : ''}</span>
             <div className="flex gap-4">
-              <span className="text-[9px] font-black text-emerald-600 uppercase">+{totalIN.toLocaleString('fr-FR')} IN</span>
-              <span className="text-[9px] font-black text-red-600 uppercase">-{totalOUT.toLocaleString('fr-FR')} OUT</span>
+              <span className="text-[9px] font-black text-emerald-600 uppercase">+{(Number(totalIN) || 0).toLocaleString('fr-FR')} IN</span>
+              <span className="text-[9px] font-black text-red-600 uppercase">-{(Number(totalOUT) || 0).toLocaleString('fr-FR')} OUT</span>
             </div>
           </div>
         )}

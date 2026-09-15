@@ -340,7 +340,7 @@ export default function CoutDeRevientModal({ open, onOpenChange, article, factur
                 <p className="text-[9px] font-black text-stone-400 uppercase tracking-widest mb-3 flex items-center gap-1.5">
                   <Boxes className="w-3 h-3" /> Base de Calcul
                 </p>
-                <SummaryLine label="Quantité" value={`${computed.qty.toLocaleString()} ${article.unitOfMeasure || 'u'}`} />
+                <SummaryLine label="Quantité" value={`${(Number(computed.qty) || 0).toLocaleString()} ${article.unitOfMeasure || 'u'}`} />
                 <SummaryLine label="Prix unitaire" value={`$${fmt(computed.prix)}`} />
                 <SummaryLine label="Valeur FOB totale" value={`$${fmt(computed.valeurFOB)}`} />
                 <SummaryLine label={`CBM article`} value={`${computed.cbmArticle > 0 ? fmt(computed.cbmArticle, 3) : '—'} m³`} />

@@ -155,13 +155,13 @@ export default function DataView({ articles, onEdit }: DataViewProps) {
                           </span>
                         </TableCell>
                         <TableCell className="text-right py-3 font-black text-[11px] text-stone-900">
-                          {o.quantity.toLocaleString()} <span className="text-[8px] text-stone-400 font-bold ml-0.5 uppercase">{o.unitOfMeasure}</span>
+                          {(Number(o.quantity) || 0).toLocaleString()} <span className="text-[8px] text-stone-400 font-bold ml-0.5 uppercase">{o.unitOfMeasure}</span>
                         </TableCell>
                         <TableCell className="text-right py-3 font-black text-[9px] text-amber-700">
-                          {Number(o.purchasePricePerUnit).toLocaleString('en-US', { maximumFractionDigits: 3 })}
+                          {(Number(o.purchasePricePerUnit) || 0).toLocaleString('en-US', { maximumFractionDigits: 3 })}
                         </TableCell>
                         <TableCell className="text-right py-3 font-black text-[11px] text-amber-600 bg-amber-50/20 px-6">
-                          {Number(o.quantity * o.purchasePricePerUnit).toLocaleString('en-US', { maximumFractionDigits: 3 })}
+                          {((Number(o.quantity) || 0) * (Number(o.purchasePricePerUnit) || 0)).toLocaleString('en-US', { maximumFractionDigits: 3 })}
                         </TableCell>
                         <TableCell className="py-3 pr-6">
                           <div className="flex justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
