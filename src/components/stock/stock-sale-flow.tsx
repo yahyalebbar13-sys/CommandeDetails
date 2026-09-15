@@ -6,7 +6,7 @@ import {
   Search, Plus, Minus, X, ChevronRight, ChevronLeft,
   UserPlus, Tag, Percent, ArrowRight, Phone, Mail, Printer,
   Banknote, Landmark, FileCheck, Layers, Trash2, CreditCard,
-  Camera, Image as ImageIcon, Clock, Building2, FileText,
+  Camera, Image as ImageIcon, Clock, Building2, FileText, WifiOff,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -17,6 +17,7 @@ import type { Client, SaleOrder, Invoice, OrderItem, StockItem, PaymentMethod, C
 import { getLocalDateString } from '@/lib/constants';
 import { useToast } from '@/hooks/use-toast';
 import { useConfirm } from '@/hooks/use-confirm';
+import { useOnlineStatus } from '@/hooks/use-online-status';
 
 // ── helpers ──
 const fmt$ = (n: number) => n.toLocaleString('fr-MA', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -97,6 +98,7 @@ export default function StockSaleFlow({
 }: StockSaleFlowProps) {
   const { toast } = useToast();
   const confirm = useConfirm();
+  const isOnline = useOnlineStatus();
   const [step, setStep] = useState(0);
   const [saving, setSaving] = useState(false);
   const [done, setDone] = useState(false);
@@ -1746,11 +1748,18 @@ export default function StockSaleFlow({
             </div>
           )}
 
+          {!isOnline && (
+            <div className="flex items-center gap-2.5 p-3.5 bg-red-50 border border-red-300 rounded-2xl text-red-800 text-xs font-bold shadow-sm">
+              <WifiOff className="w-4 h-4 text-red-600 shrink-0" />
+              <span>Pas de connexion réseau — la vente ne peut pas être enregistrée tant que la connexion n'est pas rétablie. Patientez ou réessayez plus tard.</span>
+            </div>
+          )}
+
           <div className="flex justify-between">
             <Button variant="outline" onClick={() => setStep(2)} className="gap-2 font-black uppercase text-xs h-11 rounded-2xl">
               <ChevronLeft className="w-4 h-4" /> Modifier le panier
             </Button>
-            <Button onClick={handleFinalize} disabled={saving || (paymentStatus === 'PAID' && paymentLines.some(l => (parseFloat(l.amount) || 0) > 0 && (l.method === 'CHEQUE' || l.method === 'LC' || l.method === 'EFFET' || l.method === 'LCN') && !l.scannedImageUrl?.trim()))}
+            <Button onClick={handleFinalize} disabled={saving || !isOnline || (paymentStatus === 'PAID' && paymentLines.some(l => (parseFloat(l.amount) || 0) > 0 && (l.method === 'CHEQUE' || l.method === 'LC' || l.method === 'EFFET' || l.method === 'LCN') && !l.scannedImageUrl?.trim()))}
               className={`font-black uppercase text-xs h-12 px-10 rounded-2xl gap-2 shadow-lg transition-all ${
                 paymentStatus === 'PAID'
                   ? 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-emerald-500/30'

@@ -5,7 +5,7 @@ import {
   Loader2, LogOut, LayoutDashboard, List, ArrowLeftRight, Bell, Package,
   Boxes, ShoppingCart, TrendingUp, Users, ClipboardList, FileText, Anchor, Archive, CheckCircle2, Download, Truck, Store as StoreIcon,
   Settings, MapPin, Home, AlertTriangle, Building2, Sparkles, Warehouse, CreditCard, Receipt, Search,
-  Calendar, Clock, Filter, Lock, RotateCcw, Globe
+  Calendar, Clock, Filter, Lock, RotateCcw, Globe, WifiOff
 } from 'lucide-react';
 import { useUser, useFirebase, useCollection, useMemoFirebase } from '@/firebase';
 import { signOut } from 'firebase/auth';
@@ -19,6 +19,7 @@ import type {
 import { canDeclareImpaye } from '@/lib/types';
 import { logAudit } from '@/lib/audit-log';
 import { ConfirmProvider } from '@/hooks/use-confirm';
+import { useOnlineStatus } from '@/hooks/use-online-status';
 import { exportCheckRemittancePDF } from '@/lib/pdf-export-reports';
 import { ADMIN_EMAIL, getLocalDateString } from '@/lib/constants';
 import { isArrivalOlderThanOneMonth } from '@/lib/status-utils';
@@ -674,6 +675,7 @@ export default function StockApp() {
   const [adminUid, setAdminUid] = useState<string | null>(null);
   const [userStoreId, setUserStoreId] = useState<string | null>(null);
   const [isReadOnly, setIsReadOnly] = useState(false);
+  const isOnline = useOnlineStatus();
   const [debugInfo, setDebugInfo] = useState<string>('');
   const [resetConfirmOpen, setResetConfirmOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
@@ -1866,6 +1868,13 @@ export default function StockApp() {
   return (
     <ConfirmProvider>
     <div className="min-h-screen flex flex-col bg-[#f0faf4] font-sans">
+
+      {!isOnline && (
+        <div className="sticky top-0 z-[60] bg-red-600 text-white px-4 py-2 flex items-center justify-center gap-2 text-xs font-black uppercase tracking-wider shadow-md">
+          <WifiOff className="w-4 h-4" />
+          Connexion perdue — les actions en cours ne seront pas enregistrées tant que le réseau n'est pas revenu
+        </div>
+      )}
 
       {/* ── Navbar ── */}
       <nav className="bg-white border-b border-emerald-100 sticky top-0 z-50 shadow-sm">
