@@ -381,8 +381,8 @@ export default function StockClients({ clients, orders, invoices, payments, user
   if (selected) return (
     <div className="space-y-5 animate-in fade-in duration-300">
       {/* Header client */}
-      <div className="bg-gradient-to-br from-violet-900 to-violet-800 p-6 rounded-3xl shadow-xl">
-        <button onClick={() => { setSelected(null); setEditMode(false); }} className="flex items-center gap-1.5 text-violet-300 hover:text-white text-[11px] font-black uppercase tracking-wider mb-3 transition-colors">
+      <div className="bg-gradient-to-br from-[#3D2E17] to-[#1E1B15] p-6 rounded-3xl shadow-xl">
+        <button onClick={() => { setSelected(null); setEditMode(false); }} className="flex items-center gap-1.5 text-[#E0A24C] hover:text-white text-[11px] font-black uppercase tracking-wider mb-3 transition-colors">
           <ChevronLeft className="w-3.5 h-3.5" /> Tous les clients
         </button>
         <div className="flex items-start justify-between gap-4">
@@ -399,12 +399,12 @@ export default function StockClients({ clients, orders, invoices, payments, user
               )}
               <div className="flex flex-wrap gap-3 mt-1">
                 {(editMode ? (editForm.phone ?? selected.phone) : selected.phone) && (
-                  <span className="text-[11px] font-bold text-violet-200 flex items-center gap-1">
+                  <span className="text-[11px] font-bold text-[#C9B89A] flex items-center gap-1">
                     <Phone className="w-2.5 h-2.5" /> {editMode ? editForm.phone ?? selected.phone : selected.phone}
                   </span>
                 )}
                 {(editMode ? (editForm.email ?? selected.email) : selected.email) && (
-                  <span className="text-[11px] font-bold text-violet-200 flex items-center gap-1">
+                  <span className="text-[11px] font-bold text-[#C9B89A] flex items-center gap-1">
                     <Mail className="w-2.5 h-2.5" /> {editMode ? editForm.email ?? selected.email : selected.email}
                   </span>
                 )}
@@ -430,11 +430,11 @@ export default function StockClients({ clients, orders, invoices, payments, user
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-5">
           <div className="bg-white/10 rounded-xl p-3">
             <p className="text-lg font-black text-white">{fmt$(selCA)}</p>
-            <p className="text-[11px] font-black text-violet-300 uppercase tracking-widest mt-0.5">CA Total</p>
+            <p className="text-[11px] font-black text-[#E0A24C] uppercase tracking-widest mt-0.5">CA Total</p>
           </div>
           <div className="bg-white/10 rounded-xl p-3">
             <p className="text-lg font-black text-emerald-300">{fmt$(selPaid)}</p>
-            <p className="text-[11px] font-black text-violet-300 uppercase tracking-widest mt-0.5">Total Payé / Saisi</p>
+            <p className="text-[11px] font-black text-[#E0A24C] uppercase tracking-widest mt-0.5">Total Payé / Saisi</p>
           </div>
           <div className="bg-white/10 rounded-xl p-3 border border-red-400/30">
             <p className={`text-lg font-black ${selBalance > 0 ? 'text-rose-300' : 'text-emerald-300'}`}>{fmt$(selBalance)}</p>
@@ -1152,16 +1152,16 @@ export default function StockClients({ clients, orders, invoices, payments, user
 
   return (
     <div className="space-y-6 animate-in fade-in duration-300">
-      <div className="bg-gradient-to-br from-violet-900 to-violet-800 p-8 rounded-3xl shadow-2xl relative overflow-hidden">
-        <div className="absolute top-0 right-0 w-64 h-64 bg-violet-400/10 rounded-full -translate-y-1/2 translate-x-1/2 blur-3xl" />
+      <div className="bg-gradient-to-br from-[#3D2E17] to-[#1E1B15] p-8 rounded-3xl shadow-2xl relative overflow-hidden">
+        <div className="absolute top-0 right-0 w-64 h-64 bg-[#CC8626]/10 rounded-full -translate-y-1/2 translate-x-1/2 blur-3xl" />
         <div className="relative z-10 flex items-center justify-between gap-4">
           <div>
-            <p className="text-[11px] font-black text-violet-300 uppercase tracking-[0.3em] mb-1">CRM</p>
-            <h1 className="text-3xl font-black text-white uppercase tracking-tighter">Dossiers <span className="text-violet-300">Clients</span></h1>
-            <p className="text-violet-300/70 text-xs font-bold mt-2">{clients.length} client{clients.length > 1 ? 's' : ''} enregistré{clients.length > 1 ? 's' : ''}</p>
+            <p className="text-[11px] font-black text-[#E0A24C] uppercase tracking-[0.3em] mb-1">CRM</p>
+            <h1 className="text-3xl font-black text-white uppercase tracking-tighter">Dossiers <span className="text-[#E0A24C]">Clients</span></h1>
+            <p className="text-[#E0A24C]/70 text-xs font-bold mt-2">{clients.length} client{clients.length > 1 ? 's' : ''} enregistré{clients.length > 1 ? 's' : ''}</p>
           </div>
           <Button onClick={() => setCreateOpen(true)}
-            className="bg-white hover:bg-stone-50 text-violet-800 font-black uppercase text-[10px] tracking-widest px-6 h-11 rounded-2xl gap-2 shrink-0">
+            className="bg-white hover:bg-stone-50 text-[#8A5E1C] font-black uppercase text-[11px] tracking-widest px-6 h-11 rounded-2xl gap-2 shrink-0">
             <UserPlus className="w-4 h-4" /> Nouveau client
           </Button>
         </div>
@@ -1231,10 +1231,10 @@ export default function StockClients({ clients, orders, invoices, payments, user
             const nOrd = orderCounts.get(c.id) || 0;
             return (
               <div key={c.id} className="bg-white rounded-2xl shadow-xl border border-stone-100 overflow-hidden hover:shadow-2xl hover:-translate-y-0.5 transition-all group">
-                <div className="h-1.5 bg-gradient-to-r from-violet-500 to-violet-400" />
+                <div className="h-1.5 bg-gradient-to-r from-[#CC8626] to-[#E0A24C]" />
                 <div className="p-5">
                   <div className="flex items-start gap-3 mb-4">
-                    <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-violet-500 to-violet-700 text-white font-black text-lg flex items-center justify-center shrink-0 shadow-lg shadow-violet-500/30">
+                    <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-[#CC8626] to-[#8A5E1C] text-white font-black text-lg flex items-center justify-center shrink-0 shadow-lg shadow-[#CC8626]/30">
                       {c.name[0].toUpperCase()}
                     </div>
                     <div className="flex-1 min-w-0">
@@ -1289,7 +1289,7 @@ export default function StockClients({ clients, orders, invoices, payments, user
                   </div>
 
                   <Button onClick={() => setSelected(c)}
-                    className="w-full bg-stone-50 hover:bg-violet-50 hover:text-violet-700 text-stone-600 font-black uppercase text-[11px] h-9 rounded-xl border border-stone-100 hover:border-violet-200 transition-all">
+                    className="w-full bg-stone-50 hover:bg-[#FBF0DD] hover:text-[#8A5E1C] text-stone-600 font-black uppercase text-[11px] h-9 rounded-xl border border-stone-100 hover:border-[#E0A24C]/40 transition-all">
                     Voir le dossier
                   </Button>
                 </div>
@@ -1302,7 +1302,7 @@ export default function StockClients({ clients, orders, invoices, payments, user
       {/* Modal nouveau client */}
       <Dialog open={createOpen} onOpenChange={setCreateOpen}>
         <DialogContent className="sm:max-w-md max-h-[85vh] sm:max-h-[90vh] flex flex-col rounded-3xl border-none shadow-2xl p-0 overflow-hidden">
-          <div className="bg-gradient-to-r from-violet-700 to-violet-600 p-6 text-white shrink-0">
+          <div className="bg-gradient-to-r from-[#3D2E17] to-[#2A2014] p-6 text-white shrink-0">
             <DialogTitle className="text-lg font-black uppercase tracking-tight">Nouveau client</DialogTitle>
           </div>
           <div className="p-6 space-y-3 bg-white flex-1 overflow-y-auto overscroll-contain touch-pan-y" style={{ WebkitOverflowScrolling: 'touch' }}>
@@ -1351,7 +1351,7 @@ export default function StockClients({ clients, orders, invoices, payments, user
           <DialogFooter className="p-4 bg-stone-50 gap-2 shrink-0 border-t border-stone-100">
             <Button variant="ghost" onClick={() => setCreateOpen(false)} className="flex-1 font-black uppercase text-[10px] rounded-xl">Annuler</Button>
             <Button onClick={handleCreate} disabled={!form.name.trim() || saving}
-              className="flex-[2] bg-violet-600 hover:bg-violet-700 text-white font-black uppercase text-[10px] h-11 rounded-xl">
+              className="flex-[2] bg-[#CC8626] hover:bg-[#B3721C] text-white font-black uppercase text-[11px] h-11 rounded-xl">
               {saving ? 'Création...' : 'Créer le client'}
             </Button>
           </DialogFooter>

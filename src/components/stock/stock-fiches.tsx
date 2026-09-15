@@ -93,27 +93,27 @@ function StockHeader({
   totalRefs, totalStock, totalVal, alertCount, userRole
 }: { totalRefs: number; totalStock: number; totalVal: number; alertCount: number; userRole?: string }) {
   return (
-    <div className="bg-gradient-to-br from-stone-900 to-stone-800 rounded-3xl p-8 relative overflow-hidden">
-      <div className="absolute inset-0 bg-gradient-to-r from-emerald-900/30 to-transparent pointer-events-none" />
+    <div className="bg-gradient-to-br from-[#3D2E17] via-[#2A2014] to-[#1E1B15] rounded-3xl p-8 relative overflow-hidden">
+      <div className="absolute top-0 right-0 w-72 h-72 bg-[#CC8626]/10 rounded-full -translate-y-1/2 translate-x-1/2 blur-3xl pointer-events-none" />
       <div className="relative z-10 flex items-start justify-between flex-wrap gap-6">
         <div>
-          <p className="text-[11px] font-black text-emerald-400 uppercase tracking-[0.4em] mb-1">Stock Physique Validé</p>
+          <p className="text-[11px] font-black text-[#E0A24C] uppercase tracking-[0.4em] mb-1">Stock Physique Validé</p>
           <h2 className="text-3xl font-black text-white uppercase tracking-tighter leading-none">
-            Fiches de <span className="text-emerald-400">Stock</span>
+            Fiches de <span className="text-[#E0A24C]">Stock</span>
           </h2>
-          <p className="text-stone-400 text-xs mt-2">Méthode FIFO · entrées validées manuellement · coûts réels</p>
+          <p className="text-[#C9B89A] text-xs mt-2">Méthode FIFO · entrées validées manuellement · coûts réels</p>
         </div>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           {[
-            { label: 'Références', value: String(totalRefs),         icon: BarChart3,    color: 'text-stone-300' },
-            { label: 'Stock Total', value: fmt(totalStock),           icon: Boxes,        color: 'text-blue-400'  },
-            ...(userRole === 'ADMIN' ? [{ label: 'Valeur MAD',  value: `${fmt(totalVal)} MAD`,   icon: DollarSign,   color: 'text-emerald-400'}] : []),
-            { label: 'Alertes',     value: String(alertCount),        icon: AlertTriangle,color: alertCount > 0 ? 'text-amber-400' : 'text-stone-500' },
+            { label: 'Références', value: String(totalRefs),         icon: BarChart3,    color: 'text-[#C9B89A]' },
+            { label: 'Stock Total', value: fmt(totalStock),           icon: Boxes,        color: 'text-blue-300'  },
+            ...(userRole === 'ADMIN' ? [{ label: 'Valeur MAD',  value: `${fmt(totalVal)} MAD`,   icon: DollarSign,   color: 'text-[#E0A24C]'}] : []),
+            { label: 'Alertes',     value: String(alertCount),        icon: AlertTriangle,color: alertCount > 0 ? 'text-red-400' : 'text-[#7A7362]' },
           ].map(({ label, value, icon: Icon, color }) => (
             <div key={label} className="bg-white/10 backdrop-blur-sm rounded-2xl px-4 py-3 text-center">
               <Icon className={`w-4 h-4 ${color} mx-auto mb-1`} />
-              <p className={`text-[14px] font-black ${color} leading-none`}>{value}</p>
-              <p className="text-[10px] font-black text-stone-500 uppercase tracking-widest mt-1">{label}</p>
+              <p className={`text-[15px] font-black ${color} leading-none`}>{value}</p>
+              <p className="text-[11px] font-black text-[#8A8272] uppercase tracking-widest mt-1">{label}</p>
             </div>
           ))}
         </div>
@@ -748,9 +748,9 @@ export default function StockFiches({
     <div className="flex flex-wrap items-center justify-end gap-3">
       <Button
         onClick={() => setIsNewProductModalOpen(true)}
-        className="bg-stone-900 hover:bg-stone-800 text-white font-black uppercase text-[10px] tracking-widest px-5 h-11 rounded-xl shadow-md flex items-center gap-2 transition-all hover:scale-[1.02] active:scale-95"
+        className="bg-[#CC8626] hover:bg-[#B3721C] text-white font-black uppercase text-[11px] tracking-widest px-5 h-11 rounded-xl shadow-md shadow-[#CC8626]/20 flex items-center gap-2 transition-all hover:scale-[1.02] active:scale-95"
       >
-        <Plus className="w-4 h-4 text-emerald-400" />
+        <Plus className="w-4 h-4" />
         Nouveau Produit
       </Button>
     </div>
