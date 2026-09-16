@@ -3,7 +3,7 @@
 import React from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
-import { Truck, ArrowRight, Phone, ChevronRight, Sparkles, Zap } from 'lucide-react';
+import { Truck, ArrowRight, Phone, ChevronRight, Sparkles, Zap, ShieldCheck, RotateCcw, Headset, Package } from 'lucide-react';
 import { FREE_DELIVERY_THRESHOLD, formatPrice } from '@/lib/shop-utils';
 import ProductCard from '@/components/shop/ProductCard';
 import { useLanguage } from '@/contexts/language-context';
@@ -57,14 +57,23 @@ export default function ShopPage() {
       </section>
 
       {/* ═══════════════════════════════════════════════════════════════════ */}
-      {/* SECTION 2: FREE DELIVERY STRIP                                    */}
+      {/* SECTION 2: TRUST STRIP (livraison, paiement, retour, support)     */}
       {/* ═══════════════════════════════════════════════════════════════════ */}
-      <div className="bg-[#C8102E] py-2 px-4">
-        <div className="flex items-center justify-center gap-2 text-white text-xs font-bold">
-          <Truck className="w-3.5 h-3.5" />
-          <span>Livraison GRATUITE dès {formatPrice(FREE_DELIVERY_THRESHOLD)}</span>
-          <span className="text-white/40">•</span>
-          <span className="text-white/80 font-normal">Partout au Maroc</span>
+      <div className="bg-[#C8102E] py-2.5 px-4">
+        <div className="flex items-center justify-center flex-wrap gap-x-5 gap-y-1.5 text-white text-[11px] sm:text-xs font-bold">
+          <span className="flex items-center gap-1.5">
+            <Truck className="w-3.5 h-3.5 shrink-0" />
+            Livraison GRATUITE dès {formatPrice(FREE_DELIVERY_THRESHOLD)}
+          </span>
+          <span className="hidden sm:flex items-center gap-1.5 font-normal text-white/85">
+            <ShieldCheck className="w-3.5 h-3.5 shrink-0" /> Paiement sécurisé
+          </span>
+          <span className="hidden sm:flex items-center gap-1.5 font-normal text-white/85">
+            <RotateCcw className="w-3.5 h-3.5 shrink-0" /> Retour facile
+          </span>
+          <span className="hidden sm:flex items-center gap-1.5 font-normal text-white/85">
+            <Headset className="w-3.5 h-3.5 shrink-0" /> Support pro
+          </span>
         </div>
       </div>
 
@@ -105,6 +114,45 @@ export default function ShopPage() {
               </span>
             </Link>
           ))}
+        </div>
+      </section>
+
+      {/* ═══════════════════════════════════════════════════════════════════ */}
+      {/* SECTION 3B: COMMANDE EN GROS / DEVIS RAPIDE                       */}
+      {/* ═══════════════════════════════════════════════════════════════════ */}
+      <section className="px-4 sm:px-6 lg:px-12 py-2">
+        <div
+          className="rounded-2xl overflow-hidden flex flex-col sm:flex-row items-center justify-between gap-4 px-6 py-5"
+          style={{ background: 'linear-gradient(135deg, #0F0F0F 0%, #1a1a2e 100%)' }}
+        >
+          <div className="flex items-center gap-4">
+            <div className="w-12 h-12 rounded-xl bg-[#D4A843]/15 flex items-center justify-center flex-shrink-0">
+              <Package className="w-6 h-6 text-[#D4A843]" />
+            </div>
+            <div>
+              <p className="text-white font-black text-sm sm:text-base" style={{ fontFamily: 'Outfit, sans-serif' }}>
+                Commande en Gros — Tarifs Professionnels
+              </p>
+              <p className="text-gray-400 text-xs mt-0.5">Prix dégressifs par quantité · Devis personnalisé pour ateliers et revendeurs</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 flex-shrink-0 w-full sm:w-auto">
+            <Link
+              href="/shop/boutique"
+              className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl border border-white/20 text-white font-bold text-xs sm:text-sm touch-manipulation"
+            >
+              Voir les tarifs pro
+            </Link>
+            <a
+              href="https://wa.me/212760998347?text=Bonjour%2C%20je%20souhaite%20un%20devis%20pour%20une%20commande%20en%20gros."
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl text-[#0F0F0F] font-bold text-xs sm:text-sm touch-manipulation"
+              style={{ background: 'linear-gradient(135deg, #D4A843, #e4be6a)' }}
+            >
+              Devis rapide <ArrowRight className="w-3.5 h-3.5" />
+            </a>
+          </div>
         </div>
       </section>
 

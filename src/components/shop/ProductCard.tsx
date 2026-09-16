@@ -3,15 +3,19 @@
 import React, { useState, useCallback } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
-import { ShoppingCart, Star, StarHalf, AlertCircle, CheckCircle2 } from 'lucide-react';
+import { ShoppingCart, Star, StarHalf, AlertCircle, CheckCircle2, Flame } from 'lucide-react';
 import { useShopCartActions } from '@/contexts/shop-cart-context';
 import { useLanguage } from '@/contexts/language-context';
-import { formatPrice, getDiscountPercent } from '@/lib/shop-utils';
+import { formatPrice, getDiscountPercent, hasActivePromo } from '@/lib/shop-utils';
 import type { ShopProduct } from '@/lib/shop-types';
 
 // Tiny base64 blur placeholder (1×1 px gris clair) — évite le layout shift
 const BLUR_DATA_URL =
   'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mN8/+F9PQAI8wNPvd7POQAAAABJRU5ErkJggg==';
+
+// En dessous de ce seuil, on affiche "Plus que N en stock" pour créer de l'urgence
+// (mécanisme Temu/AliExpress) plutôt que le générique "En stock".
+const LOW_STOCK_THRESHOLD = 5;
 
 // ─── Star Rating (compact) ────────────────────────────────────────────────────
 const StarRating = React.memo(function StarRating({ rating, reviewCount }: { rating: number; reviewCount?: number }) {
@@ -51,6 +55,10 @@ export default React.memo(function ProductCard({ product, showAddToCart = true }
   const [imgLoaded, setImgLoaded] = useState(false);
 
   const primaryImage = product.images?.[0] || `https://picsum.photos/seed/${product.id}/600/600`;
+  const isPromo = hasActivePromo(product.comparePrice, product.price);
+  const discountPercent = isPromo ? getDiscountPercent(product.price, product.comparePrice as number) : 0;
+  const isLowStock = product.inStock && product.stockQty > 0 && product.stockQty <= LOW_STOCK_THRESHOLD;
+  const hasWholesalePrice = Boolean(product.wholesalePrice && product.wholesalePrice > 0 && product.wholesalePrice < product.price && product.minOrderQty && product.minOrderQty > 1);
 
   const handleAddToCart = useCallback(
     (e: React.MouseEvent) => {
@@ -100,6 +108,19 @@ export default React.memo(function ProductCard({ product, showAddToCart = true }
           <div className="absolute inset-0 bg-gradient-to-r from-gray-100 via-gray-50 to-gray-100 animate-pulse pointer-events-none" />
         )}
 
+        {/* Badge réduction — coin haut-gauche, très visible en scroll rapide */}
+        {isPromo && discountPercent > 0 && (
+          <span className="absolute top-1.5 left-1.5 bg-[#C8102E] text-white text-[10px] font-black px-1.5 py-0.5 rounded shadow-sm">
+            -{discountPercent}%
+          </span>
+        )}
+        {/* Badge nouveauté — coin haut-droit, seulement si pas de promo (évite la surcharge) */}
+        {!isPromo && product.isNew && (
+          <span className="absolute top-1.5 right-1.5 bg-emerald-500 text-white text-[9px] font-black px-1.5 py-0.5 rounded shadow-sm uppercase">
+            {language === 'ar' ? 'جديد' : 'New'}
+          </span>
+        )}
+
         {/* Out of stock overlay */}
         {!product.inStock && (
           <div className="absolute inset-0 bg-white/50 flex items-center justify-center pointer-events-none">
@@ -124,10 +145,27 @@ export default React.memo(function ProductCard({ product, showAddToCart = true }
         {/* Price row + cart button */}
         <div className="flex items-end justify-between mt-1">
           <div className="flex flex-col">
-            <span className="text-[15px] font-extrabold text-[#C8102E] leading-tight">
-              {product.price > 0 ? formatPrice(product.price) : (language === 'ar' ? 'حسب الطلب' : 'Sur demande')}
-            </span>
-            {product.inStock && (
+            <div className="flex items-baseline gap-1.5">
+              <span className="text-[15px] font-extrabold text-[#C8102E] leading-tight">
+                {product.price > 0 ? formatPrice(product.price) : (language === 'ar' ? 'حسب الطلب' : 'Sur demande')}
+              </span>
+              {isPromo && (
+                <span className="text-[11px] text-gray-400 line-through leading-tight">
+                  {formatPrice(product.comparePrice as number)}
+                </span>
+              )}
+            </div>
+            {hasWholesalePrice && (
+              <span className="text-[10px] font-semibold text-emerald-600 mt-0.5">
+                {language === 'ar' ? `من ${product.minOrderQty}: ${formatPrice(product.wholesalePrice as number)}` : `Dès ${product.minOrderQty} : ${formatPrice(product.wholesalePrice as number)}/pc`}
+              </span>
+            )}
+            {isLowStock ? (
+              <span className="text-[10px] font-semibold text-orange-500 mt-0.5 flex items-center gap-0.5">
+                <Flame className="w-2.5 h-2.5" />
+                {language === 'ar' ? `تبقى ${product.stockQty} فقط` : `Plus que ${product.stockQty} en stock`}
+              </span>
+            ) : product.inStock && !hasWholesalePrice && (
               <span className="text-[10px] text-gray-400 mt-0.5">
                 {language === 'ar' ? 'متوفر' : 'En stock'}
               </span>
@@ -155,8 +193,9 @@ export default React.memo(function ProductCard({ product, showAddToCart = true }
           )}
         </div>
 
-        {/* Rating — bottom */}
-        {product.rating !== undefined && product.rating > 0 && (
+        {/* Rating — bottom, uniquement s'il y a au moins un avis réel (sinon 5 étoiles
+            avec "0" à côté ressemble à une fausse note) */}
+        {product.rating !== undefined && product.rating > 0 && Number(product.reviewCount) > 0 && (
           <div className="mt-1">
             <StarRating rating={product.rating} reviewCount={product.reviewCount} />
           </div>
