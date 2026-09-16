@@ -31,7 +31,7 @@ export interface StatusInfo {
   borderClass: string;  // tailwind border
 }
 
-const STATUS_MAP: Record<EffectiveStatus, Omit<StatusInfo, 'status'>> = {
+export const STATUS_MAP: Record<EffectiveStatus, Omit<StatusInfo, 'status'>> = {
   TO_ORDER:  { label: 'À Commander',       emoji: '📋', color: '#6B7280', bgClass: 'bg-stone-100',   textClass: 'text-stone-600',   borderClass: 'border-stone-300' },
   PI:        { label: 'En Production',     emoji: '🏭', color: '#F59E0B', bgClass: 'bg-amber-100',   textClass: 'text-amber-700',   borderClass: 'border-amber-300' },
   // SHIPPED and TRANSIT share the same display (boat transport, same stage)

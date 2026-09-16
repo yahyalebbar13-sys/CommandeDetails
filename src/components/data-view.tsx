@@ -5,13 +5,15 @@ import React, { useState, useMemo } from 'react';
 import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Card, CardContent } from '@/components/ui/card';
-import { Search, Trash2, Pencil, Box, Settings2, MousePointer2, Database, Info } from 'lucide-react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Search, Trash2, Pencil, Box, Settings2, MousePointer2, Database, Info, X } from 'lucide-react';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
 import { useUser, useFirestore, deleteDocumentNonBlocking } from '@/firebase';
 import { doc } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { Badge } from '@/components/ui/badge';
+import { STATUS_MAP } from '@/lib/status-utils';
 
 interface DataViewProps {
   articles: any[];
@@ -23,21 +25,52 @@ export default function DataView({ articles, onEdit }: DataViewProps) {
   const firestore = useFirestore();
   const { toast } = useToast();
   const [searchTerm, setSearchTerm] = useState('');
+  const [filterCat, setFilterCat] = useState('all');
+  const [filterSupplier, setFilterSupplier] = useState('all');
+  const [filterFacture, setFilterFacture] = useState('all');
+  const [filterStatus, setFilterStatus] = useState('all');
   const [deleteConfirm, setDeleteConfirm] = useState<{open: boolean; id?: string; name?: string}>({open: false});
+
+  const catOptions = useMemo(() => (
+    Array.from(new Set(articles.map(o => o.categoryId).filter(Boolean))).sort()
+  ), [articles]);
+  const supplierOptions = useMemo(() => (
+    Array.from(new Set(articles.map(o => o.supplierId).filter(Boolean))).sort()
+  ), [articles]);
+  const factureOptions = useMemo(() => (
+    Array.from(new Set(articles.map(o => o.factureId).filter(Boolean))).sort()
+  ), [articles]);
+  const statusOptions = useMemo(() => (
+    Array.from(new Set(articles.map(o => o.status).filter(Boolean)))
+  ), [articles]);
+
+  const hasActiveFilters = filterCat !== 'all' || filterSupplier !== 'all' || filterFacture !== 'all' || filterStatus !== 'all';
+  const resetFilters = () => {
+    setFilterCat('all');
+    setFilterSupplier('all');
+    setFilterFacture('all');
+    setFilterStatus('all');
+  };
 
   const filteredArticles = useMemo(() => {
     const term = searchTerm.toLowerCase();
-    if (!term) return articles;
-    return articles.filter(o => 
-      (o.categoryId || '').toLowerCase().includes(term) ||
-      (o.name || '').toLowerCase().includes(term) ||
-      (o.supplierId || '').toLowerCase().includes(term) ||
-      (o.factureId || '').toLowerCase().includes(term) ||
-      (o.color || '').toLowerCase().includes(term) ||
-      (o.size || '').toLowerCase().includes(term) ||
-      (o.specs || '').toLowerCase().includes(term)
-    );
-  }, [articles, searchTerm]);
+    return articles.filter(o => {
+      if (filterCat !== 'all' && o.categoryId !== filterCat) return false;
+      if (filterSupplier !== 'all' && o.supplierId !== filterSupplier) return false;
+      if (filterFacture !== 'all' && o.factureId !== filterFacture) return false;
+      if (filterStatus !== 'all' && o.status !== filterStatus) return false;
+      if (!term) return true;
+      return (
+        (o.categoryId || '').toLowerCase().includes(term) ||
+        (o.name || '').toLowerCase().includes(term) ||
+        (o.supplierId || '').toLowerCase().includes(term) ||
+        (o.factureId || '').toLowerCase().includes(term) ||
+        (o.color || '').toLowerCase().includes(term) ||
+        (o.size || '').toLowerCase().includes(term) ||
+        (o.specs || '').toLowerCase().includes(term)
+      );
+    });
+  }, [articles, searchTerm, filterCat, filterSupplier, filterFacture, filterStatus]);
 
   const handleDelete = (articleId: string, name: string) => {
     if (!user || !firestore || !articleId) return;
@@ -68,14 +101,65 @@ export default function DataView({ articles, onEdit }: DataViewProps) {
               </p>
             </div>
           </div>
-          <div className="relative w-full md:w-80">
-            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-stone-400" />
-            <Input 
-              placeholder="Rechercher un article..." 
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-10 bg-stone-50 border-stone-200 rounded-xl h-11 text-xs font-bold focus:ring-amber-500 transition-all shadow-inner"
-            />
+          <div className="flex flex-col md:flex-row items-stretch md:items-center gap-2 w-full md:w-auto">
+            <div className="relative w-full md:w-72">
+              <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-stone-400" />
+              <Input
+                placeholder="Rechercher un article..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-10 bg-stone-50 border-stone-200 rounded-xl h-11 text-xs font-bold focus:ring-amber-500 transition-all shadow-inner"
+              />
+            </div>
+            <Select value={filterCat} onValueChange={setFilterCat}>
+              <SelectTrigger className="h-11 w-full md:w-40 rounded-xl border-stone-200 bg-stone-50 text-xs font-bold shadow-inner">
+                <SelectValue placeholder="Catégorie" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Toutes catégories</SelectItem>
+                {catOptions.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+              </SelectContent>
+            </Select>
+            <Select value={filterSupplier} onValueChange={setFilterSupplier}>
+              <SelectTrigger className="h-11 w-full md:w-40 rounded-xl border-stone-200 bg-stone-50 text-xs font-bold shadow-inner">
+                <SelectValue placeholder="Fournisseur" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Tous fournisseurs</SelectItem>
+                {supplierOptions.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+              </SelectContent>
+            </Select>
+            <Select value={filterFacture} onValueChange={setFilterFacture}>
+              <SelectTrigger className="h-11 w-full md:w-40 rounded-xl border-stone-200 bg-stone-50 text-xs font-bold shadow-inner">
+                <SelectValue placeholder="Dossier" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Tous dossiers</SelectItem>
+                {factureOptions.map(f => <SelectItem key={f} value={f}>{f}</SelectItem>)}
+              </SelectContent>
+            </Select>
+            <Select value={filterStatus} onValueChange={setFilterStatus}>
+              <SelectTrigger className="h-11 w-full md:w-40 rounded-xl border-stone-200 bg-stone-50 text-xs font-bold shadow-inner">
+                <SelectValue placeholder="Statut" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Tous statuts</SelectItem>
+                {statusOptions.map(s => (
+                  <SelectItem key={s} value={s}>{STATUS_MAP[s as keyof typeof STATUS_MAP]?.label ?? s}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {hasActiveFilters && (
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-11 w-11 shrink-0 text-stone-400 hover:text-red-500 hover:bg-red-50 rounded-xl"
+                onClick={resetFilters}
+                title="Réinitialiser les filtres"
+              >
+                <X className="w-4 h-4" />
+              </Button>
+            )}
           </div>
         </div>
       </header>
