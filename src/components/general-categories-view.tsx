@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input';
 import {
   Layers, Plus, Trash2, ArrowRight, FolderSearch, PlusCircle,
   Truck, DollarSign, TrendingUp, Package, Search, BarChart3, ChevronRight,
-  ArrowRightLeft, Pencil
+  ArrowRightLeft, Pencil, Sparkles, AlertTriangle
 } from 'lucide-react';
 import { useUser, useFirestore, setDocumentNonBlocking, deleteDocumentNonBlocking, updateDocumentNonBlocking } from '@/firebase';
 import { doc } from 'firebase/firestore';
@@ -18,12 +18,14 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { isAccessoryLine, isFabricLine, isZipperLine, isThreadLine, isSliderLine, isTapeLine, ACCESSORY_KEYWORDS } from '@/lib/constants';
+import { QUALITIES_FIELD_BY_SPEC, SPEC_BADGES, countQualities, detectSpecType } from '@/lib/quality-schema';
 
 interface GeneralCategoriesViewProps {
   articles: any[];
   generalCategories: GeneralCategory[];
   subCategories: Category[];
   onSelectGeneralCategory: (id: string) => void;
+  onManageQualities?: (specType: string, poleId: string) => void;
 }
 
 const LINE_COLORS: Record<string, string> = {
@@ -51,7 +53,7 @@ const GROUPS_ORDER = [
   { title: 'Reste',            keywords: ['rope','tack pin','hook and loop','divers','opp bag'], isFallback: true },
 ];
 
-export default function GeneralCategoriesView({ articles = [], generalCategories, subCategories, onSelectGeneralCategory }: GeneralCategoriesViewProps) {
+export default function GeneralCategoriesView({ articles = [], generalCategories, subCategories, onSelectGeneralCategory, onManageQualities }: GeneralCategoriesViewProps) {
   const { user } = useUser();
   const firestore = useFirestore();
   const { toast } = useToast();
@@ -87,14 +89,19 @@ export default function GeneralCategoriesView({ articles = [], generalCategories
     const stats: Record<string, any> = {};
 
     generalCategories.forEach(gc => {
-      const subCatNames = subCategories
-        .filter(sc => sc.generalCategoryId === gc.id)
-        .map(sc => sc.name);
+      const familiesInPole = subCategories.filter(sc => sc.generalCategoryId === gc.id);
+      const subCatNames = familiesInPole.map(sc => sc.name);
 
       const groupArticles = articles.filter(a =>
         a.generalCategoryId === gc.id ||
         subCatNames.includes(a.categoryId)
       );
+
+      const specType = detectSpecType(gc);
+      const qualitiesCount = countQualities(gc, specType) +
+        familiesInPole.reduce((s, fam) => s + countQualities(fam, specType), 0);
+      const hasSpecModel = !!specType && specType !== 'none';
+      const qualitiesConfigured = hasSpecModel && qualitiesCount > 0;
 
       let totalValue = 0;
 
@@ -120,6 +127,10 @@ export default function GeneralCategoriesView({ articles = [], generalCategories
         nextArrival,
         totalValue,
         line: (gc as any).line,
+        specType,
+        hasSpecModel,
+        qualitiesCount,
+        qualitiesConfigured,
       };
     });
     return stats;
@@ -127,11 +138,14 @@ export default function GeneralCategoriesView({ articles = [], generalCategories
 
   // Global KPIs
   const globalKPIs = useMemo(() => {
-    const totalValue = Object.values(groupStats).reduce((s: number, st: any) => s + st.totalValue, 0);
+    const allStats = Object.values(groupStats) as any[];
+    const totalValue = allStats.reduce((s: number, st: any) => s + st.totalValue, 0);
     const totalGroups = generalCategories.length;
     const totalFamilies = subCategories.length;
-    const activeLines = Object.values(groupStats).filter((st: any) => st.nextArrival !== '-').length;
-    return { totalValue, totalGroups, totalFamilies, activeLines };
+    const activeLines = allStats.filter((st: any) => st.nextArrival !== '-').length;
+    const polesWithSpecModel = allStats.filter((st: any) => st.hasSpecModel);
+    const polesMissingQualities = polesWithSpecModel.filter((st: any) => !st.qualitiesConfigured).length;
+    return { totalValue, totalGroups, totalFamilies, activeLines, polesMissingQualities };
   }, [groupStats, generalCategories, subCategories]);
 
   const organizedCategories = useMemo(() => {
@@ -186,6 +200,14 @@ export default function GeneralCategoriesView({ articles = [], generalCategories
 
     const allGroups = [...result, ...Array.from(customGroupsMap.values())];
     const filtered = allGroups.filter(g => g.items.length > 0);
+    filtered.forEach(g => {
+      g.items.sort((a: any, b: any) => {
+        const aMissing = a.stats?.hasSpecModel && !a.stats?.qualitiesConfigured ? 1 : 0;
+        const bMissing = b.stats?.hasSpecModel && !b.stats?.qualitiesConfigured ? 1 : 0;
+        if (aMissing !== bMissing) return bMissing - aMissing;
+        return (b.stats?.totalValue || 0) - (a.stats?.totalValue || 0);
+      });
+    });
     filtered.sort((a, b) => {
       const aTotal = a.items.reduce((s: number, i: any) => s + (i.stats?.totalValue || 0), 0);
       const bTotal = b.items.reduce((s: number, i: any) => s + (i.stats?.totalValue || 0), 0);
@@ -329,12 +351,15 @@ export default function GeneralCategoriesView({ articles = [], generalCategories
           </div>
 
           {/* Global KPIs */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 w-full lg:w-auto">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 w-full lg:w-auto">
             {[
               { label: 'Pôles', value: globalKPIs.totalGroups, icon: BarChart3, color: 'text-amber-400' },
               { label: 'Familles', value: globalKPIs.totalFamilies, icon: Layers, color: 'text-blue-400' },
               { label: 'Flux Actifs', value: globalKPIs.activeLines, icon: Truck, color: 'text-emerald-400' },
               { label: 'Valeur Totale', value: `${(globalKPIs.totalValue / 1000).toFixed(1)}k $`, icon: DollarSign, color: 'text-violet-400' },
+              globalKPIs.polesMissingQualities > 0
+                ? { label: 'Qualités à Configurer', value: globalKPIs.polesMissingQualities, icon: AlertTriangle, color: 'text-red-400' }
+                : { label: 'Qualités OK', value: '✓', icon: Sparkles, color: 'text-fuchsia-400' },
             ].map(({ label, value, icon: Icon, color }) => (
               <div key={label} className="bg-white/5 border border-white/10 rounded-xl p-4 backdrop-blur-md text-center">
                 <Icon className={`w-4 h-4 ${color} mx-auto mb-2`} />
@@ -490,11 +515,30 @@ export default function GeneralCategoriesView({ articles = [], generalCategories
                                 FR (Stock) : {gc.nameFR}
                               </p>
                             )}
-                            <div className="flex items-center gap-1 mt-1">
-                              {gc.specType === 'fabric' && <span className="px-1.5 py-0.5 rounded bg-violet-100 text-violet-700 text-[8px] font-black uppercase">🧵 Spé Fabric</span>}
-                              {gc.specType === 'zipper' && <span className="px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 text-[8px] font-black uppercase">⚡ Spé Zipper</span>}
-                              {gc.specType === 'thread' && <span className="px-1.5 py-0.5 rounded bg-teal-100 text-teal-700 text-[8px] font-black uppercase">🪡 Spé Thread</span>}
-                              {gc.specType === 'slider' && <span className="px-1.5 py-0.5 rounded bg-blue-100 text-blue-700 text-[8px] font-black uppercase">🎛️ Spé Slider</span>}
+                            <div className="flex items-center flex-wrap gap-1 mt-1">
+                              {stats.specType && SPEC_BADGES[stats.specType] && (
+                                <span className={`px-1.5 py-0.5 rounded ${SPEC_BADGES[stats.specType].bg} ${SPEC_BADGES[stats.specType].text} text-[8px] font-black uppercase`}>
+                                  {SPEC_BADGES[stats.specType].emoji} {SPEC_BADGES[stats.specType].label}
+                                </span>
+                              )}
+                              {stats.hasSpecModel && (
+                                <button
+                                  type="button"
+                                  onClick={(e) => { e.stopPropagation(); onManageQualities?.(stats.specType, gc.id); }}
+                                  className={onManageQualities ? 'cursor-pointer' : 'cursor-default'}
+                                  title={onManageQualities ? 'Gérer les qualités de ce pôle' : undefined}
+                                >
+                                  {stats.qualitiesConfigured ? (
+                                    <span className="px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-700 text-[8px] font-black uppercase flex items-center gap-0.5 hover:bg-emerald-200 transition-colors">
+                                      <Sparkles className="w-2 h-2" /> {stats.qualitiesCount} qualités
+                                    </span>
+                                  ) : (
+                                    <span className="px-1.5 py-0.5 rounded bg-red-100 text-red-700 text-[8px] font-black uppercase flex items-center gap-0.5 hover:bg-red-200 transition-colors">
+                                      <AlertTriangle className="w-2 h-2" /> À configurer
+                                    </span>
+                                  )}
+                                </button>
+                              )}
                             </div>
                           </div>
 

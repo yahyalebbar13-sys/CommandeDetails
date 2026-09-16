@@ -6,6 +6,7 @@ import DashboardView from '@/components/dashboard-view';
 import FacturesView from '@/components/factures-view';
 import GeneralCategoriesView from '@/components/general-categories-view';
 import CategoriesView from '@/components/categories-view';
+import QualitiesManagerView from '@/components/qualities-manager-view';
 import SuppliersView from '@/components/suppliers-view';
 import DataView from '@/components/data-view';
 import PendingOrdersView from '@/components/pending-orders-view';
@@ -32,7 +33,7 @@ import { Button } from '@/components/ui/button';
 import {
   LogOut, Loader2, Layers, Plus, Database,
   LayoutDashboard, ClipboardList, Factory, Truck,
-  Anchor, UserCheck, Menu, Timer, Calculator, Package, ShieldOff, ShoppingCart, FileCheck, Table2, TrendingUp, ReceiptText, FileDown, History, ChevronDown, Mail
+  Anchor, UserCheck, Menu, Timer, Calculator, Package, ShieldOff, ShoppingCart, FileCheck, Table2, TrendingUp, ReceiptText, FileDown, History, ChevronDown, Mail, Sparkles
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useUser, useFirebase, useCollection, useMemoFirebase } from '@/firebase';
@@ -407,6 +408,7 @@ function AdminApp() {
   const [selectedFactureId, setSelectedFactureId] = useState<string | null>(null);
   const [selectedGeneralCategoryId, setSelectedGeneralCategoryId] = useState<string | null>(null);
   const [selectedCategoryName, setSelectedCategoryName] = useState<string | null>(null);
+  const [qualitiesFocus, setQualitiesFocus] = useState<{ specType: string; poleId: string } | null>(null);
   const [isOrderModalOpen, setIsOrderModalOpen] = useState(false);
   const [editingArticle, setEditingArticle] = useState<any | null>(null);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -484,6 +486,7 @@ function AdminApp() {
       { id: 'suppliers', label: 'Partenaires',  icon: UserCheck },
       { id: 'emails',    label: 'Emails',       icon: Mail },
       { id: 'data',      label: 'Data Lab',     icon: Table2 },
+      { id: 'qualities', label: 'Qualités',     icon: Sparkles },
     ],
   ] as const;
 
@@ -650,7 +653,10 @@ function AdminApp() {
               <FacturesView articles={articles} factures={factures} subCategories={subCategories} selectedFactureId={selectedFactureId} setSelectedFactureId={setSelectedFactureId} onNavigateToCategory={(c) => { setPreviousTab('factures'); setSelectedCategoryName(c); setActiveTab('categories'); }} onBack={() => { setSelectedFactureId(null); if (previousTab) { setActiveTab(previousTab); setPreviousTab(null); } }} onPassToStock={setPassToStockFactureId} />
             </div>
             <div className={activeTab === 'general-categories' ? 'block animate-in fade-in' : 'hidden'}>
-              <GeneralCategoriesView articles={articles} generalCategories={generalCategories} subCategories={subCategories} onSelectGeneralCategory={(id) => { setPreviousTab(activeTab); setSelectedGeneralCategoryId(id); setActiveTab(id ? 'categories' : 'general-categories'); }} />
+              <GeneralCategoriesView articles={articles} generalCategories={generalCategories} subCategories={subCategories} onSelectGeneralCategory={(id) => { setPreviousTab(activeTab); setSelectedGeneralCategoryId(id); setActiveTab(id ? 'categories' : 'general-categories'); }} onManageQualities={(specType, poleId) => { setQualitiesFocus({ specType, poleId }); setActiveTab('qualities'); }} />
+            </div>
+            <div className={activeTab === 'qualities' ? 'block animate-in fade-in' : 'hidden'}>
+              <QualitiesManagerView generalCategories={generalCategories} subCategories={subCategories} initialSpecType={qualitiesFocus?.specType ?? null} highlightPoleId={qualitiesFocus?.poleId ?? null} />
             </div>
             <div className={activeTab === 'categories' ? 'block animate-in fade-in' : 'hidden'}>
               <CategoriesView articles={articles} factures={factures} generalCategories={generalCategories} subCategories={subCategories} selectedCategory={selectedCategoryName} setSelectedCategory={setSelectedCategoryName} selectedGeneralCategoryId={selectedGeneralCategoryId} onSelectGeneralCategory={(id) => { setSelectedGeneralCategoryId(id); if (!id) { if (previousTab) setActiveTab(previousTab); else setActiveTab('general-categories'); setPreviousTab(null); } else { setActiveTab('categories'); } }} onBackToGroupes={() => { setSelectedCategoryName(null); if (previousTab === 'factures') { setActiveTab('factures'); setPreviousTab(null); } }} />

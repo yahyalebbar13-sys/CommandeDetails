@@ -836,8 +836,19 @@ export default function CategoriesView({
     else if (type === 'tape') fieldKey = 'tapeQualities';
     else if (type === 'accessory') fieldKey = 'accessoryQualities';
 
-    const existingList: any[] = Array.isArray((currentCategoryObj as any)[fieldKey])
-      ? [...(currentCategoryObj as any)[fieldKey]]
+    // Une qualité ajoutée depuis la page "Qualités" (niveau pôle) porte __poleId — il faut alors
+    // écrire sur le document du pôle (generalCategories), pas sur celui de la famille, sinon
+    // l'édition semble fonctionner (toast succès) mais ne modifie jamais la vraie source.
+    const targetPoleId = (originalQuality as any).__poleId as string | undefined;
+    const targetDocRef = targetPoleId
+      ? doc(firestore, 'users', user.uid, 'generalCategories', targetPoleId)
+      : doc(firestore, 'users', user.uid, 'categories', catId);
+    const targetSource: any = targetPoleId
+      ? generalCategories.find(g => g.id === targetPoleId)
+      : currentCategoryObj;
+
+    const existingList: any[] = Array.isArray(targetSource?.[fieldKey])
+      ? [...targetSource[fieldKey]]
       : [];
 
     const idx = existingList.findIndex((q: any) => {
@@ -857,6 +868,7 @@ export default function CategoriesView({
     delete cleanedQuality.totalQty;
     delete cleanedQuality.totalValue;
     delete cleanedQuality.suppliers;
+    delete cleanedQuality.__poleId;
 
     if (idx >= 0) {
       existingList[idx] = cleanedQuality;
@@ -865,18 +877,21 @@ export default function CategoriesView({
     }
 
     try {
-      await updateDoc(doc(firestore, 'users', user.uid, 'categories', catId), {
+      await updateDoc(targetDocRef, {
         [fieldKey]: existingList
       });
 
-      setCustomsForm(p => ({
-        ...p,
-        [fieldKey]: existingList
-      }));
+      if (!targetPoleId) {
+        setCustomsForm(p => ({
+          ...p,
+          [fieldKey]: existingList
+        }));
+      }
 
-      // If slider and there's a matching subcollection design, keep it in sync
-      if (type === 'slider') {
-        const matchingDesign = categoryDesigns.find(d => 
+      // If slider and there's a matching subcollection design, keep it in sync (famille uniquement —
+      // les designs vivent dans une sous-collection de la famille, pas du pôle)
+      if (type === 'slider' && !targetPoleId) {
+        const matchingDesign = categoryDesigns.find(d =>
           (d.ref && originalQuality.label && d.ref.toLowerCase() === originalQuality.label.toLowerCase()) ||
           (d.imageUrl && originalQuality.imageUrl && d.imageUrl === originalQuality.imageUrl)
         );
@@ -912,8 +927,18 @@ export default function CategoriesView({
     else if (type === 'tape') fieldKey = 'tapeQualities';
     else if (type === 'accessory') fieldKey = 'accessoryQualities';
 
-    const existingList: any[] = Array.isArray((currentCategoryObj as any)[fieldKey])
-      ? [...(currentCategoryObj as any)[fieldKey]]
+    // Même logique que la sauvegarde : une qualité venant du pôle doit être supprimée du
+    // document du pôle, pas de celui de la famille.
+    const targetPoleId = (quality as any).__poleId as string | undefined;
+    const targetDocRef = targetPoleId
+      ? doc(firestore, 'users', user.uid, 'generalCategories', targetPoleId)
+      : doc(firestore, 'users', user.uid, 'categories', catId);
+    const targetSource: any = targetPoleId
+      ? generalCategories.find(g => g.id === targetPoleId)
+      : currentCategoryObj;
+
+    const existingList: any[] = Array.isArray(targetSource?.[fieldKey])
+      ? [...targetSource[fieldKey]]
       : [];
 
     const updatedList = existingList.filter((q: any) => {
@@ -929,18 +954,20 @@ export default function CategoriesView({
     });
 
     try {
-      await updateDoc(doc(firestore, 'users', user.uid, 'categories', catId), {
+      await updateDoc(targetDocRef, {
         [fieldKey]: updatedList
       });
 
-      setCustomsForm(p => ({
-        ...p,
-        [fieldKey]: updatedList
-      }));
+      if (!targetPoleId) {
+        setCustomsForm(p => ({
+          ...p,
+          [fieldKey]: updatedList
+        }));
+      }
 
-      // If slider and matching design exists in subcollection, remove it as well
-      if (type === 'slider') {
-        const matchingDesign = categoryDesigns.find(d => 
+      // If slider and matching design exists in subcollection, remove it as well (famille uniquement)
+      if (type === 'slider' && !targetPoleId) {
+        const matchingDesign = categoryDesigns.find(d =>
           (d.ref && quality.label && d.ref.toLowerCase() === quality.label.toLowerCase()) ||
           (d.imageUrl && quality.imageUrl && d.imageUrl === quality.imageUrl)
         );
@@ -2488,9 +2515,9 @@ export default function CategoriesView({
           const genCat = generalCategories.find(g => g.id === (selectedGeneralCategoryId || currentCategoryObj?.generalCategoryId));
           const rawQualities = [
             ...(Array.isArray(currentCategoryObj?.fabricQualities) ? currentCategoryObj.fabricQualities : []),
-            ...(Array.isArray(genCat?.fabricQualities) ? genCat!.fabricQualities! : [])
+            ...(Array.isArray(genCat?.fabricQualities) ? genCat!.fabricQualities!.map((q: any) => ({ ...q, __poleId: genCat!.id })) : [])
           ];
-          const qualities = rawQualities.filter((q, idx, arr) => 
+          const qualities = rawQualities.filter((q, idx, arr) =>
             arr.findIndex(x => (x.label && x.label === q.label) || (x.gsm && x.gsm === q.gsm && x.fabricWidth && x.fabricWidth === q.fabricWidth)) === idx
           );
           
@@ -2618,7 +2645,7 @@ export default function CategoriesView({
           const genCat = generalCategories.find(g => g.id === (selectedGeneralCategoryId || currentCategoryObj?.generalCategoryId));
           const rawQualities = [
             ...(Array.isArray(currentCategoryObj?.zipperQualities) ? currentCategoryObj.zipperQualities : []),
-            ...(Array.isArray(genCat?.zipperQualities) ? genCat!.zipperQualities! : [])
+            ...(Array.isArray(genCat?.zipperQualities) ? genCat!.zipperQualities!.map((q: any) => ({ ...q, __poleId: genCat!.id })) : [])
           ];
           const qualities = rawQualities
             .filter(q => Boolean(q.length || q.slider || q.tapeWeightGsm || q.sliderWeightG || q.pcsPerBag || q.bagsPerCarton || q.nameFR || (q.label && q.label !== 'C/E · (A/L)' && q.label !== 'Qualité Zipper')))
@@ -2810,7 +2837,7 @@ export default function CategoriesView({
           const genCat = generalCategories.find(g => g.id === (selectedGeneralCategoryId || currentCategoryObj?.generalCategoryId));
           const rawQualities = [
             ...(Array.isArray(currentCategoryObj?.threadQualities) ? currentCategoryObj.threadQualities : []),
-            ...(Array.isArray(genCat?.threadQualities) ? genCat!.threadQualities! : [])
+            ...(Array.isArray(genCat?.threadQualities) ? genCat!.threadQualities!.map((q: any) => ({ ...q, __poleId: genCat!.id })) : [])
           ];
           const qualities = rawQualities.filter((q, idx, arr) => 
             arr.findIndex(x => (x.label && x.label === q.label)) === idx
@@ -2952,7 +2979,7 @@ export default function CategoriesView({
           const genCat = generalCategories.find(g => g.id === (selectedGeneralCategoryId || currentCategoryObj?.generalCategoryId));
           const rawQualities: any[] = [
             ...(Array.isArray(currentCategoryObj?.sliderQualities) ? currentCategoryObj.sliderQualities : []),
-            ...(Array.isArray(genCat?.sliderQualities) ? genCat!.sliderQualities! : [])
+            ...(Array.isArray(genCat?.sliderQualities) ? genCat!.sliderQualities!.map((q: any) => ({ ...q, __poleId: genCat!.id })) : [])
           ];
 
           // Synergy: include designs from category subcollection that might not be in sliderQualities yet
@@ -3197,7 +3224,7 @@ export default function CategoriesView({
           const genCat = generalCategories.find(g => g.id === (selectedGeneralCategoryId || currentCategoryObj?.generalCategoryId));
           const rawQualities: any[] = [
             ...(Array.isArray(currentCategoryObj?.tapeQualities) ? currentCategoryObj.tapeQualities : []),
-            ...(Array.isArray(genCat?.tapeQualities) ? genCat!.tapeQualities! : [])
+            ...(Array.isArray(genCat?.tapeQualities) ? genCat!.tapeQualities!.map((q: any) => ({ ...q, __poleId: genCat!.id })) : [])
           ];
 
           // Deduplicate
@@ -3373,7 +3400,7 @@ export default function CategoriesView({
 
           const rawQualities: any[] = [
             ...(Array.isArray(currentCategoryObj?.accessoryQualities) ? currentCategoryObj.accessoryQualities : []),
-            ...(Array.isArray(genCat?.accessoryQualities) ? genCat!.accessoryQualities! : []),
+            ...(Array.isArray(genCat?.accessoryQualities) ? genCat!.accessoryQualities!.map((q: any) => ({ ...q, __poleId: genCat!.id })) : []),
             ...linePolesQualities,
             ...allAccessoryCatQualities
           ];
@@ -6289,12 +6316,11 @@ export default function CategoriesView({
                       Grammage curseur (g)
                     </Label>
                     <Input
-                      type="number"
-                      step="any"
+                      type="text"
                       className="h-9 text-xs font-bold rounded-xl border-stone-200"
                       placeholder="ex: 2.35"
                       value={editingQualityModal.form.sliderWeightG ?? ''}
-                      onChange={e => setEditingQualityModal(p => ({ ...p, form: { ...p.form, sliderWeightG: e.target.value === '' ? '' : Number(e.target.value) } }))}
+                      onChange={e => setEditingQualityModal(p => ({ ...p, form: { ...p.form, sliderWeightG: e.target.value } }))}
                     />
                   </div>
                 </div>
@@ -6337,12 +6363,11 @@ export default function CategoriesView({
                       Poids cône (g)
                     </Label>
                     <Input
-                      type="number"
-                      step="any"
+                      type="text"
                       className="h-9 text-xs font-bold rounded-xl border-stone-200"
                       placeholder="ex: 10"
                       value={editingQualityModal.form.coneWeightG ?? ''}
-                      onChange={e => setEditingQualityModal(p => ({ ...p, form: { ...p.form, coneWeightG: e.target.value === '' ? '' : Number(e.target.value) } }))}
+                      onChange={e => setEditingQualityModal(p => ({ ...p, form: { ...p.form, coneWeightG: e.target.value } }))}
                     />
                   </div>
                   <div className="space-y-1">
@@ -6350,12 +6375,11 @@ export default function CategoriesView({
                       Poids fil (g)
                     </Label>
                     <Input
-                      type="number"
-                      step="any"
+                      type="text"
                       className="h-9 text-xs font-bold rounded-xl border-stone-200"
                       placeholder="ex: 140"
                       value={editingQualityModal.form.threadWeightG ?? ''}
-                      onChange={e => setEditingQualityModal(p => ({ ...p, form: { ...p.form, threadWeightG: e.target.value === '' ? '' : Number(e.target.value) } }))}
+                      onChange={e => setEditingQualityModal(p => ({ ...p, form: { ...p.form, threadWeightG: e.target.value } }))}
                     />
                   </div>
                 </div>
@@ -6366,12 +6390,11 @@ export default function CategoriesView({
                       Longueur / pièce
                     </Label>
                     <Input
-                      type="number"
-                      step="any"
+                      type="text"
                       className="h-9 text-xs font-bold rounded-xl border-stone-200"
                       placeholder="ex: 5000"
                       value={editingQualityModal.form.lengthPerPiece ?? ''}
-                      onChange={e => setEditingQualityModal(p => ({ ...p, form: { ...p.form, lengthPerPiece: e.target.value === '' ? '' : Number(e.target.value) } }))}
+                      onChange={e => setEditingQualityModal(p => ({ ...p, form: { ...p.form, lengthPerPiece: e.target.value } }))}
                     />
                   </div>
                   <div className="space-y-1">
@@ -6542,12 +6565,11 @@ export default function CategoriesView({
                       Grammage (g/m²)
                     </Label>
                     <Input
-                      type="number"
-                      step="any"
+                      type="text"
                       className="h-9 text-xs font-bold rounded-xl border-stone-200"
-                      placeholder="ex: 180"
+                      placeholder="ex: 180 ou 25+7"
                       value={editingQualityModal.form.gsm ?? ''}
-                      onChange={e => setEditingQualityModal(p => ({ ...p, form: { ...p.form, gsm: e.target.value === '' ? '' : Number(e.target.value) } }))}
+                      onChange={e => setEditingQualityModal(p => ({ ...p, form: { ...p.form, gsm: e.target.value } }))}
                     />
                   </div>
                   <div className="space-y-1">
@@ -6633,12 +6655,11 @@ export default function CategoriesView({
                       Poids/m (g/m)
                     </Label>
                     <Input
-                      type="number"
-                      step="any"
+                      type="text"
                       className="h-9 text-xs font-bold rounded-xl border-stone-200"
                       placeholder="ex: 12.5"
                       value={editingQualityModal.form.weightPerM ?? ''}
-                      onChange={e => setEditingQualityModal(p => ({ ...p, form: { ...p.form, weightPerM: e.target.value === '' ? '' : Number(e.target.value) } }))}
+                      onChange={e => setEditingQualityModal(p => ({ ...p, form: { ...p.form, weightPerM: e.target.value } }))}
                     />
                   </div>
                 </div>
@@ -6648,12 +6669,11 @@ export default function CategoriesView({
                     Longueur / roll (m)
                   </Label>
                   <Input
-                    type="number"
-                    step="any"
+                    type="text"
                     className="h-9 text-xs font-bold rounded-xl border-stone-200"
                     placeholder="ex: 50"
                     value={editingQualityModal.form.rollLength ?? ''}
-                    onChange={e => setEditingQualityModal(p => ({ ...p, form: { ...p.form, rollLength: e.target.value === '' ? '' : Number(e.target.value) } }))}
+                    onChange={e => setEditingQualityModal(p => ({ ...p, form: { ...p.form, rollLength: e.target.value } }))}
                   />
                 </div>
 
@@ -6663,11 +6683,11 @@ export default function CategoriesView({
                       Roll / shrink
                     </Label>
                     <Input
-                      type="number"
+                      type="text"
                       className="h-9 text-xs font-bold rounded-xl border-stone-200"
                       placeholder="ex: 5"
                       value={editingQualityModal.form.rollsPerShrink ?? ''}
-                      onChange={e => setEditingQualityModal(p => ({ ...p, form: { ...p.form, rollsPerShrink: e.target.value === '' ? '' : Number(e.target.value) } }))}
+                      onChange={e => setEditingQualityModal(p => ({ ...p, form: { ...p.form, rollsPerShrink: e.target.value } }))}
                     />
                   </div>
                   <div className="space-y-1">
@@ -6675,11 +6695,11 @@ export default function CategoriesView({
                       Rolls / ctn (carton)
                     </Label>
                     <Input
-                      type="number"
+                      type="text"
                       className="h-9 text-xs font-bold rounded-xl border-stone-200"
                       placeholder="ex: 50"
                       value={editingQualityModal.form.rollsPerCarton ?? ''}
-                      onChange={e => setEditingQualityModal(p => ({ ...p, form: { ...p.form, rollsPerCarton: e.target.value === '' ? '' : Number(e.target.value) } }))}
+                      onChange={e => setEditingQualityModal(p => ({ ...p, form: { ...p.form, rollsPerCarton: e.target.value } }))}
                     />
                   </div>
                 </div>
@@ -6719,12 +6739,11 @@ export default function CategoriesView({
                     Poids / pc (g)
                   </Label>
                   <Input
-                    type="number"
-                    step="any"
+                    type="text"
                     className="h-9 text-xs font-bold rounded-xl border-stone-200"
                     placeholder="ex: 12.5"
                     value={editingQualityModal.form.weightPerPiece ?? ''}
-                    onChange={e => setEditingQualityModal(p => ({ ...p, form: { ...p.form, weightPerPiece: e.target.value === '' ? '' : Number(e.target.value) } }))}
+                    onChange={e => setEditingQualityModal(p => ({ ...p, form: { ...p.form, weightPerPiece: e.target.value } }))}
                   />
                 </div>
 
@@ -6734,11 +6753,11 @@ export default function CategoriesView({
                       Pcs / box (boîte / sachet)
                     </Label>
                     <Input
-                      type="number"
+                      type="text"
                       className="h-9 text-xs font-bold rounded-xl border-stone-200"
                       placeholder="ex: 100"
                       value={editingQualityModal.form.pcsPerBox ?? ''}
-                      onChange={e => setEditingQualityModal(p => ({ ...p, form: { ...p.form, pcsPerBox: e.target.value === '' ? '' : Number(e.target.value) } }))}
+                      onChange={e => setEditingQualityModal(p => ({ ...p, form: { ...p.form, pcsPerBox: e.target.value } }))}
                     />
                   </div>
                   <div className="space-y-1">
@@ -6746,11 +6765,11 @@ export default function CategoriesView({
                       Box / ctn (boîtes par carton)
                     </Label>
                     <Input
-                      type="number"
+                      type="text"
                       className="h-9 text-xs font-bold rounded-xl border-stone-200"
                       placeholder="ex: 10"
                       value={editingQualityModal.form.boxPerCarton ?? ''}
-                      onChange={e => setEditingQualityModal(p => ({ ...p, form: { ...p.form, boxPerCarton: e.target.value === '' ? '' : Number(e.target.value) } }))}
+                      onChange={e => setEditingQualityModal(p => ({ ...p, form: { ...p.form, boxPerCarton: e.target.value } }))}
                     />
                   </div>
                 </div>
