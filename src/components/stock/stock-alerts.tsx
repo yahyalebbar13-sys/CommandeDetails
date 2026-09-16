@@ -26,9 +26,10 @@ interface StockAlertsProps {
   onNavigate: (v: StockView) => void;
   adminUid?: string | null;
   onAddMovement: (m: Omit<StockMovement, 'id' | 'createdAt'>) => Promise<void>;
+  readOnly?: boolean;
 }
 
-export default function StockAlerts({ stockItems, articles, categories, movements, activeStore, onNavigate, adminUid, onAddMovement }: StockAlertsProps) {
+export default function StockAlerts({ stockItems, articles, categories, movements, activeStore, onNavigate, adminUid, onAddMovement, readOnly = false }: StockAlertsProps) {
   const { user } = useUser();
   const firestore = useFirestore();
   const { toast } = useToast();
@@ -145,7 +146,7 @@ export default function StockAlerts({ stockItems, articles, categories, movement
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {ruptureItems.map(item => (
-              <AlertCard key={item.articleId} item={item} level="rupture"
+              <AlertCard key={item.articleId} item={item} level="rupture" readOnly={readOnly}
                 onOrder={() => { setMovementItem(item); setMovementModalOpen(true); }}
                 onThreshold={() => { setThresholdItem(item); setThresholdValue(String(item.minThreshold || '')); }}
               />
@@ -166,7 +167,7 @@ export default function StockAlerts({ stockItems, articles, categories, movement
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {lowStockItems.filter(i => i.currentQty > 0).map(item => (
-              <AlertCard key={item.articleId} item={item} level="low"
+              <AlertCard key={item.articleId} item={item} level="low" readOnly={readOnly}
                 onOrder={() => { setMovementItem(item); setMovementModalOpen(true); }}
                 onThreshold={() => { setThresholdItem(item); setThresholdValue(String(item.minThreshold || '')); }}
               />
@@ -290,11 +291,12 @@ export default function StockAlerts({ stockItems, articles, categories, movement
 }
 
 // ─── Alert Card ───────────────────────────────────────────────────────────────
-function AlertCard({ item, level, onOrder, onThreshold }: {
+function AlertCard({ item, level, onOrder, onThreshold, readOnly = false }: {
   item: StockItem;
   level: 'rupture' | 'low';
   onOrder: () => void;
   onThreshold: () => void;
+  readOnly?: boolean;
 }) {
   const pct = item.minThreshold ? Math.round((item.currentQty / item.minThreshold) * 100) : 0;
   const isRupture = level === 'rupture';
@@ -339,12 +341,14 @@ function AlertCard({ item, level, onOrder, onThreshold }: {
         </div>
 
         <div className="flex gap-2 pt-1">
-          <Button onClick={onOrder} size="sm"
-            className="flex-1 h-8 bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-black uppercase tracking-wider rounded-xl gap-1">
-            <Plus className="w-3 h-3" /> Entrée
-          </Button>
+          {!readOnly && (
+            <Button onClick={onOrder} size="sm"
+              className="flex-1 h-8 bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-black uppercase tracking-wider rounded-xl gap-1">
+              <Plus className="w-3 h-3" /> Entrée
+            </Button>
+          )}
           <Button onClick={onThreshold} size="sm" variant="outline"
-            className="h-8 px-3 text-[11px] font-black uppercase tracking-wider rounded-xl border-stone-200 hover:border-emerald-400">
+            className={`h-8 px-3 text-[11px] font-black uppercase tracking-wider rounded-xl border-stone-200 hover:border-emerald-400 ${readOnly ? 'flex-1' : ''}`}>
             <Settings className="w-3 h-3" />
           </Button>
         </div>

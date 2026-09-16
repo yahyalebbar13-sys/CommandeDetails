@@ -71,14 +71,10 @@ function getInitialQtyForStore(item: any, activeStore: string, userStoreId: stri
     return 0;
   }
 
-  // Vue Globale admin : seul le stock des entrepôts compte. Le stock des
-  // magasins (CHRIFA, Derb Omar, IDAA) tourne trop vite pour être pertinent
-  // au niveau global — il reste visible uniquement dans la vue du magasin.
+  // Vue Globale admin : total tous magasins + entrepôts confondus, pour
+  // repérer les ruptures partout (CHRIFA, Derb Omar, IDAA, entrepôts).
   if (activeStore === 'ALL') {
-    return Object.entries(byStore).reduce((sum, [sId, val]) => {
-      if (isWarehouseStore(sId, stores)) return sum + (Number(val) || 0);
-      return sum;
-    }, 0);
+    return Object.values(byStore).reduce((sum: number, val: any) => sum + (Number(val) || 0), 0);
   }
 
   if (activeStore === 'ALL_MAIN') {
@@ -145,8 +141,8 @@ export function computeStockItems(
   const isVisibleForUser = (storeId: string | undefined) => {
     const sId = storeId || 'CHRIFA';
 
-    // Vue Globale admin : seul le stock des entrepôts compte (voir getInitialQtyForStore).
-    if (activeStore === 'ALL') return isWarehouseStore(sId, stores);
+    // Vue Globale admin : tout compte, tous magasins + entrepôts (voir getInitialQtyForStore).
+    if (activeStore === 'ALL') return true;
 
     if (activeStore === 'ALL_MAIN') {
       return sId === userStoreId || (!userStoreId && sId === 'CHRIFA');
@@ -1852,8 +1848,10 @@ export default function StockApp() {
     }
 
     return navItemsRaw.filter(item => {
-      // Pour ADMIN : supprimer totalement Caisse et Frais & Dépenses
-      if (userRole === 'ADMIN' && (item.id === 'sale' || item.id === 'expenses')) return false;
+      // Pour ADMIN : supprimer totalement Caisse, Frais & Dépenses, Arrivages et Transferts.
+      // L'admin n'a qu'une vue lecture du stock : les arrivages se valident depuis /gestion,
+      // et les transferts/mouvements ne sont pas de son ressort.
+      if (userRole === 'ADMIN' && (item.id === 'sale' || item.id === 'expenses' || item.id === 'arrivals' || item.id === 'transfers')) return false;
       if (item.adminOnly && userRole !== 'ADMIN') return false;
       if (item.commercialOnly && userRole === 'ADMIN') return false;
       if (item.adminOrMainOnly && !isChrifaOrAdmin) return false;
@@ -1980,7 +1978,7 @@ export default function StockApp() {
                   </div>
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="ALL"><Globe className="inline w-3.5 h-3.5 mr-1.5 -mt-0.5" />Vue Globale (Entrepôts)</SelectItem>
+                  <SelectItem value="ALL"><Globe className="inline w-3.5 h-3.5 mr-1.5 -mt-0.5" />Vue Globale (Tous les magasins)</SelectItem>
                   {stores.filter(s => s.type !== 'WAREHOUSE').map(s => (
                     <SelectItem key={s.id} value={s.id}>
                       <StoreIcon className="inline w-3.5 h-3.5 mr-1.5 -mt-0.5" />Magasin {s.name}
@@ -2258,7 +2256,7 @@ export default function StockApp() {
               <BankReconciliationView payments={payments} clients={clients} />
             )}
             {activeView === 'movements' && (
-              <StockMovements activeStore={activeStore} movements={filteredMovements} stockItems={stockItems} categories={categories} articles={articles} stores={stores} onAddMovement={handleAddMovement} />
+              <StockMovements activeStore={activeStore} movements={filteredMovements} stockItems={stockItems} categories={categories} articles={articles} stores={stores} onAddMovement={handleAddMovement} readOnly={userRole === 'ADMIN'} />
             )}
             {activeView === 'inventory' && (
               <BlindInventory
@@ -2273,12 +2271,12 @@ export default function StockApp() {
               />
             )}
             {activeView === 'alerts' && (
-              <StockAlerts stockItems={stockItems} articles={articles} categories={categories} movements={filteredMovements} activeStore={activeStore} onNavigate={setActiveView} adminUid={adminUid} onAddMovement={handleAddMovement} />
+              <StockAlerts stockItems={stockItems} articles={articles} categories={categories} movements={filteredMovements} activeStore={activeStore} onNavigate={setActiveView} adminUid={adminUid} onAddMovement={handleAddMovement} readOnly={userRole === 'ADMIN'} />
             )}
             {activeView === 'audit' && (
               <AuditLogView entries={auditLogEntries} />
             )}
-            {activeView === 'transfers' && (
+            {activeView === 'transfers' && userRole !== 'ADMIN' && (
               <TransferOrdersView
                 transferOrders={filteredTransfers}
                 stockItems={stockItems}
@@ -2306,7 +2304,7 @@ export default function StockApp() {
             {activeView === 'stores' && userRole === 'ADMIN' && (
               <StoresView stores={stores} adminUid={adminUid} />
             )}
-            {activeView === 'arrivals' && (userRole === 'ADMIN' || isChrifaOrAdmin) && (() => {
+            {activeView === 'arrivals' && userRole !== 'ADMIN' && isChrifaOrAdmin && (() => {
               const tenDaysAgo = new Date();
               tenDaysAgo.setDate(tenDaysAgo.getDate() - 10);
               const tenDaysAgoStr = tenDaysAgo.toISOString().split('T')[0];
