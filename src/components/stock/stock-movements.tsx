@@ -19,6 +19,7 @@ interface StockMovementsProps {
   stores: any[];
   activeStore: StoreLocation | 'ALL';
   onAddMovement: (m: Omit<StockMovement, 'id' | 'createdAt'>) => Promise<void>;
+  readOnly?: boolean;
 }
 
 const TYPE_STYLE = {
@@ -32,7 +33,7 @@ const REASON_LABELS: Record<string, string> = {
   RETOUR: 'Retour', INVENTAIRE: 'Inventaire', TRANSFERT: 'Transfert',
 };
 
-export default function StockMovements({ movements, stockItems, categories, articles, stores, activeStore, onAddMovement }: StockMovementsProps) {
+export default function StockMovements({ movements, stockItems, categories, articles, stores, activeStore, onAddMovement, readOnly = false }: StockMovementsProps) {
   const [search, setSearch] = useState('');
   const [filterType, setFilterType] = useState<'all' | 'IN' | 'OUT' | 'ADJUSTMENT'>('all');
   const [filterCat, setFilterCat] = useState('all');
@@ -130,12 +131,14 @@ export default function StockMovements({ movements, stockItems, categories, arti
             >
               <Download className="w-4 h-4" /> PDF
             </Button>
-            <Button
-              onClick={() => setModalOpen(true)}
-              className="bg-emerald-600 hover:bg-emerald-500 text-white font-black uppercase text-[10px] tracking-widest px-5 h-11 rounded-2xl shadow-lg shadow-emerald-500/30 gap-2 shrink-0"
-            >
-              <Plus className="w-4 h-4" /> Enregistrer un mouvement
-            </Button>
+            {!readOnly && (
+              <Button
+                onClick={() => setModalOpen(true)}
+                className="bg-emerald-600 hover:bg-emerald-500 text-white font-black uppercase text-[10px] tracking-widest px-5 h-11 rounded-2xl shadow-lg shadow-emerald-500/30 gap-2 shrink-0"
+              >
+                <Plus className="w-4 h-4" /> Enregistrer un mouvement
+              </Button>
+            )}
           </div>
         </div>
       </div>

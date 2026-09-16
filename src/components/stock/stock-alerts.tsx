@@ -26,9 +26,10 @@ interface StockAlertsProps {
   onNavigate: (v: StockView) => void;
   adminUid?: string | null;
   onAddMovement: (m: Omit<StockMovement, 'id' | 'createdAt'>) => Promise<void>;
+  readOnly?: boolean;
 }
 
-export default function StockAlerts({ stockItems, articles, categories, movements, activeStore, onNavigate, adminUid, onAddMovement }: StockAlertsProps) {
+export default function StockAlerts({ stockItems, articles, categories, movements, activeStore, onNavigate, adminUid, onAddMovement, readOnly = false }: StockAlertsProps) {
   const { user } = useUser();
   const firestore = useFirestore();
   const { toast } = useToast();
@@ -38,18 +39,38 @@ export default function StockAlerts({ stockItems, articles, categories, movement
   const [movementItem, setMovementItem] = useState<StockItem | null>(null);
   const [movementModalOpen, setMovementModalOpen] = useState(false);
 
+  // Vue globale admin ('ALL') : currentQty n'agrège que le stock entrepôt (comportement
+  // volontaire ailleurs dans l'app — le stock magasin tourne trop vite pour la vue globale),
+  // donc une rupture réelle à CHRIFA/Derb Omar/IDAA reste invisible ici, voire faussement
+  // comptée à 0 alors que le magasin a du stock. Pour les articles avec un seuil configuré,
+  // on détecte donc les alertes magasin par magasin via qtyByStore (déjà calculé
+  // indépendamment de la vue active), sans changer le comportement des autres vues.
+  const perStoreTrackedRows = useMemo(() => {
+    if (activeStore !== 'ALL') return null;
+    const rows: (StockItem & { _storeLabel?: string })[] = [];
+    for (const item of stockItems) {
+      if (item.minThreshold == null) continue;
+      const byStore = item.qtyByStore;
+      if (!byStore || Object.keys(byStore).length === 0) continue;
+      for (const [storeId, qty] of Object.entries(byStore)) {
+        rows.push({ ...item, currentQty: Number(qty) || 0, _storeLabel: storeId } as any);
+      }
+    }
+    return rows;
+  }, [stockItems, activeStore]);
+
   // Alertes stock bas (sous seuil)
-  const lowStockItems = useMemo(() =>
-    stockItems.filter(i => i.minThreshold != null && i.currentQty <= i.minThreshold)
-      .sort((a, b) => (a.currentQty / (a.minThreshold || 1)) - (b.currentQty / (b.minThreshold || 1))),
-    [stockItems]
-  );
+  const lowStockItems = useMemo(() => {
+    const base = perStoreTrackedRows ?? stockItems;
+    return base.filter(i => i.minThreshold != null && i.currentQty <= i.minThreshold)
+      .sort((a, b) => (a.currentQty / (a.minThreshold || 1)) - (b.currentQty / (b.minThreshold || 1)));
+  }, [perStoreTrackedRows, stockItems]);
 
   // Ruptures totales
-  const ruptureItems = useMemo(() =>
-    stockItems.filter(i => i.currentQty === 0),
-    [stockItems]
-  );
+  const ruptureItems = useMemo(() => {
+    if (perStoreTrackedRows) return perStoreTrackedRows.filter(i => i.currentQty === 0);
+    return stockItems.filter(i => i.currentQty === 0);
+  }, [perStoreTrackedRows, stockItems]);
 
   // Items sans seuil configuré
   const noThresholdItems = useMemo(() =>
@@ -144,8 +165,8 @@ export default function StockAlerts({ stockItems, articles, categories, movement
             <span className="bg-red-100 text-red-700 text-[11px] font-black px-2 py-0.5 rounded-full uppercase">{ruptureItems.length}</span>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {ruptureItems.map(item => (
-              <AlertCard key={item.articleId} item={item} level="rupture"
+            {ruptureItems.map((item: any) => (
+              <AlertCard key={`${item.articleId}-${item._storeLabel || 'x'}`} item={item} level="rupture" readOnly={readOnly}
                 onOrder={() => { setMovementItem(item); setMovementModalOpen(true); }}
                 onThreshold={() => { setThresholdItem(item); setThresholdValue(String(item.minThreshold || '')); }}
               />
@@ -165,8 +186,8 @@ export default function StockAlerts({ stockItems, articles, categories, movement
             </span>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {lowStockItems.filter(i => i.currentQty > 0).map(item => (
-              <AlertCard key={item.articleId} item={item} level="low"
+            {lowStockItems.filter(i => i.currentQty > 0).map((item: any) => (
+              <AlertCard key={`${item.articleId}-${item._storeLabel || 'x'}`} item={item} level="low" readOnly={readOnly}
                 onOrder={() => { setMovementItem(item); setMovementModalOpen(true); }}
                 onThreshold={() => { setThresholdItem(item); setThresholdValue(String(item.minThreshold || '')); }}
               />
@@ -290,11 +311,12 @@ export default function StockAlerts({ stockItems, articles, categories, movement
 }
 
 // ─── Alert Card ───────────────────────────────────────────────────────────────
-function AlertCard({ item, level, onOrder, onThreshold }: {
+function AlertCard({ item, level, onOrder, onThreshold, readOnly = false }: {
   item: StockItem;
   level: 'rupture' | 'low';
   onOrder: () => void;
   onThreshold: () => void;
+  readOnly?: boolean;
 }) {
   const pct = item.minThreshold ? Math.round((item.currentQty / item.minThreshold) * 100) : 0;
   const isRupture = level === 'rupture';
@@ -317,9 +339,16 @@ function AlertCard({ item, level, onOrder, onThreshold }: {
               {item.size && <span className="text-[11px] font-bold bg-stone-100 text-stone-600 px-1 rounded uppercase">T. {item.size}</span>}
             </div>
           </div>
-          <span className={`shrink-0 text-[11px] font-black px-2 py-0.5 rounded-full uppercase ${isRupture ? 'bg-red-100 text-red-700' : 'bg-orange-100 text-orange-700'}`}>
-            {isRupture ? 'Rupture' : 'Bas'}
-          </span>
+          <div className="flex flex-col items-end gap-1 shrink-0">
+            <span className={`text-[11px] font-black px-2 py-0.5 rounded-full uppercase ${isRupture ? 'bg-red-100 text-red-700' : 'bg-orange-100 text-orange-700'}`}>
+              {isRupture ? 'Rupture' : 'Bas'}
+            </span>
+            {(item as any)._storeLabel && (
+              <span className="text-[10px] font-black px-2 py-0.5 rounded-full uppercase bg-stone-100 text-stone-500">
+                {String((item as any)._storeLabel).replace('_', ' ')}
+              </span>
+            )}
+          </div>
         </div>
 
         {/* Barre de niveau */}
@@ -339,13 +368,15 @@ function AlertCard({ item, level, onOrder, onThreshold }: {
         </div>
 
         <div className="flex gap-2 pt-1">
-          <Button onClick={onOrder} size="sm"
-            className="flex-1 h-8 bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-black uppercase tracking-wider rounded-xl gap-1">
-            <Plus className="w-3 h-3" /> Entrée
-          </Button>
+          {!readOnly && (
+            <Button onClick={onOrder} size="sm"
+              className="flex-1 h-8 bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-black uppercase tracking-wider rounded-xl gap-1">
+              <Plus className="w-3 h-3" /> Entrée
+            </Button>
+          )}
           <Button onClick={onThreshold} size="sm" variant="outline"
-            className="h-8 px-3 text-[11px] font-black uppercase tracking-wider rounded-xl border-stone-200 hover:border-emerald-400">
-            <Settings className="w-3 h-3" />
+            className={`h-8 px-3 text-[11px] font-black uppercase tracking-wider rounded-xl border-stone-200 hover:border-emerald-400 ${readOnly ? 'flex-1' : ''}`}>
+            <Settings className="w-3 h-3" /> {readOnly && 'Seuil'}
           </Button>
         </div>
       </div>
