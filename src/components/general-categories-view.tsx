@@ -103,6 +103,20 @@ export default function GeneralCategoriesView({ articles = [], generalCategories
       const hasSpecModel = !!specType && specType !== 'none';
       const qualitiesConfigured = hasSpecModel && qualitiesCount > 0;
 
+      // Diagnostic : si des qualités existent sous un AUTRE type que celui détecté pour ce
+      // pôle (ex: ligne mal renseignée), le badge affiche "à configurer" alors que des données
+      // réelles existent — on le détecte ici pour l'exposer dans le tooltip plutôt que de
+      // laisser l'incohérence invisible.
+      let qualitiesCountOtherType = 0;
+      let otherTypeDetected: string | null = null;
+      if (!qualitiesConfigured) {
+        for (const t of Object.keys(QUALITIES_FIELD_BY_SPEC)) {
+          if (t === specType) continue;
+          const c = countQualities(gc, t) + familiesInPole.reduce((s, fam) => s + countQualities(fam, t), 0);
+          if (c > qualitiesCountOtherType) { qualitiesCountOtherType = c; otherTypeDetected = t; }
+        }
+      }
+
       let totalValue = 0;
 
       const futureArrivals = groupArticles
@@ -131,6 +145,8 @@ export default function GeneralCategoriesView({ articles = [], generalCategories
         hasSpecModel,
         qualitiesCount,
         qualitiesConfigured,
+        qualitiesCountOtherType,
+        otherTypeDetected,
       };
     });
     return stats;
@@ -533,8 +549,12 @@ export default function GeneralCategoriesView({ articles = [], generalCategories
                                       <Sparkles className="w-2 h-2" /> {stats.qualitiesCount} qualités
                                     </span>
                                   ) : (
-                                    <span className="px-1.5 py-0.5 rounded bg-red-100 text-red-700 text-[8px] font-black uppercase flex items-center gap-0.5 hover:bg-red-200 transition-colors">
+                                    <span
+                                      className="px-1.5 py-0.5 rounded bg-red-100 text-red-700 text-[8px] font-black uppercase flex items-center gap-0.5 hover:bg-red-200 transition-colors"
+                                      title={stats.qualitiesCountOtherType > 0 ? `Type détecté pour ce pôle : ${stats.specType}. Mais ${stats.qualitiesCountOtherType} qualité(s) trouvée(s) sous le type "${stats.otherTypeDetected}" — la ligne du pôle est probablement mal renseignée.` : `Type détecté : ${stats.specType}. Aucune qualité (pôle ou famille) sous ce type.`}
+                                    >
                                       <AlertTriangle className="w-2 h-2" /> À configurer
+                                      {stats.qualitiesCountOtherType > 0 && ` (${stats.qualitiesCountOtherType} en "${stats.otherTypeDetected}")`}
                                     </span>
                                   )}
                                 </button>

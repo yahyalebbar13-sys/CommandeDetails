@@ -109,16 +109,21 @@ export function computeStockItems(
   generalCategories: any[] = [],
   factures: any[] = []
 ): StockItem[] {
-  // Arrivages de plus d'un mois : leur stock ne doit PAS être pris en compte (marchandise épuisée avant logiciel)
+  // Arrivages de plus d'un mois JAMAIS validés manuellement : leur stock ne doit PAS être pris
+  // en compte (marchandise probablement épuisée avant logiciel, jamais réellement entrée en stock).
+  // Mais un arrivage qui a un stockEntryDate explicite a été validé délibérément via "Finaliser
+  // l'Entrée" (/gestion → Arrivages) — même tardivement — donc ses mouvements sont réels et
+  // doivent compter, sinon l'entrée en stock manuelle est silencieusement ignorée.
   const oldFactureIds = new Set<string>();
   for (const f of (factures || [])) {
-    if (f?.id && isArrivalOlderThanOneMonth(f.arrivalDate)) {
+    if (f?.id && isArrivalOlderThanOneMonth(f.arrivalDate) && !f.stockEntryDate) {
       oldFactureIds.add(String(f.id));
     }
   }
 
   const isArticleFromOldArrival = (art: any) => {
     if (!art) return false;
+    if (art.stockEntryDate) return false;
     if (art.factureId && oldFactureIds.has(String(art.factureId))) return true;
     if (art.facture && oldFactureIds.has(String(art.facture))) return true;
     if (isArrivalOlderThanOneMonth(art.arrivalDate)) return true;
@@ -742,9 +747,10 @@ export default function StockApp() {
       });
       const data = await res.json();
       if (data.success) {
+        const r = data.report || {};
         toast({
           title: 'Stock réinitialisé à 0 !',
-          description: 'Toutes les données de test ont été effacées avec succès. Votre simulation peut démarrer.',
+          description: `${r.deletedMovements ?? 0} mouvement(s), ${r.deletedAuditLogEntries ?? 0} entrée(s) d'audit et ${r.deletedLocalTestArticles ?? 0} article(s) de test supprimés.`,
         });
         setResetConfirmOpen(false);
       } else {

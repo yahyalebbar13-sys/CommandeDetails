@@ -6,10 +6,10 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useUser, useFirestore, useCollection, useMemoFirebase } from '@/firebase';
-import { doc, serverTimestamp, addDoc, collection, updateDoc, setDoc, query, where, getDocs, deleteDoc } from 'firebase/firestore';
+import { doc, serverTimestamp, addDoc, collection, updateDoc, setDoc, query, where, getDocs, deleteDoc, deleteField } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { cleanUndefined } from '@/lib/utils';
-import { Archive, Calendar, Save, DollarSign, AlertTriangle, Truck, Loader2, Building2, Lock } from 'lucide-react';
+import { Archive, Calendar, Save, DollarSign, AlertTriangle, Truck, Loader2, Building2, Lock, Unlock } from 'lucide-react';
 import { isArrivalOlderThanOneMonth } from '@/lib/status-utils';
 
 interface PassToStockModalProps {
@@ -37,6 +37,7 @@ export default function PassToStockModal({
   const firestore = useFirestore();
   const { toast } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isUnvalidating, setIsUnvalidating] = useState(false);
 
   const effectiveUid = adminUid || user?.uid;
 
@@ -52,7 +53,7 @@ export default function PassToStockModal({
   const warehouseOptions = React.useMemo(() => {
     const whs = (effectiveStores || []).filter((s: any) => s.type === 'WAREHOUSE');
     if (whs.length === 0) {
-      return [{ id: 'ENTREPOT_NO1', name: '📦 Entrepôt Principal (Par défaut)', type: 'WAREHOUSE' }];
+      return [{ id: 'ENTREPOT', name: '📦 Entrepôt Principal (Par défaut)', type: 'WAREHOUSE' }];
     }
     return whs.map((s: any) => ({
       id: s.id,
@@ -114,7 +115,7 @@ export default function PassToStockModal({
       // Identifier si un entrepôt valide avait déjà été sélectionné
       const firstExistingStoreId = activeMovements?.find(m => m.storeId)?.storeId;
       const isExistingStoreValid = warehouseOptions.some(w => w.id === firstExistingStoreId);
-      const defaultWh = isExistingStoreValid ? firstExistingStoreId : (warehouseOptions[0]?.id || 'ENTREPOT_NO1');
+      const defaultWh = isExistingStoreValid ? firstExistingStoreId : (warehouseOptions[0]?.id || 'ENTREPOT');
       setGlobalStoreId(defaultWh);
 
       if (associatedArticles && associatedArticles.length > 0) {
@@ -256,6 +257,19 @@ export default function PassToStockModal({
     setIsSubmitting(true);
 
     try {
+      // 0. S'assurer que l'entrepôt cible existe réellement en base (pas seulement l'option
+      // de repli synthétique affichée dans le menu) — sinon /stock ne reconnaît jamais ses
+      // mouvements comme appartenant à un entrepôt (isWarehouseStore fait un vrai lookup
+      // Firestore) et l'article reste invisible malgré un enregistrement "réussi".
+      if (!effectiveStores || !effectiveStores.some((s: any) => s.type === 'WAREHOUSE')) {
+        await setDoc(doc(firestore, 'users', effectiveUid, 'stores', 'ENTREPOT'), {
+          id: 'ENTREPOT',
+          name: 'Entrepôt Principal',
+          type: 'WAREHOUSE',
+          isMain: true,
+        }, { merge: true });
+      }
+
       // 1. Mettre à jour la Facture
       const factureRef = doc(firestore, 'users', effectiveUid, 'factures', facture.id);
       const updates = cleanUndefined({
@@ -311,7 +325,7 @@ export default function PassToStockModal({
           }
           const fullEnglishName = parts.length > 0 ? `${baseName} ${parts.join(' ')}`.trim() : (baseName || article.specs || 'Produit');
           const defaultProductName = article.nameFR || fullEnglishName;
-          const targetStore = storeSelections[article.id] || globalStoreId || warehouseOptions[0]?.id || 'ENTREPOT_NO1';
+          const targetStore = storeSelections[article.id] || globalStoreId || warehouseOptions[0]?.id || 'ENTREPOT';
 
           const hasQualityBreakdown = Array.isArray(article.qualityBreakdown) && article.qualityBreakdown.length > 0;
           const hasColorBreakdown = (article.color === 'various' || article.color === 'Various') && Array.isArray(article.colorBreakdown) && article.colorBreakdown.length > 0;
@@ -476,6 +490,56 @@ export default function PassToStockModal({
       });
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  // Dévalider : efface la date d'entrée en stock et supprime les mouvements créés par cet
+  // arrivage, pour permettre de recommencer "Finaliser l'Entrée" (ex: entrepôt mal résolu).
+  const handleUnvalidate = async () => {
+    if (!effectiveUid || !firestore || !facture) return;
+    if (!window.confirm(`Dévalider l'arrivage ${facture.id} ? Les mouvements de stock déjà créés pour ce dossier seront supprimés et il faudra refaire "Finaliser l'Entrée".`)) return;
+
+    setIsUnvalidating(true);
+    try {
+      const movsColl = collection(firestore, 'users', effectiveUid, 'stockMovements');
+      const q1 = query(movsColl, where('factureId', '==', facture.id));
+      const q2 = query(movsColl, where('factureRef', '==', facture.id));
+      const [snap1, snap2] = await Promise.all([getDocs(q1), getDocs(q2)]);
+      const seen = new Set<string>();
+      const deletePromises: Promise<any>[] = [];
+      [...snap1.docs, ...snap2.docs].forEach(d => {
+        if (seen.has(d.id)) return;
+        seen.add(d.id);
+        deletePromises.push(deleteDoc(d.ref));
+      });
+      await Promise.all(deletePromises);
+
+      const factureRef = doc(firestore, 'users', effectiveUid, 'factures', facture.id);
+      await updateDoc(factureRef, {
+        stockEntryDate: deleteField(),
+        status: 'SHIPPED',
+        updatedAt: serverTimestamp(),
+      });
+
+      if (associatedArticles && associatedArticles.length > 0) {
+        for (const article of associatedArticles) {
+          const articleRef = doc(firestore, 'users', effectiveUid, 'articles', article.id);
+          await updateDoc(articleRef, {
+            stockEntryDate: deleteField(),
+            purchasePriceMAD: deleteField(),
+            status: 'SHIPPED',
+            updatedAt: serverTimestamp(),
+          });
+        }
+      }
+
+      toast({ title: '🔓 Arrivage dévalidé', description: `Dossier ${facture.id} déverrouillé, mouvements supprimés.` });
+      onOpenChange(false);
+    } catch (err: any) {
+      console.error('[PassToStockModal] unvalidate error:', err);
+      toast({ variant: 'destructive', title: 'Erreur', description: err?.message || 'Impossible de dévalider.' });
+    } finally {
+      setIsUnvalidating(false);
     }
   };
 
@@ -671,12 +735,30 @@ export default function PassToStockModal({
         <DialogFooter className="p-6 bg-stone-50 border-t border-stone-100 flex flex-row gap-3">
           <Button
             variant={isAlreadyInStock ? "default" : "ghost"}
-            disabled={isSubmitting}
+            disabled={isSubmitting || isUnvalidating}
             onClick={() => onOpenChange(false)}
-            className={`${isAlreadyInStock ? 'w-full bg-stone-800 hover:bg-stone-900 text-white rounded-xl' : 'flex-1 hover:bg-stone-200'} text-[10px] font-black uppercase tracking-widest h-11`}
+            className={`${isAlreadyInStock ? 'flex-1 bg-stone-800 hover:bg-stone-900 text-white rounded-xl' : 'flex-1 hover:bg-stone-200'} text-[10px] font-black uppercase tracking-widest h-11`}
           >
-            {isAlreadyInStock ? "Fermer (Arrivage Verrouillé)" : "Annuler"}
+            {isAlreadyInStock ? "Fermer" : "Annuler"}
           </Button>
+          {isAlreadyInStock && (
+            <Button
+              variant="outline"
+              disabled={isUnvalidating}
+              onClick={handleUnvalidate}
+              className="flex-1 border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700 text-[10px] font-black uppercase tracking-widest h-11 rounded-xl gap-2"
+            >
+              {isUnvalidating ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" /> Dévalidation...
+                </>
+              ) : (
+                <>
+                  <Unlock className="w-4 h-4" /> Dévalider
+                </>
+              )}
+            </Button>
+          )}
           {!isAlreadyInStock && (
             <Button
               onClick={handleSubmit}
