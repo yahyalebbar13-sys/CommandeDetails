@@ -706,9 +706,10 @@ export default function StockFiches({
 
   const [isNewProductModalOpen, setIsNewProductModalOpen] = useState(false);
 
-  // Magasin principal (ex: CHRIFA) : on affiche TOUS les produits (dispo ou non) pour repérer les ruptures.
-  // Entrepôts et magasins secondaires (Derb Omar, IDAA...) : on n'affiche que ce qui est réellement disponible.
-  const isMainStore = stores.some(s => s.id === activeStore && s.isMain) || activeStore === 'CHRIFA';
+  // Magasin principal (ex: CHRIFA) et Vue Globale admin : on affiche TOUS les produits (dispo ou non)
+  // pour repérer les ruptures partout. Entrepôts et magasins secondaires (Derb Omar, IDAA...) :
+  // on n'affiche que ce qui est réellement disponible.
+  const isMainStore = stores.some(s => s.id === activeStore && s.isMain) || activeStore === 'CHRIFA' || activeStore === 'ALL';
   const showAllProducts = isMainStore;
 
   const stockItems = useMemo(() => {
