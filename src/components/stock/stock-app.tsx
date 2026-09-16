@@ -1690,6 +1690,10 @@ export default function StockApp() {
         supplierId: exp.supplierName || 'Marché local',
         quantity: 0,
         initialQtyByStore: { [targetStore]: 0 },
+        // Marque explicite : cet article vient d'un achat marché local (/stock), jamais d'un
+        // arrivage import. Permet de l'exclure de manière fiable de /gestion et du reset,
+        // sans dépendre d'une heuristique sur supplierId/factureId.
+        isLocalMarketPurchase: true,
         createdAt: serverTimestamp(),
       };
       await setDoc(doc(firestore, 'users', effectiveUid, 'articles', artId), cleanUndefined(articlePayload));

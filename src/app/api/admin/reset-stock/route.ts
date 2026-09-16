@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getApps, initializeApp, cert } from 'firebase-admin/app';
 import { getFirestore, FieldValue } from 'firebase-admin/firestore';
+import { isLocalMarketPurchaseArticle } from '@/lib/local-purchase';
 
 function getFirebaseAdminApp() {
   if (!getApps().length) {
@@ -51,6 +52,7 @@ export async function POST(req: Request) {
       deletedStores: 0,
       cleanedArticlesStock: 0,
       deletedLocalTestArticles: 0,
+      deletedAuditLogEntries: 0,
     };
 
     // 1. Supprimer tous les mouvements de stock (/stock uniquement)
@@ -112,6 +114,14 @@ export async function POST(req: Request) {
       report.deletedTransferOrders++;
     }
 
+    // 6b. Supprimer le journal d'audit /stock (jamais nettoyé auparavant, d'où l'impression
+    // que le reset "ne marche pas" : les vieilles entrées de test restaient visibles indéfiniment)
+    const auditLogSnap = await db.collection('users').doc(adminUid).collection('auditLog').get();
+    for (const d of auditLogSnap.docs) {
+      await d.ref.delete();
+      report.deletedAuditLogEntries++;
+    }
+
     // 6. Supprimer l'Entrepôt Principal (ENTREPOT) dans les stores
     const entrepotRef = db.collection('users').doc(adminUid).collection('stores').doc('ENTREPOT');
     const entrepotDoc = await entrepotRef.get();
@@ -124,8 +134,8 @@ export async function POST(req: Request) {
     const articlesSnap = await db.collection('users').doc(adminUid).collection('articles').get();
     for (const artDoc of articlesSnap.docs) {
       const data = artDoc.data();
-      // Si l'article est purement un achat local de test créé dans /stock (ex: "Marché local")
-      if (data.supplierId === 'Marché local' || (!data.factureId && !data.supplier && data.stockMovementId)) {
+      // Si l'article est purement un achat local créé dans /stock (ex: "Marché local").
+      if (isLocalMarketPurchaseArticle(data)) {
         await artDoc.ref.delete();
         report.deletedLocalTestArticles++;
       } else if (data.initialQtyByStore) {

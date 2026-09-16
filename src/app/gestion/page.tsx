@@ -2,6 +2,7 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
 import { ViewType } from '@/lib/types';
+import { isLocalMarketPurchaseArticle } from '@/lib/local-purchase';
 import DashboardView from '@/components/dashboard-view';
 import FacturesView from '@/components/factures-view';
 import GeneralCategoriesView from '@/components/general-categories-view';
@@ -249,7 +250,7 @@ function StaffCostSaleApp({ adminUid, auth, firestore }: { adminUid: string; aut
       getDocs(collection(firestore, 'users', adminUid, 'generalCategories')),
     ])
       .then(([artSnap, facSnap, catSnap, genCatSnap]) => {
-        setArticles(artSnap.docs.map((d: any) => ({ id: d.id, ...d.data() })));
+        setArticles(artSnap.docs.map((d: any) => ({ id: d.id, ...d.data() })).filter((a: any) => !isLocalMarketPurchaseArticle(a)));
         setFactures(facSnap.docs.map((d: any) => ({ id: d.id, ...d.data() })));
         setSubCategories(catSnap.docs.map((d: any) => ({ id: d.id, ...d.data() })));
         setGeneralCategories(genCatSnap.docs.map((d: any) => ({ id: d.id, ...d.data() })));
@@ -341,7 +342,7 @@ function ClientPortalView({
       getDocs(collection(firestore, 'users', adminUid, 'categories')),
     ])
       .then(([artSnap, facSnap, catSnap]) => {
-        setArticles(artSnap.docs.map((d: any) => ({ id: d.id, ...d.data() })));
+        setArticles(artSnap.docs.map((d: any) => ({ id: d.id, ...d.data() })).filter((a: any) => !isLocalMarketPurchaseArticle(a)));
         setFactures(facSnap.docs.map((d: any) => ({ id: d.id, ...d.data() })));
         setCategories(catSnap.docs.map((d: any) => ({ id: d.id, ...d.data() })));
         setLoading(false);
@@ -447,7 +448,9 @@ function AdminApp() {
   const { data: rawPayments } = useCollection(paymentsRef); // no loading spinner — loads silently
 
   const factures = rawFactures || [];
-  const rawArticles_ = rawArticles || [];
+  // Les achats du marché local (créés depuis /stock, ex: "dépannage" chez un vendeur local)
+  // ne sont pas des arrivages import — ils ne doivent jamais apparaître dans /gestion.
+  const rawArticles_ = (rawArticles || []).filter((a: any) => !isLocalMarketPurchaseArticle(a));
   // Enrich articles with facture dates → computes effective status (TRANSIT/CUSTOMS/STOCK) automatically
   const articles = useEnrichedArticles(rawArticles_, factures);
   const generalCategories = rawGenCats || [];
