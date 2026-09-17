@@ -45,6 +45,7 @@ import TransferOrdersView from './transfer-orders-view';
 import StoresView       from './stores-view';
 import StockWarehouses  from './stock-warehouses';
 import WarehouseLocationsView from './warehouse-locations-view';
+import ArrivalDossierModal from './arrival-dossier-modal';
 import {
   type StorageLocation, suggestInboundLocation, splitOutboundLines,
 } from '@/lib/warehouse-locations';
@@ -1085,6 +1086,8 @@ export default function StockApp() {
   // Pass-to-stock modal (depuis onglet Arrivages)
   const [passToStockId, setPassToStockId] = useState<string | null>(null);
   const [passToStockForceEditable, setPassToStockForceEditable] = useState(false);
+  // Fiche dossier en consultation (quantités seules), ouverte depuis les cartes d'arrivage.
+  const [dossierViewId, setDossierViewId] = useState<string | null>(null);
 
   const isLoading = isUserLoading || loadingArt || loadingCat;
 
@@ -1894,7 +1897,9 @@ export default function StockApp() {
     { id: 'stock',     label: 'En Stock',      category: 'logistique', icon: Package,         color: 'emerald' },
     { id: 'warehouses', label: 'Entrepôts',    category: 'logistique', icon: Warehouse,       adminOrMainOnly: true, color: 'blue' },
     { id: 'locations', label: 'Emplacements',  category: 'logistique', icon: MapPin,          adminOrMainOnly: true, color: 'blue' },
-    { id: 'arrivals',  label: 'Arrivages',     category: 'logistique', icon: Anchor,          badge: pendingArrivals, color: 'amber', adminOrMainOnly: true },
+    // Ouvert à tous les magasins : les dossiers se consultent (quantités seules) partout,
+    // seule la validation d'entrée reste réservée à CHRIFA (cf. carte d'arrivage).
+    { id: 'arrivals',  label: 'Arrivages',     category: 'logistique', icon: Anchor,          badge: pendingArrivals, color: 'amber' },
     { id: 'movements', label: 'Mouvements',    category: 'logistique', icon: ArrowLeftRight },
     { id: 'transfers', label: 'Transferts',    category: 'logistique', icon: Truck,           color: 'blue' },
     { id: 'inventory', label: 'Inventaire',    category: 'logistique', icon: ClipboardList,   color: 'amber' },
@@ -2390,7 +2395,7 @@ export default function StockApp() {
             {activeView === 'stores' && userRole === 'ADMIN' && (
               <StoresView stores={stores} adminUid={adminUid} />
             )}
-            {activeView === 'arrivals' && userRole !== 'ADMIN' && isChrifaOrAdmin && (() => {
+            {activeView === 'arrivals' && userRole !== 'ADMIN' && (() => {
               const tenDaysAgo = new Date();
               tenDaysAgo.setDate(tenDaysAgo.getDate() - 10);
               const tenDaysAgoStr = toLocalDateStr(tenDaysAgo);
@@ -2658,9 +2663,15 @@ export default function StockApp() {
                                 </div>
                               </div>
 
-                              {/* Aperçu des articles */}
+                              {/* Aperçu des articles — cliquable : ouvre la fiche dossier complète */}
                               {factureArts.length > 0 && (
-                                <div className="mt-4 pt-3 border-t border-stone-100 space-y-1.5">
+                                <div
+                                  role="button"
+                                  tabIndex={0}
+                                  onClick={() => setDossierViewId(f.id)}
+                                  onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setDossierViewId(f.id); } }}
+                                  className="mt-4 pt-3 border-t border-stone-100 space-y-1.5 cursor-pointer rounded-lg -mx-1 px-1 hover:bg-stone-50/80 transition-colors"
+                                >
                                   <p className="text-[11px] font-black text-stone-400 uppercase tracking-wider">Aperçu articles :</p>
                                   <div className="space-y-1 max-h-28 overflow-y-auto pr-1">
                                     {factureArts.slice(0, 4).map((a: any) => (
@@ -2677,8 +2688,22 @@ export default function StockApp() {
                               )}
                             </div>
 
-                            <div className="pt-2">
-                              {!isEnteredInStock ? (
+                            <div className="pt-2 space-y-2">
+                              <button
+                                onClick={() => setDossierViewId(f.id)}
+                                className="w-full flex items-center justify-center gap-2 bg-white hover:bg-stone-50 text-stone-800 border-2 border-stone-200 hover:border-stone-400 font-black uppercase text-[11px] tracking-widest px-4 py-2.5 rounded-xl transition-all cursor-pointer"
+                              >
+                                <FileText className="w-3.5 h-3.5" />
+                                Voir le dossier
+                              </button>
+                              {/* La validation (qui fige coûts et entrepôts) reste réservée à CHRIFA :
+                                  les autres magasins consultent le dossier sans pouvoir le modifier. */}
+                              {!isEnteredInStock && !isChrifaOrAdmin ? (
+                                <div className="w-full flex items-center justify-center gap-1.5 bg-amber-50 text-amber-800 border border-amber-200 font-black uppercase text-[11px] tracking-widest px-3 py-2.5 rounded-xl select-none">
+                                  <Clock className="w-3.5 h-3.5 text-amber-600" />
+                                  <span>En attente de réception</span>
+                                </div>
+                              ) : !isEnteredInStock ? (
                                 <button
                                   onClick={() => setPassToStockId(f.id)}
                                   className="w-full flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white font-black uppercase text-[11px] tracking-widest px-4 py-3 rounded-xl transition-all shadow-md shadow-emerald-600/20 hover:scale-[1.01] active:scale-95 cursor-pointer"
@@ -2862,6 +2887,27 @@ export default function StockApp() {
       </div>
 
       {/* ── Modal Entrée en Stock (depuis onglet Arrivages) ── */}
+      {dossierViewId && (() => {
+        const f = factures.find((x: any) => x.id === dossierViewId);
+        if (!f) return null;
+        const dossierMovs = allMovements.filter((m: any) => m.factureId === f.id || m.factureRef === f.id);
+        const entryDate = f.stockEntryDate || dossierMovs.find((m: any) => m.type === 'IN')?.date || null;
+        return (
+          <ArrivalDossierModal
+            open
+            onOpenChange={open => { if (!open) setDossierViewId(null); }}
+            facture={f}
+            articles={articles.filter((a: any) => a.factureId === f.id || a.facture === f.id)}
+            movements={dossierMovs}
+            stores={stores}
+            isEnteredInStock={Boolean(
+              f.stockEntryDate || f.status === 'STOCK' || isArrivalOlderThanOneMonth(f.arrivalDate) ||
+              dossierMovs.some((m: any) => m.type === 'IN')
+            )}
+            stockEntryDate={entryDate}
+          />
+        );
+      })()}
       {passToStockId && (
         <PassToStockModal
           open={!!passToStockId}
