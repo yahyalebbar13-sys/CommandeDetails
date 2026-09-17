@@ -9,8 +9,9 @@ import { useUser, useFirestore, useCollection, useMemoFirebase } from '@/firebas
 import { doc, serverTimestamp, addDoc, collection, updateDoc, setDoc, query, where, getDocs, deleteDoc, deleteField } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { cleanUndefined } from '@/lib/utils';
-import { Archive, Calendar, Save, DollarSign, AlertTriangle, Truck, Loader2, Building2, Lock, Unlock } from 'lucide-react';
+import { Archive, Calendar, Save, DollarSign, AlertTriangle, Truck, Loader2, Building2, Lock, Unlock, MapPin } from 'lucide-react';
 import { isArrivalOlderThanOneMonth } from '@/lib/status-utils';
+import { type StorageLocation, compareLocationCodes } from '@/lib/warehouse-locations';
 
 interface PassToStockModalProps {
   open: boolean;
@@ -68,6 +69,25 @@ export default function PassToStockModal({
     })).sort((a: any, b: any) => a.name.localeCompare(b.name));
   }, [effectiveStores]);
 
+  // Emplacements physiques configurés (cf. /stock → Emplacements). Chargés ici plutôt que passés
+  // en prop : ce modal est monté depuis plusieurs écrans qui n'ont pas tous la collection.
+  const locationsRef = useMemoFirebase(
+    () => (!firestore || !effectiveUid) ? null : collection(firestore, 'users', effectiveUid, 'storageLocations'),
+    [firestore, effectiveUid]
+  );
+  const { data: rawLocations = [] } = useCollection(locationsRef);
+  const allLocations = (rawLocations || []) as StorageLocation[];
+
+  const locationsByStore = React.useMemo(() => {
+    const map: Record<string, StorageLocation[]> = {};
+    for (const l of allLocations) {
+      if (l.active === false) continue;
+      (map[l.storeId] ||= []).push(l);
+    }
+    for (const list of Object.values(map)) list.sort((a, b) => compareLocationCodes(a.code, b.code));
+    return map;
+  }, [allLocations]);
+
   const [remoteMovements, setRemoteMovements] = useState<any[]>([]);
   useEffect(() => {
     if (!open || !facture?.id || !firestore || !effectiveUid) {
@@ -107,6 +127,7 @@ export default function PassToStockModal({
 
   const [storeSelections, setStoreSelections] = useState<Record<string, string>>({});
   const [globalStoreId, setGlobalStoreId] = useState<string>('');
+  const [locationSelections, setLocationSelections] = useState<Record<string, string>>({});
 
   useEffect(() => {
     if (facture && open) {
@@ -126,13 +147,16 @@ export default function PassToStockModal({
 
       if (associatedArticles && associatedArticles.length > 0) {
         const initialSelections: Record<string, string> = {};
+        const initialLocations: Record<string, string> = {};
         associatedArticles.forEach(a => {
           const movForArt = activeMovements?.find(m => m.articleId === a.id);
           const movStore = movForArt?.storeId;
           const isMovStoreValid = warehouseOptions.some(w => w.id === movStore);
           initialSelections[a.id] = (isMovStoreValid && movStore) ? movStore : defaultWh;
+          if (movForArt?.locationCode) initialLocations[a.id] = movForArt.locationCode;
         });
         setStoreSelections(initialSelections);
+        setLocationSelections(initialLocations);
       }
     }
   }, [facture, open, associatedArticles, warehouseOptions, activeMovements]);
@@ -146,6 +170,8 @@ export default function PassToStockModal({
       });
       setStoreSelections(updated);
     }
+    // Les emplacements appartiennent à un entrepôt précis : changer d'entrepôt les invalide.
+    setLocationSelections({});
   };
 
   // Calcul automatique du total droits payés (DI+TPI+TVA) depuis les articles liés
@@ -332,6 +358,12 @@ export default function PassToStockModal({
           const fullEnglishName = parts.length > 0 ? `${baseName} ${parts.join(' ')}`.trim() : (baseName || article.specs || 'Produit');
           const defaultProductName = article.nameFR || fullEnglishName;
           const targetStore = storeSelections[article.id] || globalStoreId || warehouseOptions[0]?.id || 'ENTREPOT';
+          // L'emplacement n'est retenu que s'il appartient bien à l'entrepôt ciblé — une
+          // sélection laissée d'un entrepôt précédent ne doit jamais être écrite.
+          const pickedLocation = (locationsByStore[targetStore] || [])
+            .find(l => l.code === locationSelections[article.id]);
+          const targetLocationCode = pickedLocation?.code ?? null;
+          const targetLocationId = pickedLocation?.id ?? null;
 
           const hasQualityBreakdown = Array.isArray(article.qualityBreakdown) && article.qualityBreakdown.length > 0;
           const hasColorBreakdown = (article.color === 'various' || article.color === 'Various') && Array.isArray(article.colorBreakdown) && article.colorBreakdown.length > 0;
@@ -370,6 +402,8 @@ export default function PassToStockModal({
                 type:             'IN',
                 reason:           'ARRIVAGE',
                 storeId:          targetStore,
+                locationCode:     targetLocationCode,
+                locationId:       targetLocationId,
                 quantity:         rowQty,
                 date:             formData.stockEntryDate,
                 factureId:        facture.id,
@@ -405,6 +439,8 @@ export default function PassToStockModal({
                 type:             'IN',
                 reason:           'ARRIVAGE',
                 storeId:          targetStore,
+                locationCode:     targetLocationCode,
+                locationId:       targetLocationId,
                 quantity:         rowQty,
                 date:             formData.stockEntryDate,
                 factureId:        facture.id,
@@ -440,6 +476,8 @@ export default function PassToStockModal({
                 type:             'IN',
                 reason:           'ARRIVAGE',
                 storeId:          targetStore,
+                locationCode:     targetLocationCode,
+                locationId:       targetLocationId,
                 quantity:         rowQty,
                 date:             formData.stockEntryDate,
                 factureId:        facture.id,
@@ -470,6 +508,8 @@ export default function PassToStockModal({
               type:             'IN',
               reason:           'ARRIVAGE',
               storeId:          targetStore,
+              locationCode:     targetLocationCode,
+              locationId:       targetLocationId,
               quantity:         Number(article.quantity) || 0,
               date:             formData.stockEntryDate,
               factureId:        facture.id,
@@ -677,7 +717,7 @@ export default function PassToStockModal({
                 <h4 className="text-[11px] font-black text-stone-900 uppercase tracking-widest flex items-center gap-2">
                   <Archive className="w-4 h-4 text-emerald-500" /> Affectation aux Entrepôts de Stockage
                 </h4>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 flex-wrap">
                   <span className="text-[9px] font-bold text-stone-400 uppercase">Affecter tout à :</span>
                   <select
                     value={globalStoreId}
@@ -688,6 +728,25 @@ export default function PassToStockModal({
                       <option key={w.id} value={w.id}>{w.name}</option>
                     ))}
                   </select>
+                  {/* Raccourci quand tout l'arrivage part au même endroit (une palette, un rack) */}
+                  {(locationsByStore[globalStoreId] || []).length > 0 && (
+                    <select
+                      value=""
+                      onChange={(e) => {
+                        const code = e.target.value;
+                        if (!code || !associatedArticles) return;
+                        const next: Record<string, string> = {};
+                        associatedArticles.forEach((a: any) => { next[a.id] = code; });
+                        setLocationSelections(next);
+                      }}
+                      className="h-7 px-2 rounded-lg border border-stone-200 text-[10px] font-bold bg-white font-mono"
+                    >
+                      <option value="">📍 Même emplacement…</option>
+                      {(locationsByStore[globalStoreId] || []).map(l => (
+                        <option key={l.id} value={l.code}>{l.code}{l.label ? ` — ${l.label}` : ''}</option>
+                      ))}
+                    </select>
+                  )}
                 </div>
               </div>
 
@@ -703,26 +762,43 @@ export default function PassToStockModal({
                   }
                   const fullEnglishName = parts.length > 0 ? `${baseName} ${parts.join(' ')}`.trim() : (baseName || article.specs || 'Produit');
                   const productName = article.nameFR || fullEnglishName;
-                  
+                  const articleStore = storeSelections[article.id] || globalStoreId || warehouseOptions[0]?.id || '';
+                  const articleLocations = locationsByStore[articleStore] || [];
+
                   return (
-                    <div key={article.id} className="flex items-center justify-between p-3 rounded-xl border border-stone-100 bg-stone-50">
-                      <div>
+                    <div key={article.id} className="flex items-center justify-between gap-3 p-3 rounded-xl border border-stone-100 bg-stone-50">
+                      <div className="min-w-0">
                         <p className="text-[11px] font-black text-stone-900 uppercase">{productName}</p>
-                        <div className="flex items-center gap-2 mt-1">
+                        <div className="flex items-center gap-2 mt-1 flex-wrap">
                           {article.color && article.color !== 'various' && <span className="text-[9px] font-bold text-stone-500 uppercase bg-white px-2 py-0.5 rounded border border-stone-200">{article.color}</span>}
                           {article.size && article.size !== 'various' && <span className="text-[9px] font-bold text-stone-500 uppercase bg-white px-2 py-0.5 rounded border border-stone-200">{article.size}</span>}
                           <span className="text-[9px] font-black text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded">{article.quantity} {article.unitOfMeasure}</span>
                         </div>
                       </div>
-                      <select
-                        value={storeSelections[article.id] || globalStoreId || warehouseOptions[0]?.id || ''}
-                        onChange={(e) => setStoreSelections(prev => ({ ...prev, [article.id]: e.target.value }))}
-                        className="h-8 rounded-lg border-stone-200 text-xs font-bold bg-white"
-                      >
-                        {warehouseOptions.map((w: any) => (
-                          <option key={w.id} value={w.id}>{w.name}</option>
-                        ))}
-                      </select>
+                      <div className="flex flex-col items-end gap-1.5 shrink-0">
+                        <select
+                          value={articleStore}
+                          onChange={(e) => setStoreSelections(prev => ({ ...prev, [article.id]: e.target.value }))}
+                          className="h-8 rounded-lg border-stone-200 text-xs font-bold bg-white"
+                        >
+                          {warehouseOptions.map((w: any) => (
+                            <option key={w.id} value={w.id}>{w.name}</option>
+                          ))}
+                        </select>
+                        {/* Emplacement précis — seulement si cet entrepôt a été découpé en zones */}
+                        {articleLocations.length > 0 && (
+                          <select
+                            value={locationSelections[article.id] || ''}
+                            onChange={(e) => setLocationSelections(prev => ({ ...prev, [article.id]: e.target.value }))}
+                            className="h-8 rounded-lg border-stone-200 text-[11px] font-bold bg-white font-mono"
+                          >
+                            <option value="">📍 Emplacement…</option>
+                            {articleLocations.map(l => (
+                              <option key={l.id} value={l.code}>{l.code}{l.label ? ` — ${l.label}` : ''}</option>
+                            ))}
+                          </select>
+                        )}
+                      </div>
                     </div>
                   );
                 })}

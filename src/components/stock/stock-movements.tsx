@@ -1,13 +1,14 @@
 "use client";
 
 import React, { useState, useMemo } from 'react';
-import { Plus, ArrowDown, ArrowUp, ArrowLeftRight, SlidersHorizontal, Search, Calendar, Download } from 'lucide-react';
+import { Plus, ArrowDown, ArrowUp, ArrowLeftRight, SlidersHorizontal, Search, Calendar, Download, MapPin } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import type { StockMovement, StockItem, StoreLocation } from '@/lib/types';
 import StockMovementModal from './stock-movement-modal';
+import type { StorageLocation } from '@/lib/warehouse-locations';
 import { exportToFile, formatMovementsForExport } from '@/lib/export-utils';
 import { exportMovementsPDF } from '@/lib/pdf-export-reports';
 
@@ -17,6 +18,7 @@ interface StockMovementsProps {
   categories: any[];
   articles: any[];
   stores: any[];
+  locations?: StorageLocation[];
   activeStore: StoreLocation | 'ALL';
   onAddMovement: (m: Omit<StockMovement, 'id' | 'createdAt'>) => Promise<void>;
   readOnly?: boolean;
@@ -33,7 +35,7 @@ const REASON_LABELS: Record<string, string> = {
   RETOUR: 'Retour', INVENTAIRE: 'Inventaire', TRANSFERT: 'Transfert',
 };
 
-export default function StockMovements({ movements, stockItems, categories, articles, stores, activeStore, onAddMovement, readOnly = false }: StockMovementsProps) {
+export default function StockMovements({ movements, stockItems, categories, articles, stores, locations = [], activeStore, onAddMovement, readOnly = false }: StockMovementsProps) {
   const [search, setSearch] = useState('');
   const [filterType, setFilterType] = useState<'all' | 'IN' | 'OUT' | 'ADJUSTMENT'>('all');
   const [filterCat, setFilterCat] = useState('all');
@@ -260,6 +262,11 @@ export default function StockMovements({ movements, stockItems, categories, arti
                           {m.reason === 'TRANSFERT' && m.toStoreId && (
                             <span className="text-[11px] font-bold text-stone-400 uppercase">→ {m.toStoreId === 'ENTREPOT' ? 'Entrepôt' : m.toStoreId.replace('_', ' ')}</span>
                           )}
+                          {m.locationCode && (
+                            <span className="inline-flex items-center gap-1 self-start mt-0.5 bg-blue-50 text-blue-700 border border-blue-100 px-1.5 py-0.5 rounded font-mono text-[10px] font-black">
+                              <MapPin className="w-2.5 h-2.5" />{m.locationCode}
+                            </span>
+                          )}
                         </div>
                       </td>
                       <td className="px-4 py-3">
@@ -301,6 +308,7 @@ export default function StockMovements({ movements, stockItems, categories, arti
         categories={categories}
         stockItems={stockItems}
         stores={stores}
+        locations={locations}
         activeStore={activeStore}
         onSubmit={onAddMovement}
       />

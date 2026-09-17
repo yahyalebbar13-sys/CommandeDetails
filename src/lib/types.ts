@@ -311,6 +311,10 @@ export type StockMovement = {
   reason: StockMovementReason;
   storeId?: StoreLocation;
   toStoreId?: StoreLocation; // Utilisé si reason === 'TRANSFERT'
+  // Adresse physique dans le lieu (cf. lib/warehouse-locations) : le code 'A-03-02' est la clé
+  // fonctionnelle (celle du QR collé au rack), l'id sert à retrouver la fiche de l'emplacement.
+  locationCode?: string;
+  locationId?: string;
   quantity: number;      // toujours positif — direction donnée par type
   date: string;          // YYYY-MM-DD
   notes?: string;

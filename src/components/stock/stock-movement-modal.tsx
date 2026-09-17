@@ -10,9 +10,10 @@ import type { StockMovement, StockMovementReason, StockMovementType, StockItem, 
 import {
   ArrowDown, ArrowUp, SlidersHorizontal, PackageCheck,
   ChevronLeft, Package, Layers, CheckCircle2, AlertTriangle, Search,
-  Undo2, RefreshCw, ShoppingCart, XCircle,
+  Undo2, RefreshCw, ShoppingCart, XCircle, MapPin,
 } from 'lucide-react';
 import { getLocalDateString } from '@/lib/constants';
+import { type StorageLocation, compareLocationCodes } from '@/lib/warehouse-locations';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 const UI_COLORS = ['#CC8626','#1E293B','#3B82F6','#10B981','#6366F1','#F43F5E','#8B5CF6','#EC4899'];
@@ -26,6 +27,8 @@ interface StockMovementModalProps {
   generalCategories?: any[];
   stockItems: StockItem[];
   stores?: Store[];
+  /** Emplacements physiques configurés (cf. /stock → Emplacements) — filtrés sur le lieu choisi. */
+  locations?: StorageLocation[];
   preselectedArticleId?: string;
   preselectedType?: StockMovementType;
   activeStore?: StoreLocation | 'ALL';
@@ -373,7 +376,7 @@ export function ProductPicker({
 // ── Modal principal ───────────────────────────────────────────────────────────
 export default function StockMovementModal({
   open, onOpenChange, articles, categories, generalCategories = [], stockItems, stores = [],
-  preselectedArticleId, preselectedType, activeStore, onSubmit,
+  locations = [], preselectedArticleId, preselectedType, activeStore, onSubmit,
 }: StockMovementModalProps) {
 
   const today = getLocalDateString();
@@ -385,6 +388,7 @@ export default function StockMovementModal({
     quantity:  '' as string | number,
     storeId:   (activeStore || '') as StoreLocation | '',
     toStoreId: '' as StoreLocation | '',
+    locationCode: '',
     date:      today,
     notes:     '',
   });
@@ -399,11 +403,21 @@ export default function StockMovementModal({
         quantity:  '',
         storeId:   (activeStore || '') as StoreLocation | '',
         toStoreId: '',
+        locationCode: '',
         date:      today,
         notes:     '',
       });
     }
   }, [open, preselectedArticleId, preselectedType]);
+
+  // Emplacements physiques du lieu sélectionné. Vide tant que l'entrepôt n'a pas été découpé
+  // dans /stock → Emplacements : le champ est alors simplement masqué.
+  const availableLocations = useMemo(
+    () => (locations || [])
+      .filter(l => l.storeId === form.storeId && l.active !== false)
+      .sort((a, b) => compareLocationCodes(a.code, b.code)),
+    [locations, form.storeId]
+  );
 
   const selectedStock = stockItems.find(s => s.articleId === form.articleId);
   const reasons       = REASONS_BY_TYPE[form.type] || [];
@@ -452,6 +466,8 @@ export default function StockMovementModal({
       reason:        form.reason as StockMovementReason,
       storeId:       form.storeId as StoreLocation,
       toStoreId:     form.reason === 'TRANSFERT' ? (form.toStoreId as StoreLocation) : undefined,
+      locationCode:  form.locationCode || undefined,
+      locationId:    availableLocations.find(l => l.code === form.locationCode)?.id,
       quantity:      Number(form.quantity),
       date:          form.date,
       notes:         form.notes || undefined,
@@ -639,8 +655,8 @@ export default function StockMovementModal({
                     {form.type === 'IN' && form.reason === 'ARRIVAGE'
                       ? 'Entrepôt (Destination Arrivage) *'
                       : form.type === 'IN'
-                      ? 'Emplacement (Destination) *'
-                      : 'Emplacement (Origine) *'}
+                      ? 'Lieu (Destination) *'
+                      : 'Lieu (Origine) *'}
                   </Label>
                   <Select value={form.storeId} onValueChange={v => setForm(f => {
                     // Un entrepôt n'est pas un emplacement de vente/mouvement indépendant (sauf
@@ -650,7 +666,8 @@ export default function StockMovementModal({
                     const isArrivage = f.type === 'IN' && f.reason === 'ARRIVAGE';
                     const picked = stores.find(s => s.id === v);
                     const normalized = (!isArrivage && picked?.type === 'WAREHOUSE') ? 'CHRIFA' : v;
-                    return { ...f, storeId: normalized as StoreLocation };
+                    // L'emplacement appartient au lieu : changer de lieu invalide le choix.
+                    return { ...f, storeId: normalized as StoreLocation, locationCode: '' };
                   })}>
                     <SelectTrigger className="h-11 rounded-xl border-stone-200 font-bold text-sm">
                       <SelectValue placeholder={form.type === 'IN' && form.reason === 'ARRIVAGE' ? "Choisir l'entrepôt..." : "Choisir l'emplacement..."} />
@@ -664,6 +681,31 @@ export default function StockMovementModal({
                 </div>
               )}
 
+              {/* Emplacement physique — proposé seulement si le lieu a été découpé en zones */}
+              {availableLocations.length > 0 && (
+                <div className="space-y-1.5">
+                  <Label className="text-[11px] font-black uppercase tracking-widest text-stone-500 flex items-center gap-1.5">
+                    <MapPin className="w-3 h-3 text-blue-500" />
+                    Emplacement {form.type === 'IN' ? '(où ranger)' : '(où prendre)'}
+                  </Label>
+                  <Select
+                    value={form.locationCode || '__NONE__'}
+                    onValueChange={v => setForm(f => ({ ...f, locationCode: v === '__NONE__' ? '' : v }))}
+                  >
+                    <SelectTrigger className="h-11 rounded-xl border-stone-200 font-bold text-sm">
+                      <SelectValue placeholder="Non précisé" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__NONE__">Non précisé</SelectItem>
+                      {availableLocations.map(l => (
+                        <SelectItem key={l.id} value={l.code}>
+                          {l.code}{l.label ? ` — ${l.label}` : ''}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
 
               {/* Quantité + Date */}
               <div className="grid grid-cols-2 gap-3">

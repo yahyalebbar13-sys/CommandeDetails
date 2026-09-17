@@ -44,6 +44,8 @@ import { Dialog, DialogContent, DialogTitle, DialogDescription } from '@/compone
 import TransferOrdersView from './transfer-orders-view';
 import StoresView       from './stores-view';
 import StockWarehouses  from './stock-warehouses';
+import WarehouseLocationsView from './warehouse-locations-view';
+import type { StorageLocation } from '@/lib/warehouse-locations';
 import TreasuryDashboard from './treasury-dashboard';
 import BankReconciliationView from './bank-reconciliation-view';
 import AuditLogView from './audit-log-view';
@@ -51,7 +53,7 @@ import ChequesImpayesView from './cheques-impayes-view';
 import CommercialExpensesView from './commercial-expenses-view';
 import { Landmark } from 'lucide-react';
 
-type StockView = 'dashboard' | 'sale' | 'stock' | 'analytics' | 'clients' | 'orders' | 'invoices' | 'cheques-impayes' | 'expenses' | 'movements' | 'alerts' | 'arrivals' | 'transfers' | 'stores' | 'warehouses' | 'treasury' | 'reconciliation' | 'audit' | 'inventory';
+type StockView = 'dashboard' | 'sale' | 'stock' | 'analytics' | 'clients' | 'orders' | 'invoices' | 'cheques-impayes' | 'expenses' | 'movements' | 'alerts' | 'arrivals' | 'transfers' | 'stores' | 'warehouses' | 'locations' | 'treasury' | 'reconciliation' | 'audit' | 'inventory';
 
 // Formate une Date en YYYY-MM-DD à partir de ses composantes LOCALES — contrairement à
 // toISOString() (qui convertit en UTC), ça évite qu'un calcul "il y a N jours" bascule sur le
@@ -719,10 +721,13 @@ export function computeStockItems(
 export async function addStockMovement(
   firestore: any, uid: string, movement: Omit<StockMovement, 'id' | 'createdAt'>
 ) {
-  await addDoc(collection(firestore, 'users', uid, 'stockMovements'), {
+  // cleanUndefined est indispensable : les appelants passent explicitement `undefined` pour les
+  // champs non applicables (toStoreId hors transfert, quality/gsm absents…) et Firestore refuse
+  // tout document contenant une valeur undefined — l'écriture échouait alors en silence.
+  await addDoc(collection(firestore, 'users', uid, 'stockMovements'), cleanUndefined({
     ...movement,
     createdAt: serverTimestamp(),
-  });
+  }));
 }
 
 // ─── Main App ─────────────────────────────────────────────────────────────────
@@ -862,6 +867,7 @@ export default function StockApp() {
   const expensesRef      = useMemoFirebase(() => (!firestore || !adminUid || !user) ? null : collection(firestore, 'users', adminUid, 'commercialExpenses'),[firestore, adminUid, user]);
   const remittancesRef   = useMemoFirebase(() => (!firestore || !adminUid || !user) ? null : collection(firestore, 'users', adminUid, 'checkRemittances'),    [firestore, adminUid, user]);
   const auditLogRef      = useMemoFirebase(() => (!firestore || !adminUid || !user) ? null : collection(firestore, 'users', adminUid, 'auditLog'),           [firestore, adminUid, user]);
+  const locationsRef     = useMemoFirebase(() => (!firestore || !adminUid || !user) ? null : collection(firestore, 'users', adminUid, 'storageLocations'),   [firestore, adminUid, user]);
 
   const { data: rawArticles,    isLoading: loadingArt  } = useCollection(articlesRef);
   const { data: rawCategories,  isLoading: loadingCat  } = useCollection(categoriesRef);
@@ -878,6 +884,7 @@ export default function StockApp() {
   const { data: rawExpenses } = useCollection(expensesRef);
   const { data: rawRemittances } = useCollection(remittancesRef);
   const { data: rawAuditLog } = useCollection(auditLogRef);
+  const { data: rawLocations } = useCollection(locationsRef);
 
   const articles        = rawArticles    || [];
   const categories      = rawCategories  || [];
@@ -894,6 +901,7 @@ export default function StockApp() {
   const expenses        = (rawExpenses    || []) as CommercialExpense[];
   const remittances     = (rawRemittances || []) as CheckRemittance[];
   const auditLogEntries = (rawAuditLog    || []) as any[];
+  const storageLocations = (rawLocations  || []) as StorageLocation[];
 
   // Initialisation du magasin pour le commercial
   useEffect(() => {
@@ -1098,8 +1106,13 @@ export default function StockApp() {
         title: movement.type === 'IN' ? 'Entrée enregistrée' : movement.type === 'OUT' ? 'Sortie enregistrée' : 'Ajustement enregistré',
         description: `${movement.quantity} ${movement.unitOfMeasure} · ${movement.productName}`,
       });
-    } catch {
-      toast({ variant: 'destructive', title: 'Erreur', description: "Impossible d'enregistrer le mouvement." });
+    } catch (e: any) {
+      console.error('[stock] addStockMovement:', e);
+      toast({
+        variant: 'destructive',
+        title: 'Erreur',
+        description: e?.message || "Impossible d'enregistrer le mouvement.",
+      });
     }
   }, [user, firestore, toast, adminUid]);
 
@@ -1858,6 +1871,7 @@ export default function StockApp() {
 
     { id: 'stock',     label: 'En Stock',      category: 'logistique', icon: Package,         color: 'emerald' },
     { id: 'warehouses', label: 'Entrepôts',    category: 'logistique', icon: Warehouse,       adminOrMainOnly: true, color: 'blue' },
+    { id: 'locations', label: 'Emplacements',  category: 'logistique', icon: MapPin,          adminOrMainOnly: true, color: 'blue' },
     { id: 'arrivals',  label: 'Arrivages',     category: 'logistique', icon: Anchor,          badge: pendingArrivals, color: 'amber', adminOrMainOnly: true },
     { id: 'movements', label: 'Mouvements',    category: 'logistique', icon: ArrowLeftRight },
     { id: 'transfers', label: 'Transferts',    category: 'logistique', icon: Truck,           color: 'blue' },
@@ -2294,7 +2308,7 @@ export default function StockApp() {
               <BankReconciliationView payments={payments} clients={clients} />
             )}
             {activeView === 'movements' && (
-              <StockMovements activeStore={activeStore} movements={filteredMovements} stockItems={stockItems} categories={categories} articles={articles} stores={stores} onAddMovement={handleAddMovement} readOnly={userRole === 'ADMIN'} />
+              <StockMovements activeStore={activeStore} movements={filteredMovements} stockItems={stockItems} categories={categories} articles={articles} stores={stores} locations={storageLocations} onAddMovement={handleAddMovement} readOnly={userRole === 'ADMIN'} />
             )}
             {activeView === 'inventory' && (
               <BlindInventory
@@ -2337,6 +2351,15 @@ export default function StockApp() {
                   setActiveStore(storeId as any);
                   setActiveView(view || 'stock');
                 }}
+              />
+            )}
+            {activeView === 'locations' && isChrifaOrAdmin && (
+              <WarehouseLocationsView
+                stores={stores}
+                locations={storageLocations}
+                movements={allMovements}
+                adminUid={adminUid}
+                readOnly={isReadOnly}
               />
             )}
             {activeView === 'stores' && userRole === 'ADMIN' && (

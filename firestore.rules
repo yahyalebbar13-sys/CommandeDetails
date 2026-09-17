@@ -219,6 +219,14 @@ service cloud.firestore {
         allow write: if hasWriteAccess(userId);
       }
 
+      // storageLocations: adressage physique des entrepôts (zone/rack/niveau + QR).
+      // Donnée de configuration comme stores : lisible par tout compte ayant accès,
+      // modifiable par l'admin et les comptes non readOnly.
+      match /storageLocations/{id} {
+        allow read: if hasAccess(userId);
+        allow write: if hasWriteAccess(userId);
+      }
+
       // clients: dossier clients (même limitation list() que stockMovements ci-dessus)
       match /clients/{id} {
         allow read: if hasAccess(userId);
