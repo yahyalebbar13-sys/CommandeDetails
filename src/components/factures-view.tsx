@@ -88,6 +88,7 @@ function getTrackingInfo(blNumber: string, shippingLine?: string): { url: string
 import { deleteDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 import { useToast } from '@/hooks/use-toast';
 import DossierChecklistModal from './dossier-checklist-modal';
+import DossierEmailsPanel from './dossier-emails-panel';
 import { getStatusInfo } from '@/lib/status-utils';
 
 interface FacturesViewProps {
@@ -710,6 +711,9 @@ export default function FacturesView({
             <Trash2 className="w-4 h-4" /> Supprimer le Dossier
           </Button>
         </div>
+
+        {/* Emails rattachés à ce dossier (recherche dans la boîte mail) */}
+        <DossierEmailsPanel facture={selectedFacture} />
 
         <AddFactureModal
           open={isEditModalOpen}

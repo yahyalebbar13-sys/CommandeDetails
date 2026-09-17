@@ -1,13 +1,20 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import {
   Inbox, RefreshCw, Mail, MailOpen, Paperclip,
   ChevronLeft, Building2, AlertCircle, Loader2, Search,
-  Sparkles, Brain, CheckCircle2
+  Sparkles, Brain, CheckCircle2, Anchor, Link2Off, HelpCircle
 } from 'lucide-react';
+import type { Facture } from '@/lib/types';
+import {
+  matchEmailToArrivages,
+  normalizeRef,
+  type ArrivageMatch,
+  type SupplierHint,
+} from '@/lib/email-arrivage-match';
 
 interface EmailAttachment {
   filename: string;
@@ -42,6 +49,28 @@ const ACCOUNTS = [
   { key: 'robeinbox', label: 'ROBE IN BOX', color: 'bg-violet-500' },
 ];
 
+// Couleurs par niveau de certitude du rapprochement email ↔ arrivage
+const CONFIDENCE_STYLE: Record<ArrivageMatch['confidence'], { chip: string; dot: string; label: string }> = {
+  sure:     { chip: 'bg-emerald-50 text-emerald-700 border-emerald-200', dot: 'bg-emerald-500', label: 'Sûr' },
+  probable: { chip: 'bg-amber-50 text-amber-700 border-amber-200',       dot: 'bg-amber-500',   label: 'Probable' },
+  faible:   { chip: 'bg-stone-100 text-stone-500 border-stone-200',      dot: 'bg-stone-400',   label: 'Incertain' },
+};
+
+/** Pastille compacte « BL 26HD1004 · MH » pour la liste des emails. */
+function ArrivageChip({ match, compact = false }: { match: ArrivageMatch; compact?: boolean }) {
+  const style = CONFIDENCE_STYLE[match.confidence];
+  return (
+    <span
+      title={match.reasons.map(r => r.label).join(' · ')}
+      className={`inline-flex items-center gap-1.5 rounded-lg border px-2 py-0.5 text-[9px] font-black uppercase tracking-widest ${style.chip}`}
+    >
+      <Anchor className={compact ? 'w-2.5 h-2.5' : 'w-3 h-3'} />
+      {match.noBL || 'Dossier'}
+      {!compact && match.supplierId && <span className="font-bold opacity-60">· {match.supplierId}</span>}
+    </span>
+  );
+}
+
 function formatDate(iso: string) {
   if (!iso) return '';
   const d = new Date(iso);
@@ -57,8 +86,19 @@ function fromName(from: string) {
   return m ? m[1].replace(/"/g, '').trim() : from.split('@')[0];
 }
 
-export default function EmailsView() {
+type ArrivageFilter = 'all' | 'linked' | 'unlinked';
+
+export default function EmailsView({
+  factures = [],
+  supplierHints,
+}: {
+  /** Dossiers d'arrivage, pour rattacher chaque email au bon dossier. */
+  factures?: Facture[];
+  /** Emails connus par fournisseur (supplierProfiles) — améliore la détection. */
+  supplierHints?: Record<string, SupplierHint>;
+} = {}) {
   const [activeAccount, setActiveAccount] = useState('lebtex');
+  const [arrivageFilter, setArrivageFilter] = useState<ArrivageFilter>('all');
   const [emails, setEmails] = useState<Email[]>([]);
   const [selected, setSelected] = useState<Email | null>(null);
   const [loading, setLoading] = useState(false);
@@ -113,10 +153,45 @@ export default function EmailsView() {
   // Réinitialiser l'IA quand on change d'email
   useEffect(() => { setAiResult(null); }, [selected]);
 
-  const filtered = emails.filter(e =>
-    !search || e.subject.toLowerCase().includes(search.toLowerCase()) ||
-    e.from.toLowerCase().includes(search.toLowerCase())
+  // ── Rapprochement email ↔ dossier d'arrivage ──────────────────────────────
+  // Recalculé localement : aucun appel réseau, les dossiers sont déjà chargés.
+  const matchesByUid = useMemo(() => {
+    const map = new Map<number, ArrivageMatch[]>();
+    if (!factures.length) return map;
+    for (const email of emails) {
+      map.set(
+        email.uid,
+        matchEmailToArrivages(email, factures, {
+          accountKey: activeAccount,
+          suppliers: supplierHints,
+        })
+      );
+    }
+    return map;
+  }, [emails, factures, activeAccount, supplierHints]);
+
+  const linkedCount = useMemo(
+    () => emails.filter(e => (matchesByUid.get(e.uid)?.length ?? 0) > 0).length,
+    [emails, matchesByUid]
   );
+
+  const filtered = emails.filter(e => {
+    const q = search.toLowerCase();
+    const matches = matchesByUid.get(e.uid) || [];
+    if (q) {
+      const hit =
+        e.subject.toLowerCase().includes(q) ||
+        e.from.toLowerCase().includes(q) ||
+        // Le n° de dossier est cherchable directement
+        matches.some(m => (m.noBL || '').toLowerCase().includes(q));
+      if (!hit) return false;
+    }
+    if (arrivageFilter === 'linked') return matches.length > 0;
+    if (arrivageFilter === 'unlinked') return matches.length === 0;
+    return true;
+  });
+
+  const selectedMatches = selected ? matchesByUid.get(selected.uid) || [] : [];
 
   const acct = ACCOUNTS.find(a => a.key === activeAccount)!;
 
@@ -164,6 +239,31 @@ export default function EmailsView() {
         ))}
       </div>
 
+      {/* Filtre par rattachement à un arrivage */}
+      {factures.length > 0 && (
+        <div className="flex items-center gap-2 flex-wrap">
+          {([
+            { key: 'all',      label: `Tous · ${emails.length}` },
+            { key: 'linked',   label: `Rattachés · ${linkedCount}` },
+            { key: 'unlinked', label: `Non rattachés · ${emails.length - linkedCount}` },
+          ] as const).map(f => (
+            <button
+              key={f.key}
+              onClick={() => setArrivageFilter(f.key)}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all border ${
+                arrivageFilter === f.key
+                  ? 'bg-stone-900 text-white border-stone-900'
+                  : 'bg-white text-stone-500 border-stone-200 hover:border-stone-400'
+              }`}
+            >
+              {f.key === 'linked' && <Anchor className="w-3 h-3" />}
+              {f.key === 'unlinked' && <Link2Off className="w-3 h-3" />}
+              {f.label}
+            </button>
+          ))}
+        </div>
+      )}
+
       {/* Main content */}
       <div className="bg-white rounded-2xl border border-stone-200 overflow-hidden" style={{ minHeight: 560 }}>
         {loading ? (
@@ -205,6 +305,65 @@ export default function EmailsView() {
               </Button>
             </div>
 
+            {/* Rapprochement avec un dossier d'arrivage */}
+            {factures.length > 0 && (
+              <div className="mx-6 mt-4">
+                {selectedMatches.length === 0 ? (
+                  <div className="flex items-center gap-3 p-3 rounded-xl bg-stone-50 border border-stone-200">
+                    <HelpCircle className="w-4 h-4 text-stone-400 shrink-0" />
+                    <p className="text-[11px] font-bold text-stone-500">
+                      Aucun dossier d'arrivage reconnu dans cet email.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="p-4 rounded-xl bg-white border border-stone-200 space-y-3">
+                    <div className="flex items-center gap-2">
+                      <Anchor className="w-4 h-4 text-stone-900" />
+                      <h4 className="text-[11px] font-black text-stone-900 uppercase tracking-widest">
+                        {selectedMatches.length > 1 ? 'Dossiers possibles' : 'Dossier d\u2019arrivage'}
+                      </h4>
+                    </div>
+                    {selectedMatches.map(m => {
+                      const style = CONFIDENCE_STYLE[m.confidence];
+                      return (
+                        <div key={m.factureId} className="rounded-lg border border-stone-100 bg-stone-50/60 p-3 space-y-2">
+                          <div className="flex items-center justify-between gap-2 flex-wrap">
+                            <div className="flex items-center gap-2">
+                              <ArrivageChip match={m} />
+                              {m.declaringCompany && (
+                                <span className="inline-flex items-center gap-1 text-[9px] font-black uppercase tracking-widest text-stone-400">
+                                  <Building2 className="w-3 h-3" /> {m.declaringCompany}
+                                </span>
+                              )}
+                            </div>
+                            <span className="flex items-center gap-1.5 text-[9px] font-black uppercase tracking-widest text-stone-400">
+                              <span className={`w-1.5 h-1.5 rounded-full ${style.dot}`} />
+                              {style.label} · {m.score} pts
+                            </span>
+                          </div>
+                          {/* Pourquoi ce dossier a été retenu — jamais de magie opaque */}
+                          <ul className="space-y-0.5">
+                            {m.reasons.filter(r => r.points > 0).map(r => (
+                              <li key={r.code} className="flex items-start gap-1.5 text-[10px] text-stone-500 font-medium">
+                                <CheckCircle2 className="w-3 h-3 text-emerald-500 shrink-0 mt-0.5" />
+                                {r.label}
+                              </li>
+                            ))}
+                            {m.reasons.filter(r => r.points < 0).map(r => (
+                              <li key={r.code} className="flex items-start gap-1.5 text-[10px] text-stone-400 font-medium">
+                                <AlertCircle className="w-3 h-3 text-stone-300 shrink-0 mt-0.5" />
+                                {r.label}
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
+
             {/* AI Result Card */}
             {aiResult && (
               <div className="mx-6 mt-4 p-4 rounded-xl bg-violet-50 border border-violet-100 flex gap-4 animate-in fade-in zoom-in-95">
@@ -219,11 +378,24 @@ export default function EmailsView() {
                     <>
                       <p className="text-sm text-violet-800 font-medium">{aiResult.resume}</p>
                       <div className="flex flex-wrap gap-3 mt-2">
-                        {aiResult.dossierId && (
-                          <Badge variant="outline" className="bg-white border-violet-200 text-violet-700 font-bold">
-                            Dossier: {aiResult.dossierId}
-                          </Badge>
-                        )}
+                        {aiResult.dossierId && (() => {
+                          const known = factures.find(
+                            f => normalizeRef(f.noBL) === normalizeRef(aiResult.dossierId)
+                          );
+                          return (
+                            <Badge
+                              variant="outline"
+                              className={`font-bold ${
+                                known
+                                  ? 'bg-emerald-50 border-emerald-200 text-emerald-700'
+                                  : 'bg-white border-violet-200 text-violet-700'
+                              }`}
+                            >
+                              Dossier: {aiResult.dossierId}
+                              {known ? ' \u2713 connu' : ' \u2014 inconnu'}
+                            </Badge>
+                          );
+                        })()}
                         {aiResult.typeAction && (
                           <Badge variant="outline" className="bg-white border-violet-200 text-violet-700 font-bold">
                             {aiResult.typeAction.replace(/_/g, ' ')}
@@ -334,6 +506,13 @@ export default function EmailsView() {
                       <p className={`text-[12px] truncate mt-0.5 ${email.isUnread ? 'font-bold text-stone-800' : 'text-stone-500 font-medium'}`}>
                         {email.subject}
                       </p>
+                      {(matchesByUid.get(email.uid) || []).length > 0 && (
+                        <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+                          {(matchesByUid.get(email.uid) || []).slice(0, 2).map(m => (
+                            <ArrivageChip key={m.factureId} match={m} compact />
+                          ))}
+                        </div>
+                      )}
                       <p className="text-[11px] text-stone-400 truncate mt-0.5 font-normal">
                         {email.text?.slice(0, 100) || ''}
                       </p>

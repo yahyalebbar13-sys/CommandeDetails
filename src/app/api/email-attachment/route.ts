@@ -1,17 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { ImapFlow } from 'imapflow';
 import { simpleParser } from 'mailparser';
+import { getImapAccount, createImapClient } from '@/lib/imap-accounts';
 
-const ACCOUNTS: Record<string, { user: string; pass: string }> = {
-  lebtex: {
-    user: process.env.IMAP_USER_LEBTEX || '',
-    pass: process.env.IMAP_PASS_LEBTEX || '',
-  },
-  robeinbox: {
-    user: process.env.IMAP_USER_ROBEINBOX || '',
-    pass: process.env.IMAP_PASS_ROBEINBOX || '',
-  },
-};
+export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
@@ -23,19 +15,12 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'Paramètres manquants' }, { status: 400 });
   }
 
-  const account = ACCOUNTS[accountKey];
-  if (!account || !account.user || !account.pass) {
+  const account = getImapAccount(accountKey);
+  if (!account) {
     return NextResponse.json({ error: 'Compte non configuré' }, { status: 400 });
   }
 
-  const client = new ImapFlow({
-    host: 'imap.gmail.com',
-    port: 993,
-    secure: true,
-    auth: { user: account.user, pass: account.pass },
-    logger: false,
-    tls: { rejectUnauthorized: false }, // Bypass SSL
-  });
+  const client = createImapClient(account);
 
   try {
     await client.connect();

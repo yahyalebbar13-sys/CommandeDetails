@@ -436,12 +436,15 @@ function AdminApp() {
   const subCatsRef = useMemoFirebase(() => (!firestore || !user) ? null : collection(firestore, 'users', user.uid, 'categories'), [firestore, user]);
   // payments is only needed by SuppliersView — load lazily when that tab is active
   const paymentsRef = useMemoFirebase(() => (!firestore || !user || activeTab !== 'suppliers') ? null : collection(firestore, 'users', user.uid, 'supplierPayments'), [firestore, user, activeTab]);
+  // Profils fournisseurs : sert à reconnaître l'expéditeur d'un email (vue Emails).
+  const supplierProfilesRef = useMemoFirebase(() => (!firestore || !user || activeTab !== 'emails') ? null : collection(firestore, 'users', user.uid, 'supplierProfiles'), [firestore, user, activeTab]);
 
   const { data: rawFactures, isLoading: isFacturesLoading } = useCollection(facturesRef);
   const { data: rawArticles, isLoading: isArticlesLoading } = useCollection(articlesRef);
   const { data: rawGenCats, isLoading: isGenCatsLoading } = useCollection(genCatsRef);
   const { data: rawSubCats, isLoading: isSubCatsLoading } = useCollection(subCatsRef);
   const { data: rawPayments } = useCollection(paymentsRef); // no loading spinner — loads silently
+  const { data: rawSupplierProfiles } = useCollection(supplierProfilesRef);
 
   const factures = rawFactures || [];
   // Les achats du marché local (créés depuis /stock, ex: "dépannage" chez un vendeur local)
@@ -452,6 +455,20 @@ function AdminApp() {
   const generalCategories = rawGenCats || [];
   const subCategories = rawSubCats || [];
   const payments = rawPayments || [];
+
+  // Nom du fournisseur → emails connus, pour le rapprochement email ↔ arrivage.
+  // L'id du document supplierProfiles est le nom du fournisseur (= Facture.supplierId).
+  const supplierHints = useMemo(() => {
+    const hints: Record<string, { name: string; emails?: string[] }> = {};
+    for (const profile of (rawSupplierProfiles || []) as any[]) {
+      const name = (profile.id || profile.name || '').trim();
+      if (!name) continue;
+      const emails = [profile.email, profile.email2, profile.contactEmail]
+        .filter((e: any): e is string => typeof e === 'string' && e.includes('@'));
+      hints[name] = { name, emails };
+    }
+    return hints;
+  }, [rawSupplierProfiles]);
 
   // ─── Auto-detect status transitions and send emails ────────────────────────────────────
   // Runs once per day when admin opens the app.
@@ -687,7 +704,7 @@ function AdminApp() {
               <DataView articles={articles} onEdit={setEditingArticle} />
             </div>
             <div className={activeTab === 'emails' ? 'block animate-in fade-in' : 'hidden'}>
-              <EmailsView />
+              <EmailsView factures={factures} supplierHints={supplierHints} />
             </div>
           </div>
         )}
