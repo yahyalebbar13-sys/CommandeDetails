@@ -14,6 +14,7 @@ import { useToast } from '@/hooks/use-toast';
 import { computeReorderAlert, formatReorderBadge } from '@/lib/reorder-utils';
 import type { StoreLocation } from '@/lib/types';
 import StockMovementModal from './stock-movement-modal';
+import type { StorageLocation } from '@/lib/warehouse-locations';
 
 type StockView = 'dashboard' | 'stock' | 'movements' | 'alerts';
 
@@ -22,6 +23,8 @@ interface StockAlertsProps {
   articles: any[];
   categories: any[];
   movements: StockMovement[];
+  stores?: any[];
+  locations?: StorageLocation[];
   activeStore: StoreLocation | 'ALL';
   onNavigate: (v: StockView) => void;
   adminUid?: string | null;
@@ -29,7 +32,7 @@ interface StockAlertsProps {
   readOnly?: boolean;
 }
 
-export default function StockAlerts({ stockItems, articles, categories, movements, activeStore, onNavigate, adminUid, onAddMovement, readOnly = false }: StockAlertsProps) {
+export default function StockAlerts({ stockItems, articles, categories, movements, stores = [], locations = [], activeStore, onNavigate, adminUid, onAddMovement, readOnly = false }: StockAlertsProps) {
   const { user } = useUser();
   const firestore = useFirestore();
   const { toast } = useToast();
@@ -301,6 +304,9 @@ export default function StockAlerts({ stockItems, articles, categories, movement
         articles={articles}
         categories={categories}
         stockItems={stockItems}
+        stores={stores}
+        locations={locations}
+        allMovements={movements}
         preselectedArticleId={movementItem?.articleId}
         preselectedType="IN"
         activeStore={activeStore}

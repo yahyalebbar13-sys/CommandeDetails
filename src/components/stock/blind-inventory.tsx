@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ProductPicker } from './stock-movement-modal';
 import type { StockItem, StockMovement, Store } from '@/lib/types';
+import { suggestInboundLocation } from '@/lib/warehouse-locations';
 
 interface CountedLine {
   articleId: string;
@@ -26,13 +27,15 @@ interface BlindInventoryProps {
   generalCategories: any[];
   activeStore: string;
   stores: Store[];
+  /** Mouvements, pour rattacher l'ajustement à l'emplacement où le produit se trouve. */
+  movements?: any[];
   onAddMovement: (m: Omit<StockMovement, 'id' | 'createdAt'>) => Promise<void>;
   onFinalizeSession?: (storeId: string, itemCount: number, varianceCount: number) => Promise<void>;
   adminUid: string | null;
 }
 
 export default function BlindInventory({
-  stockItems, categories, generalCategories, activeStore, stores,
+  stockItems, categories, generalCategories, activeStore, stores, movements = [],
   onAddMovement, onFinalizeSession,
 }: BlindInventoryProps) {
   const [picking, setPicking] = useState(false);
@@ -72,6 +75,11 @@ export default function BlindInventory({
     setSaving(true);
     try {
       if (diff !== 0) {
+        const invStore = isRealStore ? (activeStore as any) : (currentStore?.id as any) || 'CHRIFA';
+        const realId = (selected as any)._realArticleId || selected.articleId;
+        // Un comptage porte sur le magasin entier : on ne rattache l'écart à un emplacement
+        // que si le produit n'est rangé qu'à un seul endroit — sinon on ne devine pas.
+        const spot = suggestInboundLocation(movements, invStore, realId);
         await onAddMovement({
           articleId: (selected as any)._realArticleId || selected.articleId,
           categoryId: selected.categoryId,
@@ -83,7 +91,8 @@ export default function BlindInventory({
           unitOfMeasure: selected.unitOfMeasure || 'unité',
           type: 'ADJUSTMENT',
           reason: 'INVENTAIRE',
-          storeId: isRealStore ? (activeStore as any) : (currentStore?.id as any) || 'CHRIFA',
+          storeId: invStore,
+          ...(spot ? { locationCode: spot.locationCode, locationId: spot.locationId } : {}),
           quantity: diff,
           date: new Date().toISOString().split('T')[0],
           notes: `Inventaire physique : théorique ${theoretical}, compté ${counted}`,

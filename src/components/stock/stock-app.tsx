@@ -45,7 +45,9 @@ import TransferOrdersView from './transfer-orders-view';
 import StoresView       from './stores-view';
 import StockWarehouses  from './stock-warehouses';
 import WarehouseLocationsView from './warehouse-locations-view';
-import type { StorageLocation } from '@/lib/warehouse-locations';
+import {
+  type StorageLocation, suggestInboundLocation, splitOutboundLines,
+} from '@/lib/warehouse-locations';
 import TreasuryDashboard from './treasury-dashboard';
 import BankReconciliationView from './bank-reconciliation-view';
 import AuditLogView from './audit-log-view';
@@ -1156,22 +1158,27 @@ export default function StockApp() {
     const saleRef = doc(collection(firestore, 'users', effectiveUid, 'sales'));
     batch.set(saleRef, { ...sale, storeId, createdAt: serverTimestamp() });
     for (const item of sale.items) {
-      const mRef = doc(collection(firestore, 'users', effectiveUid, 'stockMovements'));
       // Résoudre l'ID Firestore réel si l'item vient d'une variante explosée (couleur/taille/qualité)
       const realArticleId = (stockItems.find(s => s.articleId === item.articleId) as any)?._realArticleId || item.articleId;
-      batch.set(mRef, {
+      const base = {
         articleId: realArticleId, categoryId: item.categoryId,
         productName: item.productName, color: item.color || null, size: item.size || null,
-        unitOfMeasure: item.unitOfMeasure, type: 'OUT', reason: 'VENTE',
+        unitOfMeasure: item.unitOfMeasure, type: 'OUT' as const, reason: 'VENTE' as const,
         storeId,
-        quantity: item.qty, date: sale.date,
+        date: sale.date,
         notes: sale.clientName ? `Vente à ${sale.clientName}` : 'Vente directe',
         createdAt: serverTimestamp(),
-      });
+      };
+      // La caisse ne demande jamais l'emplacement : on décrémente automatiquement en FIFO
+      // celui qui contient réellement la marchandise. Une ligne peut donc produire plusieurs
+      // mouvements si le produit est éclaté sur plusieurs racks.
+      for (const line of splitOutboundLines(allMovements, storeId, realArticleId, item.qty, base)) {
+        batch.set(doc(collection(firestore, 'users', effectiveUid, 'stockMovements')), line);
+      }
     }
     await batch.commit();
     toast({ title: 'Vente enregistrée !', description: `Total : ${(Number(sale.totalAmount) || 0).toLocaleString('fr-MA', { minimumFractionDigits: 2 })} — ${sale.items.length} produit(s)` });
-  }, [user, firestore, toast, activeStore, adminUid, userRole, stores, stockItems]);
+  }, [user, firestore, toast, activeStore, adminUid, userRole, stores, stockItems, allMovements]);
 
   // ── Clients ──────────────────────────────────────────────────────────────
   const handleCreateClient = useCallback(async (data: Omit<Client, 'id' | 'createdAt'>): Promise<Client> => {
@@ -1264,12 +1271,13 @@ export default function StockApp() {
         createdAt: serverTimestamp()
       });
       for (const m of movementsOut) {
-        const mRef = doc(collection(firestore, 'users', effectiveUid, 'stockMovements'));
-        batch.set(mRef, {
-          ...cleanUndefined(m),
-          storeId: m.storeId || storeId,
-          createdAt: serverTimestamp()
-        });
+        const movStore = m.storeId || storeId;
+        const { quantity, ...rest } = m;
+        const base = { ...cleanUndefined(rest), storeId: movStore, createdAt: serverTimestamp() };
+        // Facturation : même règle qu'à la caisse, l'emplacement est résolu tout seul en FIFO.
+        for (const line of splitOutboundLines(allMovements, movStore, m.articleId, quantity, base)) {
+          batch.set(doc(collection(firestore, 'users', effectiveUid, 'stockMovements')), line);
+        }
       }
       if (initialPayments && initialPayments.length > 0) {
         for (const p of initialPayments) {
@@ -1297,7 +1305,7 @@ export default function StockApp() {
       toast({ title: 'Erreur', description: `Impossible d'enregistrer la vente : ${err?.message || err}`, variant: 'destructive' });
       throw err;
     }
-  }, [user, firestore, toast, activeStore, adminUid, userRole, saleStoreId, stores]);
+  }, [user, firestore, toast, activeStore, adminUid, userRole, saleStoreId, stores, allMovements]);
 
   const handleUpdateInvoiceStatus = useCallback(async (id: string, status: InvoiceStatus) => {
     if (!user || !firestore) return;
@@ -1323,7 +1331,11 @@ export default function StockApp() {
 
       for (const line of validLines) {
         const mRef = doc(collection(firestore, 'users', effectiveUid, 'stockMovements'));
-        batch.set(mRef, {
+        const returnStore = invoice.storeId || 'CHRIFA';
+        // Un retour repart là où le produit est déjà rangé — sans rien demander au vendeur.
+        // S'il est éclaté sur plusieurs racks, on ne devine pas et le retour reste non adressé.
+        const back = suggestInboundLocation(allMovements, returnStore, line.articleId);
+        batch.set(mRef, cleanUndefined({
           articleId: line.articleId,
           categoryId: line.categoryId,
           productName: line.productName,
@@ -1333,13 +1345,15 @@ export default function StockApp() {
           unitOfMeasure: line.unitOfMeasure,
           type: 'IN',
           reason: 'RETOUR',
-          storeId: invoice.storeId || 'CHRIFA',
+          storeId: returnStore,
+          locationCode: back?.locationCode,
+          locationId: back?.locationId,
           quantity: line.qty,
           date: today,
           notes: `Retour client sur facture ${invoice.invoiceNumber || invoice.id}${invoice.clientName ? ` (${invoice.clientName})` : ''}`,
           factureId: invoice.id,
           createdAt: serverTimestamp(),
-        });
+        }));
       }
 
       const newTotal = Math.max(0, (Number(invoice.totalAfterDiscount) || 0) - returnValue);
@@ -1384,7 +1398,7 @@ export default function StockApp() {
       toast({ variant: 'destructive', title: 'Erreur', description: err?.message || "Impossible d'enregistrer le retour." });
       throw err;
     }
-  }, [user, firestore, adminUid, toast]);
+  }, [user, firestore, adminUid, toast, allMovements]);
 
   // ── Inventaire physique ───────────────────────────────────────────────────
   const handleFinalizeInventorySession = useCallback(async (storeId: string, itemCount: number, varianceCount: number) => {
@@ -1760,6 +1774,14 @@ export default function StockApp() {
         unitOfMeasure: exp.unitOfMeasure || 'pcs',
         purchasePricePerUnit: unitPrice,
         storeId: targetStore,
+        // Emplacement choisi dans le formulaire de dépense ; à défaut, celui où l'article se
+        // trouve déjà s'il n'y en a qu'un.
+        ...(() => {
+          const picked = (exp as any).locationCode
+            ? { locationCode: (exp as any).locationCode, locationId: (exp as any).locationId }
+            : suggestInboundLocation(allMovements, targetStore, createdArticleId || (exp as any).articleId || '');
+          return picked ? { locationCode: picked.locationCode, locationId: picked.locationId } : {};
+        })(),
         date: exp.date || new Date().toISOString().split('T')[0],
         notes: `Achat Marchandise du marché (${exp.supplierName ? `Vendeur: ${exp.supplierName}` : 'Marché local'}) · Entrée Stock ${targetStoreName} · Dépense ${exp.amount} MAD`,
         createdAt: serverTimestamp(),
@@ -2246,6 +2268,7 @@ export default function StockApp() {
                 generalCategories={generalCategories}
                 categories={categories}
                 articles={articles}
+                locations={storageLocations}
                 onAddExpense={handleAddExpense}
                 onUpdateExpenseStatus={handleUpdateExpenseStatus}
                 onDeleteExpense={handleDeleteExpense}
@@ -2317,13 +2340,14 @@ export default function StockApp() {
                 generalCategories={generalCategories}
                 activeStore={activeStore}
                 stores={stores}
+                movements={allMovements}
                 adminUid={adminUid}
                 onAddMovement={handleAddMovement}
                 onFinalizeSession={handleFinalizeInventorySession}
               />
             )}
             {activeView === 'alerts' && (
-              <StockAlerts stockItems={stockItems} articles={articles} categories={categories} movements={filteredMovements} activeStore={activeStore} onNavigate={setActiveView} adminUid={adminUid} onAddMovement={handleAddMovement} readOnly={userRole === 'ADMIN'} />
+              <StockAlerts stockItems={stockItems} articles={articles} categories={categories} movements={filteredMovements} stores={stores} locations={storageLocations} activeStore={activeStore} onNavigate={setActiveView} adminUid={adminUid} onAddMovement={handleAddMovement} readOnly={userRole === 'ADMIN'} />
             )}
             {activeView === 'audit' && (
               <AuditLogView entries={auditLogEntries} />
@@ -2333,6 +2357,7 @@ export default function StockApp() {
                 transferOrders={filteredTransfers}
                 stockItems={stockItems}
                 stores={stores}
+                movements={allMovements}
                 userRole={userRole}
                 activeStore={activeStore}
                 adminUid={adminUid}

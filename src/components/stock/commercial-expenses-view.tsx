@@ -5,7 +5,7 @@ import {
   Receipt, Fuel, Utensils, Car, ParkingCircle, Package, MoreHorizontal,
   Plus, Search, Filter, Calendar, Download, Trash2, CheckCircle2, 
   Clock, AlertCircle, Camera, Check, X, ShieldAlert, Sparkles, Building2, User,
-  ShoppingBag, ArrowDownRight, Tag, Layers, Settings2, Palette, Maximize, Ruler, DollarSign
+  ShoppingBag, ArrowDownRight, Tag, Layers, Settings2, Palette, Maximize, Ruler, DollarSign, MapPin
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -19,6 +19,7 @@ import { useToast } from '@/hooks/use-toast';
 import type { CommercialExpense, ExpenseCategory, StoreLocation, Store } from '@/lib/types';
 import { exportReportPDF } from '@/lib/pdf-export-reports';
 import { findLastOrderPrice } from '@/lib/order-utils';
+import { type StorageLocation, compareLocationCodes } from '@/lib/warehouse-locations';
 import { isFabricLineOrCategory, isZipperLineOrCategory, isThreadLineOrCategory, isSliderLineOrCategory } from '@/lib/constants';
 import ColorBreakdownInput, { ColorBreakdownRow } from '@/components/color-breakdown-input';
 import QualityBreakdownInput, { QualityBreakdownRow } from '@/components/quality-breakdown-input';
@@ -33,6 +34,7 @@ interface CommercialExpensesViewProps {
   generalCategories?: any[];
   categories?: any[];
   articles?: any[];
+  locations?: StorageLocation[];
   onAddExpense: (expense: Omit<CommercialExpense, 'id' | 'createdAt'>) => Promise<void>;
   onUpdateExpenseStatus?: (id: string, status: 'PENDING' | 'APPROVED' | 'REIMBURSED') => Promise<void>;
   onDeleteExpense?: (id: string) => Promise<void>;
@@ -104,6 +106,7 @@ export default function CommercialExpensesView({
   generalCategories = [],
   categories = [],
   articles = [],
+  locations = [],
   onAddExpense,
   onUpdateExpenseStatus,
   onDeleteExpense,
@@ -169,12 +172,22 @@ export default function CommercialExpensesView({
   }, [stores]);
 
   const [newWarehouseId, setNewWarehouseId] = useState<string>('');
+  const [newLocationCode, setNewLocationCode] = useState<string>('');
 
   useEffect(() => {
     if (warehouseOptions.length > 0 && (!newWarehouseId || !warehouseOptions.some(w => w.id === newWarehouseId))) {
       setNewWarehouseId(warehouseOptions[0].id);
     }
   }, [warehouseOptions, newWarehouseId]);
+
+  // Emplacements de l'entrepôt ciblé. Changer d'entrepôt invalide le choix précédent.
+  const expenseLocations = useMemo(
+    () => (locations || [])
+      .filter(l => l.storeId === newWarehouseId && l.active !== false)
+      .sort((a, b) => compareLocationCodes(a.code, b.code)),
+    [locations, newWarehouseId]
+  );
+  useEffect(() => { setNewLocationCode(''); }, [newWarehouseId]);
 
   // Mois disponibles
   const availableMonths = useMemo(() => {
@@ -623,6 +636,10 @@ export default function CommercialExpensesView({
         commercialName: currentUserName || 'Admin',
         ...(currentUserId ? { commercialId: currentUserId } : {}),
         storeId: isMarchandise ? (newWarehouseId || 'ENTREPOT') : (newStoreId || (stores[0]?.id || 'CHRIFA')),
+        ...(isMarchandise && newLocationCode ? {
+          locationCode: newLocationCode,
+          locationId: expenseLocations.find(l => l.code === newLocationCode)?.id,
+        } : {}),
         ...(newReceiptUrl.trim() ? { receiptUrl: newReceiptUrl.trim() } : {}),
         status: userRole === 'ADMIN' ? 'APPROVED' : 'PENDING',
         ...(isMarchandise ? {
@@ -1689,6 +1706,31 @@ export default function CommercialExpensesView({
                           ))}
                         </SelectContent>
                       </Select>
+                    )}
+
+                    {/* Emplacement précis — proposé seulement si l'entrepôt est découpé en zones */}
+                    {expenseLocations.length > 0 && (
+                      <div className="mt-2">
+                        <p className="text-[10px] font-black uppercase tracking-widest text-amber-800 mb-1 flex items-center gap-1">
+                          <MapPin className="w-3 h-3" /> Où ranger la marchandise
+                        </p>
+                        <Select
+                          value={newLocationCode || '__NONE__'}
+                          onValueChange={v => setNewLocationCode(v === '__NONE__' ? '' : v)}
+                        >
+                          <SelectTrigger className="rounded-xl h-10 text-xs font-black bg-white border-amber-300 shadow-sm">
+                            <SelectValue placeholder="Non précisé" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="__NONE__" className="text-xs font-bold">Non précisé</SelectItem>
+                            {expenseLocations.map(l => (
+                              <SelectItem key={l.id} value={l.code} className="text-xs font-bold font-mono">
+                                📍 {l.code}{l.label ? ` — ${l.label}` : ''}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
                     )}
                   </div>
 

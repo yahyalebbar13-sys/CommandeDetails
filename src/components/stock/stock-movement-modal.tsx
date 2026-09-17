@@ -13,7 +13,9 @@ import {
   Undo2, RefreshCw, ShoppingCart, XCircle, MapPin,
 } from 'lucide-react';
 import { getLocalDateString } from '@/lib/constants';
-import { type StorageLocation, compareLocationCodes } from '@/lib/warehouse-locations';
+import {
+  type StorageLocation, compareLocationCodes, computeArticleLocationStock, suggestInboundLocation,
+} from '@/lib/warehouse-locations';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 const UI_COLORS = ['#CC8626','#1E293B','#3B82F6','#10B981','#6366F1','#F43F5E','#8B5CF6','#EC4899'];
@@ -29,6 +31,8 @@ interface StockMovementModalProps {
   stores?: Store[];
   /** Emplacements physiques configurés (cf. /stock → Emplacements) — filtrés sur le lieu choisi. */
   locations?: StorageLocation[];
+  /** Tous les mouvements, pour pré-remplir l'emplacement automatiquement (FIFO en sortie). */
+  allMovements?: any[];
   preselectedArticleId?: string;
   preselectedType?: StockMovementType;
   activeStore?: StoreLocation | 'ALL';
@@ -376,7 +380,7 @@ export function ProductPicker({
 // ── Modal principal ───────────────────────────────────────────────────────────
 export default function StockMovementModal({
   open, onOpenChange, articles, categories, generalCategories = [], stockItems, stores = [],
-  locations = [], preselectedArticleId, preselectedType, activeStore, onSubmit,
+  locations = [], allMovements = [], preselectedArticleId, preselectedType, activeStore, onSubmit,
 }: StockMovementModalProps) {
 
   const today = getLocalDateString();
@@ -428,6 +432,21 @@ export default function StockMovementModal({
   );
 
   const physicalPlaceName = stores.find(s => s.id === (form.physicalStoreId || form.storeId))?.name || '';
+
+  // Pré-remplit l'emplacement tout seul — même logique qu'à la caisse : en sortie on prend le
+  // plus ancien dépôt (FIFO), en entrée on range là où le produit se trouve déjà. L'utilisateur
+  // garde la main pour corriger, mais il n'a rien à saisir dans le cas courant.
+  useEffect(() => {
+    if (!form.articleId || availableLocations.length === 0) return;
+    const place = form.physicalStoreId || form.storeId;
+    if (!place) return;
+    const realId = (stockItems.find(s => s.articleId === form.articleId) as any)?._realArticleId || form.articleId;
+    const suggestion = form.type === 'OUT'
+      ? computeArticleLocationStock(allMovements, place, realId)[0]?.locationCode
+      : suggestInboundLocation(allMovements, place, realId)?.locationCode;
+    if (!suggestion) return;
+    setForm(f => (f.locationCode ? f : { ...f, locationCode: suggestion }));
+  }, [form.articleId, form.type, form.physicalStoreId, form.storeId, availableLocations.length, allMovements, stockItems]);
 
   const selectedStock = stockItems.find(s => s.articleId === form.articleId);
   const reasons       = REASONS_BY_TYPE[form.type] || [];

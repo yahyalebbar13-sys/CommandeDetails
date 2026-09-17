@@ -166,6 +166,126 @@ export function computeLocationOccupancy(movements: any[]): Record<string, Locat
   return out;
 }
 
+/** Ce qu'un emplacement contient d'un article donné, avec l'ancienneté de son plus vieux dépôt. */
+export type ArticleLocationStock = {
+  locationCode: string;
+  locationId?: string;
+  quantity: number;
+  /** Date (YYYY-MM-DD) de la plus ancienne entrée encore présente — clé du tri FIFO. */
+  firstInDate: string;
+};
+
+/**
+ * Ventile le stock d'un article par emplacement, dans un lieu donné. Dérivé des mouvements,
+ * comme tout le reste du calcul de stock — rien n'est stocké.
+ */
+export function computeArticleLocationStock(
+  movements: any[], storeId: string, articleId: string
+): ArticleLocationStock[] {
+  const acc: Record<string, { qty: number; firstIn: string; locId?: string }> = {};
+
+  for (const m of movements || []) {
+    if (!m?.locationCode) continue;
+    if (m.articleId !== articleId) continue;
+    // Un transfert entrant est crédité sur toStoreId, tous les autres sur storeId.
+    const place = m.type === 'IN' && m.reason === 'TRANSFERT' ? (m.toStoreId || m.storeId) : m.storeId;
+    if (place !== storeId) continue;
+
+    const qty = Number(m.quantity) || 0;
+    const entry = (acc[m.locationCode] ||= { qty: 0, firstIn: '9999-12-31', locId: m.locationId });
+    entry.qty += m.type === 'OUT' ? -qty : qty;
+    if (m.locationId && !entry.locId) entry.locId = m.locationId;
+    if (m.type !== 'OUT' && m.date && m.date < entry.firstIn) entry.firstIn = m.date;
+  }
+
+  return Object.entries(acc)
+    .filter(([, v]) => v.qty > 0)
+    .map(([code, v]) => ({ locationCode: code, locationId: v.locId, quantity: v.qty, firstInDate: v.firstIn }))
+    .sort((a, b) => a.firstInDate.localeCompare(b.firstInDate) || compareLocationCodes(a.locationCode, b.locationCode));
+}
+
+export type OutboundAllocation = {
+  locationCode: string;
+  locationId?: string;
+  quantity: number;
+};
+
+/**
+ * Répartit automatiquement une quantité à sortir sur les emplacements qui contiennent
+ * réellement l'article, du plus ancien dépôt au plus récent (FIFO). Aucune question posée à
+ * l'utilisateur : c'est le choix retenu pour ne pas ralentir la caisse.
+ *
+ * `unallocated` porte ce qui n'a pas pu être adressé — soit parce que l'article a du stock
+ * entré avant la mise en place des emplacements, soit parce que les emplacements n'en
+ * contiennent pas assez. L'appelant écrit alors un mouvement sans emplacement pour ce reste,
+ * plutôt que de rendre un emplacement négatif.
+ */
+export function allocateOutbound(params: {
+  movements: any[];
+  storeId: string;
+  articleId: string;
+  quantity: number;
+}): { allocations: OutboundAllocation[]; unallocated: number } {
+  const total = Number(params.quantity) || 0;
+  if (total <= 0) return { allocations: [], unallocated: 0 };
+
+  const buckets = computeArticleLocationStock(params.movements, params.storeId, params.articleId);
+  const allocations: OutboundAllocation[] = [];
+  let remaining = total;
+
+  for (const b of buckets) {
+    if (remaining <= 0) break;
+    const take = Math.min(remaining, b.quantity);
+    if (take <= 0) continue;
+    allocations.push({ locationCode: b.locationCode, locationId: b.locationId, quantity: take });
+    remaining -= take;
+  }
+
+  // Arrondi défensif : les quantités peuvent être décimales (mètres, yards).
+  const unallocated = Math.round(Math.max(0, remaining) * 1000) / 1000;
+  return { allocations, unallocated };
+}
+
+/**
+ * Transforme une sortie en une ou plusieurs lignes de mouvement adressées : chaque ligne porte
+ * l'emplacement d'où la marchandise est réellement prise, choisi automatiquement en FIFO.
+ * Le reliquat non adressable (stock entré avant la mise en place des emplacements) sort sur une
+ * ligne sans emplacement, pour ne jamais rendre un rack négatif.
+ *
+ * `base` contient tous les champs communs du mouvement SAUF quantity/locationCode/locationId.
+ */
+export function splitOutboundLines<T extends Record<string, any>>(
+  movements: any[], storeId: string, articleId: string, quantity: number, base: T
+): (T & { quantity: number; locationCode?: string; locationId?: string })[] {
+  const qty = Number(quantity) || 0;
+  if (qty <= 0) return [];
+
+  const { allocations, unallocated } = allocateOutbound({ movements, storeId, articleId, quantity: qty });
+  const lines = allocations.map(a => ({
+    ...base,
+    quantity: a.quantity,
+    locationCode: a.locationCode,
+    ...(a.locationId ? { locationId: a.locationId } : {}),
+  }));
+
+  if (unallocated > 0) lines.push({ ...base, quantity: unallocated } as any);
+  // Aucun emplacement connu pour cet article : mouvement unique, comportement d'avant.
+  return lines.length > 0 ? lines : [{ ...base, quantity: qty }];
+}
+
+/**
+ * Emplacement à proposer pour une ENTRÉE quand le formulaire n'offre pas de choix explicite
+ * (retour client, ajustement d'inventaire…) : celui où l'article se trouve déjà, à condition
+ * qu'il n'y en ait qu'un. Sinon on préfère ne rien décider.
+ */
+export function suggestInboundLocation(
+  movements: any[], storeId: string, articleId: string
+): { locationCode: string; locationId?: string } | null {
+  const buckets = computeArticleLocationStock(movements, storeId, articleId);
+  if (buckets.length !== 1) return null;
+  return { locationCode: buckets[0].locationCode, locationId: buckets[0].locationId };
+}
+
 /** Tri naturel des codes : A-02-10 après A-02-09, et A-10 après A-09. */
 export function compareLocationCodes(a: string, b: string): number {
   const pa = String(a || '').split('-');

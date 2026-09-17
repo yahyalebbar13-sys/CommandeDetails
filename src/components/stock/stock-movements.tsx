@@ -309,6 +309,7 @@ export default function StockMovements({ movements, stockItems, categories, arti
         stockItems={stockItems}
         stores={stores}
         locations={locations}
+        allMovements={movements}
         activeStore={activeStore}
         onSubmit={onAddMovement}
       />

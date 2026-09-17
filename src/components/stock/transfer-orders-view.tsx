@@ -11,11 +11,14 @@ import { useToast } from '@/hooks/use-toast';
 import type { TransferOrder, TransferOrderItem, StockItem, StoreLocation, StockMovement, Store } from '@/lib/types';
 import { exportTransferOrderPDF } from '@/lib/pdf-export-reports';
 import { logAudit } from '@/lib/audit-log';
+import { splitOutboundLines, suggestInboundLocation } from '@/lib/warehouse-locations';
 
 interface TransferOrdersViewProps {
   transferOrders: TransferOrder[];
   stockItems: StockItem[];
   stores: Store[];
+  /** Mouvements, pour résoudre automatiquement les emplacements (FIFO en sortie). */
+  movements?: any[];
   userRole: 'ADMIN' | 'COMMERCIAL' | 'UNAUTHORIZED';
   activeStore: StoreLocation | 'ALL';
   adminUid: string | null;
@@ -23,7 +26,7 @@ interface TransferOrdersViewProps {
 
 
 
-export default function TransferOrdersView({ transferOrders, stockItems, stores, userRole, activeStore, adminUid }: TransferOrdersViewProps) {
+export default function TransferOrdersView({ transferOrders, stockItems, stores, movements = [], userRole, activeStore, adminUid }: TransferOrdersViewProps) {
   const { user } = useUser();
   const firestore = useFirestore();
   const { toast } = useToast();
@@ -120,9 +123,9 @@ export default function TransferOrdersView({ transferOrders, stockItems, stores,
       // Mouvements OUT (source) + IN (destination) dans le même batch atomique
       const batch = writeBatch(firestore);
       for (const item of selectedItems) {
-        const outRef = doc(collection(firestore, 'users', adminUid, 'stockMovements'));
-        batch.set(outRef, {
-          articleId: item.realArticleId || item.articleId,
+        const realId = item.realArticleId || item.articleId;
+        const common = {
+          articleId: realId,
           categoryId: item.categoryId,
           productName: item.nameFR || item.productName,
           nameFR: item.nameFR,
@@ -130,34 +133,35 @@ export default function TransferOrdersView({ transferOrders, stockItems, stores,
           size: item.size,
           quality: item.quality,
           unitOfMeasure: item.unitOfMeasure,
-          type: 'OUT',
-          reason: 'TRANSFERT',
+          date: now.split('T')[0],
+          createdAt: serverTimestamp()
+        };
+
+        // Sortie de la source : emplacement résolu automatiquement en FIFO, sans rien demander.
+        const outBase = {
+          ...common,
+          type: 'OUT' as const,
+          reason: 'TRANSFERT' as const,
           storeId: fromStore,
           toStoreId: toStore,
-          quantity: item.sentQty,
-          date: now.split('T')[0],
           notes: `Transfert ${docRef.id} vers ${getStoreLabel(toStore)}`,
-          createdAt: serverTimestamp()
-        });
-        const inRef = doc(collection(firestore, 'users', adminUid, 'stockMovements'));
-        batch.set(inRef, {
-          articleId: item.realArticleId || item.articleId,
-          categoryId: item.categoryId,
-          productName: item.nameFR || item.productName,
-          nameFR: item.nameFR,
-          color: item.color,
-          size: item.size,
-          quality: item.quality,
-          unitOfMeasure: item.unitOfMeasure,
+        };
+        for (const line of splitOutboundLines(movements, fromStore, realId, item.sentQty, outBase)) {
+          batch.set(doc(collection(firestore, 'users', adminUid, 'stockMovements')), line);
+        }
+
+        // Entrée à destination : on range là où le produit est déjà, si l'endroit est unique.
+        const dest = suggestInboundLocation(movements, toStore, realId);
+        batch.set(doc(collection(firestore, 'users', adminUid, 'stockMovements')), {
+          ...common,
           type: 'IN',
           reason: 'TRANSFERT',
           storeId: toStore,
           toStoreId: toStore,
           fromStoreId: fromStore,
+          ...(dest ? { locationCode: dest.locationCode, ...(dest.locationId ? { locationId: dest.locationId } : {}) } : {}),
           quantity: item.sentQty,
-          date: now.split('T')[0],
           notes: `Transfert ${docRef.id} depuis ${getStoreLabel(fromStore)}`,
-          createdAt: serverTimestamp()
         });
       }
       await batch.commit();
@@ -222,10 +226,13 @@ export default function TransferOrdersView({ transferOrders, stockItems, stores,
 
       // Create IN movements for the receiver + handle discrepancies
       for (const item of updatedItems) {
+        const realId = item.realArticleId || item.articleId;
         if (item.receivedQty && item.receivedQty > 0) {
           const inRef = doc(collection(firestore, 'users', adminUid, 'stockMovements'));
+          // Réception : on range là où le produit est déjà dans ce magasin, si l'endroit est unique.
+          const dest = suggestInboundLocation(movements, order.toStore, realId);
           batch.set(inRef, {
-            articleId: item.realArticleId || item.articleId,
+            articleId: realId,
             categoryId: item.categoryId,
             productName: item.productName,
             nameFR: item.nameFR,
@@ -238,6 +245,7 @@ export default function TransferOrdersView({ transferOrders, stockItems, stores,
             storeId: order.toStore,
             toStoreId: order.toStore,
             fromStoreId: order.fromStore,
+            ...(dest ? { locationCode: dest.locationCode, ...(dest.locationId ? { locationId: dest.locationId } : {}) } : {}),
             quantity: item.receivedQty,
             date: now.split('T')[0],
             notes: `Réception Bon de transfert ${order.id} depuis ${getStoreLabel(order.fromStore)}`,
@@ -248,9 +256,10 @@ export default function TransferOrdersView({ transferOrders, stockItems, stores,
         // Handle discrepancies (Losses)
         const discrepancy = item.sentQty - (item.receivedQty || 0);
         if (discrepancy > 0) {
-          const lossRef = doc(collection(firestore, 'users', adminUid, 'stockMovements'));
-          batch.set(lossRef, {
-            articleId: item.realArticleId || item.articleId,
+          // La perte est constatée à l'arrivée : elle sort de l'emplacement de destination
+          // où la réception vient d'être créditée, résolu automatiquement en FIFO.
+          const lossBase = {
+            articleId: realId,
             categoryId: item.categoryId,
             productName: item.productName,
             nameFR: item.nameFR,
@@ -258,14 +267,16 @@ export default function TransferOrdersView({ transferOrders, stockItems, stores,
             size: item.size,
             quality: item.quality,
             unitOfMeasure: item.unitOfMeasure,
-            type: 'OUT',
-            reason: 'PERTE',
+            type: 'OUT' as const,
+            reason: 'PERTE' as const,
             storeId: order.toStore,
-            quantity: discrepancy,
             date: now.split('T')[0],
             notes: `Perte/Manquant lors de la réception ${order.id}`,
             createdAt: serverTimestamp()
-          });
+          };
+          for (const line of splitOutboundLines(movements, order.toStore, realId, discrepancy, lossBase)) {
+            batch.set(doc(collection(firestore, 'users', adminUid, 'stockMovements')), line);
+          }
         }
       }
 
