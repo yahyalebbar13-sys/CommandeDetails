@@ -190,7 +190,7 @@ interface SummaryPanelProps {
 function SummaryPanel({ items, subtotal, city, productQtyMap }: SummaryPanelProps) {
   const { language } = useLanguage();
   const freeShipping = isEligibleForFreeDelivery(subtotal, city);
-  // Tant que la ville n'est pas choisie, les frais restent inconnus (gratuits à Casablanca dès 100 MAD)
+  // Tant que la ville n'est pas choisie, les frais restent inconnus (gratuits à Casablanca à partir de 100 MAD)
   const deliveryFee = freeShipping || !city ? 0 : getDeliveryFee(city);
   const deliveryDays = city ? getDeliveryDays(city) : "24–72h";
   const total = subtotal + deliveryFee;
@@ -294,7 +294,7 @@ function SummaryPanel({ items, subtotal, city, productQtyMap }: SummaryPanelProp
             <Truck className="w-3.5 h-3.5 mt-px flex-shrink-0" />
             {city
               ? `Plus que ${formatPrice(freeDeliveryThreshold - subtotal)} pour la livraison gratuite${isCasablanca(city) ? " à Casablanca" : ""}`
-              : `Livraison gratuite à Casablanca dès ${formatPrice(CASABLANCA_FREE_DELIVERY_THRESHOLD)}, partout au Maroc dès ${formatPrice(FREE_DELIVERY_THRESHOLD)}`}
+              : `Livraison gratuite à Casablanca à partir de ${formatPrice(CASABLANCA_FREE_DELIVERY_THRESHOLD)}, partout au Maroc à partir de ${formatPrice(FREE_DELIVERY_THRESHOLD)}`}
           </p>
         )}
         {city && (

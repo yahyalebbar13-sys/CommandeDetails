@@ -162,9 +162,9 @@ export default function PromotionsPage() {
         <div className="bg-[#D4A843]/10 border border-[#D4A843]/30 rounded-2xl p-4 mb-8 flex items-center gap-3">
           <span className="text-2xl">🎉</span>
           <div>
-            <p className="font-bold text-[#1A1A1A]">Livraison GRATUITE à Casablanca dès {formatPrice(CASABLANCA_FREE_DELIVERY_THRESHOLD)}</p>
+            <p className="font-bold text-[#1A1A1A]">Livraison GRATUITE à Casablanca à partir de {formatPrice(CASABLANCA_FREE_DELIVERY_THRESHOLD)}</p>
             <p className="text-sm text-[#6B6B6B]">
-              Partout au Maroc dès {formatPrice(FREE_DELIVERY_THRESHOLD)} · combinez plusieurs articles en promotion
+              Partout au Maroc à partir de {formatPrice(FREE_DELIVERY_THRESHOLD)} · combinez plusieurs articles en promotion
             </p>
           </div>
           <Link href="/shop/boutique" className="ml-auto shrink-0 px-4 py-2 bg-[#D4A843] text-white text-sm font-bold rounded-xl hover:bg-[#b8922e] transition-colors">

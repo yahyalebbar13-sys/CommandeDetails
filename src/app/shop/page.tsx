@@ -239,7 +239,7 @@ export default function ShopPage() {
           </span>
           <span className="hidden sm:flex items-center gap-1.5 font-normal text-white/85">
             <MapPin className="w-3.5 h-3.5 shrink-0" />
-            {isAr ? `لجميع المدن من ${nationalThreshold}` : `Partout au Maroc dès ${nationalThreshold}`}
+            {isAr ? `لجميع المدن من ${nationalThreshold}` : `Partout au Maroc à partir de ${nationalThreshold}`}
           </span>
           <span className="hidden sm:flex items-center gap-1.5 font-normal text-white/85">
             <Banknote className="w-3.5 h-3.5 shrink-0" /> {t('trust_payment')}
@@ -308,7 +308,7 @@ export default function ShopPage() {
                   {isAr ? 'الدار البيضاء' : 'Casablanca'}
                 </p>
                 <p className="text-xl sm:text-2xl lg:text-3xl font-black leading-tight" style={{ fontFamily: 'Outfit, sans-serif' }}>
-                  {isAr ? 'توصيل مجاني ابتداءً من ' : 'Livraison GRATUITE dès '}
+                  {isAr ? 'توصيل مجاني ابتداءً من ' : 'Livraison GRATUITE à partir de '}
                   <span className="text-[#F3D58B]">{casaThreshold}</span>
                 </p>
                 <p className="text-white/80 text-xs sm:text-sm mt-1">
@@ -316,7 +316,7 @@ export default function ShopPage() {
                   <bdi>{DELIVERY_ZONES.casablanca.days}</bdi>
                   {isAr
                     ? ` · الدفع عند الاستلام · باقي المدن: مجاني من ${nationalThreshold}`
-                    : ` · Paiement à la livraison · Autres villes : gratuite dès ${nationalThreshold}`}
+                    : ` · Paiement à la livraison · Autres villes : gratuite à partir de ${nationalThreshold}`}
                 </p>
               </div>
             </div>
@@ -514,7 +514,7 @@ export default function ShopPage() {
               title: isAr ? 'توصيل مجاني' : 'Livraison gratuite',
               text: isAr
                 ? `الدار البيضاء من ${casaThreshold}، باقي المدن من ${nationalThreshold}`
-                : `Casablanca dès ${casaThreshold}, partout au Maroc dès ${nationalThreshold}`,
+                : `Casablanca à partir de ${casaThreshold}, partout au Maroc à partir de ${nationalThreshold}`,
             },
             {
               icon: <Banknote className="w-5 h-5 text-emerald-600" />,

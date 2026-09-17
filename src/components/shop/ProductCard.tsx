@@ -166,7 +166,7 @@ export default React.memo(function ProductCard({ product, showAddToCart = true }
             </div>
             {hasWholesalePrice && (
               <span className="text-[10px] font-semibold text-emerald-600 mt-0.5">
-                {language === 'ar' ? `من ${product.minOrderQty}: ${formatPrice(product.wholesalePrice as number)}` : `Dès ${product.minOrderQty} : ${formatPrice(product.wholesalePrice as number)}/pc`}
+                {language === 'ar' ? `من ${product.minOrderQty}: ${formatPrice(product.wholesalePrice as number)}` : `À partir de ${product.minOrderQty} : ${formatPrice(product.wholesalePrice as number)}/pc`}
               </span>
             )}
             {isLowStock ? (

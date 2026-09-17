@@ -584,7 +584,7 @@ export default function PanierPage() {
                       <p className="text-xs">
                         {isAr
                           ? `الدار البيضاء: مجاني من ${formatPrice(CASABLANCA_FREE_DELIVERY_THRESHOLD)} · باقي المدن: من ${formatPrice(FREE_DELIVERY_THRESHOLD)}`
-                          : `Casablanca : gratuite dès ${formatPrice(CASABLANCA_FREE_DELIVERY_THRESHOLD)} · Autres villes : dès ${formatPrice(FREE_DELIVERY_THRESHOLD)}`}
+                          : `Casablanca : gratuite à partir de ${formatPrice(CASABLANCA_FREE_DELIVERY_THRESHOLD)} · Autres villes : à partir de ${formatPrice(FREE_DELIVERY_THRESHOLD)}`}
                       </p>
                     )}
                   </div>

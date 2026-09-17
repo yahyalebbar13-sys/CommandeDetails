@@ -44,15 +44,15 @@ export const translations: Translations = {
   delivery_free:  { fr: 'GRATUITE 🎉',          ar: 'مجاني 🎉' },
   delivery_calc:  { fr: 'Calculée à la commande', ar: 'تحسب عند الطلب' },
   free_delivery_unlocked: { fr: '🎉 Livraison GRATUITE partout au Maroc !',    ar: '🎉 التوصيل مجاني لجميع المدن!' },
-  free_delivery_casa:     { fr: 'Livraison GRATUITE à Casablanca dès {amount}', ar: 'توصيل مجاني في الدار البيضاء ابتداءً من {amount}' },
+  free_delivery_casa:     { fr: 'Livraison GRATUITE à Casablanca à partir de {amount}', ar: 'توصيل مجاني في الدار البيضاء ابتداءً من {amount}' },
   free_delivery_casa_unlocked: { fr: '🎉 Livraison GRATUITE à Casablanca débloquée !', ar: '🎉 التوصيل مجاني في الدار البيضاء!' },
   free_delivery_casa_progress: { fr: 'Plus que {amount} pour la livraison GRATUITE à Casablanca', ar: 'باقي {amount} للتوصيل المجاني في الدار البيضاء' },
   free_delivery_other_progress: { fr: 'Autres villes : plus que {amount} pour la livraison gratuite', ar: 'باقي المدن: باقي {amount} للتوصيل المجاني' },
-  free_delivery_other_cities: { fr: 'Autres villes : livraison gratuite dès {amount}', ar: 'باقي المدن: التوصيل مجاني ابتداءً من {amount}' },
+  free_delivery_other_cities: { fr: 'Autres villes : livraison gratuite à partir de {amount}', ar: 'باقي المدن: التوصيل مجاني ابتداءً من {amount}' },
   delivery_free_casa: { fr: 'Gratuite à Casablanca', ar: 'مجاني في الدار البيضاء' },
   cod_payment:    { fr: 'Paiement à la livraison 💵', ar: 'الدفع عند الاستلام 💵' },
   price_on_request: { fr: 'Sur demande', ar: 'حسب الطلب' },
-  price_from:     { fr: 'Dès',                  ar: 'من' },
+  price_from:     { fr: 'À partir de',                  ar: 'من' },
 
   // ── Products ──────────────────────────────────────────────────────────────
   add_to_cart:    { fr: 'Ajouter au panier',  ar: 'أضف للسلة' },

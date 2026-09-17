@@ -100,6 +100,20 @@ interface MultiVariantSelectorProps {
   whatsappHref?: string;
   onAdd: (items: CartItem[]) => void;
   onVariantSelect?: (variant: ProductVariant | null, size: string) => void;
+  onImagePreview?: (image?: string) => void;
+}
+
+// Badge d'étape : le client choisit dans l'ordre modèle → taille → couleur
+function StepBadge({ step, done }: { step: number; done: boolean }) {
+  return (
+    <span
+      className={`w-4 h-4 rounded-full text-[10px] font-black flex items-center justify-center flex-shrink-0 ${
+        done ? 'bg-neutral-900 text-white' : 'bg-neutral-200 text-neutral-500'
+      }`}
+    >
+      {step}
+    </span>
+  );
 }
 
 function MultiVariantSelector({
@@ -114,6 +128,7 @@ function MultiVariantSelector({
   whatsappHref,
   onAdd,
   onVariantSelect,
+  onImagePreview,
 }: MultiVariantSelectorProps) {
   const { language } = useLanguage();
 
@@ -138,65 +153,48 @@ function MultiVariantSelector({
     return Array.from(new Set(safeVariants.map(v => v.model?.trim()).filter(Boolean) as string[]));
   }, [safeVariants]);
   const hasModels = uniqueModels.length > 0;
-  const [selectedModel, setSelectedModel] = useState<string>(() => (hasModels ? uniqueModels[0] : ''));
+  // Rien n'est pré-coché : le client choisit le modèle, puis la taille, puis la couleur.
+  // Exception : quand il n'existe qu'un seul modèle (ou qu'une seule taille), il n'y a
+  // rien à choisir, on enchaîne directement sur l'étape suivante.
+  const [selectedModel, setSelectedModel] = useState<string>('');
+  const effectiveModel = uniqueModels.length === 1 ? uniqueModels[0] : selectedModel;
 
   // Variants active for the selected model
   const activeVariantsForModel = useMemo(() => {
-    if (!hasModels || !selectedModel) return safeVariants;
-    const filtered = safeVariants.filter(v => (v.model?.trim() || '') === selectedModel);
-    return filtered.length > 0 ? filtered : safeVariants;
-  }, [safeVariants, hasModels, selectedModel]);
+    if (!hasModels) return safeVariants;
+    if (!effectiveModel) return [];
+    return safeVariants.filter(v => (v.model?.trim() || '') === effectiveModel);
+  }, [safeVariants, hasModels, effectiveModel]);
 
   // 2. Sizes
+  const hasSizes = useMemo(() => safeVariants.some(v => (v.size?.trim() || '') !== ''), [safeVariants]);
   const uniqueSizes = useMemo(() => {
     return Array.from(new Set(activeVariantsForModel.map(v => v.size?.trim() || 'Standard')));
   }, [activeVariantsForModel]);
-  const hasSizes = uniqueSizes.length > 1 || (uniqueSizes.length === 1 && uniqueSizes[0] !== 'Standard');
-  const [selectedSize, setSelectedSize] = useState<string>(() => uniqueSizes[0] || 'Standard');
-
-  // Synchronize size if current size isn't available in new model
-  useEffect(() => {
-    if (uniqueSizes.length > 0 && (!selectedSize || !uniqueSizes.includes(selectedSize))) {
-      const nextSz = uniqueSizes[0];
-      setSelectedSize(nextSz);
-    }
-  }, [uniqueSizes, selectedSize]);
+  const [selectedSize, setSelectedSize] = useState<string>('');
+  const effectiveSize = uniqueSizes.length === 1 ? uniqueSizes[0] : selectedSize;
 
   // 3. Colors / Variants for current model + current size
   const variantsForSize = useMemo(() => {
-    return activeVariantsForModel.filter(v => {
-      if (hasSizes && selectedSize && selectedSize !== 'Standard') {
-        return (v.size?.trim() || 'Standard') === selectedSize;
-      }
-      return true;
-    });
-  }, [activeVariantsForModel, hasSizes, selectedSize]);
+    if (hasModels && !effectiveModel) return [];
+    if (hasSizes && !effectiveSize) return [];
+    return activeVariantsForModel.filter(v => !hasSizes || (v.size?.trim() || 'Standard') === effectiveSize);
+  }, [activeVariantsForModel, hasModels, effectiveModel, hasSizes, effectiveSize]);
 
-  // Active selected variant in single mode
+  // Variante retenue. Quand il ne reste qu'une option, il n'y a rien à choisir.
   const activeVariant = useMemo(() => {
-    return variantsForSize.find(v => v._safeId === selectedVariantId) || variantsForSize[0] || null;
+    return (
+      variantsForSize.find(v => v._safeId === selectedVariantId) ||
+      (variantsForSize.length === 1 ? variantsForSize[0] : null)
+    );
   }, [variantsForSize, selectedVariantId]);
 
-  // Synchronize active variant when size or model changes
+  // Tient la fiche produit au courant (photo, prix, caractéristiques de la variante)
+  const onVariantSelectRef = useRef(onVariantSelect);
+  onVariantSelectRef.current = onVariantSelect;
   useEffect(() => {
-    if (variantsForSize.length > 0) {
-      const exists = variantsForSize.some(v => v._safeId === selectedVariantId);
-      if (!exists) {
-        const nextV = variantsForSize[0];
-        setSelectedVariantId(nextV._safeId);
-        onVariantSelect?.(nextV, nextV.size || selectedSize || 'Standard');
-      }
-    }
-  }, [variantsForSize, selectedVariantId, selectedSize, onVariantSelect]);
-
-  // Initial sync on mount
-  useEffect(() => {
-    const initV = variantsForSize.find(v => v._safeId === selectedVariantId) || variantsForSize[0] || null;
-    if (initV) {
-      setSelectedVariantId(initV._safeId);
-      onVariantSelect?.(initV, initV.size || selectedSize || 'Standard');
-    }
-  }, []);
+    onVariantSelectRef.current?.(activeVariant, activeVariant?.size?.trim() || effectiveSize || 'Standard');
+  }, [activeVariant, effectiveSize]);
 
   // Filtered colors based on search
   const filteredVariants = useMemo(() => {
@@ -210,32 +208,24 @@ function MultiVariantSelector({
     });
   }, [variantsForSize, colorSearch]);
 
-  // Selection handlers
+  // Selection handlers — chaque étape remet à zéro les suivantes
   const handleSelectModel = (mod: string) => {
     setSelectedModel(mod);
-    const modVars = safeVariants.filter(v => (v.model?.trim() || '') === mod);
-    const modSizes = Array.from(new Set(modVars.map(v => v.size?.trim() || 'Standard')));
-    const nextSize = (selectedSize && modSizes.includes(selectedSize)) ? selectedSize : (modSizes[0] || 'Standard');
-    setSelectedSize(nextSize);
-    const firstOfModelSize = modVars.find(v => (v.size?.trim() || 'Standard') === nextSize) || modVars[0] || null;
-    if (firstOfModelSize) {
-      setSelectedVariantId(firstOfModelSize._safeId);
-      onVariantSelect?.(firstOfModelSize, nextSize);
-    }
+    setSelectedSize('');
+    setSelectedVariantId('');
+    setSingleQty(minOrderQty || 1);
+    // Le modèle a sa propre photo : la galerie l'affiche tout de suite
+    onImagePreview?.(safeVariants.find(v => (v.model?.trim() || '') === mod && v.image)?.image);
   };
 
   const handleSelectSize = (sz: string) => {
     setSelectedSize(sz);
-    const firstOfSize = activeVariantsForModel.find(v => (v.size?.trim() || 'Standard') === sz) || null;
-    if (firstOfSize) {
-      setSelectedVariantId(firstOfSize._safeId);
-      onVariantSelect?.(firstOfSize, sz);
-    }
+    setSelectedVariantId('');
+    setSingleQty(minOrderQty || 1);
   };
 
   const handleSelectColor = (v: (typeof safeVariants)[0]) => {
     setSelectedVariantId(v._safeId);
-    onVariantSelect?.(v, v.size || selectedSize || 'Standard');
     setSingleQty(minOrderQty || 1);
   };
 
@@ -327,12 +317,12 @@ function MultiVariantSelector({
   // Auto-expand sizes if active size is past MAX_SIZES_COLLAPSED
   useEffect(() => {
     if (hasManySizes && !isSizesExpanded) {
-      const idx = uniqueSizes.indexOf(selectedSize);
+      const idx = uniqueSizes.indexOf(effectiveSize);
       if (idx >= MAX_SIZES_COLLAPSED) {
         setIsSizesExpanded(true);
       }
     }
-  }, [selectedSize, uniqueSizes, hasManySizes, isSizesExpanded]);
+  }, [effectiveSize, uniqueSizes, hasManySizes, isSizesExpanded]);
 
   const MAX_COLORS_COLLAPSED = 14;
   const hasManyColors = variantsForSize.length > MAX_COLORS_COLLAPSED;
@@ -357,7 +347,37 @@ function MultiVariantSelector({
   const activePrice = getVariantPrice(basePrice, activeVariant);
   const singleTotalPrice = activePrice * singleQty;
 
-  const isSimpleSizeOnly = variantsForSize.length === 1 && (!variantsForSize[0]?.color || variantsForSize[0]?.color?.startsWith('Option')) && !variantsForSize[0]?.image;
+  // Étape en attente : elle bloque les suivantes
+  const missingStep = hasModels && !effectiveModel ? 'model' : hasSizes && !effectiveSize ? 'size' : null;
+  // Un produit dont les variantes n'ont pas de vraie couleur n'a pas d'étape couleur
+  const hasColorNames = useMemo(
+    () => safeVariants.some(v => Boolean(v.color?.trim()) && !v.color!.startsWith('Option')),
+    [safeVariants]
+  );
+  const showColorStep = hasColorNames || variantsForSize.length > 1;
+  const chooseFirstLabel =
+    missingStep === 'model'
+      ? (language === 'ar' ? 'اختر الموديل أولاً' : "Choisissez d'abord un modèle")
+      : (language === 'ar' ? 'اختر المقاس أولاً' : "Choisissez d'abord une taille");
+  const toChooseLabel = language === 'ar' ? 'للاختيار' : 'À choisir';
+
+  // On ne numérote que les étapes où il y a réellement un choix à faire
+  const modelIsChoice = uniqueModels.length > 1;
+  const sizeIsChoice = uniqueSizes.length > 1 || (missingStep === 'model' && hasSizes);
+  let stepCount = 0;
+  const modelStep = modelIsChoice ? ++stepCount : 0;
+  const sizeStep = sizeIsChoice ? ++stepCount : 0;
+  const colorStep = showColorStep ? ++stepCount : 0;
+  const showStepNumbers = stepCount > 1;
+
+  // Le bouton d'ajout rappelle l'étape qui manque tant que la variante n'est pas complète
+  const addToCartLabel = activeVariant
+    ? `${language === 'ar' ? 'إضافة للسلة' : 'Ajouter au panier'}${singleTotalPrice > 0 ? ` • ${formatPrice(singleTotalPrice)}` : ''}`
+    : missingStep === 'model'
+      ? (language === 'ar' ? 'اختر الموديل' : 'Choisissez un modèle')
+      : missingStep === 'size'
+        ? (language === 'ar' ? 'اختر المقاس' : 'Choisissez une taille')
+        : (language === 'ar' ? 'اختر اللون' : 'Choisissez une couleur');
 
   return (
     <div className="space-y-4 pt-1">
@@ -366,16 +386,22 @@ function MultiVariantSelector({
         <div className="space-y-2.5">
           <div className="flex items-center justify-between">
             <span className="text-xs font-bold uppercase tracking-wider text-neutral-500 flex items-center gap-1.5">
+              {showStepNumbers && modelStep > 0 && <StepBadge step={modelStep} done={Boolean(effectiveModel)} />}
               <Layers className="w-3.5 h-3.5 text-neutral-700" />
               {language === 'ar' ? 'الموديل :' : 'Modèle :'}
             </span>
-            <span className="text-xs font-bold text-neutral-900 bg-neutral-100 px-2 py-0.5 rounded-md">
-              {selectedModel}
+            <span
+              className={`text-xs font-bold px-2 py-0.5 rounded-md ${
+                effectiveModel ? 'text-neutral-900 bg-neutral-100' : 'text-neutral-400 border border-dashed border-neutral-300'
+              }`}
+            >
+              {effectiveModel || toChooseLabel}
             </span>
           </div>
+          {!modelIsChoice ? null : (
           <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-2.5">
             {uniqueModels.map(mod => {
-              const isCurrent = mod === selectedModel;
+              const isCurrent = mod === effectiveModel;
               const modVars = safeVariants.filter(v => (v.model?.trim() || '') === mod);
               const totalStock = modVars.reduce((s, v) => s + v.stock, 0);
               // Use first variant with an image as representative
@@ -427,6 +453,7 @@ function MultiVariantSelector({
               );
             })}
           </div>
+          )}
         </div>
       )}
 
@@ -435,22 +462,36 @@ function MultiVariantSelector({
         <div className="space-y-2">
           <div className="flex items-center justify-between">
             <span className="text-xs font-bold uppercase tracking-wider text-neutral-500 flex items-center gap-1.5">
+              {showStepNumbers && sizeStep > 0 && <StepBadge step={sizeStep} done={Boolean(effectiveSize)} />}
               <Ruler className="w-3.5 h-3.5 text-neutral-700" />
               {language === 'ar' ? 'المقاس / الحجم :' : 'Taille :'}
             </span>
             <div className="flex items-center gap-2">
-              <span className="text-xs font-bold text-neutral-900 bg-neutral-100 px-2.5 py-0.5 rounded-md">
-                {selectedSize && selectedSize !== 'Standard' ? selectedSize : (language === 'ar' ? 'قياسي' : 'Standard')}
+              <span
+                className={`text-xs font-bold px-2.5 py-0.5 rounded-md ${
+                  effectiveSize ? 'text-neutral-900 bg-neutral-100' : 'text-neutral-400 border border-dashed border-neutral-300'
+                }`}
+              >
+                {effectiveSize
+                  ? effectiveSize !== 'Standard' ? effectiveSize : (language === 'ar' ? 'قياسي' : 'Standard')
+                  : toChooseLabel}
               </span>
-              <span className="text-[11px] text-neutral-400 font-medium">
-                ({uniqueSizes.length} {language === 'ar' ? 'مقاسات' : `taille${uniqueSizes.length > 1 ? 's' : ''}`})
-              </span>
+              {uniqueSizes.length > 1 && (
+                <span className="text-[11px] text-neutral-400 font-medium">
+                  ({uniqueSizes.length} {language === 'ar' ? 'مقاسات' : 'tailles'})
+                </span>
+              )}
             </div>
           </div>
 
+          {missingStep === 'model' ? (
+            <p className="rounded-xl border border-dashed border-neutral-200 bg-neutral-50/70 px-3 py-3 text-xs font-semibold text-neutral-400">
+              {chooseFirstLabel}
+            </p>
+          ) : !sizeIsChoice ? null : (
           <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 gap-2">
             {displayedSizes.map(sz => {
-              const isCurrent = sz === selectedSize;
+              const isCurrent = sz === effectiveSize;
               const sizeVars = activeVariantsForModel.filter(v => (v.size?.trim() || 'Standard') === sz);
               const totalStock = sizeVars.reduce((s, v) => s + v.stock, 0);
               const isOutOfStock = totalStock === 0;
@@ -480,9 +521,10 @@ function MultiVariantSelector({
               );
             })}
           </div>
+          )}
 
           {/* Expand/collapse button when there are many sizes */}
-          {hasManySizes && (
+          {missingStep !== 'model' && hasManySizes && (
             <button
               type="button"
               onClick={() => setIsSizesExpanded(v => !v)}
@@ -499,15 +541,16 @@ function MultiVariantSelector({
       )}
 
       {/* ── 3. Color Selector (Temu Style with Thumbnail Swatches & Live Search) ── */}
-      {!isSimpleSizeOnly && (
+      {showColorStep && (
         <div className="space-y-2">
           <div className="flex items-center justify-between">
             <span className="text-xs font-bold uppercase tracking-wider text-neutral-500 flex items-center gap-1.5">
+              {showStepNumbers && colorStep > 0 && <StepBadge step={colorStep} done={Boolean(activeVariant)} />}
               <Sparkles className="w-3.5 h-3.5 text-neutral-700" />
               {language === 'ar' ? 'اللون :' : 'Couleur :'}
             </span>
             <div className="flex items-center gap-2">
-              {activeColorName && (
+              {activeColorName ? (
                 <span className="text-xs font-bold text-neutral-900 bg-neutral-100 px-2.5 py-0.5 rounded-md flex items-center gap-1.5">
                   {activeVariant?.colorHex && (
                     <span
@@ -517,15 +560,28 @@ function MultiVariantSelector({
                   )}
                   <span>{activeColorName}</span>
                 </span>
+              ) : (
+                <span className="text-xs font-bold text-neutral-400 px-2.5 py-0.5 rounded-md border border-dashed border-neutral-300">
+                  {toChooseLabel}
+                </span>
               )}
-              <span className="text-[11px] text-neutral-400 font-medium">
-                ({variantsForSize.length} {language === 'ar' ? 'ألوان' : `couleur${variantsForSize.length > 1 ? 's' : ''}`})
-              </span>
+              {variantsForSize.length > 0 && (
+                <span className="text-[11px] text-neutral-400 font-medium">
+                  ({variantsForSize.length} {language === 'ar' ? 'ألوان' : `couleur${variantsForSize.length > 1 ? 's' : ''}`})
+                </span>
+              )}
             </div>
           </div>
 
+          {/* Étape précédente pas encore faite : les couleurs dépendent du modèle / de la taille */}
+          {missingStep && (
+            <p className="rounded-xl border border-dashed border-neutral-200 bg-neutral-50/70 px-3 py-3 text-xs font-semibold text-neutral-400">
+              {chooseFirstLabel}
+            </p>
+          )}
+
           {/* Quick search input if there are more than 8 colors */}
-          {variantsForSize.length > 8 && (
+          {!missingStep && variantsForSize.length > 8 && (
             <div className="relative">
               <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400 pointer-events-none" />
               <input
@@ -547,42 +603,32 @@ function MultiVariantSelector({
             </div>
           )}
 
-          {/* Color Display: Large card for single color, grid swatches for multiple */}
-          {variantsForSize.length === 1 ? (
-            /* Single Color — Large Card Display */
-            <div
-              className="relative flex items-center gap-4 p-3 rounded-2xl border-2 border-neutral-900 ring-2 ring-neutral-900/20 bg-neutral-50/80 cursor-pointer select-none"
-              onClick={() => handleSelectColor(variantsForSize[0] as any)}
-            >
-              <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-xl overflow-hidden bg-neutral-100 border border-neutral-200 flex-shrink-0 relative">
+          {/* Color Display: une seule option = rien à choisir, sinon grille de pastilles */}
+          {missingStep ? null : variantsForSize.length === 1 ? (
+            /* Seule option pour cette taille : retenue d'office */
+            <div className="flex items-center gap-3 p-2.5 rounded-2xl border border-neutral-200 bg-neutral-50/80">
+              <div className="w-11 h-11 rounded-xl overflow-hidden bg-white border border-neutral-200 flex-shrink-0">
                 {variantsForSize[0].image ? (
                   <img
                     src={variantsForSize[0].image}
-                    alt={(() => { const cl = variantsForSize[0].color && !variantsForSize[0].color.startsWith('Option') ? (language === 'ar' && variantsForSize[0].colorAr ? variantsForSize[0].colorAr : variantsForSize[0].color) : ''; return cl || 'Option'; })()}
+                    alt={activeColorName || 'Option'}
                     loading="lazy"
                     decoding="async"
                     className="w-full h-full object-cover"
                   />
                 ) : (
-                  <div
-                    className="w-full h-full rounded-lg"
-                    style={{ backgroundColor: variantsForSize[0].colorHex || '#d1d5db' }}
-                  />
+                  <div className="w-full h-full" style={{ backgroundColor: variantsForSize[0].colorHex || '#d1d5db' }} />
                 )}
               </div>
-              <div className="min-w-0 flex-1">
-                <p className="text-sm font-bold text-neutral-900">
-                  {(() => { const cl = variantsForSize[0].color && !variantsForSize[0].color.startsWith('Option') ? (language === 'ar' && variantsForSize[0].colorAr ? variantsForSize[0].colorAr : variantsForSize[0].color) : ''; return cl || (language === 'ar' ? 'الخيار المتاح' : 'Option disponible'); })()}
+              <div className="min-w-0">
+                <p className="text-xs font-bold text-neutral-900 truncate">
+                  {activeColorName || (language === 'ar' ? 'الخيار المتاح' : 'Option disponible')}
                 </p>
-                <p className="text-xs text-neutral-500 mt-0.5">
-                  {variantsForSize[0].stock > 0
-                    ? `${variantsForSize[0].stock} ${language === 'ar' ? 'متوفر' : 'en stock'}`
-                    : (language === 'ar' ? 'متوفر عند الطلب' : 'Disponible sur commande')}
+                <p className="text-[11px] text-neutral-500">
+                  {language === 'ar' ? 'الخيار الوحيد المتاح' : 'Seule option disponible'}
                 </p>
               </div>
-              <div className="absolute top-2 right-2 w-5 h-5 rounded-full bg-neutral-900 text-white flex items-center justify-center shadow-sm">
-                <Check className="w-3 h-3" />
-              </div>
+              <Check className="w-4 h-4 text-neutral-900 ml-auto flex-shrink-0" />
             </div>
           ) : (
             /* Multiple Colors — Thumbnail Swatches Grid */
@@ -654,7 +700,7 @@ function MultiVariantSelector({
           )}
 
           {/* Expand/collapse button when there are many colors */}
-          {hasManyColors && !colorSearch.trim() && (
+          {!missingStep && hasManyColors && !colorSearch.trim() && (
             <button
               type="button"
               onClick={() => setIsColorsExpanded(v => !v)}
@@ -686,9 +732,14 @@ function MultiVariantSelector({
                 </div>
                 <div className="min-w-0">
                   <p className="text-xs font-bold text-neutral-900 truncate">
-                    {activeVariant.model && <span className="mr-1">{activeVariant.model} •</span>}
-                    {activeVariant.size && <span className="mr-1">{activeVariant.size} •</span>}
-                    <span className="text-[#C8102E] font-bold">{activeColorName || 'Option'}</span>
+                    {(() => {
+                      const parts = [activeVariant.model?.trim(), activeVariant.size?.trim()].filter(
+                        part => part && part !== 'Standard'
+                      );
+                      if (parts.length === 0) return null;
+                      return <span>{parts.join(' • ')}{activeColorName ? ' • ' : ''}</span>;
+                    })()}
+                    {activeColorName && <span className="text-[#C8102E] font-bold">{activeColorName}</span>}
                   </p>
                   <div className="flex items-center gap-2 mt-0.5">
                     <span className="text-sm font-black text-neutral-900">
@@ -738,13 +789,14 @@ function MultiVariantSelector({
               type="button"
               onClick={handleAddSingleToCart}
               disabled={!activeVariant}
-              className="col-span-2 py-3.5 rounded-2xl font-bold text-sm flex items-center justify-center gap-2 bg-[#C8102E] hover:bg-[#a00d25] text-white shadow-lg shadow-[#C8102E]/20 active:scale-[0.99] cursor-pointer transition-all"
+              className={`col-span-2 py-3.5 rounded-2xl font-bold text-sm flex items-center justify-center gap-2 transition-all ${
+                activeVariant
+                  ? 'bg-[#C8102E] hover:bg-[#a00d25] text-white shadow-lg shadow-[#C8102E]/20 active:scale-[0.99] cursor-pointer'
+                  : 'bg-neutral-100 text-neutral-400 cursor-not-allowed'
+              }`}
             >
               <ShoppingCart className="w-4 h-4" />
-              <span>
-                {language === 'ar' ? 'إضافة للسلة' : 'Ajouter au panier'}
-                {singleTotalPrice > 0 && ` • ${formatPrice(singleTotalPrice)}`}
-              </span>
+              <span>{addToCartLabel}</span>
             </button>
 
             {whatsappHref && (
@@ -923,11 +975,6 @@ export default function ProductPage({ params }: { params: Promise<{ id: string }
     setActiveVariant(null);
     setActiveSize('');
     setAdded(false);
-    if (product?.variants?.[0]) {
-      setSelectedVariant(product.variants[0]);
-      setActiveVariant(product.variants[0]);
-      if (product.variants[0].size) setActiveSize(product.variants[0].size);
-    }
     if (product?.minOrderQty) setQty(product.minOrderQty);
     else setQty(1);
   }, [product?.id]);
@@ -1054,14 +1101,23 @@ export default function ProductPage({ params }: { params: Promise<{ id: string }
     { label: language === 'ar' ? 'الأمان' : 'Sécurité', value: effectiveSecurite },
   ].filter(s => Boolean(s.value));
 
+  // Galerie : photos du produit, suivies des photos propres aux variantes
+  const galleryImages: string[] = Array.from(
+    new Set([...(product.images || []), ...(product.variants || []).map((v: ProductVariant) => v.image).filter(Boolean) as string[]])
+  );
+
+  // Choisir un modèle ou une couleur qui a sa photo l'affiche en grand
+  const showImage = (image?: string) => {
+    if (!image) return;
+    const idx = galleryImages.indexOf(image);
+    if (idx !== -1) setMainImg(idx);
+  };
+
   const handleVariantSelect = (v: ProductVariant | null, size: string) => {
     setActiveVariant(v);
     setSelectedVariant(v);
     setActiveSize(size);
-    if (v?.image && product.images) {
-      const idx = product.images.findIndex((img: string) => img === v.image);
-      if (idx !== -1) setMainImg(idx);
-    }
+    showImage(v?.image);
   };
 
   const handleAddToCart = () => {
@@ -1151,9 +1207,9 @@ export default function ProductPage({ params }: { params: Promise<{ id: string }
           <div className="lg:col-span-6">
             <div className="lg:sticky lg:top-24 space-y-3">
               <div className="relative aspect-square rounded-3xl overflow-hidden bg-neutral-50 border border-neutral-200/80 shadow-xs group">
-                <img 
-                  src={product.images?.[mainImg] || product.images?.[0] || '/placeholder.png'} 
-                  alt={product.name} 
+                <img
+                  src={galleryImages[mainImg] || galleryImages[0] || '/placeholder.png'}
+                  alt={product.name}
                   loading="eager" 
                   decoding="async" 
                   className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" 
@@ -1176,10 +1232,10 @@ export default function ProductPage({ params }: { params: Promise<{ id: string }
                 </button>
               </div>
 
-              {/* Thumbnails */}
-              {product.images && product.images.length > 1 && (
+              {/* Thumbnails — photos du produit + photos des variantes */}
+              {galleryImages.length > 1 && (
                 <div className="flex gap-2.5 overflow-x-auto pb-1 no-scrollbar">
-                  {product.images.map((img: string, i: number) => (
+                  {galleryImages.map((img: string, i: number) => (
                     <button
                       key={i}
                       onClick={() => setMainImg(i)}
@@ -1267,6 +1323,7 @@ export default function ProductPage({ params }: { params: Promise<{ id: string }
                   whatsappHref={buildWhatsAppLink(product.id, product.price, product.name)}
                   onAdd={handleAddVariantsToCart}
                   onVariantSelect={handleVariantSelect}
+                  onImagePreview={showImage}
                 />
               ) : (
                 <div className="space-y-4 pt-1">
@@ -1333,7 +1390,7 @@ export default function ProductPage({ params }: { params: Promise<{ id: string }
                   <span className="text-[10px] text-neutral-400">
                     {language === 'ar'
                       ? `الدار البيضاء من ${formatPrice(CASABLANCA_FREE_DELIVERY_THRESHOLD)}`
-                      : `Casablanca dès ${formatPrice(CASABLANCA_FREE_DELIVERY_THRESHOLD)}`}
+                      : `Casablanca à partir de ${formatPrice(CASABLANCA_FREE_DELIVERY_THRESHOLD)}`}
                   </span>
                 </div>
                 <div className="flex flex-col items-center border-x border-neutral-100">

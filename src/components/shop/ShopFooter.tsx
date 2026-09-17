@@ -397,8 +397,8 @@ export default function ShopFooter() {
                 </span>
               </div>
               <p className="text-xs" style={{ color: "#6B7280" }}>
-                À Casablanca dès {formatPrice(CASABLANCA_FREE_DELIVERY_THRESHOLD)} d&apos;achat, partout au Maroc
-                dès {formatPrice(FREE_DELIVERY_THRESHOLD)}
+                À Casablanca à partir de {formatPrice(CASABLANCA_FREE_DELIVERY_THRESHOLD)} d&apos;achat, partout au Maroc
+                à partir de {formatPrice(FREE_DELIVERY_THRESHOLD)}
               </p>
             </div>
           </div>

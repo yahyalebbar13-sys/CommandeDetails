@@ -59,8 +59,8 @@ const MORE_LINKS = [
 const PROMO_SEPARATOR = "\u00a0\u00a0|\u00a0\u00a0";
 
 const PROMO_TEXT_FR = [
-  `🚚 Livraison GRATUITE à Casablanca dès ${formatPrice(CASABLANCA_FREE_DELIVERY_THRESHOLD)}`,
-  `🇲🇦 Partout au Maroc : gratuite dès ${formatPrice(FREE_DELIVERY_THRESHOLD)}`,
+  `🚚 Livraison GRATUITE à Casablanca à partir de ${formatPrice(CASABLANCA_FREE_DELIVERY_THRESHOLD)}`,
+  `🇲🇦 Partout au Maroc : gratuite à partir de ${formatPrice(FREE_DELIVERY_THRESHOLD)}`,
   "📦 Commande avant 14h → Expédition le jour même",
   "💬 WhatsApp: +212 760 998 347",
 ].join(PROMO_SEPARATOR);

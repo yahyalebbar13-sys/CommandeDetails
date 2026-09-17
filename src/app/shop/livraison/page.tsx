@@ -25,8 +25,8 @@ export default function LivraisonPage() {
           </h1>
           <p className="text-gray-400 text-lg">Paiement à la livraison • Suivi en temps réel • Retour facile</p>
           <div className="mt-6 inline-flex flex-wrap items-center justify-center gap-x-2 gap-y-1 bg-[#D4A843]/20 border border-[#D4A843]/30 rounded-3xl sm:rounded-full px-5 py-2">
-            <span className="text-[#D4A843] font-bold">🎉 Livraison GRATUITE à Casablanca dès 100 MAD</span>
-            <span className="text-[#D4A843]/80 text-sm">· partout au Maroc dès 500 MAD</span>
+            <span className="text-[#D4A843] font-bold">🎉 Livraison GRATUITE à Casablanca à partir de 100 MAD</span>
+            <span className="text-[#D4A843]/80 text-sm">· partout au Maroc à partir de 500 MAD</span>
           </div>
         </div>
       </div>
@@ -73,7 +73,7 @@ export default function LivraisonPage() {
                   <span className={`inline-block font-black text-lg ${zone.fee === 25 ? 'text-[#10B981]' : 'text-[#1A1A1A]'}`}>
                     {zone.fee} MAD
                   </span>
-                  {zone.fee === 25 && <span className="block text-xs font-semibold text-[#10B981]">Gratuite dès 100 MAD</span>}
+                  {zone.fee === 25 && <span className="block text-xs font-semibold text-[#10B981]">Gratuite à partir de 100 MAD</span>}
                 </div>
                 <div className="text-center">
                   <span className="font-semibold text-[#1A1A1A]">{zone.delay}</span>
@@ -86,7 +86,7 @@ export default function LivraisonPage() {
           </div>
           <p className="text-xs text-[#6B6B6B] mt-3 flex items-center gap-1.5">
             <AlertCircle className="w-3.5 h-3.5" />
-            Les délais sont estimatifs et peuvent varier selon les conditions. Livraison GRATUITE dès 100 MAD à Casablanca, dès 500 MAD partout ailleurs.
+            Les délais sont estimatifs et peuvent varier selon les conditions. Livraison GRATUITE à partir de 100 MAD à Casablanca, à partir de 500 MAD partout ailleurs.
           </p>
         </div>
 
