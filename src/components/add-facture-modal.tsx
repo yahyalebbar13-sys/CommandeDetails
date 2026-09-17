@@ -115,7 +115,13 @@ export default function AddFactureModal({ open, onOpenChange, editFacture, assoc
     const facturesRef = collection(firestore, 'users', user.uid, 'factures');
     const docRef = doc(facturesRef, factureId);
     
-    const factureData = {
+    // Horodate le MOMENT où la date d'entrée en stock est saisie (≠ la date saisie elle-même) :
+    // le panneau "Arrivages Récents" de /stock liste les dossiers saisis depuis moins de 7 jours,
+    // même quand la date d'entrée renseignée est plus ancienne.
+    const stockEntryDateJustSet = Boolean(formData.stockEntryDate)
+      && formData.stockEntryDate !== (capturedEditFacture?.stockEntryDate || '');
+
+    const factureData: any = {
       ...formData,
       id: factureId,
       noBL: formData.noBL.toUpperCase().trim(),
@@ -123,6 +129,9 @@ export default function AddFactureModal({ open, onOpenChange, editFacture, assoc
       forwarder: formData.forwarder,
       updatedAt: serverTimestamp()
     };
+    if (stockEntryDateJustSet) {
+      factureData.stockEntryDateSetAt = serverTimestamp();
+    }
 
     setDocumentNonBlocking(docRef, factureData, { merge: true });
 

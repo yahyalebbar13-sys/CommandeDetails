@@ -24,7 +24,7 @@ interface TimelineViewProps {
   articles: any[];
   factures: any[];
   onNavigateToFacture: (id: string) => void;
-  onPassToStock: (factureId: string) => void;
+  onPassToStock?: (factureId: string) => void;
 }
 
 type TimelineGroup = {
@@ -154,7 +154,7 @@ function FactureCard({
   state: 'TRANSIT' | 'CLEARANCE' | 'STOCKED';
   now: Date;
   onNavigateToFacture: (id: string) => void;
-  onPassToStock: (factureId: string) => void;
+  onPassToStock?: (factureId: string) => void;
 }) {
   const [expanded, setExpanded] = useState(false);
   const cfg = STATE_CONFIG[state];
@@ -346,7 +346,7 @@ function FactureCard({
                 <CheckCircle2 className="w-3 h-3 text-emerald-600" />
                 <span>En Stock (Verrouillé)</span>
               </div>
-            ) : state === 'CLEARANCE' ? (
+            ) : state === 'CLEARANCE' && onPassToStock ? (
               <Button
                 size="sm"
                 onClick={(e) => { e.stopPropagation(); onPassToStock(f.id); }}

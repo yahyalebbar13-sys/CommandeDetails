@@ -53,6 +53,27 @@ import { Landmark } from 'lucide-react';
 
 type StockView = 'dashboard' | 'sale' | 'stock' | 'analytics' | 'clients' | 'orders' | 'invoices' | 'cheques-impayes' | 'expenses' | 'movements' | 'alerts' | 'arrivals' | 'transfers' | 'stores' | 'warehouses' | 'treasury' | 'reconciliation' | 'audit' | 'inventory';
 
+// Formate une Date en YYYY-MM-DD à partir de ses composantes LOCALES — contrairement à
+// toISOString() (qui convertit en UTC), ça évite qu'un calcul "il y a N jours" bascule sur le
+// mauvais jour selon l'heure et le fuseau horaire du navigateur au moment du calcul.
+function toLocalDateStr(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+// Convertit une valeur Firestore hétérogène (Timestamp, {seconds}, Date, string ISO, epoch ms)
+// en Date — renvoie null si la valeur est absente ou inexploitable (ex : serverTimestamp() encore
+// en attente d'acquittement serveur, qui arrive à null côté client).
+function toDateSafe(v: any): Date | null {
+  if (!v) return null;
+  if (typeof v?.toDate === 'function') { const d = v.toDate(); return isNaN(d.getTime()) ? null : d; }
+  if (typeof v?.seconds === 'number') return new Date(v.seconds * 1000);
+  const d = v instanceof Date ? v : new Date(v);
+  return isNaN(d.getTime()) ? null : d;
+}
+
 // ─── Calcul du stock courant ─────────────────────────────────────────────────
 
 // Un entrepôt n'est pas un point de vente indépendant : c'est du stock
@@ -1021,7 +1042,7 @@ export default function StockApp() {
   const arrivalsStats = useMemo(() => {
     const tenDaysAgo = new Date();
     tenDaysAgo.setDate(tenDaysAgo.getDate() - 10);
-    const tenDaysAgoStr = tenDaysAgo.toISOString().split('T')[0];
+    const tenDaysAgoStr = toLocalDateStr(tenDaysAgo);
 
     let entered10D = 0;
     let pending = 0;
@@ -2324,7 +2345,7 @@ export default function StockApp() {
             {activeView === 'arrivals' && userRole !== 'ADMIN' && isChrifaOrAdmin && (() => {
               const tenDaysAgo = new Date();
               tenDaysAgo.setDate(tenDaysAgo.getDate() - 10);
-              const tenDaysAgoStr = tenDaysAgo.toISOString().split('T')[0];
+              const tenDaysAgoStr = toLocalDateStr(tenDaysAgo);
 
               const formatDaysAgo = (dateStr: string | null) => {
                 if (!dateStr) return '';
@@ -2638,22 +2659,47 @@ export default function StockApp() {
             {activeView === 'arrivals' && userRole === 'ADMIN' && (() => {
               const sevenDaysAgo = new Date();
               sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-              const sevenDaysAgoStr = sevenDaysAgo.toISOString().split('T')[0];
+              const sevenDaysAgoStr = toLocalDateStr(sevenDaysAgo);
+              const sevenDaysAgoTs = sevenDaysAgo.getTime();
+
+              // Un dossier est "récent" si la date d'entrée a été SAISIE dans les 7 derniers jours
+              // — pas forcément si la date saisie elle-même est récente. Typiquement on régularise
+              // aujourd'hui un arrivage entré en stock il y a trois semaines : il doit apparaître.
+              //  1. la date saisie tombe dans les 7 derniers jours ;
+              //  2. stockEntryDateSetAt (horodatage de la saisie) tombe dans les 7 derniers jours ;
+              //  3. repli pour les dossiers antérieurs à ce champ : updatedAt, écrit à chaque
+              //     enregistrement du dossier depuis /gestion.
+              const isRecentlyEntered = (f: any) => {
+                if (!f.stockEntryDate) return false;
+                if (f.stockEntryDate >= sevenDaysAgoStr) return true;
+                const setAt = toDateSafe(f.stockEntryDateSetAt);
+                if (setAt) return setAt.getTime() >= sevenDaysAgoTs;
+                const updatedAt = toDateSafe(f.updatedAt);
+                return updatedAt ? updatedAt.getTime() >= sevenDaysAgoTs : false;
+              };
 
               const recentDated = factures
-                .filter((f: any) => f.stockEntryDate && f.stockEntryDate >= sevenDaysAgoStr)
+                .filter(isRecentlyEntered)
                 .map((f: any) => {
                   const factureArts = articles.filter((a: any) => a.factureId === f.id || a.facture === f.id);
                   const hasRealMovements = allMovements.some((m: any) => (m.factureId === f.id || m.factureRef === f.id) && m.type === 'IN');
+                  const setAt = toDateSafe(f.stockEntryDateSetAt) || toDateSafe(f.updatedAt);
+                  const setAtStr = setAt ? toLocalDateStr(setAt) : null;
                   return {
                     f,
                     factureArts,
                     artCount: factureArts.length,
                     totalQty: factureArts.reduce((s: number, a: any) => s + (Number(a.quantity) || 0), 0),
                     hasRealMovements,
+                    // Affiché seulement quand la saisie est postérieure à la date d'entrée déclarée
+                    // (régularisation) — sinon l'info est redondante.
+                    backdatedSetAt: setAtStr && setAtStr !== f.stockEntryDate ? setAtStr : null,
+                    // Tri sur la saisie la plus récente des deux, pour qu'un arrivage régularisé
+                    // aujourd'hui avec une vieille date reste en haut de liste.
+                    sortKey: setAtStr && setAtStr > (f.stockEntryDate || '') ? setAtStr : (f.stockEntryDate || ''),
                   };
                 })
-                .sort((a, b) => (b.f.stockEntryDate || '').localeCompare(a.f.stockEntryDate || ''));
+                .sort((a, b) => b.sortKey.localeCompare(a.sortKey));
 
               const missingCount = recentDated.filter(item => !item.hasRealMovements).length;
 
@@ -2695,7 +2741,7 @@ export default function StockApp() {
                     </div>
                   ) : (
                     <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-                      {recentDated.map(({ f, artCount, totalQty, hasRealMovements }) => (
+                      {recentDated.map(({ f, artCount, totalQty, hasRealMovements, backdatedSetAt }) => (
                         <div
                           key={f.id}
                           className={`bg-white rounded-2xl border-2 p-5 flex flex-col justify-between gap-3 shadow-sm hover:shadow-md transition-all ${
@@ -2722,6 +2768,9 @@ export default function StockApp() {
                               <div className="bg-stone-50 rounded-xl p-2.5">
                                 <p className="text-[10px] font-black text-stone-400 uppercase">Entrée Stock</p>
                                 <p className="text-[10px] font-black text-stone-700 mt-0.5">{f.stockEntryDate}</p>
+                                {backdatedSetAt && (
+                                  <p className="text-[9px] font-bold text-stone-400 mt-0.5">saisie le {backdatedSetAt}</p>
+                                )}
                               </div>
                               <div className="bg-stone-50 rounded-xl p-2.5">
                                 <p className="text-[10px] font-black text-stone-400 uppercase">Articles</p>

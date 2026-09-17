@@ -14,7 +14,6 @@ import TransitOrdersView from '@/components/transit-orders-view';
 import TimelineView from '@/components/timeline-view';
 import AddOrderModal from '@/components/add-order-modal';
 import EditOrderModal from '@/components/edit-order-modal';
-import PassToStockModal from '@/components/pass-to-stock-modal';
 import AuthView from '@/components/auth-view';
 import CostAnalysisView from '@/components/cost-analysis-view';
 import CostSaleView from '@/components/cost-sale-view';
@@ -422,7 +421,6 @@ function AdminApp() {
   const [isOrderModalOpen, setIsOrderModalOpen] = useState(false);
   const [editingArticle, setEditingArticle] = useState<any | null>(null);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const [passToStockFactureId, setPassToStockFactureId] = useState<string | null>(null);
   const { toast } = useToast();
 
   const facturesRef = useMemoFirebase(() => (!firestore || !user) ? null : collection(firestore, 'users', user.uid, 'factures'), [firestore, user]);
@@ -627,10 +625,10 @@ function AdminApp() {
               <PendingOrdersView articles={articles} factures={factures} onEdit={setEditingArticle} />
             </div>
             <div className={activeTab === 'timeline' ? 'block animate-in fade-in' : 'hidden'}>
-              <TimelineView articles={articles} factures={factures} onNavigateToFacture={(id) => { setPreviousTab(activeTab); setSelectedFactureId(id); setActiveTab('factures'); setIsMobileMenuOpen(false); }} onPassToStock={setPassToStockFactureId} />
+              <TimelineView articles={articles} factures={factures} onNavigateToFacture={(id) => { setPreviousTab(activeTab); setSelectedFactureId(id); setActiveTab('factures'); setIsMobileMenuOpen(false); }} />
             </div>
             <div className={activeTab === 'factures' ? 'block animate-in fade-in' : 'hidden'}>
-              <FacturesView articles={articles} factures={factures} subCategories={subCategories} selectedFactureId={selectedFactureId} setSelectedFactureId={setSelectedFactureId} onNavigateToCategory={(c) => { setPreviousTab('factures'); setSelectedCategoryName(c); setActiveTab('categories'); }} onBack={() => { setSelectedFactureId(null); if (previousTab) { setActiveTab(previousTab); setPreviousTab(null); } }} onPassToStock={setPassToStockFactureId} />
+              <FacturesView articles={articles} factures={factures} subCategories={subCategories} selectedFactureId={selectedFactureId} setSelectedFactureId={setSelectedFactureId} onNavigateToCategory={(c) => { setPreviousTab('factures'); setSelectedCategoryName(c); setActiveTab('categories'); }} onBack={() => { setSelectedFactureId(null); if (previousTab) { setActiveTab(previousTab); setPreviousTab(null); } }} />
             </div>
             <div className={activeTab === 'general-categories' ? 'block animate-in fade-in' : 'hidden'}>
               <GeneralCategoriesView articles={articles} generalCategories={generalCategories} subCategories={subCategories} onSelectGeneralCategory={(id) => { setPreviousTab(activeTab); setSelectedGeneralCategoryId(id); setActiveTab(id ? 'categories' : 'general-categories'); }} />
@@ -681,13 +679,6 @@ function AdminApp() {
       {/* EditOrderModal — only mounted when actually editing an article */}
       {editingArticle && (
         <EditOrderModal article={editingArticle} onOpenChange={(open) => !open && setEditingArticle(null)} factures={factures} />
-      )}
-      {passToStockFactureId && (
-        <PassToStockModal open={!!passToStockFactureId} onOpenChange={(open) => !open && setPassToStockFactureId(null)}
-          facture={factures.find(f => f.id === passToStockFactureId)}
-          associatedArticles={articles.filter(a => a.factureId === passToStockFactureId || a.facture === passToStockFactureId)}
-          subCategories={subCategories}
-          adminUid={user?.uid} />
       )}
     </div>
   );
