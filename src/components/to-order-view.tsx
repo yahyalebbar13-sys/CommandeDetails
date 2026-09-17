@@ -7,8 +7,8 @@ import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { AlertCircle, AlertTriangle, Anchor, ArrowRight, ArrowRightLeft, Bell, BellRing, Calculator, Calendar, Check, CheckCircle2, ChevronDown, ChevronRight, ChevronUp, Clock, Container, Copy, CopyPlus, DollarSign, ExclamationTriangleIcon, Factory, FileQuestion, FileText, FileWarning, Filter, HandCoins, ListTodo, MessageCircleWarning, MessageSquareWarning, Package, Pencil, Plus, Search, Send, Tag, Trash2, UserCircle2, X } from 'lucide-react';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
-import { useUser, useFirestore, deleteDocumentNonBlocking, updateDocumentNonBlocking, useCollection, useMemoFirebase } from '@/firebase';
-import { doc, collection } from 'firebase/firestore';
+import { useUser, useFirestore, updateDocumentNonBlocking, useCollection, useMemoFirebase } from '@/firebase';
+import { doc, collection, deleteDoc } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import LaunchOrderModal from './launch-order-modal';
 import ExportBonCommande from './export-bon-commande';
@@ -1130,11 +1130,30 @@ export default function ToOrderView({ articles, factures, onEdit }: ToOrderViewP
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Annuler</AlertDialogCancel>
-            <AlertDialogAction onClick={() => {
+            <AlertDialogAction onClick={async () => {
               if (deleteConfirm.actionType === 'deleteToOrder' && deleteConfirm.id) {
                 const docRef = doc(firestore, 'users', user?.uid || '', 'articles', deleteConfirm.id);
-                deleteDocumentNonBlocking(docRef);
-                toast({ title: "Rappel supprimé", description: deleteConfirm.name });
+                const name = deleteConfirm.name;
+                // Suppression confirmée par le serveur avant de l'annoncer. Non bloquante, elle
+                // retirait l'article de l'écran tout de suite : si l'ordre n'arrivait jamais
+                // (connexion perdue, onglet en veille), le besoin disparaissait ici mais restait
+                // en base, et donc visible dans /stock pour le magasin qui l'avait demandé.
+                try {
+                  await Promise.race([
+                    deleteDoc(docRef),
+                    new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 15000)),
+                  ]);
+                  toast({ title: "Rappel supprimé", description: name });
+                } catch (err: any) {
+                  console.error('[Besoins] suppression non confirmée :', err);
+                  toast({
+                    variant: 'destructive',
+                    title: "Suppression NON confirmée",
+                    description: err?.message === 'timeout'
+                      ? `« ${name} » : pas de réponse du serveur. Vérifiez la connexion puis rechargez la page — s'il réapparaît, supprimez-le à nouveau.`
+                      : `« ${name} » : le serveur a refusé la suppression. Rechargez la page et réessayez.`,
+                  });
+                }
               } else if (deleteConfirm.actionType === 'deleteReclamation' && deleteConfirm.id) {
                 const docRef = doc(firestore, 'users', user?.uid || '', 'articles', deleteConfirm.id);
                 updateDocumentNonBlocking(docRef, { reclamation: '', reclamationDate: null, reclamationStatus: null, reclamationFactureId: null, reclamationFactureLabel: null });
