@@ -2,22 +2,22 @@
 
 import React, { useMemo, useState } from 'react';
 import {
-  Send, Plus, Search, X, ClipboardList, Factory, Ship, Anchor, CheckCircle2, Store as StoreIcon,
-  Palette, Ruler, Sparkles,
+  Send, Plus, Search, X, ClipboardList, Factory, Store as StoreIcon,
+  Palette, Ruler, Sparkles, Clock,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import AddOrderModal from '@/components/add-order-modal';
-import { useEnrichedArticles } from '@/hooks/use-enriched-articles';
-import { computeEffectiveStatus, type EffectiveStatus } from '@/lib/status-utils';
 import { getArticleFrenchName } from '@/lib/product-name-utils';
 
 /**
  * Demandes de nouveaux produits envoyées par les magasins au service import.
  *
  * Une demande est un article `TO_ORDER` créé depuis /stock avec `requestSource: 'STORE'` : il
- * apparaît tel quel dans « Besoins » de /gestion. Le magasin suit ensuite son avancement jusqu'à
- * l'arrivée en stock. Aucun prix ni fournisseur n'est affiché ici.
+ * apparaît tel quel dans « Besoins » de /gestion. Côté magasin, le suivi s'arrête à deux étapes :
+ * « Envoyée » tant que l'import ne l'a pas lancée, puis « Commandée » pendant quelques jours avant
+ * de disparaître — la suite (transit, arrivage) se suit dans la page Arrivages.
+ * Aucun prix ni fournisseur n'est affiché ici.
  */
 
 interface StoreImportRequestsViewProps {
@@ -27,87 +27,96 @@ interface StoreImportRequestsViewProps {
   generalCategories: any[];
   stores: any[];
   adminUid: string | null;
-  /** Magasin du compte connecté ; null pour une vue multi-magasins (CHRIFA principal, admin). */
+  /** Magasin du compte connecté. */
   storeId: string | null;
   /** Vrai quand le compte voit les demandes de tous les magasins. */
   seesAllStores: boolean;
   readOnly?: boolean;
 }
 
-type Stage = 'SENT' | 'ORDERED' | 'ON_THE_WAY' | 'AT_PORT' | 'RECEIVED';
+type Stage = 'SENT' | 'ORDERED';
 
-const STAGES: Record<Stage, { label: string; icon: any; cls: string; dot: string }> = {
-  SENT:       { label: "Envoyée à l'import",        icon: Send,         cls: 'bg-stone-100 text-stone-700 border-stone-200',       dot: 'bg-stone-400' },
-  ORDERED:    { label: 'Commandée au fournisseur',   icon: Factory,      cls: 'bg-amber-50 text-amber-800 border-amber-200',        dot: 'bg-amber-500' },
-  ON_THE_WAY: { label: 'En route',                   icon: Ship,         cls: 'bg-blue-50 text-blue-800 border-blue-200',           dot: 'bg-blue-500' },
-  AT_PORT:    { label: 'Au port — dédouanement',     icon: Anchor,       cls: 'bg-violet-50 text-violet-800 border-violet-200',     dot: 'bg-violet-500' },
-  RECEIVED:   { label: 'Arrivée en stock',           icon: CheckCircle2, cls: 'bg-emerald-50 text-emerald-800 border-emerald-200',  dot: 'bg-emerald-500' },
+/** Durée pendant laquelle une demande commandée reste affichée au magasin. */
+const ORDERED_VISIBLE_DAYS = 5;
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+const STAGES: Record<Stage, { label: string; icon: any; cls: string; bar: string }> = {
+  SENT:    { label: "Envoyée à l'import", icon: Send,    cls: 'bg-stone-100 text-stone-700 border-stone-200', bar: 'bg-stone-400' },
+  ORDERED: { label: 'Commandée',          icon: Factory, cls: 'bg-emerald-50 text-emerald-800 border-emerald-200', bar: 'bg-emerald-500' },
 };
-
-const STAGE_ORDER: Stage[] = ['SENT', 'ORDERED', 'ON_THE_WAY', 'AT_PORT', 'RECEIVED'];
-
-function toStage(s: EffectiveStatus): Stage {
-  switch (s) {
-    case 'PI': return 'ORDERED';
-    case 'SHIPPED':
-    case 'TRANSIT': return 'ON_THE_WAY';
-    case 'CUSTOMS': return 'AT_PORT';
-    case 'STOCK':
-    case 'DELIVERED': return 'RECEIVED';
-    default: return 'SENT';
-  }
-}
 
 const fmtQty = (n: any) => (Number(n) || 0).toLocaleString('fr-FR', { maximumFractionDigits: 3 });
 
-function fmtDate(v: any): string {
-  const d = v?.toDate ? v.toDate() : (typeof v?.seconds === 'number' ? new Date(v.seconds * 1000) : (v ? new Date(v) : null));
-  return d && !isNaN(d.getTime()) ? d.toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' }) : '—';
+/** Timestamp Firestore, {seconds}, Date ou chaîne YYYY-MM-DD → millisecondes (0 si absent). */
+function toMs(v: any): number {
+  if (!v) return 0;
+  if (typeof v?.toDate === 'function') return v.toDate().getTime();
+  if (typeof v?.seconds === 'number') return v.seconds * 1000;
+  if (typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v)) {
+    const [y, m, d] = v.split('-').map(Number);
+    return new Date(y, m - 1, d).getTime();
+  }
+  const t = new Date(v).getTime();
+  return isNaN(t) ? 0 : t;
 }
 
-type Filter = 'ACTIVE' | 'RECEIVED' | 'ALL';
+function fmtDate(ms: number): string {
+  return ms ? new Date(ms).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' }) : '—';
+}
+
+/**
+ * Moment où l'import a lancé la demande. Chaque chemin de /gestion pose sa propre trace :
+ * launchedAt (lancement de commande), validatedAt (validation directe), orderDate (date saisie).
+ */
+function orderedAtMs(a: any): number {
+  return toMs(a.launchedAt) || toMs(a.validatedAt) || toMs(a.orderDate) || toMs(a.updatedAt) || toMs(a.requestedAt) || toMs(a.createdAt);
+}
+
+type Filter = 'ALL' | Stage;
 
 export default function StoreImportRequestsView({
-  articles, factures, categories, generalCategories, stores, adminUid, storeId, seesAllStores, readOnly,
+  articles, categories, generalCategories, stores, adminUid, storeId, seesAllStores, readOnly,
 }: StoreImportRequestsViewProps) {
   const [modalOpen, setModalOpen] = useState(false);
-  const [filter, setFilter] = useState<Filter>('ACTIVE');
+  const [filter, setFilter] = useState<Filter>('ALL');
   const [search, setSearch] = useState('');
 
-  const enriched = useEnrichedArticles(articles, factures);
   const storeName = (id?: string | null) => stores.find((s: any) => s.id === id)?.name || id || '';
 
   const requests = useMemo(() => {
-    return (enriched || [])
+    const now = Date.now();
+    return (articles || [])
       .filter((a: any) => a.requestSource === 'STORE' && (seesAllStores || a.requestedByStore === storeId))
       .map((a: any) => {
-        const stage = toStage(computeEffectiveStatus({
-          status: a.status, arrivalDate: a.arrivalDate, stockEntryDate: a.stockEntryDate,
-        }));
-        const created = a.requestedAt || a.createdAt;
-        const ts = created?.toDate ? created.toDate().getTime() : (created?.seconds ? created.seconds * 1000 : 0);
-        return { a, stage, ts, frName: getArticleFrenchName(a, categories, generalCategories) };
+        const stage: Stage = (a.status || 'TO_ORDER') === 'TO_ORDER' ? 'SENT' : 'ORDERED';
+        const orderedAt = stage === 'ORDERED' ? orderedAtMs(a) : 0;
+        const daysLeft = stage === 'ORDERED'
+          ? Math.ceil((orderedAt + ORDERED_VISIBLE_DAYS * DAY_MS - now) / DAY_MS)
+          : null;
+        return {
+          a, stage, orderedAt, daysLeft,
+          requestedAt: toMs(a.requestedAt) || toMs(a.createdAt),
+          frName: getArticleFrenchName(a, categories, generalCategories),
+        };
       })
-      .sort((x, y) => y.ts - x.ts);
-  }, [enriched, seesAllStores, storeId, categories, generalCategories]);
+      // Une demande commandée ne reste visible que quelques jours, puis sort de la liste.
+      .filter(r => r.stage === 'SENT' || (r.orderedAt > 0 && (r.daysLeft ?? 0) > 0))
+      .sort((x, y) => {
+        if (x.stage !== y.stage) return x.stage === 'SENT' ? -1 : 1;
+        return (y.orderedAt || y.requestedAt) - (x.orderedAt || x.requestedAt);
+      });
+  }, [articles, seesAllStores, storeId, categories, generalCategories]);
 
   const counts = useMemo(() => ({
-    ACTIVE: requests.filter(r => r.stage !== 'RECEIVED').length,
-    RECEIVED: requests.filter(r => r.stage === 'RECEIVED').length,
     ALL: requests.length,
+    SENT: requests.filter(r => r.stage === 'SENT').length,
+    ORDERED: requests.filter(r => r.stage === 'ORDERED').length,
   }), [requests]);
-
-  const byStage = useMemo(() => {
-    const acc: Record<Stage, number> = { SENT: 0, ORDERED: 0, ON_THE_WAY: 0, AT_PORT: 0, RECEIVED: 0 };
-    requests.forEach(r => { acc[r.stage]++; });
-    return acc;
-  }, [requests]);
 
   const visible = useMemo(() => {
     const q = search.trim().toLowerCase();
     return requests.filter(r => {
-      if (filter === 'ACTIVE' && r.stage === 'RECEIVED') return false;
-      if (filter === 'RECEIVED' && r.stage !== 'RECEIVED') return false;
+      if (filter !== 'ALL' && r.stage !== filter) return false;
       if (!q) return true;
       return [r.frName, r.a.name, r.a.categoryId, r.a.color, r.a.quality, r.a.requestedByStoreName, r.a.notes]
         .filter(Boolean).join(' ').toLowerCase().includes(q);
@@ -128,8 +137,9 @@ export default function StoreImportRequestsView({
               Demandes <span className="text-amber-400">d'Import</span>
             </h2>
             <p className="text-stone-400 text-xs mt-2 max-w-lg">
-              Un produit manque ou n'existe pas encore ? Envoyez une demande : elle arrive directement
-              dans les Besoins de l'import, et vous suivez ici son avancement jusqu'à l'arrivée en stock.
+              Un produit manque ou n'existe pas encore ? Envoyez une demande au service import.
+              Elle reste « Envoyée » jusqu'à ce que l'import la commande, puis « Commandée »
+              pendant {ORDERED_VISIBLE_DAYS} jours.
             </p>
           </div>
           {canRequest && (
@@ -143,8 +153,8 @@ export default function StoreImportRequestsView({
         </div>
 
         {/* Étapes */}
-        <div className="relative z-10 grid grid-cols-2 sm:grid-cols-5 gap-2 mt-6">
-          {STAGE_ORDER.map(st => {
+        <div className="relative z-10 grid grid-cols-2 gap-3 mt-6 max-w-md">
+          {(['SENT', 'ORDERED'] as Stage[]).map(st => {
             const conf = STAGES[st];
             const Icon = conf.icon;
             return (
@@ -152,7 +162,7 @@ export default function StoreImportRequestsView({
                 <p className="text-[10px] font-black uppercase tracking-widest text-stone-400 flex items-center gap-1.5">
                   <Icon className="w-3 h-3" /> {conf.label}
                 </p>
-                <p className="text-2xl font-black text-white mt-0.5">{byStage[st]}</p>
+                <p className="text-2xl font-black text-white mt-0.5">{counts[st]}</p>
               </div>
             );
           })}
@@ -163,9 +173,9 @@ export default function StoreImportRequestsView({
       <div className="flex flex-col md:flex-row md:items-center gap-3">
         <div className="flex gap-2 flex-wrap">
           {([
-            ['ACTIVE', 'En cours'],
-            ['RECEIVED', 'Reçues'],
             ['ALL', 'Toutes'],
+            ['SENT', 'Envoyées'],
+            ['ORDERED', 'Commandées'],
           ] as [Filter, string][]).map(([key, label]) => (
             <button
               key={key}
@@ -199,7 +209,7 @@ export default function StoreImportRequestsView({
         <div className="bg-white rounded-2xl p-16 text-center border border-stone-100 shadow-sm">
           <ClipboardList className="w-12 h-12 text-stone-300 mx-auto mb-4" />
           <p className="text-stone-600 font-black uppercase text-xs tracking-widest">
-            {requests.length === 0 ? 'Aucune demande envoyée' : 'Aucune demande dans cette vue'}
+            {requests.length === 0 ? 'Aucune demande en cours' : 'Aucune demande dans cette vue'}
           </p>
           {requests.length === 0 && canRequest && (
             <p className="text-stone-400 text-[11px] font-medium mt-1">
@@ -209,25 +219,18 @@ export default function StoreImportRequestsView({
         </div>
       ) : (
         <div className="space-y-2">
-          {visible.map(({ a, stage, frName }) => {
+          {visible.map(({ a, stage, frName, orderedAt, daysLeft, requestedAt }) => {
             const conf = STAGES[stage];
             const Icon = conf.icon;
-            const stepIndex = STAGE_ORDER.indexOf(stage);
             const colors = Array.isArray(a.colorBreakdown) ? a.colorBreakdown.length : 0;
             const sizes = Array.isArray(a.sizeBreakdown) ? a.sizeBreakdown.length : 0;
             const qualities = Array.isArray(a.qualityBreakdown) ? a.qualityBreakdown.length : 0;
-            const internal = String(a.name || a.categoryId || '');
 
             return (
               <div key={a.id} className="bg-white rounded-2xl border border-stone-100 shadow-sm p-4 hover:shadow-md transition-shadow">
                 <div className="flex flex-col md:flex-row md:items-center gap-4">
                   <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <p className="text-[13px] font-black text-stone-900 uppercase leading-tight">{frName}</p>
-                      {internal && internal.toLowerCase() !== frName.toLowerCase() && (
-                        <span className="text-[10px] font-bold text-stone-400 uppercase">· {internal}</span>
-                      )}
-                    </div>
+                    <p className="text-[13px] font-black text-stone-900 uppercase leading-tight">{frName}</p>
                     <div className="flex items-center gap-1.5 flex-wrap mt-2">
                       {a.quality && <Chip>{a.quality}</Chip>}
                       {a.color && String(a.color).toLowerCase() !== 'various' && <Chip>{a.color}</Chip>}
@@ -240,7 +243,10 @@ export default function StoreImportRequestsView({
                           <StoreIcon className="w-3 h-3" /> {a.requestedByStoreName || storeName(a.requestedByStore)}
                         </span>
                       )}
-                      <span className="text-[10px] font-bold text-stone-400">Demandée le {fmtDate(a.requestedAt || a.createdAt)}</span>
+                      <span className="text-[10px] font-bold text-stone-400">
+                        Demandée le {fmtDate(requestedAt)}
+                        {stage === 'ORDERED' && ` · commandée le ${fmtDate(orderedAt)}`}
+                      </span>
                     </div>
                     {a.notes && <p className="text-[11px] text-stone-500 mt-1.5 italic">« {a.notes} »</p>}
                   </div>
@@ -250,21 +256,24 @@ export default function StoreImportRequestsView({
                       <p className="text-xl font-black text-stone-900 leading-none">{fmtQty(a.quantity)}</p>
                       <p className="text-[10px] font-black text-stone-400 uppercase mt-1">{a.unitOfMeasure || 'pcs'}</p>
                     </div>
-                    <span className={`inline-flex items-center gap-1.5 text-[11px] font-black uppercase px-3 py-1.5 rounded-full border whitespace-nowrap ${conf.cls}`}>
-                      <Icon className="w-3.5 h-3.5" /> {conf.label}
-                    </span>
+                    <div className="flex flex-col items-end gap-1">
+                      <span className={`inline-flex items-center gap-1.5 text-[11px] font-black uppercase px-3 py-1.5 rounded-full border whitespace-nowrap ${conf.cls}`}>
+                        <Icon className="w-3.5 h-3.5" /> {conf.label}
+                      </span>
+                      {stage === 'ORDERED' && daysLeft !== null && (
+                        <span className="inline-flex items-center gap-1 text-[10px] font-bold text-stone-400">
+                          <Clock className="w-3 h-3" />
+                          {daysLeft <= 1 ? "Disparaît aujourd'hui" : `Visible encore ${daysLeft} j`}
+                        </span>
+                      )}
+                    </div>
                   </div>
                 </div>
 
-                {/* Barre d'avancement */}
+                {/* Avancement : deux étapes */}
                 <div className="flex gap-1 mt-3">
-                  {STAGE_ORDER.map((st, i) => (
-                    <div
-                      key={st}
-                      className={`h-1.5 flex-1 rounded-full ${i <= stepIndex ? STAGES[stage].dot : 'bg-stone-100'}`}
-                      title={STAGES[st].label}
-                    />
-                  ))}
+                  <div className={`h-1.5 flex-1 rounded-full ${conf.bar}`} />
+                  <div className={`h-1.5 flex-1 rounded-full ${stage === 'ORDERED' ? conf.bar : 'bg-stone-100'}`} />
                 </div>
               </div>
             );

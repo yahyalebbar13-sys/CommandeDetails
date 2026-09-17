@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useUser, useFirestore, useCollection, useMemoFirebase } from '@/firebase';
-import { doc, collection, serverTimestamp } from 'firebase/firestore';
+import { doc, collection, serverTimestamp, setDoc } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { setDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 import { cleanUndefined } from '@/lib/utils';
@@ -503,8 +503,20 @@ export function AddOrderForm({
     onClose();
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const [submitting, setSubmitting] = useState(false);
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (submitting) return;
+
+    // Une demande magasin doit réellement arriver à l'import : on attend la confirmation de
+    // Firestore avant d'annoncer « envoyée ». Les autres modes gardent l'écriture non bloquante
+    // (tolérante au hors-ligne) qu'ils avaient déjà.
+    const pendingWrites: Promise<unknown>[] = [];
+    const writeArticle = (ref: any, data: any) => {
+      if (isStoreRequest) pendingWrites.push(setDoc(ref, data, { merge: true }));
+      else setDocumentNonBlocking(ref, data, { merge: true });
+    };
     if (!user || !firestore || !isValid) return;
 
     const selectedSubCat = (subCategories || []).find((sc: any) => sc.name === formData.categoryId);
@@ -627,7 +639,7 @@ export function AddOrderForm({
           ...(firstRow.boxPerCarton ? { boxPerCarton: firstRow.boxPerCarton } : {}),
         } : {};
 
-        setDocumentNonBlocking(
+        writeArticle(
           doc(firestore, 'users', effectiveUid, 'articles', id),
           cleanUndefined({
             ...basePayload,
@@ -640,8 +652,7 @@ export function AddOrderForm({
             sizeBreakdown: null,
             designBreakdown: null,
             ...extraPayload
-          }),
-          { merge: true }
+          })
         );
       });
     } else if (designBreakdown && designBreakdown.length > 0) {
@@ -657,10 +668,9 @@ export function AddOrderForm({
         const id = doc(collection(firestore, 'users', effectiveUid, 'articles')).id;
         const groupQty = rows.reduce((sum, r) => sum + (Number((r as any).quantity) || Number((r as any).rolls) || 0), 0);
         const extraPayload = isInventoryMode ? { initialQtyByStore: { [activeStore || 'CHRIFA']: groupQty } } : {};
-        setDocumentNonBlocking(
+        writeArticle(
           doc(firestore, 'users', effectiveUid, 'articles', id),
-          cleanUndefined({ ...basePayload, id, purchasePricePerUnit: price, quantity: groupQty, designBreakdown: rows, colorBreakdown: null, sizeBreakdown: null, qualityBreakdown: null, ...extraPayload }),
-          { merge: true }
+          cleanUndefined({ ...basePayload, id, purchasePricePerUnit: price, quantity: groupQty, designBreakdown: rows, colorBreakdown: null, sizeBreakdown: null, qualityBreakdown: null, ...extraPayload })
         );
       });
     } else if (colorBreakdown && colorBreakdown.length > 0) {
@@ -676,10 +686,9 @@ export function AddOrderForm({
         const groupQty = rows.reduce((sum, r) => sum + (Number((r as any).quantity) || Number((r as any).rolls) || 0), 0);
         const id = doc(collection(firestore, 'users', effectiveUid, 'articles')).id;
         const extraPayload = isInventoryMode ? { initialQtyByStore: { [activeStore || 'CHRIFA']: groupQty } } : {};
-        setDocumentNonBlocking(
+        writeArticle(
           doc(firestore, 'users', effectiveUid, 'articles', id),
-          cleanUndefined({ ...basePayload, id, purchasePricePerUnit: price, quantity: groupQty, colorBreakdown: rows, sizeBreakdown: null, designBreakdown: null, qualityBreakdown: null, ...extraPayload }),
-          { merge: true }
+          cleanUndefined({ ...basePayload, id, purchasePricePerUnit: price, quantity: groupQty, colorBreakdown: rows, sizeBreakdown: null, designBreakdown: null, qualityBreakdown: null, ...extraPayload })
         );
       });
     } else if (sizeBreakdown && sizeBreakdown.length > 0) {
@@ -695,19 +704,17 @@ export function AddOrderForm({
         const groupQty = rows.reduce((sum, r) => sum + (Number((r as any).quantity) || Number((r as any).rolls) || 0), 0);
         const id = doc(collection(firestore, 'users', effectiveUid, 'articles')).id;
         const extraPayload = isInventoryMode ? { initialQtyByStore: { [activeStore || 'CHRIFA']: groupQty } } : {};
-        setDocumentNonBlocking(
+        writeArticle(
           doc(firestore, 'users', effectiveUid, 'articles', id),
-          cleanUndefined({ ...basePayload, id, purchasePricePerUnit: price, quantity: groupQty, sizeBreakdown: rows, colorBreakdown: null, designBreakdown: null, qualityBreakdown: null, ...extraPayload }),
-          { merge: true }
+          cleanUndefined({ ...basePayload, id, purchasePricePerUnit: price, quantity: groupQty, sizeBreakdown: rows, colorBreakdown: null, designBreakdown: null, qualityBreakdown: null, ...extraPayload })
         );
       });
     } else {
       const id = doc(collection(firestore, 'users', effectiveUid, 'articles')).id;
       const extraPayload = isInventoryMode ? { initialQtyByStore: { [activeStore || 'CHRIFA']: Number(formData.quantity) || 0 } } : {};
-      setDocumentNonBlocking(
+      writeArticle(
         doc(firestore, 'users', effectiveUid, 'articles', id),
-        cleanUndefined({ ...basePayload, id, colorBreakdown: null, sizeBreakdown: null, designBreakdown: null, qualityBreakdown: null, ...extraPayload }),
-        { merge: true }
+        cleanUndefined({ ...basePayload, id, colorBreakdown: null, sizeBreakdown: null, designBreakdown: null, qualityBreakdown: null, ...extraPayload })
       );
     }
 
@@ -716,6 +723,29 @@ export function AddOrderForm({
     const colorSplitCount = colorBreakdown ? new Set(colorBreakdown.map(r => r.priceOverride !== '' && r.priceOverride !== undefined ? r.priceOverride : 'default')).size : 1;
     const sizeSplitCount = sizeBreakdown ? new Set(sizeBreakdown.map(r => r.priceOverride !== '' && r.priceOverride !== undefined ? r.priceOverride : 'default')).size : 1;
     const splitCount = Math.max(qualitySplitCount, designSplitCount, colorSplitCount, sizeSplitCount);
+
+    if (isStoreRequest) {
+      setSubmitting(true);
+      try {
+        // Hors ligne, setDoc ne se résout jamais : au-delà de 20 s on considère l'envoi raté.
+        await Promise.race([
+          Promise.all(pendingWrites),
+          new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 20000)),
+        ]);
+      } catch (err: any) {
+        console.error('[Demande import] échec d\'envoi :', err);
+        toast({
+          variant: 'destructive',
+          title: "❌ Demande NON envoyée",
+          description: err?.message === 'timeout'
+            ? "Pas de réponse du serveur. Vérifiez la connexion internet puis renvoyez la demande."
+            : "L'enregistrement a été refusé. Réessayez ; si le problème persiste, prévenez l'administrateur.",
+        });
+        setSubmitting(false);
+        return; // on garde le formulaire rempli pour pouvoir renvoyer
+      }
+      setSubmitting(false);
+    }
 
     toast({
       title: isInventoryMode ? "✅ Produit ajouté au stock" : isStoreRequest ? "✅ Demande envoyée au service import" : "✅ Besoin enregistré",
@@ -2057,7 +2087,7 @@ export function AddOrderForm({
           {/* ── Submit ─────────────────────────────────────────────────────── */}
           <Button
             type="submit"
-            disabled={!isValid}
+            disabled={!isValid || submitting}
             className={`w-full font-black uppercase tracking-widest h-13 rounded-xl gap-2 mt-1 shadow-lg transition-all ${
               isValid
                 ? 'bg-stone-900 hover:bg-black text-white shadow-stone-200'
@@ -2065,7 +2095,7 @@ export function AddOrderForm({
             }`}
           >
             <Save className="w-4 h-4" />
-            {isInventoryMode ? 'Ajouter à l\'inventaire' : isStoreRequest ? 'Envoyer au service import' : 'Enregistrer le besoin'}
+            {isInventoryMode ? 'Ajouter à l\'inventaire' : isStoreRequest ? (submitting ? 'Envoi en cours…' : 'Envoyer au service import') : 'Enregistrer le besoin'}
             {isValid && <ChevronRight className="w-4 h-4 ml-auto opacity-50" />}
           </Button>
 

@@ -608,6 +608,14 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
       ? (formData.status === 'DELIVERED' ? 'DELIVERED' : 'SHIPPED')
       : formData.status;
 
+    // Un besoin qui quitte « À commander » depuis ce formulaire n'avait aucune date de lancement,
+    // contrairement au bouton Order (launchedAt). Les magasins s'en servent pour n'afficher une
+    // demande « Commandée » que quelques jours : on horodate le passage une seule fois.
+    const launchStamp = (!article.status || article.status === 'TO_ORDER')
+      && statusToSave && statusToSave !== 'TO_ORDER' && !article.launchedAt
+      ? { launchedAt: serverTimestamp() }
+      : {};
+
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const { effectiveStatus: _es, rawStatus: _rs, arrivalDate: _ad, stockEntryDate: _sed, ...rawFormData } = formData;
     const cleanFormData = {
@@ -699,6 +707,7 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
               specs: formData.specs || formData.quality || null,
               factureId: finalFactureId,
               status: statusToSave,
+              ...launchStamp,
               purchasePricePerUnit: price,
               quantity: groupQty,
               ...splitData,
@@ -719,6 +728,7 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
               specs: formData.specs || formData.quality || null,
               factureId: finalFactureId,
               status: statusToSave,
+              ...launchStamp,
               purchasePricePerUnit: price,
               quantity: groupQty,
               ...splitData,
@@ -738,6 +748,7 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
           specs: formData.specs || formData.quality || null,
           factureId: finalFactureId,
           status: statusToSave,
+          ...launchStamp,
           qualityBreakdown: qualityBreakdown && qualityBreakdown.length > 1 ? qualityBreakdown : null,
           designBreakdown: designBreakdown && designBreakdown.length > 0 ? designBreakdown : null,
           colorBreakdown: colorBreakdown && colorBreakdown.length > 0 ? colorBreakdown : null,
