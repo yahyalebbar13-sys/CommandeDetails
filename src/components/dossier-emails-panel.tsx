@@ -10,10 +10,11 @@ import React, { useState, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import {
   Mail, Loader2, AlertCircle, Paperclip, Anchor,
-  RefreshCw, Inbox, ExternalLink,
+  RefreshCw, Inbox, ExternalLink, Check, Flame, Tag,
 } from 'lucide-react';
 import type { Facture } from '@/lib/types';
 import { accountKeysForCompany, ACCOUNT_COMPANY, type ArrivageMatch } from '@/lib/email-arrivage-match';
+import { detectEmailEvents, type EmailEvent, type EmailEventType } from '@/lib/email-events';
 
 type FoundEmail = {
   uid: number;
@@ -34,6 +35,18 @@ const CONFIDENCE_STYLE: Record<ArrivageMatch['confidence'], { chip: string; labe
   probable: { chip: 'bg-amber-50 text-amber-700 border-amber-200',       label: 'Probable' },
   faible:   { chip: 'bg-stone-100 text-stone-500 border-stone-200',      label: 'Incertain' },
 };
+
+// Le parcours d'un dossier d'import, dans l'ordre. Les emails du dossier
+// disent où il en est : chaque étape passe au vert dès qu'un email l'atteste.
+const ETAPES: { type: EmailEventType; court: string }[] = [
+  { type: 'ENGAGEMENT',           court: 'Engagement' },
+  { type: 'DOCUMENTS_EXPEDITION', court: 'Documents' },
+  { type: 'AVIS_ARRIVEE',         court: 'Arrivée' },
+  { type: 'DUM',                  court: 'DUM' },
+  { type: 'MAINLEVEE',            court: 'Mainlevée' },
+  { type: 'BON_A_DELIVRER',       court: 'BAD' },
+  { type: 'SORTIE_MARCHANDISE',   court: 'Sortie' },
+];
 
 function formatDate(iso: string) {
   if (!iso) return '';
@@ -61,6 +74,19 @@ export default function DossierEmailsPanel({
   const [warning, setWarning] = useState('');
 
   const accountKeys = accountKeysForCompany(facture.declaringCompany);
+
+  // Ce que les emails du dossier racontent, tous types confondus.
+  const eventsParEmail = new Map<string, EmailEvent[]>();
+  const typesAtteints = new Set<EmailEventType>();
+  const alertes: EmailEvent[] = [];
+  for (const email of emails || []) {
+    const evs = detectEmailEvents(email);
+    eventsParEmail.set(`${email.accountKey}-${email.uid}`, evs);
+    for (const ev of evs) {
+      typesAtteints.add(ev.type);
+      if (ev.type === 'RELANCE_SURESTARIE') alertes.push(ev);
+    }
+  }
 
   const search = useCallback(async () => {
     setLoading(true);
@@ -167,6 +193,49 @@ export default function DossierEmailsPanel({
               </p>
             ) : (
               <>
+                {/* Où en est le dossier, d'après ses emails */}
+                <div className="rounded-xl border border-stone-100 bg-stone-50/60 p-3">
+                  <p className="text-[9px] font-black text-stone-400 uppercase tracking-widest mb-2">
+                    Avancement d'après les emails
+                  </p>
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    {ETAPES.map(etape => {
+                      const fait = typesAtteints.has(etape.type);
+                      return (
+                        <span
+                          key={etape.type}
+                          className={`inline-flex items-center gap-1 rounded-lg border px-2 py-1 text-[9px] font-black uppercase tracking-widest ${
+                            fait
+                              ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                              : 'bg-white text-stone-300 border-stone-200'
+                          }`}
+                        >
+                          {fait && <Check className="w-2.5 h-2.5" />}
+                          {etape.court}
+                        </span>
+                      );
+                    })}
+                  </div>
+                  <p className="text-[9px] font-bold text-stone-400 mt-2">
+                    Une étape passe au vert dès qu'un email l'atteste — ce n'est pas
+                    une saisie, c'est ce que disent les messages reçus.
+                  </p>
+                </div>
+
+                {alertes.length > 0 && (
+                  <div className="flex items-start gap-2.5 p-3 rounded-xl bg-rose-50 border border-rose-200">
+                    <Flame className="w-4 h-4 text-rose-500 shrink-0 mt-0.5" />
+                    <div>
+                      <p className="text-[11px] font-black text-rose-800 uppercase tracking-tight">
+                        Frais qui courent sur ce dossier
+                      </p>
+                      <p className="text-[10px] font-bold text-rose-600 mt-0.5">
+                        {alertes.length} email{alertes.length > 1 ? 's' : ''} de surestaries ou magasinage.
+                      </p>
+                    </div>
+                  </div>
+                )}
+
                 <p className="text-[9px] font-black text-stone-400 uppercase tracking-widest">
                   {emails.length} email{emails.length > 1 ? 's' : ''} rattaché{emails.length > 1 ? 's' : ''}
                 </p>
@@ -187,6 +256,22 @@ export default function DossierEmailsPanel({
                               )}
                             </div>
                             <p className="text-[12px] font-semibold text-stone-700 mt-0.5">{email.subject}</p>
+                            <div className="flex flex-wrap gap-1.5 mt-1.5">
+                              {(eventsParEmail.get(`${email.accountKey}-${email.uid}`) || []).map(ev => (
+                                <span
+                                  key={ev.type}
+                                  title={ev.action}
+                                  className={`inline-flex items-center gap-1 rounded-lg border px-2 py-0.5 text-[9px] font-black uppercase tracking-widest ${
+                                    ev.urgent
+                                      ? 'bg-rose-50 text-rose-700 border-rose-200'
+                                      : 'bg-sky-50 text-sky-700 border-sky-200'
+                                  }`}
+                                >
+                                  {ev.urgent ? <Flame className="w-2.5 h-2.5" /> : <Tag className="w-2.5 h-2.5" />}
+                                  {ev.label}
+                                </span>
+                              ))}
+                            </div>
                           </div>
                           <span
                             title={email.match.reasons.map(r => r.label).join(' · ')}

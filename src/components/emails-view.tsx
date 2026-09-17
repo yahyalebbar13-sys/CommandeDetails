@@ -6,7 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import {
   Inbox, RefreshCw, Mail, MailOpen, Paperclip,
   ChevronLeft, Building2, AlertCircle, Loader2, Search,
-  Sparkles, Brain, CheckCircle2, Anchor, Link2Off, HelpCircle
+  Sparkles, Brain, CheckCircle2, Anchor, Link2Off, HelpCircle, Flame, Tag
 } from 'lucide-react';
 import type { Facture } from '@/lib/types';
 import {
@@ -15,6 +15,13 @@ import {
   type ArrivageMatch,
   type SupplierHint,
 } from '@/lib/email-arrivage-match';
+import {
+  detectEmailEvents,
+  needsAiFallback,
+  TYPES_CONNUS,
+  type EmailEvent,
+  type EmailEventType,
+} from '@/lib/email-events';
 
 interface EmailAttachment {
   filename: string;
@@ -55,6 +62,23 @@ const CONFIDENCE_STYLE: Record<ArrivageMatch['confidence'], { chip: string; dot:
   probable: { chip: 'bg-amber-50 text-amber-700 border-amber-200',       dot: 'bg-amber-500',   label: 'Probable' },
   faible:   { chip: 'bg-stone-100 text-stone-500 border-stone-200',      dot: 'bg-stone-400',   label: 'Incertain' },
 };
+
+/** Pastille du type d'email détecté (« Bon à délivrer », « Engagement »…). */
+function EventChip({ event, compact = false }: { event: EmailEvent; compact?: boolean }) {
+  return (
+    <span
+      title={`Reconnu sur « ${event.preuve} » dans l'${event.ou}${event.action ? ` — ${event.action}` : ''}`}
+      className={`inline-flex items-center gap-1.5 rounded-lg border px-2 py-0.5 text-[9px] font-black uppercase tracking-widest ${
+        event.urgent
+          ? 'bg-rose-50 text-rose-700 border-rose-200'
+          : 'bg-sky-50 text-sky-700 border-sky-200'
+      }`}
+    >
+      {event.urgent ? <Flame className={compact ? 'w-2.5 h-2.5' : 'w-3 h-3'} /> : <Tag className={compact ? 'w-2.5 h-2.5' : 'w-3 h-3'} />}
+      {event.label}
+    </span>
+  );
+}
 
 /** Pastille compacte « BL 26HD1004 · MH » pour la liste des emails. */
 function ArrivageChip({ match, compact = false }: { match: ArrivageMatch; compact?: boolean }) {
@@ -99,6 +123,7 @@ export default function EmailsView({
 } = {}) {
   const [activeAccount, setActiveAccount] = useState('lebtex');
   const [arrivageFilter, setArrivageFilter] = useState<ArrivageFilter>('all');
+  const [typeFilter, setTypeFilter] = useState<EmailEventType | 'all'>('all');
   const [emails, setEmails] = useState<Email[]>([]);
   const [selected, setSelected] = useState<Email | null>(null);
   const [loading, setLoading] = useState(false);
@@ -170,6 +195,26 @@ export default function EmailsView({
     return map;
   }, [emails, factures, activeAccount, supplierHints]);
 
+  // Type de chaque email, reconnu par règles : aucun appel réseau, donc
+  // recalculé à chaque actualisation sans rien coûter ni rien mettre en cache.
+  const eventsByUid = useMemo(() => {
+    const map = new Map<number, EmailEvent[]>();
+    for (const email of emails) map.set(email.uid, detectEmailEvents(email));
+    return map;
+  }, [emails]);
+
+  const urgentCount = useMemo(
+    () => emails.filter(e => (eventsByUid.get(e.uid) || []).some(ev => ev.urgent)).length,
+    [emails, eventsByUid]
+  );
+
+  // Types réellement présents dans la boîte — inutile de proposer les autres.
+  const typesPresents = useMemo(() => {
+    const vus = new Set<EmailEventType>();
+    for (const list of eventsByUid.values()) for (const ev of list) vus.add(ev.type);
+    return TYPES_CONNUS.filter(t => vus.has(t.type));
+  }, [eventsByUid]);
+
   const linkedCount = useMemo(
     () => emails.filter(e => (matchesByUid.get(e.uid)?.length ?? 0) > 0).length,
     [emails, matchesByUid]
@@ -186,12 +231,17 @@ export default function EmailsView({
         matches.some(m => (m.noBL || '').toLowerCase().includes(q));
       if (!hit) return false;
     }
-    if (arrivageFilter === 'linked') return matches.length > 0;
-    if (arrivageFilter === 'unlinked') return matches.length === 0;
+    if (arrivageFilter === 'linked' && matches.length === 0) return false;
+    if (arrivageFilter === 'unlinked' && matches.length > 0) return false;
+    if (typeFilter !== 'all') {
+      const events = eventsByUid.get(e.uid) || [];
+      if (!events.some(ev => ev.type === typeFilter)) return false;
+    }
     return true;
   });
 
   const selectedMatches = selected ? matchesByUid.get(selected.uid) || [] : [];
+  const selectedEvents = selected ? eventsByUid.get(selected.uid) || [] : [];
 
   const acct = ACCOUNTS.find(a => a.key === activeAccount)!;
 
@@ -264,6 +314,44 @@ export default function EmailsView({
         </div>
       )}
 
+      {/* Filtre par type d'email détecté */}
+      {typesPresents.length > 0 && (
+        <div className="flex items-center gap-2 flex-wrap">
+          <button
+            onClick={() => setTypeFilter('all')}
+            className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all border ${
+              typeFilter === 'all'
+                ? 'bg-stone-900 text-white border-stone-900'
+                : 'bg-white text-stone-500 border-stone-200 hover:border-stone-400'
+            }`}
+          >
+            Tous types
+          </button>
+          {typesPresents.map(t => (
+            <button
+              key={t.type}
+              onClick={() => setTypeFilter(t.type)}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all border ${
+                typeFilter === t.type
+                  ? 'bg-stone-900 text-white border-stone-900'
+                  : t.urgent
+                    ? 'bg-rose-50 text-rose-700 border-rose-200 hover:border-rose-400'
+                    : 'bg-white text-stone-500 border-stone-200 hover:border-stone-400'
+              }`}
+            >
+              {t.urgent && <Flame className="w-3 h-3" />}
+              {t.label}
+            </button>
+          ))}
+          {urgentCount > 0 && (
+            <span className="ml-auto flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest text-rose-600">
+              <Flame className="w-3 h-3" />
+              {urgentCount} à traiter
+            </span>
+          )}
+        </div>
+      )}
+
       {/* Main content */}
       <div className="bg-white rounded-2xl border border-stone-200 overflow-hidden" style={{ minHeight: 560 }}>
         {loading ? (
@@ -295,15 +383,48 @@ export default function EmailsView({
                   <span className="text-[10px] font-bold">{selected.attachments.length}</span>
                 </div>
               )}
-              <Button
-                onClick={analyzeEmail}
-                disabled={aiLoading}
-                className="ml-4 h-8 gap-2 rounded-xl text-[10px] font-black uppercase tracking-widest bg-violet-600 hover:bg-violet-700 text-white"
-              >
-                {aiLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5 text-violet-200" />}
-                Analyser (IA)
-              </Button>
+              {needsAiFallback(selected) ? (
+                <Button
+                  onClick={analyzeEmail}
+                  disabled={aiLoading}
+                  className="ml-4 h-8 gap-2 rounded-xl text-[10px] font-black uppercase tracking-widest bg-violet-600 hover:bg-violet-700 text-white"
+                >
+                  {aiLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5 text-violet-200" />}
+                  Analyser (IA)
+                </Button>
+              ) : (
+                <span
+                  title="Type reconnu par règles, sans appel à l'IA"
+                  className="ml-4 flex items-center gap-1.5 text-[9px] font-black uppercase tracking-widest text-emerald-600 shrink-0"
+                >
+                  <CheckCircle2 className="w-3.5 h-3.5" />
+                  Lu automatiquement
+                </span>
+              )}
             </div>
+
+            {/* Ce que dit cet email — reconnu par règles, sans clic ni IA */}
+            {selectedEvents.length > 0 && (
+              <div className="mx-6 mt-4 p-4 rounded-xl bg-white border border-stone-200 space-y-3">
+                <h4 className="text-[11px] font-black text-stone-900 uppercase tracking-widest">
+                  Ce que dit cet email
+                </h4>
+                {selectedEvents.map(ev => (
+                  <div key={ev.type} className="flex items-start gap-3">
+                    <EventChip event={ev} />
+                    <div className="flex-1 min-w-0 space-y-0.5">
+                      {ev.action && (
+                        <p className="text-[11px] font-bold text-stone-700">{ev.action}</p>
+                      )}
+                      <p className="text-[10px] text-stone-400 font-medium">
+                        Reconnu sur «&nbsp;{ev.preuve}&nbsp;» dans l'{ev.ou}
+                        {ev.checklistId && ` · fait avancer « ${ev.checklistId} » dans la checklist`}
+                      </p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
 
             {/* Rapprochement avec un dossier d'arrivage */}
             {factures.length > 0 && (
@@ -506,8 +627,12 @@ export default function EmailsView({
                       <p className={`text-[12px] truncate mt-0.5 ${email.isUnread ? 'font-bold text-stone-800' : 'text-stone-500 font-medium'}`}>
                         {email.subject}
                       </p>
-                      {(matchesByUid.get(email.uid) || []).length > 0 && (
+                      {((matchesByUid.get(email.uid) || []).length > 0 ||
+                        (eventsByUid.get(email.uid) || []).length > 0) && (
                         <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+                          {(eventsByUid.get(email.uid) || []).slice(0, 2).map(ev => (
+                            <EventChip key={ev.type} event={ev} compact />
+                          ))}
                           {(matchesByUid.get(email.uid) || []).slice(0, 2).map(m => (
                             <ArrivageChip key={m.factureId} match={m} compact />
                           ))}

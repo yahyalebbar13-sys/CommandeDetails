@@ -14,6 +14,11 @@ Analyse l'email fourni et retourne UNIQUEMENT un objet JSON avec la structure su
   "actionSuggeree": "string" // Ce qu'il faut faire dans StockVue (ex: "Cocher remis au transitaire").
 }`;
 
+// Même modèle que le reste de l'app (src/ai/genkit.ts).
+// L'ancien « gemini-1.5-flash-latest » a été retiré côté Google : l'API
+// répondait 404 et le bouton « Analyser » échouait systématiquement.
+const MODELE = 'gemini-2.5-flash';
+
 export async function POST(req: NextRequest) {
   try {
     const { subject, text, from } = await req.json();
@@ -45,7 +50,7 @@ export async function POST(req: NextRequest) {
       };
 
       const request = https.request(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${process.env.GEMINI_API_KEY}`,
+        `https://generativelanguage.googleapis.com/v1beta/models/${MODELE}:generateContent?key=${process.env.GEMINI_API_KEY}`,
         options,
         (res) => {
           let body = '';
