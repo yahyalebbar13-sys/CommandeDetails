@@ -27,6 +27,8 @@ import DesignBreakdownInput, { DesignBreakdownRow } from './design-breakdown-inp
 import QualityBreakdownInput, { QualityBreakdownRow } from './quality-breakdown-input';
 import DesignPicker from './design-picker';
 import { findLastOrderPrice } from '@/lib/order-utils';
+import { getArticleFrenchName } from '@/lib/product-name-utils';
+import { PriceVisibilityProvider } from '@/lib/price-visibility';
 import { isFabricLineOrCategory, isZipperLineOrCategory, isThreadLineOrCategory, isSliderLineOrCategory, isTapeLineOrCategory, isAccessoryLineOrCategory } from '@/lib/constants';
 
 const UNITS = ["pièces", "doz", "gross (144p)", "m", "rolls", "kg", "bag", "yds"];
@@ -91,14 +93,25 @@ export function AddOrderForm({
   isInventoryMode = false,
   activeStore = 'CHRIFA',
   adminUid = null,
-  onSuccess
-}: { 
+  onSuccess,
+  storeRequest = null,
+}: {
   onClose: () => void,
   isInventoryMode?: boolean,
   activeStore?: string,
   adminUid?: string | null,
-  onSuccess?: (payload: any) => void
+  onSuccess?: (payload: any) => void,
+  /**
+   * Demande envoyée par un magasin au service import : le besoin arrive dans « Besoins » de
+   * /gestion, étiqueté avec le magasin demandeur. Le formulaire masque alors tout prix d'achat
+   * et le choix du fournisseur, qui relèvent de l'import.
+   */
+  storeRequest?: { storeId: string; storeName?: string } | null,
 }) {
+  const isStoreRequest = Boolean(storeRequest && !isInventoryMode);
+  // /stock parle français, /gestion (service import) garde les noms internes anglais.
+  // Ce formulaire n'est ouvert en mode inventaire ou demande magasin que depuis /stock.
+  const useFrenchLabels = isStoreRequest || isInventoryMode;
   const { user } = useUser();
   const firestore = useFirestore();
   const { toast } = useToast();
@@ -499,12 +512,33 @@ export function AddOrderForm({
       ? Number(formData.purchasePricePerUnit)
       : (lastOrderInfo?.price || 0);
 
+    // Nom français : saisi, sinon résolu depuis la qualité, la famille ou le pôle. Sans ça le
+    // besoin n'avait que le nom interne anglais de la famille et /gestion l'affichait en anglais.
+    // On ne retient la résolution que si elle est réellement française (≠ nom interne).
+    const resolvedFR = getArticleFrenchName(
+      {
+        categoryId: formData.categoryId, name: formData.categoryId, quality: formData.quality,
+        generalCategoryId: selectedGenCatId, zipperType: formData.zipperType, slider: formData.slider,
+        sliderType: formData.sliderType, size: formData.size, gsm: formData.gsm,
+      },
+      subCategories || [], generalCategories || []
+    );
+    const frenchName = formData.nameFR?.trim()
+      || (resolvedFR && resolvedFR.trim().toLowerCase() !== String(formData.categoryId || '').trim().toLowerCase()
+        ? resolvedFR.trim() : null);
+
     const basePayload: any = {
       ...formData,
       purchasePricePerUnit: finalPrice,
       lastOrderPrice: lastOrderInfo?.price || null,
       name: formData.categoryId,
-      nameFR: formData.nameFR?.trim() || null,
+      nameFR: frenchName,
+      ...(isStoreRequest ? {
+        requestSource: 'STORE',
+        requestedByStore: storeRequest!.storeId,
+        requestedByStoreName: storeRequest!.storeName || storeRequest!.storeId,
+        requestedAt: serverTimestamp(),
+      } : {}),
       generalCategoryId: selectedGenCatId,
       quality: formData.quality || null,
       qualityLabel: formData.quality || null,
@@ -684,9 +718,11 @@ export function AddOrderForm({
     const splitCount = Math.max(qualitySplitCount, designSplitCount, colorSplitCount, sizeSplitCount);
 
     toast({
-      title: isInventoryMode ? "✅ Produit ajouté au stock" : "✅ Besoin enregistré",
+      title: isInventoryMode ? "✅ Produit ajouté au stock" : isStoreRequest ? "✅ Demande envoyée au service import" : "✅ Besoin enregistré",
       description: isInventoryMode
         ? "L'article a été ajouté avec succès à l'inventaire."
+        : isStoreRequest
+          ? "Elle apparaît dans les Besoins de l'import. Vous pouvez suivre son avancement ici."
         : (splitCount > 1
             ? `${splitCount} articles créés (auto-split par prix)`
             : "L'article a été ajouté à la liste des rappels."),
@@ -730,7 +766,9 @@ export function AddOrderForm({
             <SelectGroup key={key}>
               <SelectLabel className="text-[9px] text-stone-400 font-black uppercase tracking-widest bg-stone-50 py-2">{display}</SelectLabel>
               {groups[key].map((sc: any) => (
-                <SelectItem key={sc.id} value={sc.name} className="font-bold pl-6 text-[11px]">{sc.name}</SelectItem>
+                <SelectItem key={sc.id} value={sc.name} className="font-bold pl-6 text-[11px]">
+                  {useFrenchLabels && sc.nameFR ? sc.nameFR : sc.name}
+                </SelectItem>
               ))}
             </SelectGroup>
           );
@@ -740,6 +778,7 @@ export function AddOrderForm({
   };
 
   return (
+    <PriceVisibilityProvider visible={!isStoreRequest}>
     <div className="flex flex-col bg-white">
       {/* ── Header ─────────────────────────────────────────────────────── */}
         <div className="bg-gradient-to-br from-stone-900 to-stone-800 p-6 flex items-start gap-4 text-white sticky top-0 z-10">
@@ -748,10 +787,10 @@ export function AddOrderForm({
           </div>
           <div className="flex-1 min-w-0">
             <h2 className="text-lg font-black uppercase tracking-tight leading-none">
-              Nouvel Article
+              {isStoreRequest ? 'Demande au service import' : 'Nouvel Article'}
             </h2>
             <p className="text-[10px] font-bold text-stone-400 uppercase tracking-widest mt-1">
-              Identification du besoin logistique
+              {isStoreRequest ? `Magasin demandeur : ${storeRequest?.storeName || storeRequest?.storeId}` : 'Identification du besoin logistique'}
             </p>
           </div>
           {/* Priority badge in header */}
@@ -791,7 +830,7 @@ export function AddOrderForm({
                       <SelectGroup key={letter}>
                         <SelectLabel className="text-[9px] text-stone-400 font-black uppercase tracking-widest bg-stone-50 py-1.5">{letter}</SelectLabel>
                         {items.map((gc: any) => (
-                          <SelectItem key={gc.id} value={gc.id} className="font-bold pl-6 text-[11px]">{gc.name}</SelectItem>
+                          <SelectItem key={gc.id} value={gc.id} className="font-bold pl-6 text-[11px]">{useFrenchLabels && gc.nameFR ? gc.nameFR : gc.name}</SelectItem>
                         ))}
                       </SelectGroup>
                     ));
@@ -1801,10 +1840,10 @@ export function AddOrderForm({
           )}
 
           {/* ── Section 4: Commande ───────────────────────────────────────── */}
-          <SectionLabel icon={<Ruler className="w-3 h-3" />} label="Commande & Prix" />
+          <SectionLabel icon={<Ruler className="w-3 h-3" />} label={isStoreRequest ? 'Quantité demandée' : 'Commande & Prix'} />
 
-          {/* Unité + Quantité + Prix */}
-          <div className="grid grid-cols-3 gap-3">
+          {/* Unité + Quantité + Prix (prix masqué pour une demande magasin) */}
+          <div className={`grid ${isStoreRequest ? 'grid-cols-2' : 'grid-cols-3'} gap-3`}>
             <div className="space-y-1.5">
               <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest">Unité</Label>
               <Select
@@ -1852,6 +1891,7 @@ export function AddOrderForm({
               )}
             </div>
 
+            {!isStoreRequest && (
             <div className="space-y-1.5">
               <div className="flex items-center justify-between">
                 <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest flex items-center gap-1">
@@ -1888,12 +1928,14 @@ export function AddOrderForm({
                 }}
               />
             </div>
+            )}
           </div>
 
           {/* Fournisseur + Priorité */}
           {!isInventoryMode && (
             <>
-              <div className="grid grid-cols-2 gap-3">
+              <div className={`grid ${isStoreRequest ? 'grid-cols-1' : 'grid-cols-2'} gap-3`}>
+                {!isStoreRequest && (
                 <div className="space-y-1.5">
                   <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest flex items-center gap-1">
                     <Building2 className="w-3 h-3" /> Fournisseur
@@ -1909,6 +1951,7 @@ export function AddOrderForm({
                     {knownSuppliers.map(s => <option key={s} value={s} />)}
                   </datalist>
                 </div>
+                )}
 
                 <div className="space-y-1.5">
                   <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest flex items-center gap-1">
@@ -2022,7 +2065,7 @@ export function AddOrderForm({
             }`}
           >
             <Save className="w-4 h-4" />
-            {isInventoryMode ? 'Ajouter à l\'inventaire' : 'Enregistrer le besoin'}
+            {isInventoryMode ? 'Ajouter à l\'inventaire' : isStoreRequest ? 'Envoyer au service import' : 'Enregistrer le besoin'}
             {isValid && <ChevronRight className="w-4 h-4 ml-auto opacity-50" />}
           </Button>
 
@@ -2058,6 +2101,7 @@ export function AddOrderForm({
         </DialogContent>
       </Dialog>
     </div>
+    </PriceVisibilityProvider>
   );
 }
 
@@ -2068,6 +2112,8 @@ export interface AddOrderModalProps {
   activeStore?: string;
   adminUid?: string | null;
   onSuccess?: (payload: any) => void;
+  /** Demande magasin → service import (cf. AddOrderForm). */
+  storeRequest?: { storeId: string; storeName?: string } | null;
 }
 
 export default function AddOrderModal({
@@ -2076,7 +2122,8 @@ export default function AddOrderModal({
   isInventoryMode = false,
   activeStore = 'CHRIFA',
   adminUid = null,
-  onSuccess
+  onSuccess,
+  storeRequest = null,
 }: AddOrderModalProps) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -2088,6 +2135,7 @@ export default function AddOrderModal({
           activeStore={activeStore}
           adminUid={adminUid}
           onSuccess={onSuccess}
+          storeRequest={storeRequest}
         />
       </DialogContent>
     </Dialog>

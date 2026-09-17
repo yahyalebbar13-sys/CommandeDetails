@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Maximize, Plus, Trash2, ClipboardPaste, Hash, Package } from 'lucide-react';
+import { usePricesVisible } from '@/lib/price-visibility';
 
 export interface SizeBreakdownRow {
   size: string;
@@ -44,6 +45,8 @@ function parsePastedSizes(raw: string): SizeBreakdownRow[] {
 }
 
 export default function SizeBreakdownInput({ value, onChange, availableSizes }: SizeBreakdownInputProps) {
+  // Masqué quand un magasin envoie une demande : il ne voit jamais les prix d'achat.
+  const showPrice = usePricesVisible();
   const [enabled, setEnabled] = useState<boolean>(!!value && value.length > 0);
   const [rows, setRows] = useState<SizeBreakdownRow[]>(value || []);
   const [pasteText, setPasteText] = useState('');
@@ -146,7 +149,7 @@ export default function SizeBreakdownInput({ value, onChange, availableSizes }: 
 
       {!enabled && (
         <p className="text-[9px] font-bold text-stone-400 uppercase text-center pb-3 italic px-4">
-          Activer pour saisir les tailles et quantités (avec prix optionnel par taille)
+          Activer pour saisir les tailles et quantités{showPrice ? ' (avec prix optionnel par taille)' : ''}
         </p>
       )}
 
@@ -167,7 +170,7 @@ export default function SizeBreakdownInput({ value, onChange, availableSizes }: 
           {showPasteArea && (
             <div className="space-y-2 animate-in fade-in slide-in-from-top-1 duration-200">
               <label className="text-[9px] font-black text-teal-500 uppercase tracking-widest block">
-                Coller ici (format : Taille[TAB]Quantité[TAB]Prix optionnel)
+                Coller ici (format : Taille[TAB]Quantité{showPrice ? '[TAB]Prix optionnel' : ''})
               </label>
               <textarea
                 className="w-full h-28 text-[11px] font-mono border border-teal-200 rounded-lg p-3 resize-none focus:outline-none focus:ring-2 focus:ring-teal-400 bg-white placeholder:text-stone-300"
@@ -213,13 +216,15 @@ export default function SizeBreakdownInput({ value, onChange, availableSizes }: 
           {/* Table */}
           {rows.length > 0 && (
             <div className="rounded-xl overflow-hidden border border-teal-100 bg-white">
-              <div className="grid grid-cols-[1fr_90px_90px_36px] gap-0 bg-teal-100/60">
+              <div className={`grid ${showPrice ? 'grid-cols-[1fr_90px_90px_36px]' : 'grid-cols-[1fr_90px_36px]'} gap-0 bg-teal-100/60`}>
                 <div className="py-2 px-3 text-[9px] font-black uppercase text-teal-600 tracking-widest flex items-center gap-1">
                   <Hash className="w-2.5 h-2.5" /> Taille
                 </div>
-                <div className="py-2 px-1 text-[9px] font-black uppercase text-teal-600 tracking-widest text-right">
+                {showPrice && (
+                  <div className="py-2 px-1 text-[9px] font-black uppercase text-teal-600 tracking-widest text-right">
                   Prix Opt ($)
                 </div>
+                )}
                 <div className="py-2 px-3 text-[9px] font-black uppercase text-teal-600 tracking-widest text-right flex items-center justify-end gap-1">
                   <Package className="w-2.5 h-2.5" /> Qté
                 </div>
@@ -228,7 +233,7 @@ export default function SizeBreakdownInput({ value, onChange, availableSizes }: 
 
               <div className="divide-y divide-teal-50">
                 {rows.map((row, i) => (
-                  <div key={i} className="grid grid-cols-[1fr_90px_90px_36px] gap-0 items-center hover:bg-teal-50/30 transition-colors">
+                  <div key={i} className={`grid ${showPrice ? 'grid-cols-[1fr_90px_90px_36px]' : 'grid-cols-[1fr_90px_36px]'} gap-0 items-center hover:bg-teal-50/30 transition-colors`}>
                     <div className="px-2 py-1 flex flex-col gap-1">
                       {availableSizes && availableSizes.length > 0 ? (
                         <Select value={row.size} onValueChange={v => handleRowChange(i, 'size', v)}>
@@ -256,7 +261,8 @@ export default function SizeBreakdownInput({ value, onChange, availableSizes }: 
                         placeholder="Description (optionnel)..."
                       />
                     </div>
-                    <div className="px-2 py-1">
+                    {showPrice && (
+                      <div className="px-2 py-1">
                       <Input
                         type="text"
                         inputMode="decimal"
@@ -267,6 +273,7 @@ export default function SizeBreakdownInput({ value, onChange, availableSizes }: 
                         title="Prix spécifique si différent du prix global (ex: 1.6 ou 1,6)"
                       />
                     </div>
+                    )}
                     <div className="px-2 py-1">
                       <Input
                         type="text"
@@ -297,8 +304,8 @@ export default function SizeBreakdownInput({ value, onChange, availableSizes }: 
                 ))}
               </div>
 
-              <div className="grid grid-cols-[1fr_90px_90px_36px] bg-teal-600 text-white">
-                <div className="py-2.5 px-3 text-[9px] font-black uppercase tracking-widest col-span-2">TOTAL</div>
+              <div className={`grid ${showPrice ? 'grid-cols-[1fr_90px_90px_36px]' : 'grid-cols-[1fr_90px_36px]'} bg-teal-600 text-white`}>
+                <div className={`py-2.5 px-3 text-[9px] font-black uppercase tracking-widest ${showPrice ? 'col-span-2' : ''}`}>TOTAL</div>
                 <div className="py-2.5 px-3 text-right text-[11px] font-black">{total.toLocaleString('en-US')} unités</div>
                 <div />
               </div>
@@ -318,7 +325,7 @@ export default function SizeBreakdownInput({ value, onChange, availableSizes }: 
           {rows.length > 0 && (
             <p className="text-[9px] font-bold text-teal-600 uppercase bg-teal-100 px-3 py-2 rounded-lg">
               ✓ Quantité totale calculée : <span className="font-black">{total.toLocaleString('en-US')} unités</span>
-              {rows.some(r => r.priceOverride !== '' && r.priceOverride !== undefined) && (
+              {showPrice && rows.some(r => r.priceOverride !== '' && r.priceOverride !== undefined) && (
                 <span className="ml-1 text-amber-600"> · Auto-split activé par prix</span>
               )}
             </p>

@@ -3,10 +3,12 @@
 import React, { useMemo, useState } from 'react';
 import {
   Anchor, CheckCircle2, ChevronDown, Palette, Ruler, Sparkles, Search, X,
-  Package, Calendar, Ship, MapPin, Box,
+  Package, Calendar, Ship, MapPin, Box, FileDown, Loader2,
 } from 'lucide-react';
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
+import { useToast } from '@/hooks/use-toast';
+import { getArticleFrenchName } from '@/lib/product-name-utils';
 
 /**
  * Fiche d'un dossier d'arrivage pour les magasins : la même lecture que dans /gestion, mais
@@ -23,6 +25,9 @@ interface ArrivalDossierModalProps {
   /** Mouvements d'entrée de ce dossier, pour indiquer où chaque référence a été rangée. */
   movements?: any[];
   stores?: any[];
+  /** Pour les noms français (qualité → famille → pôle) et le regroupement par pôle du PDF. */
+  categories?: any[];
+  generalCategories?: any[];
   isEnteredInStock?: boolean;
   stockEntryDate?: string | null;
 }
@@ -49,9 +54,30 @@ function articleName(a: any): string {
 
 export default function ArrivalDossierModal({
   open, onOpenChange, facture, articles, movements = [], stores = [],
-  isEnteredInStock, stockEntryDate,
+  categories = [], generalCategories = [], isEnteredInStock, stockEntryDate,
 }: ArrivalDossierModalProps) {
+  const { toast } = useToast();
   const [search, setSearch] = useState('');
+  const [exporting, setExporting] = useState(false);
+
+  // Même nom français que partout ailleurs, plutôt que le nom interne anglais de la famille.
+  const frName = (a: any) => getArticleFrenchName(a, categories, generalCategories) || articleName(a);
+
+  const handleExportPdf = async () => {
+    setExporting(true);
+    try {
+      const { exportArrivalPackingPDF } = await import('@/lib/pdf-arrival-packing');
+      await exportArrivalPackingPDF({
+        facture, articles, categories, generalCategories, movements, stores,
+        stockEntryDate, isEnteredInStock,
+      });
+    } catch (e: any) {
+      console.error('[packing PDF]', e);
+      toast({ variant: 'destructive', title: 'PDF impossible', description: e?.message || 'La génération du PDF a échoué.' });
+    } finally {
+      setExporting(false);
+    }
+  };
   // Une seule ventilation ouverte à la fois par article : `${articleId}:${kind}`
   const [expanded, setExpanded] = useState<Record<string, BreakdownKind | null>>({});
 
@@ -90,18 +116,18 @@ export default function ArrivalDossierModal({
 
   const visibleArticles = useMemo(() => {
     const q = search.trim().toLowerCase();
-    const list = [...(articles || [])].sort((a, b) => articleName(a).localeCompare(articleName(b)));
+    const list = [...(articles || [])].sort((a, b) => frName(a).localeCompare(frName(b), 'fr'));
     if (!q) return list;
     return list.filter(a => {
       const haystack = [
-        articleName(a), a.categoryId, a.color, a.size, a.quality, a.specs,
+        frName(a), articleName(a), a.categoryId, a.color, a.size, a.quality, a.specs,
         ...(a.colorBreakdown || []).map((r: any) => `${r.colorCode || ''} ${r.description || ''} ${r.color || ''}`),
         ...(a.sizeBreakdown || []).map((r: any) => r.size),
         ...(a.qualityBreakdown || []).map((r: any) => `${r.quality || ''} ${r.nameFR || ''}`),
       ].join(' ').toLowerCase();
       return haystack.includes(q);
     });
-  }, [articles, search]);
+  }, [articles, search, categories, generalCategories]);
 
   if (!facture) return null;
 
@@ -125,6 +151,16 @@ export default function ArrivalDossierModal({
                 </p>
               )}
             </div>
+            <div className="self-start flex items-center gap-2 flex-wrap">
+            <button
+              type="button"
+              onClick={handleExportPdf}
+              disabled={exporting || (articles || []).length === 0}
+              className="inline-flex items-center gap-1.5 bg-white text-stone-900 hover:bg-amber-400 disabled:opacity-50 text-[11px] font-black uppercase px-3 py-1.5 rounded-full transition-colors whitespace-nowrap"
+            >
+              {exporting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <FileDown className="w-3.5 h-3.5" />}
+              Packing PDF
+            </button>
             {isEnteredInStock ? (
               <span className="self-start inline-flex items-center gap-1.5 bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 text-[11px] font-black uppercase px-3 py-1.5 rounded-full whitespace-nowrap">
                 <CheckCircle2 className="w-3.5 h-3.5" /> En stock
@@ -134,6 +170,7 @@ export default function ArrivalDossierModal({
                 <Anchor className="w-3.5 h-3.5" /> En attente
               </span>
             )}
+            </div>
           </div>
 
           <div className="relative z-10 grid grid-cols-2 sm:grid-cols-4 gap-2 mt-5">
@@ -202,8 +239,8 @@ export default function ArrivalDossierModal({
               <div key={a.id} className="rounded-2xl border border-stone-100 bg-stone-50/60 overflow-hidden">
                 <div className="p-3.5 flex items-start justify-between gap-3">
                   <div className="min-w-0">
-                    <p className="text-[12px] font-black text-stone-900 uppercase leading-tight">{articleName(a)}</p>
-                    {a.categoryId && articleName(a) !== a.categoryId && (
+                    <p className="text-[12px] font-black text-stone-900 uppercase leading-tight">{frName(a)}</p>
+                    {a.categoryId && frName(a).toLowerCase() !== String(a.categoryId).toLowerCase() && (
                       <p className="text-[10px] font-bold text-stone-400 uppercase mt-0.5">{a.categoryId}</p>
                     )}
 

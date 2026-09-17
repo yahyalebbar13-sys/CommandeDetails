@@ -9,6 +9,7 @@ import { Switch } from '@/components/ui/switch';
 import { BookImage, Plus, Trash2, ClipboardPaste, Hash, Package } from 'lucide-react';
 import { useUser, useFirestore, useCollection, useMemoFirebase } from '@/firebase';
 import { collection } from 'firebase/firestore';
+import { usePricesVisible } from '@/lib/price-visibility';
 
 export interface DesignBreakdownRow {
   designRef: string;
@@ -59,6 +60,8 @@ function parsePastedTable(raw: string): DesignBreakdownRow[] {
 }
 
 export default function DesignBreakdownInput({ value, onChange, unit, categoryId }: DesignBreakdownInputProps) {
+  // Masqué quand un magasin envoie une demande : il ne voit jamais les prix d'achat.
+  const showPrice = usePricesVisible();
   const [enabled, setEnabled] = useState<boolean>(!!value && value.length > 0);
   const [rows, setRows] = useState<DesignBreakdownRow[]>(value || []);
   const [pasteText, setPasteText] = useState('');
@@ -215,7 +218,7 @@ export default function DesignBreakdownInput({ value, onChange, unit, categoryId
           {showPasteArea && (
             <div className="space-y-2 animate-in fade-in slide-in-from-top-1 duration-200">
               <Label className="text-[9px] font-black text-amber-500 uppercase tracking-widest">
-                Coller ici (format : N°Couleur[TAB]Quantité[TAB]Prix optionnel)
+                Coller ici (format : N°Couleur[TAB]Quantité{showPrice ? '[TAB]Prix optionnel' : ''})
               </Label>
               <textarea
                 className="w-full h-28 text-[11px] font-mono border border-amber-200 rounded-lg p-3 resize-none focus:outline-none focus:ring-2 focus:ring-amber-400 bg-white placeholder:text-stone-300"
@@ -266,13 +269,15 @@ export default function DesignBreakdownInput({ value, onChange, unit, categoryId
           {rows.length > 0 && (
             <div className="rounded-xl overflow-hidden border border-amber-100 bg-white">
               {/* Header */}
-              <div className="grid grid-cols-[1fr_90px_90px_36px] gap-0 bg-amber-100/60">
+              <div className={`grid ${showPrice ? 'grid-cols-[1fr_90px_90px_36px]' : 'grid-cols-[1fr_90px_36px]'} gap-0 bg-amber-100/60`}>
                 <div className="py-2 px-3 text-[9px] font-black uppercase text-amber-600 tracking-widest flex items-center gap-1">
                   <Hash className="w-2.5 h-2.5" /> N° Modèle / Design
                 </div>
-                <div className="py-2 px-1 text-[9px] font-black uppercase text-amber-600 tracking-widest text-right">
+                {showPrice && (
+                  <div className="py-2 px-1 text-[9px] font-black uppercase text-amber-600 tracking-widest text-right">
                   Prix Opt ($)
                 </div>
+                )}
                 <div className="py-2 px-3 text-[9px] font-black uppercase text-amber-600 tracking-widest text-right flex items-center justify-end gap-1">
                   <Package className="w-2.5 h-2.5" /> {unit || 'Qté'}
                 </div>
@@ -282,7 +287,7 @@ export default function DesignBreakdownInput({ value, onChange, unit, categoryId
               {/* Rows */}
               <div className="divide-y divide-amber-50">
                 {rows.map((row, i) => (
-                  <div key={i} className="grid grid-cols-[1fr_90px_90px_36px] gap-0 items-center hover:bg-amber-50/30 transition-colors">
+                  <div key={i} className={`grid ${showPrice ? 'grid-cols-[1fr_90px_90px_36px]' : 'grid-cols-[1fr_90px_36px]'} gap-0 items-center hover:bg-amber-50/30 transition-colors`}>
                     <div className="px-2 py-1 relative">
                       <Input
                         list={categoryId ? `color-designs-${categoryId}` : undefined}
@@ -299,7 +304,8 @@ export default function DesignBreakdownInput({ value, onChange, unit, categoryId
                         </datalist>
                       )}
                     </div>
-                    <div className="px-2 py-1">
+                    {showPrice && (
+                      <div className="px-2 py-1">
                       <Input
                         type="text"
                         inputMode="decimal"
@@ -310,6 +316,7 @@ export default function DesignBreakdownInput({ value, onChange, unit, categoryId
                         title="Prix spécifique si différent du prix global (ex: 1.6 ou 1,6)"
                       />
                     </div>
+                    )}
                     <div className="px-2 py-1">
                       <Input
                         type="text"
@@ -336,8 +343,8 @@ export default function DesignBreakdownInput({ value, onChange, unit, categoryId
               </div>
 
               {/* Total footer */}
-              <div className="grid grid-cols-[1fr_90px_90px_36px] bg-amber-600 text-white">
-                <div className="py-2.5 px-3 text-[9px] font-black uppercase tracking-widest col-span-2">
+              <div className={`grid ${showPrice ? 'grid-cols-[1fr_90px_90px_36px]' : 'grid-cols-[1fr_90px_36px]'} bg-amber-600 text-white`}>
+                <div className={`py-2.5 px-3 text-[9px] font-black uppercase tracking-widest ${showPrice ? 'col-span-2' : ''}`}>
                   TOTAL
                 </div>
                 <div className="py-2.5 px-3 text-right text-[11px] font-black">

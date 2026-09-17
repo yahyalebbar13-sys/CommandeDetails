@@ -8,6 +8,7 @@ import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Sparkles, Plus, Trash2, ClipboardPaste } from 'lucide-react';
 import { QualityBreakdownRow } from '@/lib/types';
+import { usePricesVisible } from '@/lib/price-visibility';
 
 export type { QualityBreakdownRow };
 
@@ -105,6 +106,8 @@ export default function QualityBreakdownInput({
   isTape,
   isAccessory,
 }: QualityBreakdownInputProps) {
+  // Masqué quand un magasin envoie une demande : il ne voit jamais les prix d'achat.
+  const showPrice = usePricesVisible();
   const [enabled, setEnabled] = useState<boolean>(!!value && value.length > 0);
   const [rows, setRows] = useState<QualityBreakdownRow[]>(value || []);
   const [pasteText, setPasteText] = useState('');
@@ -350,7 +353,7 @@ export default function QualityBreakdownInput({
           {showPasteArea && (
             <div className="space-y-2 animate-in fade-in slide-in-from-top-1 duration-200">
               <Label className="text-[9px] font-black text-fuchsia-600 uppercase tracking-widest">
-                Format : Qualité [TAB] Quantité [TAB] Prix PA optionnel
+                Format : Qualité [TAB] Quantité{showPrice ? ' [TAB] Prix PA optionnel' : ''}
               </Label>
               <textarea
                 className="w-full h-24 text-[11px] font-mono border border-fuchsia-200 rounded-xl p-3 resize-none focus:outline-none focus:ring-2 focus:ring-fuchsia-400 bg-white placeholder:text-stone-300"
@@ -383,10 +386,10 @@ export default function QualityBreakdownInput({
           {/* Table */}
           {rows.length > 0 && (
             <div className="rounded-xl overflow-hidden border border-fuchsia-100 bg-white">
-              <div className="grid grid-cols-[1fr_95px_85px_36px] gap-0 bg-fuchsia-100/60 text-fuchsia-900 px-3 py-2 text-[9px] font-black uppercase tracking-widest">
+              <div className={`grid ${showPrice ? 'grid-cols-[1fr_95px_85px_36px]' : 'grid-cols-[1fr_95px_36px]'} gap-0 bg-fuchsia-100/60 text-fuchsia-900 px-3 py-2 text-[9px] font-black uppercase tracking-widest`}>
                 <span>Qualité</span>
                 <span className="text-center">Quantité</span>
-                <span className="text-center">PA ($)</span>
+                {showPrice && <span className="text-center">PA ($)</span>}
                 <span></span>
               </div>
 
@@ -395,7 +398,7 @@ export default function QualityBreakdownInput({
                   const hasMatchingPredef = availableQualities.some(q => q.label === row.quality);
 
                   return (
-                    <div key={index} className="grid grid-cols-[1fr_95px_85px_36px] items-center gap-1.5 p-2 hover:bg-fuchsia-50/20">
+                    <div key={index} className={`grid ${showPrice ? 'grid-cols-[1fr_95px_85px_36px]' : 'grid-cols-[1fr_95px_36px]'} items-center gap-1.5 p-2 hover:bg-fuchsia-50/20`}>
                       {/* Qualité column */}
                       <div className="space-y-1">
                         <div className="flex items-center gap-1.5">
@@ -501,7 +504,8 @@ export default function QualityBreakdownInput({
                         />
                       </div>
 
-                      {/* PA Override column */}
+                      {showPrice && (<>
+{/* PA Override column */}
                       <div>
                         <Input
                           type="text"
@@ -512,6 +516,7 @@ export default function QualityBreakdownInput({
                           onChange={e => handlePriceOverrideChange(index, e.target.value)}
                         />
                       </div>
+                      </>)}
 
                       {/* Delete action */}
                       <div className="flex justify-center">
@@ -531,12 +536,12 @@ export default function QualityBreakdownInput({
               </div>
 
               {/* Table Footer */}
-              <div className="grid grid-cols-[1fr_95px_85px_36px] bg-fuchsia-50/70 border-t border-fuchsia-100 px-3 py-2 items-center text-[9px] font-black">
+              <div className={`grid ${showPrice ? 'grid-cols-[1fr_95px_85px_36px]' : 'grid-cols-[1fr_95px_36px]'} bg-fuchsia-50/70 border-t border-fuchsia-100 px-3 py-2 items-center text-[9px] font-black`}>
                 <span className="text-fuchsia-800 uppercase tracking-widest">TOTAL</span>
                 <span className="text-center text-fuchsia-900 text-[11px] font-black">
                   {total.toLocaleString()}
                 </span>
-                <span className="text-center text-stone-400 font-normal italic text-[8px]">{unit || ''}</span>
+                {showPrice && <span className="text-center text-stone-400 font-normal italic text-[8px]">{unit || ''}</span>}
                 <span></span>
               </div>
             </div>

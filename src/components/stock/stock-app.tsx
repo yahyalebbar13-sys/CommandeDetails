@@ -4,7 +4,7 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   Loader2, LogOut, LayoutDashboard, List, ArrowLeftRight, Bell, Package,
   Boxes, ShoppingCart, TrendingUp, Users, ClipboardList, FileText, Anchor, Archive, CheckCircle2, Download, Truck, Store as StoreIcon,
-  Settings, MapPin, Home, AlertTriangle, Building2, Sparkles, Warehouse, CreditCard, Receipt, Search,
+  Settings, MapPin, Send, Home, AlertTriangle, Building2, Sparkles, Warehouse, CreditCard, Receipt, Search,
   Calendar, Clock, Filter, Lock, RotateCcw, Globe, WifiOff, ChevronLeft
 } from 'lucide-react';
 import { useUser, useFirebase, useCollection, useMemoFirebase } from '@/firebase';
@@ -46,6 +46,7 @@ import StoresView       from './stores-view';
 import StockWarehouses  from './stock-warehouses';
 import WarehouseLocationsView from './warehouse-locations-view';
 import ArrivalDossierModal from './arrival-dossier-modal';
+import StoreImportRequestsView from './store-import-requests-view';
 import {
   type StorageLocation, suggestInboundLocation, splitOutboundLines,
 } from '@/lib/warehouse-locations';
@@ -56,7 +57,7 @@ import ChequesImpayesView from './cheques-impayes-view';
 import CommercialExpensesView from './commercial-expenses-view';
 import { Landmark } from 'lucide-react';
 
-type StockView = 'dashboard' | 'sale' | 'stock' | 'analytics' | 'clients' | 'orders' | 'invoices' | 'cheques-impayes' | 'expenses' | 'movements' | 'alerts' | 'arrivals' | 'transfers' | 'stores' | 'warehouses' | 'locations' | 'treasury' | 'reconciliation' | 'audit' | 'inventory';
+type StockView = 'dashboard' | 'sale' | 'stock' | 'analytics' | 'clients' | 'orders' | 'invoices' | 'cheques-impayes' | 'expenses' | 'movements' | 'alerts' | 'arrivals' | 'transfers' | 'stores' | 'warehouses' | 'locations' | 'import-requests' | 'treasury' | 'reconciliation' | 'audit' | 'inventory';
 
 // Formate une Date en YYYY-MM-DD à partir de ses composantes LOCALES — contrairement à
 // toISOString() (qui convertit en UTC), ça évite qu'un calcul "il y a N jours" bascule sur le
@@ -1899,6 +1900,7 @@ export default function StockApp() {
     { id: 'locations', label: 'Emplacements',  category: 'logistique', icon: MapPin,          adminOrMainOnly: true, color: 'blue' },
     // Ouvert à tous les magasins : les dossiers se consultent (quantités seules) partout,
     // seule la validation d'entrée reste réservée à CHRIFA (cf. carte d'arrivage).
+    { id: 'import-requests', label: "Demandes d'import", category: 'logistique', icon: Send, color: 'amber', commercialOnly: true },
     { id: 'arrivals',  label: 'Arrivages',     category: 'logistique', icon: Anchor,          badge: pendingArrivals, color: 'amber' },
     { id: 'movements', label: 'Mouvements',    category: 'logistique', icon: ArrowLeftRight },
     { id: 'transfers', label: 'Transferts',    category: 'logistique', icon: Truck,           color: 'blue' },
@@ -2383,6 +2385,19 @@ export default function StockApp() {
                 }}
               />
             )}
+            {activeView === 'import-requests' && userRole !== 'ADMIN' && (
+              <StoreImportRequestsView
+                articles={articles}
+                factures={factures}
+                categories={categories}
+                generalCategories={generalCategories}
+                stores={stores}
+                adminUid={adminUid}
+                storeId={userStoreId}
+                seesAllStores={false}
+                readOnly={isReadOnly}
+              />
+            )}
             {activeView === 'locations' && isChrifaOrAdmin && (
               <WarehouseLocationsView
                 stores={stores}
@@ -2696,21 +2711,14 @@ export default function StockApp() {
                                 <FileText className="w-3.5 h-3.5" />
                                 Voir le dossier
                               </button>
-                              {/* La validation (qui fige coûts et entrepôts) reste réservée à CHRIFA :
-                                  les autres magasins consultent le dossier sans pouvoir le modifier. */}
-                              {!isEnteredInStock && !isChrifaOrAdmin ? (
+                              {/* Aucun magasin ne valide une entrée en stock : c'est l'admin qui la
+                                  finalise (entrepôts, coûts, emplacements) depuis son panneau Arrivages.
+                                  Les magasins consultent le dossier et suivent sa réception. */}
+                              {!isEnteredInStock ? (
                                 <div className="w-full flex items-center justify-center gap-1.5 bg-amber-50 text-amber-800 border border-amber-200 font-black uppercase text-[11px] tracking-widest px-3 py-2.5 rounded-xl select-none">
                                   <Clock className="w-3.5 h-3.5 text-amber-600" />
                                   <span>En attente de réception</span>
                                 </div>
-                              ) : !isEnteredInStock ? (
-                                <button
-                                  onClick={() => setPassToStockId(f.id)}
-                                  className="w-full flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white font-black uppercase text-[11px] tracking-widest px-4 py-3 rounded-xl transition-all shadow-md shadow-emerald-600/20 hover:scale-[1.01] active:scale-95 cursor-pointer"
-                                >
-                                  <Archive className="w-3.5 h-3.5" />
-                                  📥 Valider l'Entrée en Stock + Coût de Revient
-                                </button>
                               ) : (
                                 <div className="w-full flex items-center justify-center gap-1.5 bg-emerald-50 text-emerald-800 border border-emerald-200 font-black uppercase text-[11px] tracking-widest px-3 py-2.5 rounded-xl select-none">
                                   <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
@@ -2900,6 +2908,8 @@ export default function StockApp() {
             articles={articles.filter((a: any) => a.factureId === f.id || a.facture === f.id)}
             movements={dossierMovs}
             stores={stores}
+            categories={categories}
+            generalCategories={generalCategories}
             isEnteredInStock={Boolean(
               f.stockEntryDate || f.status === 'STOCK' || isArrivalOlderThanOneMonth(f.arrivalDate) ||
               dossierMovs.some((m: any) => m.type === 'IN')

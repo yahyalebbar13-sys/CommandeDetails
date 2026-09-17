@@ -473,6 +473,11 @@ export default function ToOrderView({ articles, factures, onEdit }: ToOrderViewP
                                   <span className={`inline-block w-1 h-1 rounded-full ${priorityConf.dot} mr-1`} />
                                   {priorityConf.label}
                                 </span>
+                                {o.requestSource === 'STORE' && (
+                                  <span className="text-[7px] font-black px-1.5 py-0.5 rounded-full uppercase bg-stone-900 text-white" title="Demande envoyée par un magasin">
+                                    🏪 {o.requestedByStoreName || o.requestedByStore}
+                                  </span>
+                                )}
                                 {o.isPreorder && o.clientName && (
                                   <span className="text-[7px] font-black text-indigo-600 bg-indigo-50 border border-indigo-100 px-1.5 py-0.5 rounded-full uppercase">{o.clientName}</span>
                                 )}

@@ -13,14 +13,21 @@ export async function addPdfLogoHeader(
     img.crossOrigin = 'anonymous';
     img.src = '/logo.png';
     img.onload = () => {
-      try { 
+      try {
+        // Le logo source fait 1536×1024 px : intégré tel quel, jsPDF le stocke en pixels bruts
+        // (~6 Mo par PDF). On le ramène à une résolution d'impression — ~12 px/mm, soit plus de
+        // 300 dpi à la taille affichée — et on compresse le flux.
+        const targetW = Math.max(1, Math.min(img.width, Math.round(w * 12)));
+        const scale = targetW / img.width;
+        const targetH = Math.max(1, Math.round(img.height * scale));
+
         if (invertToWhite) {
           const canvas = document.createElement('canvas');
-          canvas.width = img.width;
-          canvas.height = img.height;
+          canvas.width = targetW;
+          canvas.height = targetH;
           const ctx = canvas.getContext('2d');
           if (ctx) {
-            ctx.drawImage(img, 0, 0);
+            ctx.drawImage(img, 0, 0, targetW, targetH);
             const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
             const data = imageData.data;
             for (let i = 0; i < data.length; i += 4) {
@@ -37,12 +44,21 @@ export async function addPdfLogoHeader(
               data[i + 3] = newAlpha; // A
             }
             ctx.putImageData(imageData, 0, 0);
-            doc.addImage(canvas.toDataURL('image/png'), 'PNG', x, y, w, h);
+            doc.addImage(canvas.toDataURL('image/png'), 'PNG', x, y, w, h, undefined, 'FAST');
           } else {
-            doc.addImage(img, 'PNG', x, y, w, h);
+            doc.addImage(img, 'PNG', x, y, w, h, undefined, 'FAST');
           }
         } else {
-          doc.addImage(img, 'PNG', x, y, w, h); 
+          const canvas = document.createElement('canvas');
+          canvas.width = targetW;
+          canvas.height = targetH;
+          const ctx = canvas.getContext('2d');
+          if (ctx) {
+            ctx.drawImage(img, 0, 0, targetW, targetH);
+            doc.addImage(canvas.toDataURL('image/png'), 'PNG', x, y, w, h, undefined, 'FAST');
+          } else {
+            doc.addImage(img, 'PNG', x, y, w, h, undefined, 'FAST');
+          }
         }
       } catch (_) {}
       resolve();
