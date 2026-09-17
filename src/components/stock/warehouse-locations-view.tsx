@@ -449,11 +449,12 @@ ${labels.map(l => `  <div class="label">
           <div>
             <p className="text-[11px] font-black text-stone-500 uppercase tracking-[0.3em] mb-2">Adressage physique</p>
             <h2 className="text-3xl font-black text-white uppercase tracking-tighter">
-              Emplacements <span className="text-blue-400">d'Entrepôt</span>
+              Emplacements <span className="text-blue-400">de Stockage</span>
             </h2>
             <p className="text-stone-400 text-xs mt-2 max-w-lg">
-              Découpe chaque lieu en zones, racks et niveaux. Chaque emplacement porte un code
-              (A-03-02) et un QR code à imprimer et coller sur le rack réel.
+              Découpe n'importe quel lieu — entrepôt <em>ou</em> magasin — en zones, racks et
+              niveaux. Chaque emplacement porte un code (A-03-02) et un QR code à imprimer et
+              coller sur le rack réel.
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-3">

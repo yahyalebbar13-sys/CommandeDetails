@@ -387,6 +387,10 @@ export default function StockMovementModal({
     reason:    '' as StockMovementReason | '',
     quantity:  '' as string | number,
     storeId:   (activeStore || '') as StoreLocation | '',
+    // Lieu PHYSIQUE réellement choisi, avant la normalisation entrepôt→CHRIFA appliquée à
+    // storeId : c'est lui qui porte les emplacements. Un entrepôt compte dans le stock de
+    // CHRIFA mais reste un bâtiment distinct, avec ses propres racks.
+    physicalStoreId: (activeStore || '') as StoreLocation | '',
     toStoreId: '' as StoreLocation | '',
     locationCode: '',
     date:      today,
@@ -402,6 +406,7 @@ export default function StockMovementModal({
         reason:    '',
         quantity:  '',
         storeId:   (activeStore || '') as StoreLocation | '',
+        physicalStoreId: (activeStore || '') as StoreLocation | '',
         toStoreId: '',
         locationCode: '',
         date:      today,
@@ -410,14 +415,19 @@ export default function StockMovementModal({
     }
   }, [open, preselectedArticleId, preselectedType]);
 
-  // Emplacements physiques du lieu sélectionné. Vide tant que l'entrepôt n'a pas été découpé
-  // dans /stock → Emplacements : le champ est alors simplement masqué.
+  // Emplacements physiques du lieu sélectionné — magasin comme entrepôt. Vide tant que le lieu
+  // n'a pas été découpé dans /stock → Emplacements : le champ est alors simplement masqué.
   const availableLocations = useMemo(
-    () => (locations || [])
-      .filter(l => l.storeId === form.storeId && l.active !== false)
-      .sort((a, b) => compareLocationCodes(a.code, b.code)),
-    [locations, form.storeId]
+    () => {
+      const place = form.physicalStoreId || form.storeId;
+      return (locations || [])
+        .filter(l => l.storeId === place && l.active !== false)
+        .sort((a, b) => compareLocationCodes(a.code, b.code));
+    },
+    [locations, form.physicalStoreId, form.storeId]
   );
+
+  const physicalPlaceName = stores.find(s => s.id === (form.physicalStoreId || form.storeId))?.name || '';
 
   const selectedStock = stockItems.find(s => s.articleId === form.articleId);
   const reasons       = REASONS_BY_TYPE[form.type] || [];
@@ -667,7 +677,9 @@ export default function StockMovementModal({
                     const picked = stores.find(s => s.id === v);
                     const normalized = (!isArrivage && picked?.type === 'WAREHOUSE') ? 'CHRIFA' : v;
                     // L'emplacement appartient au lieu : changer de lieu invalide le choix.
-                    return { ...f, storeId: normalized as StoreLocation, locationCode: '' };
+                    // physicalStoreId garde l'entrepôt réel pour retrouver SES racks, même
+                    // quand storeId est ramené à CHRIFA pour la comptabilité du stock.
+                    return { ...f, storeId: normalized as StoreLocation, physicalStoreId: v as StoreLocation, locationCode: '' };
                   })}>
                     <SelectTrigger className="h-11 rounded-xl border-stone-200 font-bold text-sm">
                       <SelectValue placeholder={form.type === 'IN' && form.reason === 'ARRIVAGE' ? "Choisir l'entrepôt..." : "Choisir l'emplacement..."} />
@@ -687,6 +699,11 @@ export default function StockMovementModal({
                   <Label className="text-[11px] font-black uppercase tracking-widest text-stone-500 flex items-center gap-1.5">
                     <MapPin className="w-3 h-3 text-blue-500" />
                     Emplacement {form.type === 'IN' ? '(où ranger)' : '(où prendre)'}
+                    {/* Nomme le bâtiment : pour une sortie d'entrepôt, storeId est ramené à
+                        CHRIFA alors que les racks restent ceux de l'entrepôt. */}
+                    {physicalPlaceName && (
+                      <span className="font-bold normal-case tracking-normal text-stone-400">· {physicalPlaceName}</span>
+                    )}
                   </Label>
                   <Select
                     value={form.locationCode || '__NONE__'}
