@@ -8,7 +8,7 @@ const FAQS = [
     category: "Livraison",
     questions: [
       { q: "Quels sont les délais de livraison ?", a: "Casablanca : 24-48h. Grandes villes (Rabat, Marrakech, Fès, Tanger, Agadir) : 1-2 jours. Autres villes : 3-5 jours ouvrables." },
-      { q: "Quels sont les frais de livraison ?", a: "Casablanca : 25 MAD. Grandes villes : 35 MAD. Autres régions : 50 MAD. Livraison GRATUITE dès 500 MAD d'achat !" },
+      { q: "Quels sont les frais de livraison ?", a: "Casablanca : 25 MAD, et GRATUITE dès 100 MAD d'achat ! Grandes villes : 35 MAD. Autres régions : 50 MAD. Partout au Maroc, la livraison est GRATUITE dès 500 MAD d'achat." },
       { q: "Livrez-vous dans tout le Maroc ?", a: "Oui, nous livrons dans toutes les villes et régions du Maroc via nos partenaires logistiques (Amana, Jibli, Cathedis)." },
       { q: "Comment suivre ma commande ?", a: "Une fois votre commande expédiée, vous recevrez un numéro de suivi. Vous pouvez aussi utiliser notre page de suivi sur le site ou nous contacter sur WhatsApp." },
     ]

@@ -8,16 +8,21 @@ import {
   Trash2,
   Plus,
   Minus,
-  Truck,
   ChevronRight,
   ShoppingCart,
   Banknote,
   ArrowRight,
 } from "lucide-react";
-import { useShopCart } from "@/contexts/shop-cart-context";
+import { useShopCart, summarizeCartProduct } from "@/contexts/shop-cart-context";
 import { useLanguage } from "@/contexts/language-context";
-import { formatPrice, FREE_DELIVERY_THRESHOLD } from "@/lib/shop-utils";
+import {
+  formatPrice,
+  formatPriceOrOnRequest,
+  formatPriceRange,
+  getFreeDeliveryProgress,
+} from "@/lib/shop-utils";
 import type { CartItem } from "@/lib/shop-types";
+import FreeDeliveryProgress from "@/components/shop/FreeDeliveryProgress";
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
@@ -40,6 +45,7 @@ function CartProductGroup({
   const nameToDisplay = language === 'ar' && first.productNameAr ? first.productNameAr : first.productName;
   const totalQty = items.reduce((s, i) => s + i.quantity, 0);
   const hasMultipleVariants = items.length > 1 || (items.length === 1 && first.variant?.color);
+  const { total, minUnit, maxUnit } = summarizeCartProduct(items, totalProductQty);
 
   const handleRemoveAll = () => {
     items.forEach(item => {
@@ -84,9 +90,15 @@ function CartProductGroup({
               <Trash2 className="w-3.5 h-3.5" />
             </button>
           </div>
-          <p className="text-xs text-gray-400 mt-0.5">
-            {language === 'ar' ? 'حسب الطلب' : 'Sur demande'}
-          </p>
+          <div className="flex items-center justify-between gap-2 mt-0.5">
+            <p className="text-xs text-gray-400 tabular-nums">
+              {formatPriceRange(minUnit, maxUnit, language)}
+              {minUnit > 0 && ' / u'}
+            </p>
+            {hasMultipleVariants && total > 0 && (
+              <p className="text-sm font-bold text-gray-900 tabular-nums">{formatPrice(total)}</p>
+            )}
+          </div>
         </div>
       </div>
 
@@ -174,62 +186,11 @@ function CartProductGroup({
               <Plus className="w-3 h-3" />
             </button>
           </div>
-          <p className="text-sm font-bold text-gray-900">
-            {language === 'ar' ? 'حسب الطلب' : 'Sur demande'}
+          <p className="text-sm font-bold text-gray-900 tabular-nums">
+            {formatPriceOrOnRequest(total, language)}
           </p>
         </div>
       )}
-    </div>
-  );
-}
-
-/** Progress bar for free delivery */
-function FreeDeliveryProgress({ subtotal }: { subtotal: number }) {
-  const { t } = useLanguage();
-  const progress = Math.min((subtotal / FREE_DELIVERY_THRESHOLD) * 100, 100);
-  const remaining = FREE_DELIVERY_THRESHOLD - subtotal;
-  const isUnlocked = progress >= 100;
-
-  return (
-    <div
-      className="px-4 py-3 rounded-xl mb-3"
-      style={{
-        backgroundColor: isUnlocked ? "rgba(16,185,129,0.07)" : "rgba(212,168,67,0.07)",
-        border: `1px solid ${isUnlocked ? "rgba(16,185,129,0.15)" : "rgba(212,168,67,0.15)"}`,
-      }}
-    >
-      <div className="flex items-center justify-between mb-2">
-        <div className="flex items-center gap-1.5">
-          <Truck
-            className="w-3.5 h-3.5"
-            style={{ color: isUnlocked ? "#10B981" : "#D4A843" }}
-          />
-          <span
-            className="text-xs font-semibold"
-            style={{ color: isUnlocked ? "#10B981" : "#D4A843" }}
-          >
-            {isUnlocked
-              ? t('free_delivery_unlocked')
-              : t('free_delivery_progress', { amount: formatPrice(remaining) })}
-          </span>
-        </div>
-        <span
-          className="text-[10px] font-medium"
-          style={{ color: isUnlocked ? "#10B981" : "#D4A843" }}
-        >
-          {Math.round(progress)}%
-        </span>
-      </div>
-      {/* Progress track */}
-      <div className="h-1.5 rounded-full bg-gray-200 overflow-hidden">
-        <div
-          className="h-full rounded-full transition-all duration-500 ease-out"
-          style={{
-            width: `${progress}%`,
-            backgroundColor: isUnlocked ? "#10B981" : "#D4A843",
-          }}
-        />
-      </div>
     </div>
   );
 }
@@ -304,6 +265,7 @@ export default function CartDrawer() {
   const { items, isOpen, subtotal, itemCount, closeCart, removeItem, updateQty, productQtyMap } =
     useShopCart();
   const { t, language } = useLanguage();
+  const deliveryStage = getFreeDeliveryProgress(subtotal).stage;
   useEffect(() => {
     if (!isOpen) return;
     const handler = (e: KeyboardEvent) => {
@@ -447,7 +409,7 @@ export default function CartDrawer() {
               style={{ paddingBottom: "max(1.25rem, env(safe-area-inset-bottom))" }}
             >
               {/* Free delivery bar (bottom) when subtotal > 0 */}
-
+              {subtotal > 0 && <FreeDeliveryProgress subtotal={subtotal} compact />}
 
               {/* Order summary */}
               <div className="space-y-1.5">
@@ -455,8 +417,22 @@ export default function CartDrawer() {
                   <span className="text-gray-500">
                     {t('subtotal')} ({itemCount})
                   </span>
-                  <span className="font-semibold text-gray-800">
-                    {language === 'ar' ? 'حسب الطلب' : 'Sur demande'}
+                  <span className="font-semibold text-gray-800 tabular-nums">
+                    {formatPriceOrOnRequest(subtotal, language)}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-gray-500">{t('delivery_cost')}</span>
+                  <span
+                    className={`text-xs font-semibold ${
+                      deliveryStage === "none" ? "text-gray-500" : "text-emerald-500"
+                    }`}
+                  >
+                    {deliveryStage === "everywhere"
+                      ? t('delivery_free')
+                      : deliveryStage === "casablanca"
+                        ? t('delivery_free_casa')
+                        : t('delivery_calc')}
                   </span>
                 </div>
                 <div
@@ -468,10 +444,10 @@ export default function CartDrawer() {
                     {t('total')}
                   </span>
                   <span
-                    className="font-black text-xl"
+                    className="font-black text-xl tabular-nums"
                     style={{ color: "#C8102E" }}
                   >
-                    {language === 'ar' ? 'حسب الطلب' : 'Sur demande'}
+                    {formatPriceOrOnRequest(subtotal, language)}
                   </span>
                 </div>
               </div>

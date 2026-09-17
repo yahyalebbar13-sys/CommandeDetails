@@ -4,7 +4,7 @@ import React, { useState, useEffect, useRef, Suspense, useMemo, useDeferredValue
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { Search, ChevronRight, ArrowUp, Sparkles, Package, Layers, X, Check } from 'lucide-react';
-import { formatPrice } from '@/lib/shop-utils';
+import { formatPrice, getProductDisplayPrice } from '@/lib/shop-utils';
 import { useShopProducts } from '@/contexts/shop-products-context';
 import { useLanguage } from '@/contexts/language-context';
 import type { ShopProduct, ShopCategory } from '@/lib/shop-types';
@@ -16,11 +16,14 @@ function BoutiqueContent() {
   const initCat = searchParams.get('categorie');
   const initSearch = searchParams.get('q');
   const initNouveautes = searchParams.get('nouveautes') === 'true';
+  const initTri = searchParams.get('tri');
 
   const { language } = useLanguage();
   const [search, setSearch] = useState(initSearch || '');
   const deferredSearch = useDeferredValue(search);
-  const [sort, setSort] = useState(initNouveautes ? 'nouveautes' : 'pertinence');
+  const [sort, setSort] = useState(
+    initNouveautes ? 'nouveautes' : initTri === 'prix-asc' || initTri === 'prix-desc' ? initTri : 'pertinence'
+  );
   const [activeCat, setActiveCat] = useState<string | null>(initCat || null);
   const [activeSubCat, setActiveSubCat] = useState<string | null>(null);
   const [showScrollTop, setShowScrollTop] = useState(false);
@@ -98,9 +101,10 @@ function BoutiqueContent() {
       });
     }
 
-    // 3. Sorting
-    if (sort === 'prix-asc') filtered.sort((a, b) => a.price - b.price);
-    else if (sort === 'prix-desc') filtered.sort((a, b) => b.price - a.price);
+    // 3. Sorting (les produits « sur demande » restent en fin de liste)
+    const sortPrice = (p: ShopProduct) => getProductDisplayPrice(p).amount;
+    if (sort === 'prix-asc') filtered.sort((a, b) => (sortPrice(a) || Infinity) - (sortPrice(b) || Infinity) || 0);
+    else if (sort === 'prix-desc') filtered.sort((a, b) => sortPrice(b) - sortPrice(a));
     else if (sort === 'nouveautes') filtered.sort((a, b) => (b.isNew ? 1 : 0) - (a.isNew ? 1 : 0));
 
     return filtered;

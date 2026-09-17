@@ -6,6 +6,7 @@ import Image from 'next/image';
 import { Search, X, ArrowRight, Clock, TrendingUp, Layers } from 'lucide-react';
 import { useShopProducts } from '@/contexts/shop-products-context';
 import { useLanguage } from '@/contexts/language-context';
+import { formatProductPrice } from '@/lib/shop-utils';
 import type { ShopProduct, ShopCategory } from '@/lib/shop-types';
 
 // ─── Blur placeholder ─────────────────────────────────────────────────────────
@@ -332,7 +333,7 @@ export default function SmartSearch({ variant = 'desktop', onNavigate, autoFocus
                         <div className="flex-1 min-w-0">
                           <p className="text-sm font-medium text-[#1A1A1A] truncate">{language === 'ar' && product.nameAr ? product.nameAr : product.name}</p>
                           <div className="flex items-center gap-2">
-                            <span className="text-[11px] font-bold text-[#C8102E]">{language === 'ar' ? 'حسب الطلب' : 'Sur demande'}</span>
+                            <span className="text-[11px] font-bold text-[#C8102E]">{formatProductPrice(product, language)}</span>
                             {product.inStock ? (
                               <span className="text-[10px] text-emerald-500">● {language === 'ar' ? 'متوفر' : 'En stock'}</span>
                             ) : (

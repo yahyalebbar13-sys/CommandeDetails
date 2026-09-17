@@ -23,6 +23,48 @@ function cartKey(productId: string, variant?: CartItem['variant'], variantId?: s
   return vid ? `${productId}::${vid}` : productId;
 }
 
+// Un stock à 0 signifie « disponible sur commande » : pas de plafond de quantité
+function capQty(quantity: number, maxStock: number) {
+  return maxStock > 0 ? Math.min(quantity, maxStock) : quantity;
+}
+
+// Clé de variante d'une ligne, à passer à removeItem / updateQty
+export function getCartItemVariantKey(item: CartItem): string | undefined {
+  return getVariantUniqueKey(item.variant);
+}
+
+// Prix unitaire appliqué : prix de gros dès que la quantité totale du produit atteint le minimum
+export function getCartItemUnitPrice(item: CartItem, productTotalQty: number): number {
+  const isWholesale = item.minOrderQty && item.wholesalePrice && productTotalQty >= item.minOrderQty;
+  return isWholesale ? item.wholesalePrice! : (item.originalPrice || item.price || 0);
+}
+
+// Lignes du panier regroupées par produit, dans l'ordre d'ajout
+export function groupCartItemsByProduct(items: CartItem[]): { productId: string; items: CartItem[] }[] {
+  const groups = new Map<string, CartItem[]>();
+  for (const item of items) {
+    const group = groups.get(item.productId);
+    if (group) group.push(item);
+    else groups.set(item.productId, [item]);
+  }
+  return Array.from(groups, ([productId, groupItems]) => ({ productId, items: groupItems }));
+}
+
+// Totaux d'un produit (toutes variantes confondues). Les lignes sans prix ne comptent pas.
+export function summarizeCartProduct(items: CartItem[], productTotalQty: number) {
+  let total = 0;
+  let minUnit = 0;
+  let maxUnit = 0;
+  for (const item of items) {
+    const unit = getCartItemUnitPrice(item, productTotalQty);
+    if (unit <= 0) continue;
+    total += unit * item.quantity;
+    minUnit = minUnit > 0 ? Math.min(minUnit, unit) : unit;
+    maxUnit = Math.max(maxUnit, unit);
+  }
+  return { total, minUnit, maxUnit };
+}
+
 type CartAction =
   | { type: 'ADD_ITEM'; payload: CartItem }
   | { type: 'ADD_ITEMS'; payload: CartItem[] }
@@ -43,7 +85,7 @@ function cartReducer(state: CartState, action: CartAction): CartState {
       );
       if (existing >= 0) {
         const items = [...state.items];
-        const newQty = Math.min(items[existing].quantity + action.payload.quantity, items[existing].maxStock);
+        const newQty = capQty(items[existing].quantity + action.payload.quantity, items[existing].maxStock);
         items[existing] = { ...items[existing], quantity: newQty };
         return { ...state, items, isOpen: true };
       }
@@ -55,7 +97,7 @@ function cartReducer(state: CartState, action: CartAction): CartState {
         const key = cartKey(newItem.productId, newItem.variant);
         const existing = items.findIndex(i => cartKey(i.productId, i.variant) === key);
         if (existing >= 0) {
-          const newQty = Math.min(items[existing].quantity + newItem.quantity, items[existing].maxStock);
+          const newQty = capQty(items[existing].quantity + newItem.quantity, items[existing].maxStock);
           items[existing] = { ...items[existing], quantity: newQty };
         } else {
           items.push(newItem);
@@ -76,7 +118,7 @@ function cartReducer(state: CartState, action: CartAction): CartState {
       const key = cartKey(productId, undefined, variantId);
       const items = state.items.map(i =>
         cartKey(i.productId, i.variant) === key
-          ? { ...i, quantity: Math.max(1, Math.min(quantity, i.maxStock)) }
+          ? { ...i, quantity: Math.max(1, capQty(quantity, i.maxStock)) }
           : i
       );
       return { ...state, items };
@@ -170,32 +212,24 @@ export function ShopCartProvider({ children }: { children: React.ReactNode }) {
 
   const itemCount = useMemo(() => state.items.reduce((s, i) => s + (i.quantity || 1), 0), [state.items]);
 
-  const subtotal = useMemo(() => {
-    // 1. Calculate total qty per productId
-    const productQtyMap: Record<string, number> = {};
-    for (const item of state.items) {
-      productQtyMap[item.productId] = (productQtyMap[item.productId] || 0) + (item.quantity || 1);
-    }
+  // Total qty per productId (the wholesale threshold applies across all variants of a product)
+  const productQtyMap = useMemo(() => state.items.reduce((acc, item) => {
+    acc[item.productId] = (acc[item.productId] || 0) + (item.quantity || 1);
+    return acc;
+  }, {} as Record<string, number>), [state.items]);
 
-    // 2. Calculate subtotal
-    return state.items.reduce((s, item) => {
-      const totalQty = productQtyMap[item.productId];
-      const isWholesale = item.minOrderQty && totalQty >= item.minOrderQty && item.wholesalePrice;
-      const effectivePrice = isWholesale ? item.wholesalePrice! : (item.originalPrice || item.price || 0);
-      return s + effectivePrice * (item.quantity || 1);
-    }, 0);
-  }, [state.items]);
+  const subtotal = useMemo(() => state.items.reduce(
+    (s, item) => s + getCartItemUnitPrice(item, productQtyMap[item.productId]) * (item.quantity || 1),
+    0
+  ), [state.items, productQtyMap]);
 
   const stateValue = useMemo(() => ({
     items: state.items,
     isOpen: state.isOpen,
     itemCount,
     subtotal,
-    productQtyMap: state.items.reduce((acc, item) => {
-      acc[item.productId] = (acc[item.productId] || 0) + (item.quantity || 1);
-      return acc;
-    }, {} as Record<string, number>),
-  }), [state.items, state.isOpen, itemCount, subtotal]);
+    productQtyMap,
+  }), [state.items, state.isOpen, itemCount, subtotal, productQtyMap]);
 
   return (
     <CartActionsContext.Provider value={actions}>

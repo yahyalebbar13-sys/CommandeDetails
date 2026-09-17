@@ -3,7 +3,14 @@ import React, { useState } from 'react';
 import Link from 'next/link';
 import { Tag, Clock, Zap, ShoppingBag } from 'lucide-react';
 import { useShopProducts } from '@/contexts/shop-products-context';
-import { formatPrice, getDiscountPercent } from '@/lib/shop-utils';
+import {
+  CASABLANCA_FREE_DELIVERY_THRESHOLD,
+  FREE_DELIVERY_THRESHOLD,
+  formatPrice,
+  formatProductPrice,
+  getDiscountPercent,
+  hasActivePromo,
+} from '@/lib/shop-utils';
 import { useShopCartActions } from '@/contexts/shop-cart-context';
 import { useLanguage } from '@/contexts/language-context';
 import type { ShopProduct } from '@/lib/shop-types';
@@ -12,7 +19,8 @@ const PromoCard = React.memo(function PromoCard({ product }: { product: ShopProd
   const { language } = useLanguage();
   const { addItem } = useShopCartActions();
   const [added, setAdded] = useState(false);
-  const discount = product.comparePrice ? getDiscountPercent(product.price, product.comparePrice) : 0;
+  const isPromo = hasActivePromo(product.comparePrice, product.price);
+  const discount = isPromo ? getDiscountPercent(product.price, product.comparePrice as number) : 0;
 
   const handleAdd = (e: React.MouseEvent) => {
     e.preventDefault();
@@ -31,6 +39,11 @@ const PromoCard = React.memo(function PromoCard({ product }: { product: ShopProd
       <div className="relative aspect-square bg-gray-50 shop-img-zoom">
         <img src={product.images?.[0] || '/placeholder.png'} alt={product.name} loading="lazy" decoding="async" className="w-full h-full object-cover" />
 
+        {discount > 0 && (
+          <div className="absolute top-3 left-3 pointer-events-none">
+            <span className="bg-[#C8102E] text-white font-black text-sm px-3 py-1 rounded-full shadow-lg">-{discount}%</span>
+          </div>
+        )}
         {product.isNew && (
           <div className="absolute top-3 right-3 pointer-events-none">
             <span className="bg-[#10B981] text-white font-black text-xs px-2 py-1 rounded-full">NOUVEAU</span>
@@ -59,8 +72,14 @@ const PromoCard = React.memo(function PromoCard({ product }: { product: ShopProd
       <div className="p-4 flex flex-col flex-grow">
         <p className="text-xs font-semibold text-[#D4A843] uppercase mb-1">{product.categoryName}</p>
         <h3 className="font-semibold text-[#1A1A1A] text-sm line-clamp-2 mb-3 group-hover:text-[#C8102E] transition-colors" style={{ fontFamily: 'Outfit, sans-serif' }}>{product.name}</h3>
-        <div className="flex items-center gap-2">
-          <span className="font-black text-[#C8102E] text-lg">{language === 'ar' ? 'حسب الطلب' : 'Sur demande'}</span>
+        <div className="mt-auto flex flex-wrap items-center gap-x-2 gap-y-0.5">
+          <span className="font-black text-[#C8102E] text-lg">{formatProductPrice(product, language)}</span>
+          {isPromo && (
+            <div className="flex flex-col">
+              <span className="text-xs text-[#6B6B6B] line-through">{formatPrice(product.comparePrice as number)}</span>
+              <span className="text-xs text-[#10B981] font-bold">Économisez {formatPrice((product.comparePrice as number) - product.price)}</span>
+            </div>
+          )}
         </div>
       </div>
     </Link>
@@ -73,7 +92,11 @@ export default function PromotionsPage() {
   const promoProducts = getPromoProducts(100);
   const newProducts = getNewProducts(100);
   const featuredProducts = getFeaturedProducts(100);
-  
+  const maxDiscount = promoProducts.reduce(
+    (max, p) => (hasActivePromo(p.comparePrice, p.price) ? Math.max(max, getDiscountPercent(p.price, p.comparePrice as number)) : max),
+    0
+  );
+
   const [activeTab, setActiveTab] = useState<'promos' | 'nouveautes' | 'vedettes'>('promos');
 
   const tabs = [
@@ -107,9 +130,9 @@ export default function PromotionsPage() {
             <div className="grid grid-cols-2 gap-3 text-center">
               {[
                 { icon: Tag, val: `${promoProducts.length}`, label: 'Articles en promo' },
-                { icon: Zap, val: 'Jusqu\'à -40%', label: 'De réduction' },
+                { icon: Zap, val: maxDiscount > 0 ? `Jusqu'à -${maxDiscount}%` : 'Petits prix', label: 'De réduction' },
                 { icon: Clock, val: 'Limité', label: 'Stocks disponibles' },
-                { icon: ShoppingBag, val: '500 MAD', label: 'Livraison gratuite' },
+                { icon: ShoppingBag, val: formatPrice(CASABLANCA_FREE_DELIVERY_THRESHOLD), label: 'Livraison gratuite Casa' },
               ].map(({ icon: Icon, val, label }) => (
                 <div key={label} className="bg-white/10 backdrop-blur-sm border border-white/20 rounded-xl p-3">
                   <p className="font-black text-lg text-white">{val}</p>
@@ -139,8 +162,10 @@ export default function PromotionsPage() {
         <div className="bg-[#D4A843]/10 border border-[#D4A843]/30 rounded-2xl p-4 mb-8 flex items-center gap-3">
           <span className="text-2xl">🎉</span>
           <div>
-            <p className="font-bold text-[#1A1A1A]">Livraison GRATUITE dès 500 MAD</p>
-            <p className="text-sm text-[#6B6B6B]">Profitez-en en combinant plusieurs articles en promotion</p>
+            <p className="font-bold text-[#1A1A1A]">Livraison GRATUITE à Casablanca dès {formatPrice(CASABLANCA_FREE_DELIVERY_THRESHOLD)}</p>
+            <p className="text-sm text-[#6B6B6B]">
+              Partout au Maroc dès {formatPrice(FREE_DELIVERY_THRESHOLD)} · combinez plusieurs articles en promotion
+            </p>
           </div>
           <Link href="/shop/boutique" className="ml-auto shrink-0 px-4 py-2 bg-[#D4A843] text-white text-sm font-bold rounded-xl hover:bg-[#b8922e] transition-colors">
             Voir tout

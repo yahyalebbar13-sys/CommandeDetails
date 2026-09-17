@@ -26,7 +26,12 @@ import { useShopCart } from "@/contexts/shop-cart-context";
 import { useLanguage } from "@/contexts/language-context";
 import { useShopProducts } from "@/contexts/shop-products-context";
 import SmartSearch from "@/components/shop/SmartSearch";
-import { formatPrice } from "@/lib/shop-utils";
+import {
+  CASABLANCA_FREE_DELIVERY_THRESHOLD,
+  FREE_DELIVERY_THRESHOLD,
+  formatPrice,
+  formatProductPrice,
+} from "@/lib/shop-utils";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface NavLink {
@@ -51,11 +56,21 @@ const MORE_LINKS = [
   { labelKey: "nav_contact", href: "/shop/contact" },
 ];
 
-const PROMO_TEXT_FR =
-  "🚚 Livraison GRATUITE dès 500 MAD\u00a0\u00a0|\u00a0\u00a0📦 Commande avant 14h → Expédition le jour même\u00a0\u00a0|\u00a0\u00a0💬 WhatsApp: +212 760 998 347\u00a0\u00a0|\u00a0\u00a0🇲🇦 Livraison partout au Maroc";
+const PROMO_SEPARATOR = "\u00a0\u00a0|\u00a0\u00a0";
 
-const PROMO_TEXT_AR =
-  "🚚 توصيل مجاني من 500 درهم\u00a0\u00a0|\u00a0\u00a0📦 اطلب قبل 2 ظهرا → التوصيل نفس اليوم\u00a0\u00a0|\u00a0\u00a0💬 واتساب: 0760998347\u00a0\u00a0|\u00a0\u00a0🇲🇦 توصيل لجميع أنحاء المغرب";
+const PROMO_TEXT_FR = [
+  `🚚 Livraison GRATUITE à Casablanca dès ${formatPrice(CASABLANCA_FREE_DELIVERY_THRESHOLD)}`,
+  `🇲🇦 Partout au Maroc : gratuite dès ${formatPrice(FREE_DELIVERY_THRESHOLD)}`,
+  "📦 Commande avant 14h → Expédition le jour même",
+  "💬 WhatsApp: +212 760 998 347",
+].join(PROMO_SEPARATOR);
+
+const PROMO_TEXT_AR = [
+  `🚚 توصيل مجاني في الدار البيضاء من ${CASABLANCA_FREE_DELIVERY_THRESHOLD} درهم`,
+  `🇲🇦 لجميع المدن مجاني من ${FREE_DELIVERY_THRESHOLD} درهم`,
+  "📦 اطلب قبل 2 ظهرا → التوصيل نفس اليوم",
+  "💬 واتساب: 0760998347",
+].join(PROMO_SEPARATOR);
 
 // ─── Component ────────────────────────────────────────────────────────────────
 export default function ShopHeader() {
@@ -530,7 +545,6 @@ export default function ShopHeader() {
                                         {desktopProducts.map((p) => {
                                           const pName = language === 'ar' ? (p.nameAr || p.name) : p.name;
                                           const pImg = p.images?.[0] || activeCategory.image;
-                                          const hasPrice = typeof p.price === 'number' && p.price > 0;
                                           return (
                                             <Link
                                               key={p.id}
@@ -564,7 +578,7 @@ export default function ShopHeader() {
                                                 </p>
                                                 <div className="mt-2 pt-1 border-t border-neutral-100 flex items-center justify-between">
                                                   <span className="text-xs font-black text-[#C8102E]">
-                                                    {hasPrice ? formatPrice(p.price) : (language === 'ar' ? 'حسب الطلب' : 'Sur demande')}
+                                                    {formatProductPrice(p, language)}
                                                   </span>
                                                   <span className="text-[10px] font-semibold text-neutral-400 group-hover:text-neutral-900 transition-colors">
                                                     {language === 'ar' ? 'عرض ←' : 'Voir →'}
@@ -593,7 +607,6 @@ export default function ShopHeader() {
                                     {desktopProducts.map((p) => {
                                       const pName = language === 'ar' ? (p.nameAr || p.name) : p.name;
                                       const pImg = p.images?.[0] || activeCategory.image;
-                                      const hasPrice = typeof p.price === 'number' && p.price > 0;
                                       return (
                                         <Link
                                           key={p.id}
@@ -627,7 +640,7 @@ export default function ShopHeader() {
                                             </p>
                                             <div className="mt-2 pt-1 border-t border-neutral-100 flex items-center justify-between">
                                               <span className="text-xs font-black text-[#C8102E]">
-                                                {hasPrice ? formatPrice(p.price) : (language === 'ar' ? 'حسب الطلب' : 'Sur demande')}
+                                                {formatProductPrice(p, language)}
                                               </span>
                                               <span className="text-[10px] font-semibold text-neutral-400 group-hover:text-neutral-900 transition-colors">
                                                 {language === 'ar' ? 'عرض ←' : 'Voir →'}
@@ -1206,7 +1219,6 @@ export default function ShopHeader() {
                             {mobileProducts.map((p) => {
                               const pName = language === 'ar' ? (p.nameAr || p.name) : p.name;
                               const pImg = p.images?.[0] || mobileActiveCat.image;
-                              const hasPrice = typeof p.price === 'number' && p.price > 0;
                               return (
                                 <Link
                                   key={p.id}
@@ -1240,7 +1252,7 @@ export default function ShopHeader() {
                                     </p>
                                     <div className="mt-1.5 pt-1 border-t border-neutral-100 flex items-center justify-between">
                                       <span className="text-xs font-black text-[#C8102E]">
-                                        {hasPrice ? formatPrice(p.price) : (language === 'ar' ? 'حسب الطلب' : 'Sur demande')}
+                                        {formatProductPrice(p, language)}
                                       </span>
                                       <span className="text-[9px] font-bold text-neutral-400 group-hover:text-neutral-900">
                                         {language === 'ar' ? 'عرض ←' : 'Voir →'}
@@ -1269,7 +1281,6 @@ export default function ShopHeader() {
                         {mobileProducts.map((p) => {
                           const pName = language === 'ar' ? (p.nameAr || p.name) : p.name;
                           const pImg = p.images?.[0] || mobileActiveCat.image;
-                          const hasPrice = typeof p.price === 'number' && p.price > 0;
                           return (
                             <Link
                               key={p.id}
@@ -1303,7 +1314,7 @@ export default function ShopHeader() {
                                 </p>
                                 <div className="mt-2 pt-1.5 border-t border-neutral-100 flex items-center justify-between">
                                   <span className="text-xs font-black text-[#C8102E]">
-                                    {hasPrice ? formatPrice(p.price) : (language === 'ar' ? 'حسب الطلب' : 'Sur demande')}
+                                    {formatProductPrice(p, language)}
                                   </span>
                                   <span className="text-[10px] font-bold text-neutral-400 group-hover:text-neutral-900">
                                     {language === 'ar' ? 'تفاصيل ←' : 'Détails →'}

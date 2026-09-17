@@ -15,7 +15,12 @@ import {
   Phone,
   Heart,
 } from "lucide-react";
-import { getWhatsAppContact } from "@/lib/shop-utils";
+import {
+  CASABLANCA_FREE_DELIVERY_THRESHOLD,
+  FREE_DELIVERY_THRESHOLD,
+  formatPrice,
+  getWhatsAppContact,
+} from "@/lib/shop-utils";
 
 // ─── Data ─────────────────────────────────────────────────────────────────────
 
@@ -392,7 +397,8 @@ export default function ShopFooter() {
                 </span>
               </div>
               <p className="text-xs" style={{ color: "#6B7280" }}>
-                Dès 500 MAD d&apos;achat, partout au Maroc
+                À Casablanca dès {formatPrice(CASABLANCA_FREE_DELIVERY_THRESHOLD)} d&apos;achat, partout au Maroc
+                dès {formatPrice(FREE_DELIVERY_THRESHOLD)}
               </p>
             </div>
           </div>

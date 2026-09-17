@@ -27,13 +27,22 @@ import { initializeApp, getApps, getApp } from "firebase/app";
 import { getFirestore, collection, addDoc, serverTimestamp } from "firebase/firestore";
 import { firebaseConfig } from "@/firebase/config";
 
-import { useShopCart } from "@/contexts/shop-cart-context";
+import {
+  useShopCart,
+  getCartItemUnitPrice,
+  groupCartItemsByProduct,
+  summarizeCartProduct,
+} from "@/contexts/shop-cart-context";
 import { useLanguage } from "@/contexts/language-context";
 import {
   formatPrice,
+  formatPriceOrOnRequest,
   getDeliveryFee,
   getDeliveryDays,
+  isCasablanca,
   isEligibleForFreeDelivery,
+  CASABLANCA_FREE_DELIVERY_THRESHOLD,
+  FREE_DELIVERY_THRESHOLD,
   generateOrderNumber,
   MOROCCAN_CITIES,
 } from "@/lib/shop-utils";
@@ -180,13 +189,14 @@ interface SummaryPanelProps {
 }
 function SummaryPanel({ items, subtotal, city, productQtyMap }: SummaryPanelProps) {
   const { language } = useLanguage();
-  const freeShipping = isEligibleForFreeDelivery(subtotal);
-  const deliveryFee = city
-    ? freeShipping ? 0 : getDeliveryFee(city)
-    : freeShipping ? 0 : 35;
+  const freeShipping = isEligibleForFreeDelivery(subtotal, city);
+  // Tant que la ville n'est pas choisie, les frais restent inconnus (gratuits à Casablanca dès 100 MAD)
+  const deliveryFee = freeShipping || !city ? 0 : getDeliveryFee(city);
   const deliveryDays = city ? getDeliveryDays(city) : "24–72h";
   const total = subtotal + deliveryFee;
+  const freeDeliveryThreshold = city && isCasablanca(city) ? CASABLANCA_FREE_DELIVERY_THRESHOLD : FREE_DELIVERY_THRESHOLD;
   const itemCount = items.reduce((s, i) => s + i.quantity, 0);
+  const hasUnpricedItems = items.some((item) => getCartItemUnitPrice(item, productQtyMap?.[item.productId] || item.quantity) <= 0);
 
   return (
     <div className="bg-white rounded-2xl border border-[#E8E4DF] overflow-hidden shadow-sm">
@@ -201,24 +211,28 @@ function SummaryPanel({ items, subtotal, city, productQtyMap }: SummaryPanelProp
         </p>
       </div>
 
-      {/* Items */}
+      {/* Items — un bloc par produit, ses variantes résumées en dessous */}
       <div className="divide-y divide-[#E8E4DF] max-h-72 overflow-y-auto shop-scrollbar">
-        {items.map((item) => {
-          const totalProductQty = productQtyMap?.[item.productId] || item.quantity;
-          const isWholesale = item.minOrderQty && totalProductQty >= item.minOrderQty && item.wholesalePrice;
-          const effectivePrice = isWholesale ? item.wholesalePrice! : (item.originalPrice || item.price);
+        {groupCartItemsByProduct(items).map(({ productId, items: productItems }) => {
+          const first = productItems[0];
+          const productTotalQty = productQtyMap?.[productId] || first.quantity;
+          const { total: productTotal } = summarizeCartProduct(productItems, productTotalQty);
+          const variantsSummary = productItems
+            .filter((item) => item.variant)
+            .map((item) => {
+              const label = [item.variant?.model, item.variant?.size, item.variant?.color].filter(Boolean).join(" ");
+              return `${label || "Standard"} ×${item.quantity}`;
+            })
+            .join(" · ");
 
           return (
-            <div
-              key={`${item.productId}-${item.variant?.color}-${item.variant?.size}`}
-              className="flex gap-3 px-5 py-3"
-            >
+            <div key={productId} className="flex gap-3 px-5 py-3">
               {/* Thumb */}
               <div className="relative w-12 h-12 flex-shrink-0 rounded-lg overflow-hidden bg-[#FBF8F3] border border-[#E8E4DF]">
-                {item.productImage ? (
+                {first.productImage ? (
                   <Image
-                    src={item.productImage}
-                    alt={item.productName}
+                    src={first.productImage}
+                    alt={first.productName}
                     fill
                     sizes="48px"
                     className="object-cover"
@@ -230,20 +244,20 @@ function SummaryPanel({ items, subtotal, city, productQtyMap }: SummaryPanelProp
                 )}
                 {/* Qty badge */}
                 <span className="absolute -top-1.5 -right-1.5 w-4.5 h-4.5 min-w-[1.125rem] bg-[#C8102E] text-white text-[9px] font-bold rounded-full flex items-center justify-center px-1">
-                  {item.quantity}
+                  {productTotalQty}
                 </span>
               </div>
               {/* Info */}
               <div className="flex-1 min-w-0">
-                <p className="text-xs font-semibold text-[#0F0F0F] truncate">{item.productName}</p>
-                {(item.variant?.color || item.variant?.size) && (
-                  <p className="text-[10px] text-[#6B6B6B] mt-0.5">
-                    {[item.variant.color, item.variant.size].filter(Boolean).join(" · ")}
+                <p className="text-xs font-semibold text-[#0F0F0F] truncate">{first.productName}</p>
+                {variantsSummary && (
+                  <p className="text-[10px] text-[#6B6B6B] mt-0.5 line-clamp-2" title={variantsSummary}>
+                    {variantsSummary}
                   </p>
                 )}
               </div>
-              <span className="text-xs font-bold text-[#C8102E] flex-shrink-0">
-                {language === 'ar' ? 'حسب الطلب' : 'Sur demande'}
+              <span className="text-xs font-bold text-[#0F0F0F] flex-shrink-0 tabular-nums">
+                {formatPriceOrOnRequest(productTotal, language)}
               </span>
             </div>
           );
@@ -254,8 +268,13 @@ function SummaryPanel({ items, subtotal, city, productQtyMap }: SummaryPanelProp
       <div className="px-5 py-4 border-t border-[#E8E4DF] space-y-2.5">
         <div className="flex items-center justify-between text-sm">
           <span className="text-[#6B6B6B]">Sous-total</span>
-          <span className="font-semibold text-[#0F0F0F]">{language === 'ar' ? 'حسب الطلب' : 'Sur demande'}</span>
+          <span className="font-semibold text-[#0F0F0F] tabular-nums">{formatPriceOrOnRequest(subtotal, language)}</span>
         </div>
+        {subtotal > 0 && hasUnpricedItems && (
+          <p className="text-[10px] text-[#6B6B6B] -mt-1.5">
+            {language === 'ar' ? 'لا يشمل المنتجات حسب الطلب' : 'Hors articles sur demande'}
+          </p>
+        )}
         <div className="flex items-center justify-between text-sm">
           <span className="text-[#6B6B6B] flex items-center gap-1.5">
             <Truck className="w-3.5 h-3.5" />
@@ -263,10 +282,21 @@ function SummaryPanel({ items, subtotal, city, productQtyMap }: SummaryPanelProp
           </span>
           {freeShipping ? (
             <span className="font-semibold text-green-600">GRATUIT 🎉</span>
+          ) : city ? (
+            <span className="font-semibold text-[#0F0F0F] tabular-nums">{formatPrice(deliveryFee)}</span>
           ) : (
-            <span className="font-semibold text-[#0F0F0F]">{language === 'ar' ? 'حسب الطلب' : 'Sur demande'}</span>
+            <span className="text-xs text-[#6B6B6B]">Selon la ville</span>
           )}
         </div>
+        {/* Incitation : ce qui manque pour la livraison gratuite dans la ville choisie */}
+        {subtotal > 0 && !freeShipping && (
+          <p className="flex items-start gap-1.5 rounded-lg bg-emerald-50 border border-emerald-100 px-2.5 py-2 text-[11px] font-medium text-emerald-800">
+            <Truck className="w-3.5 h-3.5 mt-px flex-shrink-0" />
+            {city
+              ? `Plus que ${formatPrice(freeDeliveryThreshold - subtotal)} pour la livraison gratuite${isCasablanca(city) ? " à Casablanca" : ""}`
+              : `Livraison gratuite à Casablanca dès ${formatPrice(CASABLANCA_FREE_DELIVERY_THRESHOLD)}, partout au Maroc dès ${formatPrice(FREE_DELIVERY_THRESHOLD)}`}
+          </p>
+        )}
         {city && (
           <div className="flex items-center justify-between text-xs text-[#6B6B6B]">
             <span className="flex items-center gap-1.5">
@@ -279,10 +309,12 @@ function SummaryPanel({ items, subtotal, city, productQtyMap }: SummaryPanelProp
         <div className="border-t border-[#E8E4DF] pt-2.5 flex items-center justify-between">
           <span className="font-bold text-[#0F0F0F]">Total</span>
           <div className="text-right">
-            <span className="font-bold text-[#C8102E] text-xl shop-font-display">
-              {language === 'ar' ? 'حسب الطلب' : 'Sur demande'}
+            <span className="font-bold text-[#C8102E] text-xl shop-font-display tabular-nums">
+              {formatPriceOrOnRequest(subtotal > 0 ? total : 0, language)}
             </span>
-            <p className="text-[10px] text-[#6B6B6B]">Paiement à la livraison</p>
+            <p className="text-[10px] text-[#6B6B6B]">
+              {!city && !freeShipping ? "+ livraison selon la ville" : "Paiement à la livraison"}
+            </p>
           </div>
         </div>
       </div>
@@ -359,7 +391,7 @@ export default function CheckoutPage() {
       setIsSubmitting(true);
 
       try {
-        const freeShipping = isEligibleForFreeDelivery(subtotal);
+        const freeShipping = isEligibleForFreeDelivery(subtotal, form.city);
         const deliveryFee = freeShipping ? 0 : getDeliveryFee(form.city);
         const total = subtotal + deliveryFee;
         const orderNumber = generateOrderNumber();

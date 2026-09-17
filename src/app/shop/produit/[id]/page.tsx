@@ -23,7 +23,16 @@ import {
   FileText, 
   PackageCheck
 } from 'lucide-react';
-import { formatPrice, getDiscountPercent, buildWhatsAppLink } from '@/lib/shop-utils';
+import {
+  CASABLANCA_FREE_DELIVERY_THRESHOLD,
+  formatPrice,
+  formatPriceOrOnRequest,
+  formatProductPrice,
+  getDiscountPercent,
+  getVariantPrice,
+  hasActivePromo,
+  buildWhatsAppLink,
+} from '@/lib/shop-utils';
 import { useShopCartActions } from '@/contexts/shop-cart-context';
 import { useShopProducts } from '@/contexts/shop-products-context';
 import { useLanguage } from '@/contexts/language-context';
@@ -67,7 +76,7 @@ function ModernProductCard({ product }: { product: ShopProduct }) {
         </div>
         <div className="flex items-center justify-between pt-1 border-t border-neutral-100 mt-2">
           <span className="text-xs font-black text-[#C8102E]">
-            {language === 'ar' ? 'حسب الطلب' : 'Sur demande'}
+            {formatProductPrice(product, language)}
           </span>
           <span className="text-[11px] font-semibold text-neutral-400 group-hover:text-neutral-900 group-hover:translate-x-0.5 transition-all">
             {language === 'ar' ? '← التفاصيل' : 'Détails →'}
@@ -251,8 +260,8 @@ function MultiVariantSelector({
       productName,
       productNameAr: productNameAr || undefined,
       productImage: activeVariant.image || productImage,
-      price: activeVariant.price ?? basePrice,
-      originalPrice: activeVariant.price ?? basePrice,
+      price: getVariantPrice(basePrice, activeVariant),
+      originalPrice: getVariantPrice(basePrice, activeVariant),
       wholesalePrice,
       minOrderQty,
       quantity: Math.max(minOrderQty || 1, singleQty),
@@ -284,8 +293,8 @@ function MultiVariantSelector({
           productName,
           productNameAr: productNameAr || undefined,
           productImage: v.image || productImage,
-          price: v.price ?? basePrice,
-          originalPrice: v.price ?? basePrice,
+          price: getVariantPrice(basePrice, v),
+          originalPrice: getVariantPrice(basePrice, v),
           wholesalePrice,
           minOrderQty,
           quantity: q,
@@ -345,7 +354,7 @@ function MultiVariantSelector({
     ? (language === 'ar' && activeVariant.colorAr ? activeVariant.colorAr : activeVariant.color)
     : '';
 
-  const activePrice = activeVariant?.price ?? basePrice;
+  const activePrice = getVariantPrice(basePrice, activeVariant);
   const singleTotalPrice = activePrice * singleQty;
 
   const isSimpleSizeOnly = variantsForSize.length === 1 && (!variantsForSize[0]?.color || variantsForSize[0]?.color?.startsWith('Option')) && !variantsForSize[0]?.image;
@@ -683,7 +692,7 @@ function MultiVariantSelector({
                   </p>
                   <div className="flex items-center gap-2 mt-0.5">
                     <span className="text-sm font-black text-neutral-900">
-                      {formatPrice(activePrice)}
+                      {formatPriceOrOnRequest(activePrice, language)}
                     </span>
                     <span className="text-neutral-300">•</span>
                     {activeVariant.stock > 0 ? (
@@ -733,9 +742,8 @@ function MultiVariantSelector({
             >
               <ShoppingCart className="w-4 h-4" />
               <span>
-                {language === 'ar'
-                  ? `إضافة للسلة • ${formatPrice(singleTotalPrice)}`
-                  : `Ajouter au panier • ${formatPrice(singleTotalPrice)}`}
+                {language === 'ar' ? 'إضافة للسلة' : 'Ajouter au panier'}
+                {singleTotalPrice > 0 && ` • ${formatPrice(singleTotalPrice)}`}
               </span>
             </button>
 
@@ -1005,6 +1013,10 @@ export default function ProductPage({ params }: { params: Promise<{ id: string }
 
   const currentVariant = activeVariant || (activeSize ? (product.variants || []).find((v: ProductVariant) => (v.size || 'Standard') === activeSize) : null);
 
+  // Prix de la sélection en cours : celui de la variante choisie, sinon celui du produit
+  const displayPrice = hasVariants ? getVariantPrice(product.price, currentVariant) : product.price;
+  const showComparePrice = hasActivePromo(product.comparePrice, displayPrice);
+
   // ── Specific Characteristics Overrides ──
   const effectiveTypeProduit = currentVariant?.typeProduit || product.typeProduit;
   const effectiveMaterial = currentVariant?.material || currentVariant?.matiereMailles || product.matiereMailles || product.material;
@@ -1204,9 +1216,21 @@ export default function ProductPage({ params }: { params: Promise<{ id: string }
 
               {/* Price & Stock Header */}
               <div className="flex flex-wrap items-center gap-3 pb-4 mb-4 border-b border-neutral-100">
-                <span className="text-2xl sm:text-3xl font-black text-[#C8102E]">
-                  {language === 'ar' ? 'حسب الطلب' : 'Sur demande'}
-                </span>
+                <div className="flex items-baseline gap-2">
+                  <span className="text-2xl sm:text-3xl font-black text-[#C8102E]">
+                    {formatPriceOrOnRequest(displayPrice, language)}
+                  </span>
+                  {showComparePrice && (
+                    <>
+                      <span className="text-base sm:text-lg font-semibold text-neutral-400 line-through">
+                        {formatPrice(product.comparePrice as number)}
+                      </span>
+                      <span className="self-center bg-[#C8102E] text-white text-xs font-black px-2 py-0.5 rounded-full">
+                        -{getDiscountPercent(displayPrice, product.comparePrice as number)}%
+                      </span>
+                    </>
+                  )}
+                </div>
 
                 <div className="h-4 w-px bg-neutral-200 hidden sm:block" />
 
@@ -1304,9 +1328,13 @@ export default function ProductPage({ params }: { params: Promise<{ id: string }
               {/* ── Reassurance Micro-Banner ── */}
               <div className="grid grid-cols-3 gap-2 py-4 my-4 border-y border-neutral-100 text-center">
                 <div className="flex flex-col items-center">
-                  <Truck className="w-4 h-4 text-neutral-700 mb-1" />
-                  <span className="text-[11px] font-bold text-neutral-900">{language === 'ar' ? 'توصيل سريع' : 'Livraison express'}</span>
-                  <span className="text-[10px] text-neutral-400">{language === 'ar' ? 'كل المغرب' : 'Partout au Maroc'}</span>
+                  <Truck className="w-4 h-4 text-emerald-600 mb-1" />
+                  <span className="text-[11px] font-bold text-neutral-900">{language === 'ar' ? 'توصيل مجاني' : 'Livraison gratuite'}</span>
+                  <span className="text-[10px] text-neutral-400">
+                    {language === 'ar'
+                      ? `الدار البيضاء من ${formatPrice(CASABLANCA_FREE_DELIVERY_THRESHOLD)}`
+                      : `Casablanca dès ${formatPrice(CASABLANCA_FREE_DELIVERY_THRESHOLD)}`}
+                  </span>
                 </div>
                 <div className="flex flex-col items-center border-x border-neutral-100">
                   <ShieldCheck className="w-4 h-4 text-emerald-600 mb-1" />

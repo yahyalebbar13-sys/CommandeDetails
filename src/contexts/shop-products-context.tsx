@@ -6,7 +6,16 @@ import { getFirestore, doc, setDoc } from 'firebase/firestore';
 import { firebaseConfig } from '@/firebase/config';
 import { SHOP_PRODUCTS_DATA, SHOP_CATEGORIES } from '@/lib/shop-products-data';
 import type { ShopProduct, ShopCategory } from '@/lib/shop-types';
+import { getDiscountPercent, hasActivePromo } from '@/lib/shop-utils';
 import shopStaticData from '@/lib/shop-firebase-dump.json';
+
+// Produits affichés avec un prix barré, plus forte remise d'abord
+function selectPromoProducts<T extends Pick<ShopProduct, 'price' | 'comparePrice'>>(products: T[], limit: number): T[] {
+  return products
+    .filter(p => hasActivePromo(p.comparePrice, p.price))
+    .sort((a, b) => getDiscountPercent(b.price, b.comparePrice!) - getDiscountPercent(a.price, a.comparePrice!))
+    .slice(0, limit);
+}
 
 const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
 const db = getFirestore(app);
@@ -295,7 +304,7 @@ export function ShopProductsProvider({ children }: { children: React.ReactNode }
   }, []);
   const getFeaturedProducts = useCallback((limit = 8) => products.filter(p => p.isFeatured).slice(0, limit), [products]);
   const getNewProducts = useCallback((limit = 6) => products.filter(p => p.isNew).slice(0, limit), [products]);
-  const getPromoProducts = useCallback((limit = 6) => products.filter(p => p.isPromo && p.comparePrice).slice(0, limit), [products]);
+  const getPromoProducts = useCallback((limit = 6) => selectPromoProducts(products, limit), [products]);
   const getSimilarProducts = useCallback((product: ShopProduct, limit = 4) => 
     products.filter(p => p.id !== product.id && (p.categorySlug === product.categorySlug || p.additionalCategorySlugs?.includes(product.categorySlug))).slice(0, limit), [products]);
   const searchProducts = useCallback((query: string) => {
@@ -339,7 +348,7 @@ export function useShopProducts() {
       },
       getFeaturedProducts: (limit = 8) => SHOP_PRODUCTS_DATA.filter(p => p.isFeatured).slice(0, limit),
       getNewProducts: (limit = 6) => SHOP_PRODUCTS_DATA.filter(p => p.isNew).slice(0, limit),
-      getPromoProducts: (limit = 6) => SHOP_PRODUCTS_DATA.filter(p => p.isPromo && p.comparePrice).slice(0, limit),
+      getPromoProducts: (limit = 6) => selectPromoProducts(SHOP_PRODUCTS_DATA, limit),
       getSimilarProducts: (product: ShopProduct, limit = 4) => SHOP_PRODUCTS_DATA.filter(p => p.id !== product.id && (p.categorySlug === product.categorySlug || p.additionalCategorySlugs?.includes(product.categorySlug))).slice(0, limit),
       searchProducts: (query: string) => {
         if (!query.trim()) return SHOP_PRODUCTS_DATA;

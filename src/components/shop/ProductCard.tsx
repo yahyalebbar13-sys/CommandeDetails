@@ -3,10 +3,17 @@
 import React, { useState, useCallback } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
-import { ShoppingCart, Star, StarHalf, AlertCircle, CheckCircle2, Flame } from 'lucide-react';
+import { ShoppingCart, Star, StarHalf, AlertCircle, CheckCircle2, Flame, Truck } from 'lucide-react';
 import { useShopCartActions } from '@/contexts/shop-cart-context';
 import { useLanguage } from '@/contexts/language-context';
-import { formatPrice, getDiscountPercent, hasActivePromo } from '@/lib/shop-utils';
+import {
+  CASABLANCA_FREE_DELIVERY_THRESHOLD,
+  formatPrice,
+  formatProductPrice,
+  getDiscountPercent,
+  getProductDisplayPrice,
+  hasActivePromo,
+} from '@/lib/shop-utils';
 import type { ShopProduct } from '@/lib/shop-types';
 
 // Tiny base64 blur placeholder (1×1 px gris clair) — évite le layout shift
@@ -59,6 +66,8 @@ export default React.memo(function ProductCard({ product, showAddToCart = true }
   const discountPercent = isPromo ? getDiscountPercent(product.price, product.comparePrice as number) : 0;
   const isLowStock = product.inStock && product.stockQty > 0 && product.stockQty <= LOW_STOCK_THRESHOLD;
   const hasWholesalePrice = Boolean(product.wholesalePrice && product.wholesalePrice > 0 && product.wholesalePrice < product.price && product.minOrderQty && product.minOrderQty > 1);
+  // Un seul exemplaire suffit à atteindre le seuil de livraison gratuite à Casablanca
+  const unlocksFreeCasaDelivery = product.inStock && getProductDisplayPrice(product).amount >= CASABLANCA_FREE_DELIVERY_THRESHOLD;
 
   const handleAddToCart = useCallback(
     (e: React.MouseEvent) => {
@@ -145,12 +154,12 @@ export default React.memo(function ProductCard({ product, showAddToCart = true }
         {/* Price row + cart button */}
         <div className="flex items-end justify-between mt-1">
           <div className="flex flex-col">
-            <div className="flex items-baseline gap-1.5">
-              <span className="text-[15px] font-extrabold text-[#C8102E] leading-tight">
-                {product.price > 0 ? formatPrice(product.price) : (language === 'ar' ? 'حسب الطلب' : 'Sur demande')}
+            <div className="flex flex-wrap items-baseline gap-x-1.5">
+              <span className="text-[15px] font-extrabold text-[#C8102E] leading-tight whitespace-nowrap">
+                {formatProductPrice(product, language)}
               </span>
               {isPromo && (
-                <span className="text-[11px] text-gray-400 line-through leading-tight">
+                <span className="text-[11px] text-gray-400 line-through leading-tight whitespace-nowrap">
                   {formatPrice(product.comparePrice as number)}
                 </span>
               )}
@@ -192,6 +201,13 @@ export default React.memo(function ProductCard({ product, showAddToCart = true }
             </button>
           )}
         </div>
+
+        {unlocksFreeCasaDelivery && (
+          <span className="mt-0.5 flex items-center gap-1 text-[10px] font-semibold text-emerald-600">
+            <Truck className="w-3 h-3 flex-shrink-0" />
+            {language === 'ar' ? 'توصيل مجاني للدار البيضاء' : 'Livraison gratuite Casa'}
+          </span>
+        )}
 
         {/* Rating — bottom, uniquement s'il y a au moins un avis réel (sinon 5 étoiles
             avec "0" à côté ressemble à une fausse note) */}
