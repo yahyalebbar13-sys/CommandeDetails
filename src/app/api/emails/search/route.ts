@@ -19,7 +19,11 @@ import type { Facture } from '@/lib/types';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-const MAX_MESSAGES = 40;
+// Budget serveur. Une fonction Vercel est coupée net à l'expiration de son
+// délai (10 s sur le plan Hobby) : plutôt que de risquer un échec sec, on
+// s'arrête avant et on renvoie ce qu'on a déjà trouvé, en le signalant.
+const BUDGET_MS = 8000;
+const MAX_MESSAGES = 20;
 
 export async function POST(req: NextRequest) {
   let body: { account?: string; facture?: Facture; folder?: string; supplierEmails?: string[] };
@@ -50,6 +54,8 @@ export async function POST(req: NextRequest) {
   }
 
   const client = createImapClient(account);
+  const debut = Date.now();
+  const tempsEcoule = () => Date.now() - debut;
 
   try {
     await client.connect();
@@ -57,7 +63,9 @@ export async function POST(req: NextRequest) {
 
     // Un SEARCH par terme (objet OU corps), puis union des UID trouvés.
     const uids = new Set<number>();
+    let partiel = false;
     for (const term of terms) {
+      if (tempsEcoule() > BUDGET_MS) { partiel = true; break; }
       try {
         const found = await client.search(
           { or: [{ header: { subject: term } }, { body: term }] },
@@ -71,7 +79,7 @@ export async function POST(req: NextRequest) {
 
     if (uids.size === 0) {
       await client.logout();
-      return NextResponse.json({ emails: [], account: account.label, searched: terms });
+      return NextResponse.json({ emails: [], account: account.label, searched: terms, partiel });
     }
 
     // Les plus récents d'abord, et on plafonne le nombre de messages téléchargés.
@@ -79,6 +87,9 @@ export async function POST(req: NextRequest) {
 
     const results: any[] = [];
     for await (const msg of client.fetch(wanted, { envelope: true, flags: true, source: true }, { uid: true })) {
+      // Les UID sont parcourus du plus récent au plus ancien : ce qu'on
+      // abandonne ici est toujours le plus vieux, donc le moins utile.
+      if (tempsEcoule() > BUDGET_MS) { partiel = true; break; }
       try {
         // msg.source est optionnel côté types : sans corps, rien à analyser.
         if (!msg.source) continue;
@@ -119,6 +130,8 @@ export async function POST(req: NextRequest) {
       account: account.label,
       searched: terms,
       scanned: wanted.length,
+      partiel,
+      dureeMs: tempsEcoule(),
     });
   } catch (err: any) {
     try { await client.logout(); } catch {}

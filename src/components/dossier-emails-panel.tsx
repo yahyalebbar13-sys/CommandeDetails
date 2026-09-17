@@ -113,6 +113,13 @@ export default function DossierEmailsPanel({
       for (const { accountKey, data } of responses) {
         if (data?.error) { errors.push(`${ACCOUNT_COMPANY[accountKey] || accountKey} : ${data.error}`); continue; }
         if (data?.warning) warnings.push(data.warning);
+        // Le serveur s'est arrêté avant d'avoir tout dépouillé.
+        if (data?.partiel) {
+          warnings.push(
+            `Boîte ${ACCOUNT_COMPANY[accountKey] || accountKey} : recherche écourtée, ` +
+            'les emails les plus anciens du dossier peuvent manquer. Relance pour continuer.'
+          );
+        }
         for (const email of data?.emails || []) found.push({ ...email, accountKey });
       }
 
