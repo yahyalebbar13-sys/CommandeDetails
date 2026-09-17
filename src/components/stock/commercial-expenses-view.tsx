@@ -1817,7 +1817,7 @@ export default function CommercialExpensesView({
       <Dialog open={!!previewImage} onOpenChange={() => setPreviewImage(null)}>
         <DialogContent className="max-w-lg p-3 bg-stone-900 border-stone-800 rounded-3xl overflow-hidden">
           <div className="flex justify-between items-center p-2 text-white">
-            <span className="text-xs font-black uppercase tracking-wider">Justificatif / Reçu</span>
+            <DialogTitle className="text-xs font-black uppercase tracking-wider">Justificatif / Reçu</DialogTitle>
             <Button
               variant="ghost"
               size="sm"

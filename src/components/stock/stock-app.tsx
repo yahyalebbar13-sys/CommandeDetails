@@ -949,6 +949,14 @@ export default function StockApp() {
     return store ? (store.id === 'CHRIFA' || store.type === 'WAREHOUSE') : false;
   };
 
+  // Vue "ALL_MAIN" : un commercial voit son propre magasin (ou CHRIFA par défaut
+  // si aucun magasin n'est encore assigné) — même règle que isVisibleForUser côté
+  // computeStockItems, reprise ici pour les chèques/paiements.
+  const isIncludedInAllMain = (id: string | undefined) => {
+    const sId = id || 'CHRIFA';
+    return sId === userStoreId || (!userStoreId && sId === 'CHRIFA');
+  };
+
   // Filtrer les données selon le magasin actif pour les vues (sauf Admin "ALL")
   const filteredSales = useMemo(() => sales.filter(s => {
     if (activeStore === 'ALL') return true;
