@@ -1053,6 +1053,7 @@ export default function StockApp() {
 
   // Pass-to-stock modal (depuis onglet Arrivages)
   const [passToStockId, setPassToStockId] = useState<string | null>(null);
+  const [passToStockForceEditable, setPassToStockForceEditable] = useState(false);
 
   const isLoading = isUserLoading || loadingArt || loadingCat;
 
@@ -1864,7 +1865,10 @@ export default function StockApp() {
       if (userRole === 'ADMIN' && (item.id === 'sale' || item.id === 'expenses')) return false;
       // Pour ADMIN : lecture seule dans /stock — les transferts et la validation d'arrivage
       // (désormais gérée depuis /gestion → Arrivages) restent réservés aux magasins/entrepôts.
-      if (userRole === 'ADMIN' && (item.id === 'transfers' || item.id === 'arrivals')) return false;
+      // Transferts reste réservé aux magasins/entrepôts — les transferts internes n'ont pas
+      // leur place côté admin. Arrivages reste visible pour l'admin mais avec un contenu
+      // différent (réconciliation des arrivages datés depuis /gestion, cf. plus bas).
+      if (userRole === 'ADMIN' && item.id === 'transfers') return false;
       if (item.adminOnly && userRole !== 'ADMIN') return false;
       if (item.commercialOnly && userRole === 'ADMIN') return false;
       if (item.adminOrMainOnly && !isChrifaOrAdmin) return false;
@@ -2631,6 +2635,116 @@ export default function StockApp() {
                 </div>
               );
             })()}
+            {activeView === 'arrivals' && userRole === 'ADMIN' && (() => {
+              const sevenDaysAgo = new Date();
+              sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+              const sevenDaysAgoStr = sevenDaysAgo.toISOString().split('T')[0];
+
+              const recentDated = factures
+                .filter((f: any) => f.stockEntryDate && f.stockEntryDate >= sevenDaysAgoStr)
+                .map((f: any) => {
+                  const factureArts = articles.filter((a: any) => a.factureId === f.id || a.facture === f.id);
+                  const hasRealMovements = allMovements.some((m: any) => (m.factureId === f.id || m.factureRef === f.id) && m.type === 'IN');
+                  return {
+                    f,
+                    factureArts,
+                    artCount: factureArts.length,
+                    totalQty: factureArts.reduce((s: number, a: any) => s + (Number(a.quantity) || 0), 0),
+                    hasRealMovements,
+                  };
+                })
+                .sort((a, b) => (b.f.stockEntryDate || '').localeCompare(a.f.stockEntryDate || ''));
+
+              const missingCount = recentDated.filter(item => !item.hasRealMovements).length;
+
+              return (
+                <div className="space-y-6 animate-in fade-in duration-300">
+                  <div className="bg-stone-900 rounded-3xl p-8 relative overflow-hidden">
+                    <div className="absolute top-0 right-0 w-72 h-72 bg-emerald-500/10 rounded-full -translate-y-1/2 translate-x-1/2 blur-3xl" />
+                    <div className="relative z-10 flex flex-col md:flex-row md:items-center md:justify-between gap-6">
+                      <div>
+                        <p className="text-[11px] font-black text-stone-500 uppercase tracking-[0.3em] mb-2">Réconciliation</p>
+                        <h2 className="text-3xl font-black text-white uppercase tracking-tighter">
+                          Arrivages <span className="text-emerald-500">Récents</span>
+                        </h2>
+                        <p className="text-stone-400 text-xs mt-2 max-w-lg">
+                          Dossiers dont la date d'entrée en stock a été saisie depuis /gestion au cours des 7
+                          derniers jours. Complétez l'entrepôt et les valeurs pour créer les mouvements de stock réels.
+                        </p>
+                      </div>
+                      <div className="flex flex-wrap items-center gap-3">
+                        <div className="bg-white/5 border border-white/10 rounded-2xl px-5 py-3">
+                          <p className="text-[11px] font-black uppercase tracking-widest text-stone-400">Arrivages (≤ 7j)</p>
+                          <p className="text-2xl font-black text-white mt-0.5">{recentDated.length}</p>
+                        </div>
+                        <div className={`border rounded-2xl px-5 py-3 ${missingCount > 0 ? 'bg-amber-500/10 border-amber-500/20' : 'bg-emerald-500/10 border-emerald-500/20'}`}>
+                          <p className={`text-[11px] font-black uppercase tracking-widest ${missingCount > 0 ? 'text-amber-400' : 'text-emerald-400'}`}>À compléter</p>
+                          <p className={`text-2xl font-black mt-0.5 ${missingCount > 0 ? 'text-amber-400' : 'text-emerald-400'}`}>{missingCount}</p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {recentDated.length === 0 ? (
+                    <div className="bg-white rounded-2xl p-16 text-center border border-stone-100 shadow-sm">
+                      <Anchor className="w-12 h-12 text-stone-300 mx-auto mb-4" />
+                      <p className="text-stone-600 font-black uppercase text-xs tracking-widest">Aucun arrivage récent</p>
+                      <p className="text-stone-400 text-[11px] font-medium mt-1">
+                        Aucun dossier n'a de date d'entrée en stock saisie au cours des 7 derniers jours.
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                      {recentDated.map(({ f, artCount, totalQty, hasRealMovements }) => (
+                        <div
+                          key={f.id}
+                          className={`bg-white rounded-2xl border-2 p-5 flex flex-col justify-between gap-3 shadow-sm hover:shadow-md transition-all ${
+                            hasRealMovements ? 'border-emerald-200' : 'border-amber-300'
+                          }`}
+                        >
+                          <div>
+                            <div className="flex items-start justify-between gap-3">
+                              <div>
+                                <p className="text-[11px] font-black text-stone-400 uppercase tracking-widest">{f.supplierId || f.supplier || 'Fournisseur'}</p>
+                                <h3 className="text-lg font-black text-stone-900 uppercase tracking-tight mt-0.5">{f.id}</h3>
+                              </div>
+                              {hasRealMovements ? (
+                                <span className="inline-flex items-center gap-1 bg-emerald-100 text-emerald-800 text-[10px] font-black uppercase px-2 py-1 rounded-full whitespace-nowrap">
+                                  <CheckCircle2 className="w-3 h-3" /> Mouvements créés
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center gap-1 bg-amber-100 text-amber-800 text-[10px] font-black uppercase px-2 py-1 rounded-full whitespace-nowrap">
+                                  <AlertTriangle className="w-3 h-3" /> À compléter
+                                </span>
+                              )}
+                            </div>
+                            <div className="grid grid-cols-2 gap-2 text-center mt-3">
+                              <div className="bg-stone-50 rounded-xl p-2.5">
+                                <p className="text-[10px] font-black text-stone-400 uppercase">Entrée Stock</p>
+                                <p className="text-[10px] font-black text-stone-700 mt-0.5">{f.stockEntryDate}</p>
+                              </div>
+                              <div className="bg-stone-50 rounded-xl p-2.5">
+                                <p className="text-[10px] font-black text-stone-400 uppercase">Articles</p>
+                                <p className="text-[10px] font-black text-stone-900 mt-0.5">{artCount} réf. ({(Number(totalQty) || 0).toLocaleString()} pcs)</p>
+                              </div>
+                            </div>
+                          </div>
+                          <button
+                            onClick={() => { setPassToStockId(f.id); setPassToStockForceEditable(true); }}
+                            className={`w-full flex items-center justify-center gap-2 text-white font-black uppercase text-[11px] tracking-widest px-4 py-2.5 rounded-xl transition-all shadow-md hover:scale-[1.01] active:scale-95 cursor-pointer ${
+                              hasRealMovements ? 'bg-stone-700 hover:bg-stone-800' : 'bg-amber-600 hover:bg-amber-700'
+                            }`}
+                          >
+                            <Archive className="w-3.5 h-3.5" />
+                            {hasRealMovements ? 'Revoir / Corriger' : "Compléter l'Entrée"}
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
           </div>
         )}
       </main>
@@ -2654,13 +2768,14 @@ export default function StockApp() {
       {passToStockId && (
         <PassToStockModal
           open={!!passToStockId}
-          onOpenChange={open => !open && setPassToStockId(null)}
+          onOpenChange={open => { if (!open) { setPassToStockId(null); setPassToStockForceEditable(false); } }}
           facture={factures.find((f: any) => f.id === passToStockId)}
           associatedArticles={articles.filter((a: any) => a.factureId === passToStockId || a.facture === passToStockId)}
           subCategories={categories}
           stores={stores}
           adminUid={adminUid}
           existingMovements={allMovements.filter((m: any) => m.factureId === passToStockId || m.factureRef === passToStockId)}
+          forceEditable={passToStockForceEditable}
         />
       )}
 

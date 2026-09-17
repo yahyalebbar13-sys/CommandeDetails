@@ -21,6 +21,11 @@ interface PassToStockModalProps {
   stores?: any[];
   adminUid?: string | null;
   existingMovements?: any[];
+  // Ignore le verrouillage habituel (arrivage déjà daté/validé) : utilisé par la vue de
+  // réconciliation admin, pour compléter entrepôt + valeurs d'un arrivage dont la date
+  // d'entrée a été saisie directement depuis /gestion sans passer par ce formulaire —
+  // handleSubmit remplace déjà proprement les anciens mouvements, donc c'est sans risque.
+  forceEditable?: boolean;
 }
 
 export default function PassToStockModal({
@@ -31,7 +36,8 @@ export default function PassToStockModal({
   subCategories,
   stores,
   adminUid,
-  existingMovements
+  existingMovements,
+  forceEditable
 }: PassToStockModalProps) {
   const { user } = useUser();
   const firestore = useFirestore();
@@ -84,7 +90,7 @@ export default function PassToStockModal({
 
   const activeMovements = (existingMovements && existingMovements.length > 0) ? existingMovements : remoteMovements;
 
-  const isAlreadyInStock = Boolean(
+  const isAlreadyInStock = !forceEditable && Boolean(
     facture?.status === 'STOCK' ||
     facture?.stockEntryDate ||
     isArrivalOlderThanOneMonth(facture?.arrivalDate) ||
