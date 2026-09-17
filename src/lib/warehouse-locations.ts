@@ -273,6 +273,64 @@ export function splitOutboundLines<T extends Record<string, any>>(
   return lines.length > 0 ? lines : [{ ...base, quantity: qty }];
 }
 
+/** Une part d'entrée affectée manuellement à un emplacement : « 200 000 yds en A-01-01 ». */
+export type InboundAllocation = {
+  locationCode: string;
+  locationId?: string;
+  quantity: number;
+};
+
+/** Ce qui reste à placer une fois les parts saisies déduites du total à ranger. */
+export function remainingToAllocate(total: number, allocations: InboundAllocation[]): number {
+  const placed = (allocations || []).reduce((s, a) => s + (Number(a.quantity) || 0), 0);
+  return Math.round(((Number(total) || 0) - placed) * 1000) / 1000;
+}
+
+/**
+ * Répartit des lignes de mouvement d'ENTRÉE sur plusieurs emplacements choisis par
+ * l'utilisateur. Un arrivage d'une même référence remplit rarement un seul rack : on remplit
+ * le premier emplacement jusqu'à sa part, puis le suivant, en coupant une ligne en deux quand
+ * elle est à cheval.
+ *
+ * Ce qui dépasse les parts saisies ressort sans emplacement — comme en sortie, on préfère un
+ * trou visible à une adresse inventée.
+ */
+export function distributeInboundRows<T extends { quantity: number }>(
+  rows: T[], allocations: InboundAllocation[]
+): (T & { locationCode?: string; locationId?: string })[] {
+  const buckets = (allocations || [])
+    .filter(a => a.locationCode && (Number(a.quantity) || 0) > 0)
+    .map(a => ({ ...a, left: Number(a.quantity) || 0 }));
+
+  if (buckets.length === 0) return rows.map(r => ({ ...r }));
+
+  const out: (T & { locationCode?: string; locationId?: string })[] = [];
+  let bi = 0;
+
+  for (const row of rows) {
+    let left = Number(row.quantity) || 0;
+    if (left <= 0) { out.push({ ...row }); continue; }
+
+    while (left > 0 && bi < buckets.length) {
+      if (buckets[bi].left <= 0) { bi++; continue; }
+      const take = Math.min(left, buckets[bi].left);
+      out.push({
+        ...row,
+        quantity: Math.round(take * 1000) / 1000,
+        locationCode: buckets[bi].locationCode,
+        ...(buckets[bi].locationId ? { locationId: buckets[bi].locationId } : {}),
+      });
+      buckets[bi].left -= take;
+      left -= take;
+    }
+
+    // Reliquat au-delà des parts saisies : rangé nulle part, mais bien entré en stock.
+    if (left > 0) out.push({ ...row, quantity: Math.round(left * 1000) / 1000 });
+  }
+
+  return out;
+}
+
 /**
  * Emplacement à proposer pour une ENTRÉE quand le formulaire n'offre pas de choix explicite
  * (retour client, ajustement d'inventaire…) : celui où l'article se trouve déjà, à condition

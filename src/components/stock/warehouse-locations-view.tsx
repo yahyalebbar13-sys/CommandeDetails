@@ -339,7 +339,7 @@ export default function WarehouseLocationsView({
     const ok = await confirm({
       title: `Supprimer ${editingLocation.code}`,
       description: occ > 0
-        ? `Cet emplacement contient encore ${occ.toLocaleString('fr-MA')} unité(s) selon les mouvements. Déplace le stock avant de le supprimer, sinon la quantité restera sans adresse.`
+        ? `Cet emplacement contient encore ${occ.toLocaleString('fr-FR')} unité(s) selon les mouvements. Déplace le stock avant de le supprimer, sinon la quantité restera sans adresse.`
         : 'Cet emplacement est vide et peut être supprimé.',
       confirmLabel: 'Supprimer',
       variant: 'destructive',
@@ -664,7 +664,7 @@ ${labels.map(l => `  <div class="label">
                                   )}
                                   <p className={`text-[10px] font-black mt-1 ${qty > 0 ? 'text-emerald-700' : 'text-stone-300'}`}>
                                     {qty > 0
-                                      ? `${qty.toLocaleString('fr-MA')} u. · ${occ?.references} réf.`
+                                      ? `${qty.toLocaleString('fr-FR')} u. · ${occ?.references} réf.`
                                       : 'Libre'}
                                   </p>
                                 </button>
@@ -942,7 +942,7 @@ ${labels.map(l => `  <div class="label">
               <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-100">
                 <p className="text-[10px] font-black uppercase tracking-widest text-emerald-800">Contenu actuel</p>
                 <p className="text-sm font-black text-emerald-900 mt-0.5">
-                  {occupancy[editingLocation.code].quantity.toLocaleString('fr-MA')} unité(s) ·{' '}
+                  {occupancy[editingLocation.code].quantity.toLocaleString('fr-FR')} unité(s) ·{' '}
                   {occupancy[editingLocation.code].references} référence(s)
                 </p>
               </div>

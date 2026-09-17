@@ -9,9 +9,12 @@ import { useUser, useFirestore, useCollection, useMemoFirebase } from '@/firebas
 import { doc, serverTimestamp, addDoc, collection, updateDoc, setDoc, query, where, getDocs, deleteDoc, deleteField } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { cleanUndefined } from '@/lib/utils';
-import { Archive, Calendar, Save, DollarSign, AlertTriangle, Truck, Loader2, Building2, Lock, Unlock, MapPin } from 'lucide-react';
+import { Archive, Calendar, Save, DollarSign, AlertTriangle, Truck, Loader2, Building2, Lock, Unlock, MapPin, X } from 'lucide-react';
 import { isArrivalOlderThanOneMonth } from '@/lib/status-utils';
-import { type StorageLocation, compareLocationCodes } from '@/lib/warehouse-locations';
+import {
+  type StorageLocation, type InboundAllocation, compareLocationCodes,
+  distributeInboundRows, remainingToAllocate,
+} from '@/lib/warehouse-locations';
 
 interface PassToStockModalProps {
   open: boolean;
@@ -127,7 +130,8 @@ export default function PassToStockModal({
 
   const [storeSelections, setStoreSelections] = useState<Record<string, string>>({});
   const [globalStoreId, setGlobalStoreId] = useState<string>('');
-  const [locationSelections, setLocationSelections] = useState<Record<string, string>>({});
+  // Répartition par article : une même référence remplit souvent plusieurs racks.
+  const [locationAllocations, setLocationAllocations] = useState<Record<string, InboundAllocation[]>>({});
 
   useEffect(() => {
     if (facture && open) {
@@ -147,16 +151,24 @@ export default function PassToStockModal({
 
       if (associatedArticles && associatedArticles.length > 0) {
         const initialSelections: Record<string, string> = {};
-        const initialLocations: Record<string, string> = {};
+        const initialLocations: Record<string, InboundAllocation[]> = {};
         associatedArticles.forEach(a => {
-          const movForArt = activeMovements?.find(m => m.articleId === a.id);
-          const movStore = movForArt?.storeId;
+          const movsForArt = (activeMovements || []).filter(m => m.articleId === a.id);
+          const movStore = movsForArt.find(m => m.storeId)?.storeId;
           const isMovStoreValid = warehouseOptions.some(w => w.id === movStore);
           initialSelections[a.id] = (isMovStoreValid && movStore) ? movStore : defaultWh;
-          if (movForArt?.locationCode) initialLocations[a.id] = movForArt.locationCode;
+          // Repartir de la répartition déjà enregistrée (cas "Revoir / Corriger")
+          const byCode: Record<string, InboundAllocation> = {};
+          movsForArt.forEach(m => {
+            if (!m.locationCode) return;
+            const b = (byCode[m.locationCode] ||= { locationCode: m.locationCode, locationId: m.locationId, quantity: 0 });
+            b.quantity += Number(m.quantity) || 0;
+          });
+          const existing = Object.values(byCode);
+          if (existing.length > 0) initialLocations[a.id] = existing;
         });
         setStoreSelections(initialSelections);
-        setLocationSelections(initialLocations);
+        setLocationAllocations(initialLocations);
       }
     }
   }, [facture, open, associatedArticles, warehouseOptions, activeMovements]);
@@ -171,7 +183,7 @@ export default function PassToStockModal({
       setStoreSelections(updated);
     }
     // Les emplacements appartiennent à un entrepôt précis : changer d'entrepôt les invalide.
-    setLocationSelections({});
+    setLocationAllocations({});
   };
 
   // Calcul automatique du total droits payés (DI+TPI+TVA) depuis les articles liés
@@ -358,12 +370,20 @@ export default function PassToStockModal({
           const fullEnglishName = parts.length > 0 ? `${baseName} ${parts.join(' ')}`.trim() : (baseName || article.specs || 'Produit');
           const defaultProductName = article.nameFR || fullEnglishName;
           const targetStore = storeSelections[article.id] || globalStoreId || warehouseOptions[0]?.id || 'ENTREPOT';
-          // L'emplacement n'est retenu que s'il appartient bien à l'entrepôt ciblé — une
-          // sélection laissée d'un entrepôt précédent ne doit jamais être écrite.
-          const pickedLocation = (locationsByStore[targetStore] || [])
-            .find(l => l.code === locationSelections[article.id]);
-          const targetLocationCode = pickedLocation?.code ?? null;
-          const targetLocationId = pickedLocation?.id ?? null;
+          // Les parts ne sont retenues que si leur emplacement appartient bien à l'entrepôt
+          // ciblé — une sélection laissée d'un entrepôt précédent ne doit jamais être écrite.
+          const articleAllocations: InboundAllocation[] = (locationAllocations[article.id] || [])
+            .map(a => {
+              const loc = (locationsByStore[targetStore] || []).find(l => l.code === a.locationCode);
+              if (!loc) return null;
+              const qty = Number(a.quantity) || 0;
+              return qty > 0 ? { locationCode: loc.code, locationId: loc.id, quantity: qty } : null;
+            })
+            .filter(Boolean) as InboundAllocation[];
+
+          // Chaque branche ci-dessous empile ses lignes ici ; la répartition sur les
+          // emplacements est appliquée une seule fois, à la fin, pour l'article entier.
+          const movementRows: any[] = [];
 
           const hasQualityBreakdown = Array.isArray(article.qualityBreakdown) && article.qualityBreakdown.length > 0;
           const hasColorBreakdown = (article.color === 'various' || article.color === 'Various') && Array.isArray(article.colorBreakdown) && article.colorBreakdown.length > 0;
@@ -378,7 +398,7 @@ export default function PassToStockModal({
                 ? Number(row.priceOverride)
                 : coutRevient;
 
-              await addDoc(collection(firestore, 'users', effectiveUid, 'stockMovements'), cleanUndefined({
+              movementRows.push({
                 articleId:        article.id,
                 categoryId:       article.categoryId,
                 productName:      rowProductName,
@@ -402,8 +422,6 @@ export default function PassToStockModal({
                 type:             'IN',
                 reason:           'ARRIVAGE',
                 storeId:          targetStore,
-                locationCode:     targetLocationCode,
-                locationId:       targetLocationId,
                 quantity:         rowQty,
                 date:             formData.stockEntryDate,
                 factureId:        facture.id,
@@ -411,7 +429,7 @@ export default function PassToStockModal({
                 purchasePriceMAD: rowPrice > 0 ? rowPrice : null,
                 notes:            `Arrivage ${facture.id} · Qualité ${row.quality || ''}`,
                 createdAt:        serverTimestamp(),
-              }));
+              });
             }
           } else if (hasColorBreakdown) {
             for (const row of article.colorBreakdown) {
@@ -419,7 +437,7 @@ export default function PassToStockModal({
               if (rowQty <= 0) continue;
               const colorLabel = (row.colorCode || row.description || row.color || '').trim();
 
-              await addDoc(collection(firestore, 'users', effectiveUid, 'stockMovements'), cleanUndefined({
+              movementRows.push({
                 articleId:        article.id,
                 categoryId:       article.categoryId,
                 productName:      defaultProductName,
@@ -439,8 +457,6 @@ export default function PassToStockModal({
                 type:             'IN',
                 reason:           'ARRIVAGE',
                 storeId:          targetStore,
-                locationCode:     targetLocationCode,
-                locationId:       targetLocationId,
                 quantity:         rowQty,
                 date:             formData.stockEntryDate,
                 factureId:        facture.id,
@@ -448,7 +464,7 @@ export default function PassToStockModal({
                 purchasePriceMAD: coutRevient > 0 ? coutRevient : null,
                 notes:            `Arrivage ${facture.id} · Couleur ${colorLabel}`,
                 createdAt:        serverTimestamp(),
-              }));
+              });
             }
           } else if (hasSizeBreakdown) {
             for (const row of article.sizeBreakdown) {
@@ -456,7 +472,7 @@ export default function PassToStockModal({
               if (rowQty <= 0) continue;
               const sizeLabel = (row.size || '').trim();
 
-              await addDoc(collection(firestore, 'users', effectiveUid, 'stockMovements'), cleanUndefined({
+              movementRows.push({
                 articleId:        article.id,
                 categoryId:       article.categoryId,
                 productName:      defaultProductName,
@@ -476,8 +492,6 @@ export default function PassToStockModal({
                 type:             'IN',
                 reason:           'ARRIVAGE',
                 storeId:          targetStore,
-                locationCode:     targetLocationCode,
-                locationId:       targetLocationId,
                 quantity:         rowQty,
                 date:             formData.stockEntryDate,
                 factureId:        facture.id,
@@ -485,10 +499,10 @@ export default function PassToStockModal({
                 purchasePriceMAD: coutRevient > 0 ? coutRevient : null,
                 notes:            `Arrivage ${facture.id} · Taille ${sizeLabel}`,
                 createdAt:        serverTimestamp(),
-              }));
+              });
             }
           } else {
-            await addDoc(collection(firestore, 'users', effectiveUid, 'stockMovements'), cleanUndefined({
+            movementRows.push({
               articleId:        article.id,
               categoryId:       article.categoryId,
               productName:      defaultProductName,
@@ -508,8 +522,6 @@ export default function PassToStockModal({
               type:             'IN',
               reason:           'ARRIVAGE',
               storeId:          targetStore,
-              locationCode:     targetLocationCode,
-              locationId:       targetLocationId,
               quantity:         Number(article.quantity) || 0,
               date:             formData.stockEntryDate,
               factureId:        facture.id,
@@ -517,7 +529,17 @@ export default function PassToStockModal({
               purchasePriceMAD: coutRevient > 0 ? coutRevient : null,
               notes:            `Arrivage ${facture.id}${article.quality ? ` · Qualité ${article.quality}` : ''}`,
               createdAt:        serverTimestamp(),
-            }));
+            });
+          }
+
+          // Répartit les lignes de cet article sur les emplacements saisis : on remplit le
+          // premier jusqu'à sa part, puis le suivant, en coupant une ligne à cheval. Ce qui
+          // dépasse les parts ressort sans emplacement plutôt qu'à une adresse inventée.
+          for (const row of distributeInboundRows(movementRows, articleAllocations)) {
+            await addDoc(
+              collection(firestore, 'users', effectiveUid, 'stockMovements'),
+              cleanUndefined(row)
+            );
           }
         }
       }
@@ -735,9 +757,14 @@ export default function PassToStockModal({
                       onChange={(e) => {
                         const code = e.target.value;
                         if (!code || !associatedArticles) return;
-                        const next: Record<string, string> = {};
-                        associatedArticles.forEach((a: any) => { next[a.id] = code; });
-                        setLocationSelections(next);
+                        const loc = (locationsByStore[globalStoreId] || []).find(l => l.code === code);
+                        // Tout l'arrivage au même endroit : une seule part par article, à sa
+                        // quantité totale. Reste modifiable article par article ensuite.
+                        const next: Record<string, InboundAllocation[]> = {};
+                        associatedArticles.forEach((a: any) => {
+                          next[a.id] = [{ locationCode: code, locationId: loc?.id, quantity: Number(a.quantity) || 0 }];
+                        });
+                        setLocationAllocations(next);
                       }}
                       className="h-7 px-2 rounded-lg border border-stone-200 text-[10px] font-bold bg-white font-mono"
                     >
@@ -765,40 +792,102 @@ export default function PassToStockModal({
                   const articleStore = storeSelections[article.id] || globalStoreId || warehouseOptions[0]?.id || '';
                   const articleLocations = locationsByStore[articleStore] || [];
 
+                  const allocs = locationAllocations[article.id] || [];
+                  const totalQty = Number(article.quantity) || 0;
+                  const reste = remainingToAllocate(totalQty, allocs);
+
+                  const setAllocs = (next: InboundAllocation[]) =>
+                    setLocationAllocations(prev => ({ ...prev, [article.id]: next }));
+
                   return (
-                    <div key={article.id} className="flex items-center justify-between gap-3 p-3 rounded-xl border border-stone-100 bg-stone-50">
-                      <div className="min-w-0">
-                        <p className="text-[11px] font-black text-stone-900 uppercase">{productName}</p>
-                        <div className="flex items-center gap-2 mt-1 flex-wrap">
-                          {article.color && article.color !== 'various' && <span className="text-[9px] font-bold text-stone-500 uppercase bg-white px-2 py-0.5 rounded border border-stone-200">{article.color}</span>}
-                          {article.size && article.size !== 'various' && <span className="text-[9px] font-bold text-stone-500 uppercase bg-white px-2 py-0.5 rounded border border-stone-200">{article.size}</span>}
-                          <span className="text-[9px] font-black text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded">{article.quantity} {article.unitOfMeasure}</span>
+                    <div key={article.id} className="p-3 rounded-xl border border-stone-100 bg-stone-50">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="text-[11px] font-black text-stone-900 uppercase">{productName}</p>
+                          <div className="flex items-center gap-2 mt-1 flex-wrap">
+                            {article.color && article.color !== 'various' && <span className="text-[9px] font-bold text-stone-500 uppercase bg-white px-2 py-0.5 rounded border border-stone-200">{article.color}</span>}
+                            {article.size && article.size !== 'various' && <span className="text-[9px] font-bold text-stone-500 uppercase bg-white px-2 py-0.5 rounded border border-stone-200">{article.size}</span>}
+                            <span className="text-[9px] font-black text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded">{article.quantity} {article.unitOfMeasure}</span>
+                          </div>
                         </div>
-                      </div>
-                      <div className="flex flex-col items-end gap-1.5 shrink-0">
                         <select
                           value={articleStore}
                           onChange={(e) => setStoreSelections(prev => ({ ...prev, [article.id]: e.target.value }))}
-                          className="h-8 rounded-lg border-stone-200 text-xs font-bold bg-white"
+                          className="h-8 rounded-lg border-stone-200 text-xs font-bold bg-white shrink-0"
                         >
                           {warehouseOptions.map((w: any) => (
                             <option key={w.id} value={w.id}>{w.name}</option>
                           ))}
                         </select>
-                        {/* Emplacement précis — seulement si cet entrepôt a été découpé en zones */}
-                        {articleLocations.length > 0 && (
-                          <select
-                            value={locationSelections[article.id] || ''}
-                            onChange={(e) => setLocationSelections(prev => ({ ...prev, [article.id]: e.target.value }))}
-                            className="h-8 rounded-lg border-stone-200 text-[11px] font-bold bg-white font-mono"
-                          >
-                            <option value="">📍 Emplacement…</option>
-                            {articleLocations.map(l => (
-                              <option key={l.id} value={l.code}>{l.code}{l.label ? ` — ${l.label}` : ''}</option>
-                            ))}
-                          </select>
-                        )}
                       </div>
+
+                      {/* Répartition sur un ou plusieurs emplacements — seulement si cet
+                          entrepôt a été découpé en zones. Une référence remplit rarement
+                          un seul rack. */}
+                      {articleLocations.length > 0 && (
+                        <div className="mt-2.5 pt-2.5 border-t border-stone-200 space-y-1.5">
+                          {allocs.map((a, idx) => (
+                            <div key={idx} className="flex items-center gap-1.5">
+                              <select
+                                value={a.locationCode}
+                                onChange={(e) => {
+                                  const loc = articleLocations.find(l => l.code === e.target.value);
+                                  setAllocs(allocs.map((x, i) => i === idx
+                                    ? { ...x, locationCode: e.target.value, locationId: loc?.id }
+                                    : x));
+                                }}
+                                className="h-8 flex-1 min-w-0 rounded-lg border-stone-200 text-[11px] font-bold bg-white font-mono"
+                              >
+                                <option value="">📍 Emplacement…</option>
+                                {articleLocations.map(l => (
+                                  <option key={l.id} value={l.code}>{l.code}{l.label ? ` — ${l.label}` : ''}</option>
+                                ))}
+                              </select>
+                              <Input
+                                type="number" min={0} step="any"
+                                value={a.quantity || ''}
+                                onChange={(e) => setAllocs(allocs.map((x, i) => i === idx
+                                  ? { ...x, quantity: parseFloat(e.target.value) || 0 } : x))}
+                                className="h-8 w-24 rounded-lg border-stone-200 text-[11px] font-black text-right"
+                                placeholder="Qté"
+                              />
+                              <button
+                                type="button"
+                                onClick={() => setAllocs(allocs.filter((_, i) => i !== idx))}
+                                className="p-1.5 rounded-lg text-stone-400 hover:text-red-600 hover:bg-red-50 transition-colors shrink-0"
+                                title="Retirer cet emplacement"
+                              >
+                                <X className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          ))}
+
+                          <div className="flex items-center justify-between gap-2">
+                            <button
+                              type="button"
+                              onClick={() => setAllocs([...allocs, {
+                                locationCode: '',
+                                // Première ligne : on propose tout le reste, cas le plus courant.
+                                quantity: reste > 0 ? reste : 0,
+                              }])}
+                              className="flex items-center gap-1 text-[10px] font-black uppercase tracking-widest text-blue-600 hover:text-blue-800 transition-colors"
+                            >
+                              <MapPin className="w-3 h-3" /> {allocs.length === 0 ? 'Répartir sur des emplacements' : 'Ajouter un emplacement'}
+                            </button>
+                            {allocs.length > 0 && (
+                              <span className={`text-[10px] font-black uppercase tracking-wider ${
+                                reste === 0 ? 'text-emerald-600' : reste < 0 ? 'text-red-600' : 'text-amber-600'
+                              }`}>
+                                {reste === 0
+                                  ? '✓ Tout réparti'
+                                  : reste < 0
+                                    ? `Excès ${Math.abs(reste).toLocaleString('fr-FR')}`
+                                    : `Reste ${reste.toLocaleString('fr-FR')} ${article.unitOfMeasure || ''}`}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      )}
                     </div>
                   );
                 })}
