@@ -474,7 +474,7 @@ export default function ToOrderView({ articles, factures, onEdit }: ToOrderViewP
                                   {priorityConf.label}
                                 </span>
                                 {o.requestSource === 'STORE' && (
-                                  <span className="text-[7px] font-black px-1.5 py-0.5 rounded-full uppercase bg-stone-900 text-white" title="Demande envoyée par un magasin">
+                                  <span className="text-[7px] font-bold px-1.5 py-0.5 rounded-full uppercase bg-stone-100 text-stone-500 border border-stone-200" title="Demande envoyée par un magasin">
                                     🏪 {o.requestedByStoreName || o.requestedByStore}
                                   </span>
                                 )}
@@ -669,6 +669,12 @@ export default function ToOrderView({ articles, factures, onEdit }: ToOrderViewP
                               )}
                               <div className="flex-1 min-w-0">
                                 <p className="font-black text-stone-900 text-[12px] uppercase leading-tight">{o.name}</p>
+                                {/* Besoin envoyé par un magasin depuis /stock → Demandes d'import */}
+                                {o.requestSource === 'STORE' && (
+                                  <p className="text-[9px] font-bold text-stone-400 uppercase tracking-wide mt-0.5" title="Demande envoyée par un magasin">
+                                    🏪 {o.requestedByStoreName || o.requestedByStore}
+                                  </p>
+                                )}
                               </div>
                               <span className="text-[10px] font-black text-stone-900 whitespace-nowrap shrink-0">
                                 {Number(o.quantity).toLocaleString()} <span className="text-[9px] text-stone-400 font-bold">{o.unitOfMeasure}</span>
