@@ -45,6 +45,7 @@ import TransferOrdersView from './transfer-orders-view';
 import StoresView       from './stores-view';
 import StockWarehouses  from './stock-warehouses';
 import WarehouseLocationsView from './warehouse-locations-view';
+import { authedFetch } from '@/lib/authed-fetch';
 import ArrivalDossierModal from './arrival-dossier-modal';
 import StoreImportRequestsView from './store-import-requests-view';
 import {
@@ -770,7 +771,7 @@ export default function StockApp() {
     if (!targetUid) return;
     setIsResetting(true);
     try {
-      const res = await fetch('/api/admin/reset-stock', {
+      const res = await authedFetch('/api/admin/reset-stock', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ adminUid: targetUid }),

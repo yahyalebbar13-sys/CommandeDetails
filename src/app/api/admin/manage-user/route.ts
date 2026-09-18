@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getApps, initializeApp, cert } from 'firebase-admin/app';
 import { getAuth } from 'firebase-admin/auth';
+import { requireAdmin } from '@/lib/require-admin';
 
 // Initialize Firebase Admin if not already initialized
 function getFirebaseAdminApp() {
@@ -30,6 +31,12 @@ function getFirebaseAdminApp() {
 }
 
 export async function POST(req: Request) {
+  // Crée, modifie le mot de passe ou supprime des comptes Firebase Auth : sans cette
+  // garde, n'importe qui sur Internet pouvait prendre le contrôle de n'importe quel
+  // compte, y compris celui de l'administrateur.
+  const refus = await requireAdmin(req);
+  if (refus) return refus;
+
   try {
     let adminApp;
     try {

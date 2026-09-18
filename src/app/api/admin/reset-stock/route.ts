@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { getApps, initializeApp, cert } from 'firebase-admin/app';
 import { getFirestore, FieldValue } from 'firebase-admin/firestore';
 import { isLocalMarketPurchaseArticle } from '@/lib/local-purchase';
+import { verifyAdmin } from '@/lib/require-admin';
 
 function getFirebaseAdminApp() {
   if (!getApps().length) {
@@ -28,16 +29,16 @@ function getFirebaseAdminApp() {
 }
 
 export async function POST(req: Request) {
+  // Efface stock, ventes, clients… : réservé à l'administrateur. Les données visées
+  // sont celles de l'uid VÉRIFIÉ du jeton — plus jamais un adminUid fourni dans le
+  // corps de la requête, qui permettait de viser n'importe quel compte.
+  const check = await verifyAdmin(req);
+  if (!check.ok) return check.response;
+  const adminUid = check.uid;
+
   try {
     const adminApp = getFirebaseAdminApp();
     const db = getFirestore(adminApp);
-
-    // Résoudre l'adminUid (TIOEmB5VVhPVfTE73S4pJVlFeTm1 ou yahya.lebbar13@gmail.com)
-    let adminUid = 'TIOEmB5VVhPVfTE73S4pJVlFeTm1';
-    try {
-      const body = await req.json().catch(() => ({}));
-      if (body?.adminUid) adminUid = body.adminUid;
-    } catch (_) {}
 
     const report: Record<string, number> = {
       deletedMovements: 0,

@@ -24,17 +24,22 @@ const FIREBASE_JWKS = createRemoteJWKSet(
   new URL('https://www.googleapis.com/service_accounts/v1/jwk/securetoken@system.gserviceaccount.com')
 );
 
+export type AdminCheck =
+  | { ok: true; uid: string; email: string }
+  | { ok: false; response: NextResponse };
+
 /**
- * Renvoie `null` si l'appelant est l'administrateur (même règle que /gestion :
- * l'espace admin n'est ouvert qu'au compte ADMIN_EMAIL), sinon la réponse 401/403
- * à retourner telle quelle.
+ * Vérifie que l'appelant est l'administrateur (même règle que /gestion : l'espace
+ * admin n'est ouvert qu'au compte ADMIN_EMAIL) et renvoie son identité VÉRIFIÉE —
+ * à utiliser plutôt que tout uid fourni dans le corps de la requête.
  */
-export async function requireAdmin(req: Request): Promise<NextResponse | null> {
+export async function verifyAdmin(req: Request): Promise<AdminCheck> {
+  const refuse = (status: number, error: string): AdminCheck =>
+    ({ ok: false, response: NextResponse.json({ error }, { status }) });
+
   const header = req.headers.get('authorization') || '';
   const match = /^Bearer\s+(.+)$/i.exec(header);
-  if (!match) {
-    return NextResponse.json({ error: 'Authentification requise' }, { status: 401 });
-  }
+  if (!match) return refuse(401, 'Authentification requise');
 
   let payload: Record<string, unknown>;
   try {
@@ -44,19 +49,28 @@ export async function requireAdmin(req: Request): Promise<NextResponse | null> {
       audience: PROJECT_ID,
     }));
   } catch {
-    return NextResponse.json({ error: 'Session invalide ou expirée — reconnectez-vous' }, { status: 401 });
+    return refuse(401, 'Session invalide ou expirée — reconnectez-vous');
   }
 
   // Exigences Firebase en plus de exp/iat/iss/aud (vérifiés par jose).
   const nowSec = Math.floor(Date.now() / 1000);
   const authTime = Number(payload.auth_time);
   if (typeof payload.sub !== 'string' || !payload.sub || !Number.isFinite(authTime) || authTime > nowSec + 60) {
-    return NextResponse.json({ error: 'Session invalide ou expirée — reconnectez-vous' }, { status: 401 });
+    return refuse(401, 'Session invalide ou expirée — reconnectez-vous');
   }
 
   const email = typeof payload.email === 'string' ? payload.email : '';
   if (email.toLowerCase() !== ADMIN_EMAIL.toLowerCase()) {
-    return NextResponse.json({ error: "Accès réservé à l'administrateur" }, { status: 403 });
+    return refuse(403, "Accès réservé à l'administrateur");
   }
-  return null;
+  return { ok: true, uid: payload.sub, email };
+}
+
+/**
+ * Raccourci pour les routes qui n'ont pas besoin de l'identité : renvoie `null` si
+ * l'appelant est l'administrateur, sinon la réponse 401/403 à retourner telle quelle.
+ */
+export async function requireAdmin(req: Request): Promise<NextResponse | null> {
+  const check = await verifyAdmin(req);
+  return check.ok ? null : check.response;
 }

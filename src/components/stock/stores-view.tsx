@@ -10,6 +10,7 @@ import { collection, doc, setDoc, deleteDoc } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { useConfirm } from '@/hooks/use-confirm';
 import type { Store } from '@/lib/types';
+import { authedFetch } from '@/lib/authed-fetch';
 
 interface StoresViewProps {
   stores: Store[];
@@ -71,7 +72,7 @@ export default function StoresView({ stores, adminUid }: StoresViewProps) {
       if (newEmail) {
         // Créer/mettre à jour le compte Firebase Auth si un mot de passe est fourni
         if (editingPassword) {
-          const res = await fetch('/api/admin/manage-user', {
+          const res = await authedFetch('/api/admin/manage-user', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -86,9 +87,12 @@ export default function StoresView({ stores, adminUid }: StoresViewProps) {
             let data;
             try { data = JSON.parse(text); } catch(e) {}
             
-            if (data && data.error && data.error.includes('already exists')) {
+            // firebase-admin renvoie « The email address is already in use by another account. »
+            // pour un compte existant : sans ce second test, changer le mot de passe d'un
+            // magasin existant échouait toujours en erreur 400.
+            if (data && data.error && (data.error.includes('already exists') || data.error.includes('already in use'))) {
               // S'il existe déjà, mettre à jour le mot de passe
-              const updateRes = await fetch('/api/admin/manage-user', {
+              const updateRes = await authedFetch('/api/admin/manage-user', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
