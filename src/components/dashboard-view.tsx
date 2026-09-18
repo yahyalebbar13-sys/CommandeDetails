@@ -37,7 +37,6 @@ import {
   Hash,
 } from 'lucide-react';
 import { ViewType, GeneralCategory } from '@/lib/types';
-import RecentEmailsWidget from '@/components/recent-emails-widget';
 
 interface DashboardViewProps {
   articles: any[];
@@ -783,9 +782,6 @@ const DashboardView: React.FC<DashboardViewProps> = ({ articles = [], factures =
           </div>
         </div>
       </div>
-
-      {/* RAPPEL DES EMAILS */}
-      <RecentEmailsWidget onNavigate={onNavigate} />
 
       {/* ── Charts Row 1: Évolution + Répartition ─────────────────────────── */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

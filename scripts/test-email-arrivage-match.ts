@@ -5,7 +5,7 @@
 
 import {
   matchEmailToArrivages, bestArrivageForEmail, normalizeRef,
-  extractRefCandidates, accountKeysForCompany, imapSearchTermsForFacture,
+  extractRefCandidates,
 } from '../src/lib/email-arrivage-match';
 
 const factures: any[] = [
@@ -105,16 +105,6 @@ m = bestArrivageForEmail(
   facturesGen, { accountKey: 'lebtex' });
 check('mots génériques seuls ne prouvent rien (TRANSIT/MAROC/SARL)',
   !m?.reasons.find(r => r.code === 'transitaire'), `→ ${m?.reasons.map(r => r.code).join()}`);
-
-console.log('\n── Dossier sans BL ──');
-check('aucun terme de recherche IMAP', imapSearchTermsForFacture(factures[3]).length === 0);
-check('termes pour F1', imapSearchTermsForFacture(factures[0])[0] === '26HD1004');
-
-console.log('\n── Boîtes à interroger selon la société ──');
-check('Lebtex → 1 boîte', accountKeysForCompany('Lebtex').join() === 'lebtex');
-check('Robe in box → 1 boîte', accountKeysForCompany('Robe in box').join() === 'robeinbox');
-check('New fournitures → les deux', accountKeysForCompany('New fournitures').length === 2);
-check('vide → les deux', accountKeysForCompany(undefined).length === 2);
 
 console.log(`\n═══ ${pass} réussis, ${fail} échoués ═══\n`);
 process.exit(fail > 0 ? 1 : 0);

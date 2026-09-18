@@ -1,6 +1,6 @@
 // ─── Rapprochement Email ↔ Arrivage ──────────────────────────────────────────
-// Moteur pur (aucune I/O) : utilisable côté client (vue Emails, fiche dossier)
-// et côté serveur (API de recherche IMAP).
+// Moteur pur (aucune I/O) : sert à la vue Emails pour rattacher un avis
+// d'arrivée à son dossier.
 //
 // Principe : chaque dossier d'arrivage porte un numéro de BL (ex: 26HD1004) qui
 // se retrouve presque toujours dans l'objet, le corps ou le nom d'une pièce
@@ -49,24 +49,11 @@ export type SupplierHint = {
 };
 
 // ─── Boîte mail ↔ société déclarante ──────────────────────────────────────────
-// Les deux boîtes IMAP configurées dans /api/emails.
+// Les deux boîtes Gmail (cf. lib/gmail-browser.ts).
 export const ACCOUNT_COMPANY: Record<string, string> = {
   lebtex: 'Lebtex',
   robeinbox: 'Robe in box',
 };
-
-/**
- * Boîtes à interroger pour un dossier donné.
- * Une société déclarante connue → sa boîte. Sinon (ex: « New fournitures »,
- * ou champ vide) → les deux boîtes, puisqu'on ne peut rien présumer.
- */
-export function accountKeysForCompany(company: string | null | undefined): string[] {
-  const target = normalizeRef(company);
-  const all = Object.keys(ACCOUNT_COMPANY);
-  if (!target) return all;
-  const exact = all.filter(k => normalizeRef(ACCOUNT_COMPANY[k]) === target);
-  return exact.length > 0 ? exact : all;
-}
 
 // Seuils de score
 const SEUIL_SURE = 55;
@@ -322,37 +309,6 @@ export function bestArrivageForEmail(
   opts: { accountKey?: string; suppliers?: Record<string, SupplierHint> } = {}
 ): ArrivageMatch | null {
   return matchEmailToArrivages(email, factures, { ...opts, limit: 1 })[0] || null;
-}
-
-/**
- * Sens inverse : les emails qui concernent un dossier donné, triés par pertinence.
- * Utilisé par la fiche dossier d'arrivage.
- */
-export function matchArrivageToEmails<T extends MatchableEmail>(
-  facture: Facture,
-  emails: T[],
-  opts: { accountKey?: string; supplier?: SupplierHint } = {}
-): { email: T; match: ArrivageMatch }[] {
-  return emails
-    .map(email => ({ email, match: scoreEmailAgainstFacture(email, facture, opts) }))
-    .filter(x => x.match.score >= SEUIL_MIN)
-    .sort((a, b) => b.match.score - a.match.score);
-}
-
-/**
- * Termes de recherche IMAP pour retrouver les emails d'un dossier dans toute la
- * boîte (et pas seulement les derniers messages chargés).
- */
-export function imapSearchTermsForFacture(facture: Facture): string[] {
-  const terms: string[] = [];
-  const raw = (facture.noBL || '').trim();
-  if (raw) {
-    terms.push(raw);
-    // Variantes courantes : sans séparateurs, et avec espaces retirés.
-    const norm = normalizeRef(raw);
-    if (norm && norm !== raw.toUpperCase()) terms.push(norm);
-  }
-  return Array.from(new Set(terms.filter(t => t.length >= 5)));
 }
 
 export const MATCH_THRESHOLDS = { SEUIL_SURE, SEUIL_PROBABLE, SEUIL_MIN };

@@ -1,6 +1,6 @@
 // ─── Garde des routes API réservées à l'administrateur ────────────────────────
-// Serveur uniquement. Les routes /api/emails* lisent la boîte mail de l'entreprise :
-// sans cette garde, n'importe qui sur Internet pouvait les appeler.
+// Serveur uniquement. Une route API non gardée est ouverte à tout Internet :
+// les routes d'administration commencent par cette vérification.
 //
 // Le client envoie `Authorization: Bearer <ID token Firebase>` (cf. authed-fetch.ts).
 // Le jeton est vérifié selon la méthode documentée par Firebase pour les
