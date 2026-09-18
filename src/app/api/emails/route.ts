@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { requireAdmin } from '@/lib/require-admin';
 import { simpleParser } from 'mailparser';
 import { getImapAccount, createImapClient, addressText } from '@/lib/imap-accounts';
 
@@ -6,6 +7,9 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 export async function GET(req: NextRequest) {
+  const refus = await requireAdmin(req);
+  if (refus) return refus;
+
   const { searchParams } = new URL(req.url);
   const accountKey = searchParams.get('account') || 'lebtex';
   const folder = searchParams.get('folder') || 'INBOX';

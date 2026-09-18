@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -9,6 +9,8 @@ import {
   Sparkles, Brain, CheckCircle2, Anchor, Link2Off, HelpCircle, Flame, Tag
 } from 'lucide-react';
 import type { Facture } from '@/lib/types';
+import { authedFetch, openEmailAttachment } from '@/lib/authed-fetch';
+import { useToast } from '@/hooks/use-toast';
 import {
   matchEmailToArrivages,
   normalizeRef,
@@ -133,19 +135,28 @@ export default function EmailsView({
   const [aiLoading, setAiLoading] = useState(false);
   const [aiResult, setAiResult] = useState<any>(null);
 
+  const { toast } = useToast();
+  // Numéro de la dernière requête lancée : une réponse plus ancienne (changement de
+  // boîte rapide) est ignorée, sinon les emails d'une boîte s'affichaient sous l'autre
+  // et leurs pièces jointes étaient demandées à la mauvaise boîte.
+  const requeteCourante = useRef(0);
+
   const fetchEmails = useCallback(async (account: string) => {
+    const requete = ++requeteCourante.current;
     setLoading(true);
     setError('');
     setSelected(null);
     try {
-      const res = await fetch(`/api/emails?account=${account}&limit=30`);
+      const res = await authedFetch(`/api/emails?account=${encodeURIComponent(account)}&limit=30`);
       const data: EmailsResponse = await res.json();
+      if (requete !== requeteCourante.current) return;
       if (data.error) { setError(data.error); setEmails([]); }
       else { setEmails(data.emails); setAccountLabel(data.account); }
     } catch {
+      if (requete !== requeteCourante.current) return;
       setError('Erreur réseau. Vérifiez que le serveur tourne.');
     } finally {
-      setLoading(false);
+      if (requete === requeteCourante.current) setLoading(false);
     }
   }, []);
 
@@ -154,7 +165,7 @@ export default function EmailsView({
     setAiLoading(true);
     setAiResult(null);
     try {
-      const res = await fetch('/api/analyze-email', {
+      const res = await authedFetch('/api/analyze-email', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -276,7 +287,7 @@ export default function EmailsView({
         {ACCOUNTS.map(a => (
           <button
             key={a.key}
-            onClick={() => setActiveAccount(a.key)}
+            onClick={() => { setActiveAccount(a.key); setTypeFilter('all'); }}
             className={`flex items-center gap-2 px-4 py-2 rounded-xl text-[11px] font-black uppercase tracking-widest transition-all ${
               activeAccount === a.key
                 ? 'bg-stone-900 text-white shadow-lg'
@@ -549,17 +560,19 @@ export default function EmailsView({
             {selected.hasAttachments && (
               <div className="flex gap-2 px-6 py-3 bg-stone-50 border-b border-stone-100 flex-wrap">
                 {selected.attachments.map((a, i) => (
-                  <a 
-                    key={i} 
-                    href={`/api/email-attachment?account=${activeAccount}&uid=${selected.uid}&filename=${encodeURIComponent(a.filename)}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
+                  <button
+                    key={i}
+                    type="button"
+                    onClick={() => {
+                      openEmailAttachment({ account: activeAccount, uid: selected.uid, filename: a.filename, contentType: a.contentType })
+                        .catch(err => toast({ variant: 'destructive', title: 'Pièce jointe inaccessible', description: err?.message || 'Réessayez.' }));
+                    }}
                     className="flex items-center gap-1.5 px-3 py-1 bg-white rounded-lg border border-stone-200 text-[10px] font-bold text-stone-600 hover:border-violet-300 hover:text-violet-700 transition-colors"
                   >
                     <Paperclip className="w-3 h-3" />
                     {a.filename || 'Pièce jointe'}
                     <span className="text-stone-400">· {(a.size / 1024).toFixed(0)} Ko</span>
-                  </a>
+                  </button>
                 ))}
               </div>
             )}
@@ -567,9 +580,12 @@ export default function EmailsView({
             {/* Body */}
             <div className="flex-1 overflow-auto p-6">
               {selected.html ? (
-                <div
-                  className="prose prose-sm max-w-none text-stone-700"
-                  dangerouslySetInnerHTML={{ __html: selected.html }}
+                <iframe
+                  title={selected.subject || 'Email'}
+                  sandbox="allow-popups allow-popups-to-escape-sandbox"
+                  referrerPolicy="no-referrer"
+                  srcDoc={`<!doctype html><html><head><meta charset="utf-8"><base target="_blank"><style>body{margin:0;font-family:system-ui,-apple-system,sans-serif;font-size:14px;line-height:1.5;color:#44403c;overflow-wrap:anywhere}img{max-width:100%;height:auto}table{max-width:100%}</style></head><body>${selected.html}</body></html>`}
+                  className="w-full h-[65vh] border-0 bg-white rounded-lg"
                 />
               ) : (
                 <pre className="whitespace-pre-wrap font-sans text-sm text-stone-700 leading-relaxed">

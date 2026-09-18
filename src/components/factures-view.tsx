@@ -713,7 +713,7 @@ export default function FacturesView({
         </div>
 
         {/* Emails rattachés à ce dossier (recherche dans la boîte mail) */}
-        <DossierEmailsPanel facture={selectedFacture} />
+        <DossierEmailsPanel key={selectedFacture.id} facture={selectedFacture} />
 
         <AddFactureModal
           open={isEditModalOpen}

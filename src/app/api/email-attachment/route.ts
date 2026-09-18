@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { requireAdmin } from '@/lib/require-admin';
 import { simpleParser } from 'mailparser';
 import { getImapAccount, createImapClient } from '@/lib/imap-accounts';
 
@@ -6,6 +7,9 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 export async function GET(req: NextRequest) {
+  const refus = await requireAdmin(req);
+  if (refus) return refus;
+
   const { searchParams } = new URL(req.url);
   const accountKey = searchParams.get('account');
   const uid = searchParams.get('uid');
@@ -41,11 +45,17 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'Pièce jointe non trouvée' }, { status: 404 });
     }
 
-    // Return the file buffer
+    // Seuls les PDF et images s'affichent dans le navigateur ; tout le reste (HTML,
+    // SVG…) est servi en téléchargement, sans deviner le type, pour qu'un fichier
+    // piégé ne s'exécute jamais sur le domaine du site.
+    const type = (attachment.contentType || 'application/octet-stream').toLowerCase();
+    const affichable = /^(application\/pdf|image\/(png|jpe?g|gif|webp|bmp))$/.test(type);
     return new NextResponse(attachment.content, {
       headers: {
-        'Content-Type': attachment.contentType || 'application/octet-stream',
-        'Content-Disposition': `inline; filename="${encodeURIComponent(filename)}"`,
+        'Content-Type': affichable ? type : 'application/octet-stream',
+        'Content-Disposition': `${affichable ? 'inline' : 'attachment'}; filename="${encodeURIComponent(filename)}"`,
+        'X-Content-Type-Options': 'nosniff',
+        'Cache-Control': 'private, no-store',
       }
     });
 

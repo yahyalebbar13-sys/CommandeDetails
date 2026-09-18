@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { requireAdmin } from '@/lib/require-admin';
 import https from 'https';
 
 const SYSTEM_PROMPT = `Tu es un assistant IA spécialisé dans l'analyse d'emails de logistique, d'import, et de transit pour l'entreprise StockVue.
@@ -20,6 +21,9 @@ Analyse l'email fourni et retourne UNIQUEMENT un objet JSON avec la structure su
 const MODELE = 'gemini-2.5-flash';
 
 export async function POST(req: NextRequest) {
+  const refus = await requireAdmin(req);
+  if (refus) return refus;
+
   try {
     const { subject, text, from } = await req.json();
 

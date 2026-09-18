@@ -1,0 +1,62 @@
+// ─── Garde des routes API réservées à l'administrateur ────────────────────────
+// Serveur uniquement. Les routes /api/emails* lisent la boîte mail de l'entreprise :
+// sans cette garde, n'importe qui sur Internet pouvait les appeler.
+//
+// Le client envoie `Authorization: Bearer <ID token Firebase>` (cf. authed-fetch.ts).
+// Le jeton est vérifié selon la méthode documentée par Firebase pour les
+// bibliothèques JWT tierces : signature RS256 contre les clés publiques de
+// securetoken, émetteur et audience = le projet, sujet non vide.
+//
+// On n'utilise volontairement PAS firebase-admin ici : d'autres routes
+// (admin/manage-user, admin/reset-stock, cron/low-stock-check) reprennent
+// « la première app firebase-admin enregistrée » ; en créer une ici, même nommée,
+// leur ferait utiliser une instance sans identifiants selon l'ordre des requêtes.
+
+import { NextResponse } from 'next/server';
+import { createRemoteJWKSet, jwtVerify } from 'jose';
+import { ADMIN_EMAIL } from '@/lib/constants';
+
+const PROJECT_ID = process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || 'studio-9506506653-9b525';
+
+// Clés publiques de signature des ID tokens Firebase (mises en cache et
+// renouvelées par jose selon leur rotation).
+const FIREBASE_JWKS = createRemoteJWKSet(
+  new URL('https://www.googleapis.com/service_accounts/v1/jwk/securetoken@system.gserviceaccount.com')
+);
+
+/**
+ * Renvoie `null` si l'appelant est l'administrateur (même règle que /gestion :
+ * l'espace admin n'est ouvert qu'au compte ADMIN_EMAIL), sinon la réponse 401/403
+ * à retourner telle quelle.
+ */
+export async function requireAdmin(req: Request): Promise<NextResponse | null> {
+  const header = req.headers.get('authorization') || '';
+  const match = /^Bearer\s+(.+)$/i.exec(header);
+  if (!match) {
+    return NextResponse.json({ error: 'Authentification requise' }, { status: 401 });
+  }
+
+  let payload: Record<string, unknown>;
+  try {
+    ({ payload } = await jwtVerify(match[1], FIREBASE_JWKS, {
+      algorithms: ['RS256'],
+      issuer: `https://securetoken.google.com/${PROJECT_ID}`,
+      audience: PROJECT_ID,
+    }));
+  } catch {
+    return NextResponse.json({ error: 'Session invalide ou expirée — reconnectez-vous' }, { status: 401 });
+  }
+
+  // Exigences Firebase en plus de exp/iat/iss/aud (vérifiés par jose).
+  const nowSec = Math.floor(Date.now() / 1000);
+  const authTime = Number(payload.auth_time);
+  if (typeof payload.sub !== 'string' || !payload.sub || !Number.isFinite(authTime) || authTime > nowSec + 60) {
+    return NextResponse.json({ error: 'Session invalide ou expirée — reconnectez-vous' }, { status: 401 });
+  }
+
+  const email = typeof payload.email === 'string' ? payload.email : '';
+  if (email.toLowerCase() !== ADMIN_EMAIL.toLowerCase()) {
+    return NextResponse.json({ error: "Accès réservé à l'administrateur" }, { status: 403 });
+  }
+  return null;
+}

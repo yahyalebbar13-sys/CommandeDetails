@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { Mail, Paperclip, Loader2, AlertCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ViewType } from '@/lib/types';
+import { authedFetch } from '@/lib/authed-fetch';
 
 interface Email {
   uid: number;
@@ -44,8 +45,8 @@ export default function RecentEmailsWidget({ onNavigate }: { onNavigate: (view: 
       setLoading(true);
       try {
         const results = await Promise.all([
-          fetch('/api/emails?account=lebtex&limit=4').then(res => res.json()),
-          fetch('/api/emails?account=robeinbox&limit=4').then(res => res.json())
+          authedFetch('/api/emails?account=lebtex&limit=4').then(res => res.json()),
+          authedFetch('/api/emails?account=robeinbox&limit=4').then(res => res.json())
         ]);
         
         if (isMounted) {

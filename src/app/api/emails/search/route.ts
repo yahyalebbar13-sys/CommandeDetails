@@ -7,6 +7,7 @@
 //   { account: 'lebtex', facture: { id, noBL, supplierId, ... }, supplierEmails?: string[] }
 
 import { NextRequest, NextResponse } from 'next/server';
+import { requireAdmin } from '@/lib/require-admin';
 import { simpleParser } from 'mailparser';
 import { getImapAccount, createImapClient, addressText } from '@/lib/imap-accounts';
 import {
@@ -26,6 +27,9 @@ const BUDGET_MS = 8000;
 const MAX_MESSAGES = 20;
 
 export async function POST(req: NextRequest) {
+  const refus = await requireAdmin(req);
+  if (refus) return refus;
+
   let body: { account?: string; facture?: Facture; folder?: string; supplierEmails?: string[] };
   try {
     body = await req.json();
@@ -85,40 +89,49 @@ export async function POST(req: NextRequest) {
     // Les plus récents d'abord, et on plafonne le nombre de messages téléchargés.
     const wanted = Array.from(uids).sort((a, b) => b - a).slice(0, MAX_MESSAGES);
 
+    // Un seul FETCH ne respecte pas l'ordre demandé : imapflow trie la liste d'UID
+    // et Gmail répond du plus ancien au plus récent, si bien qu'un arrêt en cours de
+    // route abandonnait les emails les PLUS RÉCENTS. On lit donc par petits lots, du
+    // plus récent au plus ancien, et on ne vérifie le budget qu'entre deux lots (un
+    // FETCH interrompu bloquerait de toute façon le logout jusqu'à sa fin).
+    const LOT = 5;
+    const lots: number[][] = [];
+    for (let i = 0; i < wanted.length; i += LOT) lots.push(wanted.slice(i, i + LOT));
+
     const results: any[] = [];
-    for await (const msg of client.fetch(wanted, { envelope: true, flags: true, source: true }, { uid: true })) {
-      // Les UID sont parcourus du plus récent au plus ancien : ce qu'on
-      // abandonne ici est toujours le plus vieux, donc le moins utile.
+    for (const lot of lots) {
       if (tempsEcoule() > BUDGET_MS) { partiel = true; break; }
-      try {
-        // msg.source est optionnel côté types : sans corps, rien à analyser.
-        if (!msg.source) continue;
-        const parsed = await simpleParser(msg.source);
-        const email = {
-          uid: msg.uid,
-          messageId: parsed.messageId || '',
-          subject: parsed.subject || '(Sans objet)',
-          from: parsed.from?.text || '',
-          to: addressText(parsed.to),
-          date: parsed.date?.toISOString() || '',
-          text: parsed.text?.slice(0, 4000) || '',
-          isUnread: !msg.flags?.has('\\Seen'),
-          hasAttachments: (parsed.attachments || []).length > 0,
-          attachments: (parsed.attachments || []).map((a: any) => ({
-            filename: a.filename,
-            contentType: a.contentType,
-            size: a.size,
-          })),
-        };
+      for await (const msg of client.fetch(lot, { envelope: true, flags: true, source: true }, { uid: true })) {
+        try {
+          // msg.source est optionnel côté types : sans corps, rien à analyser.
+          if (!msg.source) continue;
+          const parsed = await simpleParser(msg.source);
+          const email = {
+            uid: msg.uid,
+            messageId: parsed.messageId || '',
+            subject: parsed.subject || '(Sans objet)',
+            from: parsed.from?.text || '',
+            to: addressText(parsed.to),
+            date: parsed.date?.toISOString() || '',
+            text: parsed.text?.slice(0, 4000) || '',
+            isUnread: !msg.flags?.has('\\Seen'),
+            hasAttachments: (parsed.attachments || []).length > 0,
+            attachments: (parsed.attachments || []).map((a: any) => ({
+              filename: a.filename,
+              contentType: a.contentType,
+              size: a.size,
+            })),
+          };
 
-        const match = scoreEmailAgainstFacture(email, facture, {
-          accountKey: account.key,
-          supplier: { name: (facture.supplierId || '').trim(), emails: supplierEmails },
-        });
+          const match = scoreEmailAgainstFacture(email, facture, {
+            accountKey: account.key,
+            supplier: { name: (facture.supplierId || '').trim(), emails: supplierEmails },
+          });
 
-        if (match.score >= SEUIL_MIN) results.push({ ...email, match });
-      } catch {
-        // message illisible → ignoré
+          if (match.score >= SEUIL_MIN) results.push({ ...email, match });
+        } catch {
+          // message illisible → ignoré
+        }
       }
     }
 

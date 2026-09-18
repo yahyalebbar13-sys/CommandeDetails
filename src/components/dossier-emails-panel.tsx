@@ -13,6 +13,7 @@ import {
   RefreshCw, Inbox, ExternalLink, Check, Flame, Tag,
 } from 'lucide-react';
 import type { Facture } from '@/lib/types';
+import { authedFetch, openEmailAttachment } from '@/lib/authed-fetch';
 import { accountKeysForCompany, ACCOUNT_COMPANY, type ArrivageMatch } from '@/lib/email-arrivage-match';
 import { detectEmailEvents, type EmailEvent, type EmailEventType } from '@/lib/email-events';
 
@@ -94,16 +95,23 @@ export default function DossierEmailsPanel({
     setWarning('');
     try {
       // Une requête par boîte concernée, en parallèle.
-      const responses = await Promise.all(
+      // allSettled : une boîte qui échoue (réseau, réponse non JSON) ne doit pas
+      // faire perdre les résultats de l'autre.
+      const settled = await Promise.allSettled(
         accountKeys.map(async accountKey => {
-          const res = await fetch('/api/emails/search', {
+          const res = await authedFetch('/api/emails/search', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ account: accountKey, facture, supplierEmails }),
           });
-          const data = await res.json();
+          const data = await res.json().catch(() => ({ error: `Réponse illisible (HTTP ${res.status})` }));
           return { accountKey, data };
         })
+      );
+      const responses = settled.map((r, i) =>
+        r.status === 'fulfilled'
+          ? r.value
+          : { accountKey: accountKeys[i], data: { error: 'Erreur réseau' } as any }
       );
 
       const found: FoundEmail[] = [];
@@ -304,17 +312,19 @@ export default function DossierEmailsPanel({
                         {email.hasAttachments && (
                           <div className="flex flex-wrap gap-1.5 mt-2">
                             {email.attachments.map((a, i) => (
-                              <a
+                              <button
                                 key={i}
-                                href={`/api/email-attachment?account=${email.accountKey}&uid=${email.uid}&filename=${encodeURIComponent(a.filename || '')}`}
-                                target="_blank"
-                                rel="noopener noreferrer"
+                                type="button"
+                                onClick={() => {
+                                  openEmailAttachment({ account: email.accountKey, uid: email.uid, filename: a.filename || '', contentType: a.contentType })
+                                    .catch(err => setWarning(`Pièce jointe inaccessible : ${err?.message || 'réessayez'}`));
+                                }}
                                 className="inline-flex items-center gap-1.5 px-2 py-1 bg-white rounded-lg border border-stone-200 text-[9px] font-bold text-stone-600 hover:border-amber-300 hover:text-amber-700 transition-colors"
                               >
                                 <Paperclip className="w-2.5 h-2.5" />
                                 {a.filename || 'Pièce jointe'}
                                 <ExternalLink className="w-2 h-2 opacity-50" />
-                              </a>
+                              </button>
                             ))}
                           </div>
                         )}
