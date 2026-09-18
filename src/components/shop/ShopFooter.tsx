@@ -21,27 +21,11 @@ import {
   formatPrice,
   getWhatsAppContact,
 } from "@/lib/shop-utils";
+import { useShopProducts } from "@/contexts/shop-products-context";
 
 // ─── Data ─────────────────────────────────────────────────────────────────────
 
-const BOUTIQUE_LINKS = [
-  { label: "Fermetures Nylon", href: "/shop/categories/fermetures-nylon" },
-  { label: "Fermetures Résine", href: "/shop/categories/fermetures-resine" },
-  { label: "Fermetures Métal", href: "/shop/categories/fermetures-metal" },
-  {
-    label: "Fermetures Invisibles",
-    href: "/shop/categories/fermetures-invisibles",
-  },
-  { label: "Boutons", href: "/shop/categories/boutons" },
-  { label: "Élastiques", href: "/shop/categories/elastiques" },
-  { label: "Biais & Rubans", href: "/shop/categories/biais-rubans" },
-  { label: "Scratch / Velcro", href: "/shop/categories/scratch-velcro" },
-  {
-    label: "Accessoires Couture",
-    href: "/shop/categories/accessoires-couture",
-  },
-  { label: "Voir tout →", href: "/shop/categories", highlight: true },
-];
+const FOOTER_CATEGORY_COUNT = 9;
 
 const SERVICE_LINKS = [
   { label: "Contactez-nous", href: "/shop/contact" },
@@ -156,6 +140,15 @@ function NewsletterForm() {
 // ─── Component ────────────────────────────────────────────────────────────────
 export default function ShopFooter() {
   const currentYear = new Date().getFullYear();
+  const { categories } = useShopProducts();
+  // Mêmes catégories que le menu : celles supprimées dans l'admin n'apparaissent plus
+  const boutiqueLinks = [
+    ...categories
+      .filter((c) => !c.parentSlug)
+      .slice(0, FOOTER_CATEGORY_COUNT)
+      .map((c) => ({ label: c.name, href: `/shop/categorie/${c.slug}`, highlight: false })),
+    { label: "Voir tout →", href: "/shop/categories", highlight: true },
+  ];
 
   return (
     <footer
@@ -320,7 +313,7 @@ export default function ShopFooter() {
               Boutique
             </h3>
             <ul className="space-y-2.5">
-              {BOUTIQUE_LINKS.map((link) => (
+              {boutiqueLinks.map((link) => (
                 <li key={link.href}>
                   <Link
                     href={link.href}

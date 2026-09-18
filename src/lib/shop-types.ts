@@ -13,6 +13,7 @@ export interface ShopCategory {
   color?: string;
   priority?: number;
   parentSlug?: string;
+  hidden?: boolean; // catégorie supprimée depuis l'admin
 }
 
 export interface ProductVariant {

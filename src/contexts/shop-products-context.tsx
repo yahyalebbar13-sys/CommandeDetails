@@ -248,8 +248,15 @@ export function ShopProductsProvider({ children }: { children: React.ReactNode }
       seenCustomSlugs.add(c.slug);
       return true;
     });
-    const combined = [...mergedHardcoded, ...deduplicatedCustom];
-    
+    // Une catégorie d'origine « supprimée » dans l'admin y est seulement marquée hidden :
+    // on la retire, ainsi que ses sous-catégories
+    const hiddenSlugs = new Set(
+      [...mergedHardcoded, ...deduplicatedCustom].filter(c => c.hidden).map(c => c.slug)
+    );
+    const combined = [...mergedHardcoded, ...deduplicatedCustom].filter(
+      c => !hiddenSlugs.has(c.slug) && !(c.parentSlug && hiddenSlugs.has(c.parentSlug))
+    );
+
     // Sort categories by priority descending, then by name
     combined.sort((a, b) => {
       const priorityA = a.priority || 0;
