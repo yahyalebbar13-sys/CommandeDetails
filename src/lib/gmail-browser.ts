@@ -17,7 +17,8 @@ export const MAILBOXES: { key: MailboxKey; label: string; email: string; color: 
  * Identifiant OAuth « Application Web » du projet Google Cloud. Public par
  * nature (toute page qui ouvre la fenêtre Google le montre), comme la clé Firebase.
  */
-export const GOOGLE_CLIENT_ID = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || '';
+export const GOOGLE_CLIENT_ID =
+  process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || '949158596969-jk2oeubl3phsg6gsj3cbni9a56jhtbqk.apps.googleusercontent.com';
 
 const SCOPE = 'https://www.googleapis.com/auth/gmail.readonly';
 const API = 'https://gmail.googleapis.com/gmail/v1/users/me';
