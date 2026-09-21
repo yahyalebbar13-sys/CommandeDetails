@@ -151,5 +151,8 @@ check('qualités : la ventilation qui prime est celle de la qualité',
 check('dossier sans article : rien à réparer',
   lignesEntreeManquantes([], []) === 0);
 
+check('casse du libellé retouchée après coup : le dossier reste complet',
+  lignesEntreeManquantes([artCouleurs], [movIn('C1', { color: 'rouge' }), movIn('C1', { color: 'Bleu' })]) === 0);
+
 console.log(`\n${pass} réussis, ${fail} échoués`);
 if (fail > 0) process.exit(1);

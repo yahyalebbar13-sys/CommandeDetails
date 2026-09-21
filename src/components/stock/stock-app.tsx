@@ -2874,17 +2874,24 @@ export default function StockApp() {
               }
 
               const recentDated = factures
-                .map((f: any) => ({
-                  f,
-                  // Ligne par ligne : un dossier à moitié entré doit rester réparable, pas seulement
-                  // un dossier sans aucun mouvement.
-                  lignesAbsentes: f.stockEntryDate
-                    ? lignesEntreeManquantes(artsParFacture.get(f.id) || [], entreesParFacture.get(f.id) || [])
-                    : 0,
-                }))
+                .map((f: any) => {
+                  // Un dossier compte comme « entré » dès qu'il porte une date OU qu'un mouvement
+                  // d'arrivage existe : une première validation coupée en cours d'écriture laisse
+                  // des mouvements sans date sur la facture, et ce dossier-là doit être réparable.
+                  const entreeCommencee = Boolean(f.stockEntryDate) || (entreesParFacture.get(f.id) || []).length > 0;
+                  return {
+                    f,
+                    entreeCommencee,
+                    // Ligne par ligne : un dossier à moitié entré doit rester réparable, pas
+                    // seulement un dossier sans aucun mouvement.
+                    lignesAbsentes: entreeCommencee
+                      ? lignesEntreeManquantes(artsParFacture.get(f.id) || [], entreesParFacture.get(f.id) || [])
+                      : 0,
+                  };
+                })
                 // Une entrée incomplète reste réparable quelle que soit son ancienneté : sinon le
                 // bouton « Compléter l'Entrée » est hors de portée pour les vieux dossiers ratés.
-                .filter(({ f, lignesAbsentes }: any) => isRecentlyEntered(f) || (f.stockEntryDate && lignesAbsentes > 0))
+                .filter(({ f, entreeCommencee, lignesAbsentes }: any) => isRecentlyEntered(f) || (entreeCommencee && lignesAbsentes > 0))
                 .map(({ f, lignesAbsentes }: any) => {
                   const factureArts = artsParFacture.get(f.id) || [];
                   const hasRealMovements = lignesAbsentes === 0;
@@ -2976,7 +2983,7 @@ export default function StockApp() {
                             <div className="grid grid-cols-2 gap-2 text-center mt-3">
                               <div className="bg-stone-50 rounded-xl p-2.5">
                                 <p className="text-[10px] font-black text-stone-400 uppercase">Entrée Stock</p>
-                                <p className="text-[10px] font-black text-stone-700 mt-0.5">{f.stockEntryDate}</p>
+                                <p className="text-[10px] font-black text-stone-700 mt-0.5">{f.stockEntryDate || 'non enregistrée'}</p>
                                 {backdatedSetAt && (
                                   <p className="text-[9px] font-bold text-stone-400 mt-0.5">saisie le {backdatedSetAt}</p>
                                 )}

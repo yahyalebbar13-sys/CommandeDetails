@@ -685,9 +685,11 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
     }
 
     // Un article n'entre en stock que d'une seule façon : la première ventilation renseignée
-    // (qualités, puis modèles, puis couleurs, puis tailles) sert à l'entrée, les autres restent
-    // sur le document pour le bon de commande et la packing list. On le dit plutôt que de les
-    // effacer : ce sont des informations saisies à la main.
+    // (qualités, puis modèles, puis couleurs, puis tailles) sert à l'entrée. Tant que l'article
+    // n'est pas coupé en plusieurs (prix d'achat différents), les autres tableaux restent sur la
+    // commande pour le bon de commande et la packing list. S'il est coupé, ils ne peuvent pas
+    // suivre : recopiés sur chaque morceau ils compteraient la même marchandise plusieurs fois.
+    // Dans les deux cas on le dit, plutôt que de laisser une saisie manuelle disparaître en silence.
     const autresVentilations = [
       splitType !== 'quality' && qualityBreakdown && qualityBreakdown.length > 1 ? 'qualités' : null,
       splitType !== 'design' && designBreakdown && designBreakdown.length > 0 ? 'modèles' : null,
@@ -697,7 +699,9 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
     if (splitType && autresVentilations.length > 0) {
       toast({
         title: 'Entrée en stock par ' + (VENTILATION_LABELS[splitType] || splitType),
-        description: `Cet article porte aussi une ventilation par ${autresVentilations.join(' et ')} : elle reste sur la commande mais ne servira pas à l'entrée en stock.`,
+        description: groups.size > 1
+          ? `L'article est coupé en ${groups.size} (prix d'achat différents) : la ventilation par ${autresVentilations.join(' et ')} n'est pas reportée sur les morceaux, elle ne correspondrait plus à leurs quantités. Notez-la ailleurs si vous en avez besoin.`
+          : `Cet article porte aussi une ventilation par ${autresVentilations.join(' et ')} : elle reste sur la commande mais ne servira pas à l'entrée en stock.`,
       });
     }
 

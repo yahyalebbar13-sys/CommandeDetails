@@ -33,6 +33,16 @@ import { isFabricLineOrCategory, isZipperLineOrCategory, isThreadLineOrCategory,
 
 const UNITS = ["pièces", "doz", "gross (144p)", "m", "rolls", "kg", "bag", "yds"];
 const COLORS = ["white", "black", "raw black", "raw white", "various", "various x black", "various x white", "nickel", "various x black x white", "silver", "gold", "black x white", "beige", "black nickel", "transparent"];
+/**
+ * Lignes réellement saisies d'une ventilation. Une grille tout juste ouverte arrive avec une ligne
+ * vide pré-remplie (le tableau des qualités en crée une d'office) : elle ne doit ni bloquer le
+ * formulaire, ni décider de la façon dont l'article entre en stock. `rolls` pour les couleurs et
+ * les modèles, `quantity` pour les qualités et les tailles ; `designRef` est le libellé d'un modèle.
+ */
+const lignesRemplies = (rows: any[] | null | undefined) =>
+  (rows || []).filter(r => (Number(r?.quantity ?? r?.rolls) || 0) > 0
+    || String(r?.quality || r?.colorCode || r?.description || r?.color || r?.size || r?.designRef || r?.design || '').trim()).length;
+
 const ZIPPER_TYPES = ["O/E", "C/E"];
 const SLIDER_TYPES = ["A/L", "P/L", "N/L", "SEMI A/L"];
 const PRIORITY_CONFIG = [
@@ -483,12 +493,8 @@ export function AddOrderForm({
     if (!qualityBreakdown?.length && !colorBreakdown?.length && !sizeBreakdown?.length && !designBreakdown?.length && (!formData.quantity || Number(formData.quantity) <= 0))
       e.quantity = 'Quantité requise';
     // Un article entre en stock ventilé d'une seule façon : deux ventilations ne pourraient pas
-    // être croisées et l'une des deux serait perdue (ou comptée en double). Une grille tout juste
-    // ouverte, ou à une seule ligne pour les qualités (c'est alors la qualité de l'article, pas
-    // une ventilation), ne compte pas : sinon le formulaire se bloquerait sur un tableau vide.
-    const lignesRemplies = (rows: any[] | null | undefined) =>
-      (rows || []).filter(r => (Number(r?.quantity ?? r?.rolls) || 0) > 0
-        || String(r?.quality || r?.colorCode || r?.description || r?.color || r?.size || r?.design || '').trim()).length;
+    // être croisées et l'une des deux serait perdue (ou comptée en double). Une grille à une seule
+    // ligne de qualités n'en est pas une : c'est la qualité de l'article.
     const ventilations = [
       lignesRemplies(qualityBreakdown) > 1 ? 'qualités' : null,
       lignesRemplies(designBreakdown) > 0 ? 'modèles' : null,
@@ -610,7 +616,9 @@ export function AddOrderForm({
       basePayload.stockEntryDate = new Date().toISOString().split('T')[0];
     }
 
-    if (qualityBreakdown && qualityBreakdown.length > 0) {
+    // Même règle qu'à la validation, sinon une ventilation non remplie prend la main sur celle
+    // qui l'est : l'article partirait à zéro et l'autre tableau serait écrasé.
+    if (qualityBreakdown && lignesRemplies(qualityBreakdown) > 1) {
       const groups = new Map<number, QualityBreakdownRow[]>();
       for (const row of qualityBreakdown) {
         const price = (row.priceOverride !== '' && row.priceOverride !== undefined)
@@ -673,7 +681,7 @@ export function AddOrderForm({
           })
         );
       });
-    } else if (designBreakdown && designBreakdown.length > 0) {
+    } else if (designBreakdown && lignesRemplies(designBreakdown) > 0) {
       const groups = new Map<number, DesignBreakdownRow[]>();
       for (const row of designBreakdown) {
         const price = (row.priceOverride !== '' && row.priceOverride !== undefined)
@@ -691,7 +699,7 @@ export function AddOrderForm({
           cleanUndefined({ ...basePayload, id, purchasePricePerUnit: price, quantity: groupQty, designBreakdown: rows, colorBreakdown: null, sizeBreakdown: null, qualityBreakdown: null, ...extraPayload })
         );
       });
-    } else if (colorBreakdown && colorBreakdown.length > 0) {
+    } else if (colorBreakdown && lignesRemplies(colorBreakdown) > 0) {
       const groups = new Map<number, ColorBreakdownRow[]>();
       for (const row of colorBreakdown) {
         const price = (row.priceOverride !== '' && row.priceOverride !== undefined)
@@ -709,7 +717,7 @@ export function AddOrderForm({
           cleanUndefined({ ...basePayload, id, purchasePricePerUnit: price, quantity: groupQty, colorBreakdown: rows, sizeBreakdown: null, designBreakdown: null, qualityBreakdown: null, ...extraPayload })
         );
       });
-    } else if (sizeBreakdown && sizeBreakdown.length > 0) {
+    } else if (sizeBreakdown && lignesRemplies(sizeBreakdown) > 0) {
       const groups = new Map<number, SizeBreakdownRow[]>();
       for (const row of sizeBreakdown) {
         const price = (row.priceOverride !== '' && row.priceOverride !== undefined)

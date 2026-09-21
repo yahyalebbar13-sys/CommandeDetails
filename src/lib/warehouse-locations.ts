@@ -182,9 +182,13 @@ export function variantKey(variant?: StockVariant | null): string {
 
 const isVarious = (v: unknown) => normalizeVariantValue(v) === 'various';
 
-/** Quantité d'une ligne de ventilation : `quantity` (qualités, tailles) ou `rolls` (couleurs). */
+/**
+ * Quantité d'une ligne de ventilation : `quantity` (qualités, tailles) ou `rolls` (couleurs).
+ * `||` et non `??`, comme les formulaires de commande : une ligne couleur qui porte en plus un
+ * `quantity` à 0 doit être lue sur ses `rolls`, sinon elle n'entre pas en stock du tout.
+ */
 export function breakdownRowQuantity(row: any): number {
-  return Number(row?.quantity ?? row?.rolls) || 0;
+  return Number(row?.quantity) || Number(row?.rolls) || 0;
 }
 
 /** Total d'une ventilation, toutes lignes confondues. */
@@ -276,7 +280,12 @@ export function articleInboundVariants(article: any): InboundVariantLine[] {
       dimension === 'quality' ? String(row?.quality || '').trim() :
       dimension === 'color' ? String(row?.colorCode || row?.description || row?.color || '').trim() :
       String(row?.size || '').trim();
-    const variant = label ? { dimension, value: label } : null;
+    // Une ligne sans libellé n'entre pas : computeStockItems écarte les lignes sans libellé, la
+    // marchandise serait en base et dans l'occupation des racks, mais invisible et invendable
+    // dans /stock. L'écart est annoncé par le bandeau « Quantités à vérifier » du passage en
+    // stock, qui compare ce qui entrera à la quantité de l'article.
+    if (!label) continue;
+    const variant = { dimension, value: label };
     lines.push({ variant, key: variantKey(variant), label, quantity, row });
   }
   return lines;
@@ -649,8 +658,10 @@ export function lignesEntreeManquantes(articles: any[], mouvements: any[]): numb
       if (faites.length === 0) manquantes++;
       continue;
     }
-    const libelles = new Set(faites.map(m => String(m?.[dimension] ?? '').trim()));
-    manquantes += attendues.filter(l => !libelles.has(l.label)).length;
+    // Comparaison normalisée comme dans le calcul du stock : une casse retouchée après coup ne
+    // doit pas faire passer un dossier correct pour incomplet.
+    const libelles = new Set(faites.map(m => normalizeVariantValue(m?.[dimension])));
+    manquantes += attendues.filter(l => !libelles.has(normalizeVariantValue(l.label))).length;
   }
   return manquantes;
 }

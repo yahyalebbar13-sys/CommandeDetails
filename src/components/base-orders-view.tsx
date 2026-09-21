@@ -210,7 +210,10 @@ export default function BaseOrdersView({ articles, factures, subCategories, gene
           // Une seule ventilation par article : entre couleurs et tailles, les couleurs
           // priment (l'entree en stock ne sait ventiler que sur une dimension).
           colorBreakdown: item.colorBreakdown || null,
-          sizeBreakdown: item.colorBreakdown ? null : (item.sizeBreakdown || null),
+          // Les deux tableaux sont recopiés tels quels : c'est articleVariantDimension qui
+          // choisit lequel sert à l'entrée en stock (couleurs avant tailles). Effacer les tailles
+          // ici ne changeait rien au stock et vidait la packing list.
+          sizeBreakdown: item.sizeBreakdown || null,
           status: 'PI',
           priority: 'todo',
           orderDate: new Date().toISOString().split('T')[0],

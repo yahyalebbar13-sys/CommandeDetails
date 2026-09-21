@@ -52,6 +52,9 @@ check('variantKey', variantKey(bleu) === 'color:bleu' && variantKey(null) === ''
 console.log('\n── Lignes d’entrée d’un article ──');
 check('quantité couleur lue dans rolls', breakdownRowQuantity({ colorCode: '101', rolls: 120 }) === 120);
 check('ancienne ligne couleur avec quantity', breakdownRowQuantity({ colorCode: '101', quantity: 50 }) === 50);
+// `||` et non `??` : une ligne couleur qui traîne un quantity à 0 se lit sur ses rolls, comme dans
+// add-order-modal. Avec `??` elle valait 0 et n'entrait pas en stock.
+check('quantity à 0 : la ligne se lit sur rolls', breakdownRowQuantity({ colorCode: '101', quantity: 0, rolls: 200 }) === 200);
 
 const multiColor = {
   id: 'art1', color: 'various', size: '5000Y', quantity: 300,
@@ -77,6 +80,17 @@ const simple = { id: 'art4', color: 'Noir', quantity: 42 };
 const simpleLines = articleInboundVariants(simple);
 check('article simple : une ligne sans variante', simpleLines.length === 1 && simpleLines[0].variant === null && simpleLines[0].quantity === 42);
 check('couleur unique sans ventilation : pas de dimension', articleVariantDimension({ color: 'various', colorBreakdown: [] }) === null);
+
+// Une ligne sans libellé ne doit pas entrer : computeStockItems écarte les lignes sans libellé,
+// la marchandise serait en base, comptée dans les racks, invisible et invendable dans /stock.
+const couleurSansNom = {
+  id: 'art5', color: 'various', quantity: 1000,
+  colorBreakdown: [{ colorCode: 'ROUGE', rolls: 700 }, { colorCode: '', rolls: 300 }],
+};
+const lignesSansNom = articleInboundVariants(couleurSansNom);
+check('ligne de ventilation sans libellé : pas de mouvement fantôme',
+  lignesSansNom.length === 1 && lignesSansNom[0].label === 'ROUGE' && sum(lignesSansNom) === 700,
+  JSON.stringify(lignesSansNom.map(l => [l.label, l.quantity])));
 
 console.log('\n── Répartition d’entrée ──');
 const drift = distributeInboundRows([{ quantity: 0.1 }, { quantity: 0.2 }], [{ locationCode: 'A-01', quantity: 0.3 }]);
