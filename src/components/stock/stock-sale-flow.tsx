@@ -15,6 +15,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import type { Client, SaleOrder, Invoice, OrderItem, StockItem, PaymentMethod, CashingCompany } from '@/lib/types';
 import { getLocalDateString } from '@/lib/constants';
+import { stockItemVariant } from '@/lib/warehouse-locations';
 import { useToast } from '@/hooks/use-toast';
 import { useConfirm } from '@/hooks/use-confirm';
 import { useOnlineStatus } from '@/hooks/use-online-status';
@@ -625,6 +626,10 @@ export default function StockSaleFlow({
             date: today,
             notes: selectedClient ? `Vente client : ${selectedClient.name}` : 'Vente Comptoir',
             storeId: resolvedStore,
+            // Champ d'aide, jamais écrit en base (retiré par handleCreateInvoice) : la couleur /
+            // qualité / taille vendue, pour ne puiser que dans SES racks — pas dans ceux du Rouge
+            // quand on vend du Bleu du même article.
+            _variant: stockItemVariant(sub),
           });
 
           remainingQty -= take;
@@ -669,6 +674,7 @@ export default function StockSaleFlow({
             date: today,
             notes: (selectedClient ? `Vente client : ${selectedClient.name}` : 'Vente Comptoir') + ` ⚠️ [Dépassement stock: +${remainingQty}]`,
             storeId: resolvedStore,
+            _variant: stockItemVariant(lastSub),
           });
         }
       }

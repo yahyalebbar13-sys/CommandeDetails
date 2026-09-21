@@ -482,6 +482,21 @@ export function AddOrderForm({
     if (!formData.categoryId) e.category = 'Requis';
     if (!qualityBreakdown?.length && !colorBreakdown?.length && !sizeBreakdown?.length && !designBreakdown?.length && (!formData.quantity || Number(formData.quantity) <= 0))
       e.quantity = 'Quantité requise';
+    // Un article entre en stock ventilé d'une seule façon : deux ventilations ne pourraient pas
+    // être croisées et l'une des deux serait perdue (ou comptée en double). Une grille tout juste
+    // ouverte, ou à une seule ligne pour les qualités (c'est alors la qualité de l'article, pas
+    // une ventilation), ne compte pas : sinon le formulaire se bloquerait sur un tableau vide.
+    const lignesRemplies = (rows: any[] | null | undefined) =>
+      (rows || []).filter(r => (Number(r?.quantity ?? r?.rolls) || 0) > 0
+        || String(r?.quality || r?.colorCode || r?.description || r?.color || r?.size || r?.design || '').trim()).length;
+    const ventilations = [
+      lignesRemplies(qualityBreakdown) > 1 ? 'qualités' : null,
+      lignesRemplies(designBreakdown) > 0 ? 'modèles' : null,
+      lignesRemplies(colorBreakdown) > 0 ? 'couleurs' : null,
+      lignesRemplies(sizeBreakdown) > 0 ? 'tailles' : null,
+    ].filter(Boolean) as string[];
+    if (ventilations.length > 1)
+      e.ventilation = `Une seule ventilation par article : ${ventilations.join(' et ')} saisies. Créez une ligne par ${ventilations[0].replace(/s$/, '')}.`;
     return e;
   }, [selectedGenCatId, formData.categoryId, formData.quantity, qualityBreakdown, colorBreakdown, sizeBreakdown, designBreakdown]);
 
@@ -648,7 +663,10 @@ export function AddOrderForm({
             purchasePricePerUnit: price,
             quantity: groupQty,
             qualityBreakdown: rows.length > 1 ? rows : null,
-            colorBreakdown: colorBreakdown && colorBreakdown.length > 0 ? colorBreakdown : null,
+            // Un article n'est ventilé que d'une seule façon. Recopier ici la ventilation par
+            // couleur de la commande entière ferait entrer en stock chaque couleur autant de
+            // fois qu'il y a de groupes de prix.
+            colorBreakdown: null,
             sizeBreakdown: null,
             designBreakdown: null,
             ...extraPayload
@@ -2085,6 +2103,12 @@ export function AddOrderForm({
           )}
 
           {/* ── Submit ─────────────────────────────────────────────────────── */}
+          {errors.ventilation && (
+            <div className="flex items-start gap-2 rounded-xl border border-red-200 bg-red-50 p-3">
+              <AlertCircle className="w-4 h-4 text-red-500 shrink-0 mt-0.5" />
+              <p className="text-[11px] font-bold text-red-700 leading-relaxed">{errors.ventilation}</p>
+            </div>
+          )}
           <Button
             type="submit"
             disabled={!isValid || submitting}

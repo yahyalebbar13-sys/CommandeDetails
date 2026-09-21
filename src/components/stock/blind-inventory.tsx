@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ProductPicker } from './stock-movement-modal';
 import type { StockItem, StockMovement, Store } from '@/lib/types';
-import { suggestInboundLocation } from '@/lib/warehouse-locations';
+import { suggestInboundLocation, stockItemVariant } from '@/lib/warehouse-locations';
 
 interface CountedLine {
   articleId: string;
@@ -78,8 +78,9 @@ export default function BlindInventory({
         const invStore = isRealStore ? (activeStore as any) : (currentStore?.id as any) || 'CHRIFA';
         const realId = (selected as any)._realArticleId || selected.articleId;
         // Un comptage porte sur le magasin entier : on ne rattache l'écart à un emplacement
-        // que si le produit n'est rangé qu'à un seul endroit — sinon on ne devine pas.
-        const spot = suggestInboundLocation(movements, invStore, realId);
+        // que si le produit n'est rangé qu'à un seul endroit — sinon on ne devine pas. Pour un
+        // article éclaté, on compte une variante : seuls les racks de cette variante comptent.
+        const spot = suggestInboundLocation(movements, invStore, realId, stockItemVariant(selected));
         await onAddMovement({
           articleId: (selected as any)._realArticleId || selected.articleId,
           categoryId: selected.categoryId,

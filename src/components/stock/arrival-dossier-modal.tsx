@@ -9,6 +9,10 @@ import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
 import { getArticleFrenchName } from '@/lib/product-name-utils';
+import {
+  articleInboundVariants, articleVariantDimension, compareLocationCodes, variantKey,
+  type VariantDimension,
+} from '@/lib/warehouse-locations';
 
 /**
  * Fiche d'un dossier d'arrivage pour les magasins : la même lecture que dans /gestion, mais
@@ -50,6 +54,70 @@ function sameMeasure(a: any, b: any): boolean {
 
 function articleName(a: any): string {
   return (a.nameFR || a.productName || a.name || a.categoryId || 'Article').trim();
+}
+
+/** Où une variante (ou l'article entier, clé '') a été rangée à l'entrée en stock du dossier. */
+type VariantPlacement = {
+  key: string;
+  label: string;
+  /** Nom français d'une qualité, description d'une couleur ou d'une taille. */
+  sub?: string;
+  locs: { code: string; qty: number; storeId?: string }[];
+  /** Quantité entrée sans emplacement. */
+  unplaced: number;
+};
+
+const DIMENSION_NOUN: Record<VariantDimension, [string, string]> = {
+  quality: ['qualité', 'qualités'],
+  color: ['couleur', 'couleurs'],
+  size: ['taille', 'tailles'],
+};
+
+const round3 = (n: number) => Math.round(n * 1000) / 1000;
+
+/**
+ * Regroupe les entrées d'un article par variante — lue dans le champ de SA dimension ventilée,
+ * jamais dans les autres qui peuvent valoir « various » — puis par emplacement. Les variantes
+ * suivent l'ordre de la ventilation ; un libellé de mouvement qui n'y figure plus (ventilation
+ * retouchée depuis l'entrée) est ajouté à la suite plutôt que perdu.
+ */
+function groupPlacements(article: any, movs: any[]): VariantPlacement[] {
+  const dimension = articleVariantDimension(article);
+  const rows = new Map<string, VariantPlacement>();
+
+  if (dimension) {
+    for (const line of articleInboundVariants(article)) {
+      if (rows.has(line.key)) continue;
+      const sub = String((dimension === 'quality' ? line.row?.nameFR : line.row?.description) || '').trim();
+      rows.set(line.key, {
+        key: line.key, label: line.label, locs: [], unplaced: 0,
+        sub: sub && sub.toLowerCase() !== line.label.toLowerCase() ? sub : undefined,
+      });
+    }
+  }
+
+  for (const m of movs) {
+    const value = dimension ? String(m[dimension] ?? '').trim() : '';
+    const key = dimension ? variantKey({ dimension, value }) : '';
+    let row = rows.get(key);
+    if (!row) {
+      row = { key, label: value, locs: [], unplaced: 0 };
+      rows.set(key, row);
+    }
+    const qty = Number(m.quantity) || 0;
+    if (!m.locationCode) {
+      row.unplaced = round3(row.unplaced + qty);
+      continue;
+    }
+    const hit = row.locs.find(l => l.code === m.locationCode && l.storeId === m.storeId);
+    if (hit) hit.qty = round3(hit.qty + qty);
+    else row.locs.push({ code: m.locationCode, qty, storeId: m.storeId });
+  }
+
+  // Une ligne de ventilation sans aucun mouvement n'a rien à montrer ici.
+  return Array.from(rows.values())
+    .filter(r => r.locs.length > 0 || r.unplaced > 0)
+    .map(r => ({ ...r, locs: r.locs.sort((a, b) => compareLocationCodes(a.code, b.code)) }));
 }
 
 export default function ArrivalDossierModal({
@@ -99,20 +167,22 @@ export default function ArrivalDossierModal({
     [articles]
   );
 
-  // Emplacements où chaque référence a été rangée à l'entrée en stock de ce dossier.
-  const locationsByArticle = useMemo(() => {
-    const map: Record<string, { code: string; qty: number; storeId?: string }[]> = {};
+  // Emplacements où chaque référence a été rangée à l'entrée en stock de ce dossier, variante
+  // par variante quand l'article est ventilé (qualité, couleur ou taille).
+  const placementsByArticle = useMemo(() => {
+    const inByArticle: Record<string, any[]> = {};
     for (const m of movements || []) {
-      if (m.type !== 'IN' || !m.locationCode || !m.articleId) continue;
-      const list = (map[m.articleId] ||= []);
-      const hit = list.find(x => x.code === m.locationCode && x.storeId === m.storeId);
-      if (hit) hit.qty += Number(m.quantity) || 0;
-      else list.push({ code: m.locationCode, qty: Number(m.quantity) || 0, storeId: m.storeId });
+      if (m?.type !== 'IN' || !m.articleId) continue;
+      (inByArticle[m.articleId] ||= []).push(m);
     }
-    return map;
-  }, [movements]);
-
-  const storeName = (id?: string) => stores.find((s: any) => s.id === id)?.name || id || '';
+    const out: Record<string, VariantPlacement[]> = {};
+    for (const a of articles || []) {
+      const movs = inByArticle[a.id];
+      // Rien de rangé nulle part : pas de bloc, comme avant.
+      if (movs?.some(m => m.locationCode)) out[a.id] = groupPlacements(a, movs);
+    }
+    return out;
+  }, [articles, movements]);
 
   const visibleArticles = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -233,12 +303,12 @@ export default function ArrivalDossierModal({
             const colors = Array.isArray(a.colorBreakdown) ? a.colorBreakdown.filter((r: any) => rowQty(r) > 0) : [];
             const sizes = Array.isArray(a.sizeBreakdown) ? a.sizeBreakdown.filter((r: any) => rowQty(r) > 0) : [];
             const open_ = expanded[a.id] || null;
-            const locs = locationsByArticle[a.id] || [];
+            const placements = placementsByArticle[a.id] || [];
 
             return (
               <div key={a.id} className="rounded-2xl border border-stone-100 bg-stone-50/60 overflow-hidden">
                 <div className="p-3.5 flex items-start justify-between gap-3">
-                  <div className="min-w-0">
+                  <div className="min-w-0 flex-1">
                     <p className="text-[12px] font-black text-stone-900 uppercase leading-tight">{frName(a)}</p>
                     {a.categoryId && frName(a).toLowerCase() !== String(a.categoryId).toLowerCase() && (
                       <p className="text-[10px] font-bold text-stone-400 uppercase mt-0.5">{a.categoryId}</p>
@@ -280,16 +350,6 @@ export default function ArrivalDossierModal({
                       {a.slider ? <PlainChip tone="stone">{a.slider}</PlainChip> : null}
                     </div>
 
-                    {locs.length > 0 && (
-                      <div className="flex flex-wrap items-center gap-1 mt-2">
-                        {locs.map(l => (
-                          <span key={`${l.storeId}-${l.code}`} className="inline-flex items-center gap-1 bg-blue-50 text-blue-700 border border-blue-100 px-1.5 py-0.5 rounded font-mono text-[10px] font-black">
-                            <MapPin className="w-2.5 h-2.5" />{l.code}
-                            <span className="font-sans font-bold text-blue-500">· {fmtQty(l.qty)}{stores.length > 1 && l.storeId ? ` · ${storeName(l.storeId)}` : ''}</span>
-                          </span>
-                        ))}
-                      </div>
-                    )}
                   </div>
 
                   <div className="text-right shrink-0">
@@ -297,6 +357,19 @@ export default function ArrivalDossierModal({
                     <p className="text-[10px] font-black text-stone-400 uppercase mt-1">{unit}</p>
                   </div>
                 </div>
+
+                {/* Sous la ligne, sur toute la largeur de la carte : sur téléphone, la colonne
+                    quantité ne laisse pas assez de place à la liste des variantes. */}
+                {placements.length > 0 && (
+                  <div className="px-3.5 pb-3.5 -mt-3.5">
+                    <ArticlePlacements
+                      dimension={articleVariantDimension(a)}
+                      placements={placements}
+                      search={search}
+                      stores={stores}
+                    />
+                  </div>
+                )}
 
                 {open_ === 'quality' && (
                   <BreakdownTable
@@ -406,6 +479,118 @@ function BreakdownTable({ tone, unit, head, rows }: {
         <div className="py-2 px-3 text-[9px] font-black uppercase tracking-widest">Total</div>
         <div className="py-2 px-3 text-[11px] font-black text-right whitespace-nowrap">{fmtQty(total)} {unit}</div>
       </div>
+    </div>
+  );
+}
+
+function LocationChip({ code, qty, store }: { code: string; qty?: number; store?: string }) {
+  const extra = [qty !== undefined ? fmtQty(qty) : null, store || null].filter(Boolean);
+  return (
+    <span className="inline-flex items-center gap-1 bg-blue-50 text-blue-700 border border-blue-100 px-1.5 py-0.5 rounded font-mono text-[10px] font-black whitespace-nowrap">
+      <MapPin className="w-2.5 h-2.5" />{code}
+      {extra.length > 0 && <span className="font-sans font-bold text-blue-500">· {extra.join(' · ')}</span>}
+    </span>
+  );
+}
+
+/**
+ * Emplacements de rangement d'une référence du dossier. Article simple : une puce par
+ * emplacement, comme avant. Article ventilé : une ligne par variante (« 305 → A-02-01 · 60,
+ * A-02-02 · 40 »), dans une liste qui défile, pour rester lisible avec 30 couleurs et plus.
+ */
+function ArticlePlacements({ dimension, placements, search, stores }: {
+  dimension: VariantDimension | null;
+  placements: VariantPlacement[];
+  search: string;
+  stores: any[];
+}) {
+  const storeName = (id?: string) => stores.find((s: any) => s.id === id)?.name || id || '';
+
+  if (!dimension || (placements.length === 1 && placements[0].key === '')) {
+    return (
+      <div className="flex flex-wrap items-center gap-1 mt-2">
+        {placements.flatMap(p => p.locs).map(l => (
+          <LocationChip
+            key={`${l.storeId}-${l.code}`} code={l.code} qty={l.qty}
+            store={stores.length > 1 && l.storeId ? storeName(l.storeId) : undefined}
+          />
+        ))}
+      </div>
+    );
+  }
+
+  const [one, many] = DIMENSION_NOUN[dimension];
+  const storeIds = Array.from(new Set(placements.flatMap(p => p.locs.map(l => l.storeId || ''))));
+  // Le lieu n'est rappelé sur chaque puce que si la référence a été rangée dans plusieurs lieux.
+  const storeOnChip = stores.length > 1 && storeIds.length > 1;
+
+  // « Même emplacement » à l'entrée : toutes les variantes au même endroit, une seule puce suffit.
+  const first = placements[0].locs[0];
+  const sameSpot = placements.length > 1 && Boolean(first) && placements.every(p =>
+    p.unplaced === 0 && p.locs.length === 1 &&
+    p.locs[0].code === first.code && p.locs[0].storeId === first.storeId);
+  if (sameSpot) {
+    return (
+      <div className="flex flex-wrap items-center gap-1.5 mt-2">
+        <LocationChip
+          code={first.code} qty={round3(placements.reduce((s, p) => s + p.locs[0].qty, 0))}
+          store={stores.length > 1 && first.storeId ? storeName(first.storeId) : undefined}
+        />
+        <span className="text-[10px] font-bold text-stone-400">toutes les {placements.length} {many}</span>
+      </div>
+    );
+  }
+
+  // Une recherche qui vise une variante (« 305 ») ne garde que ses lignes : pas besoin de
+  // faire défiler 30 couleurs pour la retrouver.
+  const q = search.trim().toLowerCase();
+  const matching = q ? placements.filter(p => `${p.label} ${p.sub || ''}`.toLowerCase().includes(q)) : [];
+  const shown = matching.length > 0 && matching.length < placements.length ? matching : placements;
+  const hidden = placements.length - shown.length;
+  const onlyStore = stores.length > 1 && storeIds.length === 1 && storeIds[0] ? storeName(storeIds[0]) : '';
+
+  return (
+    <div className="mt-2 rounded-xl border border-blue-100 bg-white overflow-hidden">
+      <div className="flex items-center gap-1.5 px-2.5 py-1.5 bg-blue-50/70 text-blue-700">
+        <MapPin className="w-2.5 h-2.5 shrink-0" />
+        <p className="text-[9px] font-black uppercase tracking-widest whitespace-nowrap">
+          Rangement · {placements.length} {placements.length > 1 ? many : one}
+        </p>
+        {onlyStore && <p className="ml-auto text-[10px] font-bold text-blue-500 truncate">{onlyStore}</p>}
+      </div>
+      <div className="max-h-44 overflow-y-auto divide-y divide-stone-100">
+        {shown.map(p => {
+          // Une variante rangée d'un seul bloc n'a pas besoin de rappeler sa quantité.
+          const withQty = p.locs.length > 1 || p.unplaced > 0;
+          return (
+            <div key={p.key || '_'} className="grid grid-cols-[minmax(0,5.5rem)_minmax(0,1fr)] sm:grid-cols-[minmax(0,8.5rem)_minmax(0,1fr)] items-center gap-2 px-2.5 py-1">
+              <p className="min-w-0 truncate text-[10px] font-black text-stone-800 uppercase" title={[p.label, p.sub].filter(Boolean).join(' — ')}>
+                {p.label || '—'}
+                {p.sub && <span className="ml-1 font-medium normal-case text-stone-400">{p.sub}</span>}
+              </p>
+              <div className="flex flex-wrap items-center gap-1">
+                {p.locs.map(l => (
+                  <LocationChip
+                    key={`${l.storeId}-${l.code}`} code={l.code}
+                    qty={withQty ? l.qty : undefined}
+                    store={storeOnChip && l.storeId ? storeName(l.storeId) : undefined}
+                  />
+                ))}
+                {p.unplaced > 0 && (
+                  <span className="text-[10px] font-bold text-amber-600">
+                    {p.locs.length > 0 ? '+ ' : ''}{fmtQty(p.unplaced)} sans emplacement
+                  </span>
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+      {hidden > 0 && (
+        <p className="px-2.5 py-1 border-t border-stone-100 text-[10px] font-bold text-stone-400">
+          {hidden} autre{hidden > 1 ? 's' : ''} {hidden > 1 ? many : one} masquée{hidden > 1 ? 's' : ''} par la recherche
+        </p>
+      )}
     </div>
   );
 }

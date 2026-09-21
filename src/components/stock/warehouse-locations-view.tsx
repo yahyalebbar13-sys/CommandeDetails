@@ -15,14 +15,17 @@ import { useConfirm } from '@/hooks/use-confirm';
 import type { Store } from '@/lib/types';
 import {
   StorageLocation, StorageZone, ZONE_COLOR_KEYS, zoneColor, buildLocationCode,
-  normalizeSegment, generateLocationCodes, MAX_GENERATED_LOCATIONS, computeLocationOccupancy,
-  compareLocationCodes, locationQrPayload, parseLocationCode,
+  normalizeSegment, generateLocationCodes, MAX_GENERATED_LOCATIONS,
+  compareLocationCodes, locationQrPayload, parseLocationCode, computeLocationContents,
+  normalizeVariantValue, articleVariantDimension, type LocationContentLine, type VariantDimension,
 } from '@/lib/warehouse-locations';
 
 interface WarehouseLocationsViewProps {
   stores: Store[];
   locations: StorageLocation[];
   movements: any[];
+  /** Articles d'arrivage : leur ventilation dit quelle dimension distingue les variantes. */
+  articles?: any[];
   adminUid: string | null;
   readOnly?: boolean;
 }
@@ -36,8 +39,123 @@ const EMPTY_GENERATOR = {
   withLevels: true,
 };
 
+const isVarious = (v: unknown) => normalizeVariantValue(v) === 'various';
+
+const VARIANT_FIELDS = ['quality', 'color', 'size'] as const;
+
+/** Contenu d'un emplacement regroupé par article, chaque article listant ses variantes. */
+type ArticleContent = {
+  articleId: string;
+  name: string;
+  quantity: number;
+  /** label : « 101 », « CL-5 », « Noir · 20cm »… ('' si la ligne ne porte aucune variante). */
+  lines: { label: string; quantity: number }[];
+};
+
+/** Nom d'un article d'arrivage connu ('' s'il n'en porte aucun), undefined pour un article inconnu. */
+type ArticleNameOf = (articleId: string) => string | undefined;
+
+function groupContentsByArticle(lines: LocationContentLine[], articleNameOf?: ArticleNameOf): ArticleContent[] {
+  const byArticle = new Map<string, LocationContentLine[]>();
+  for (const l of lines) {
+    const list = byArticle.get(l.articleId) || [];
+    list.push(l);
+    byArticle.set(l.articleId, list);
+  }
+  return Array.from(byArticle, ([articleId, list]) => {
+    // Les lignes d'une qualité portent chacune leur propre nom (« Satin CL-5 », « Satin CL-7 ») :
+    // l'article est nommé par leur début commun, pour ne pas le baptiser d'après une seule qualité.
+    const names = list.map(l => String(l.productName || '').trim()).filter(Boolean);
+    const words = names[0]?.split(/\s+/) || [];
+    let common = words.length;
+    for (const n of names.slice(1)) {
+      const w = n.split(/\s+/);
+      let i = 0;
+      while (i < common && i < w.length && w[i].toLowerCase() === words[i].toLowerCase()) i++;
+      common = i;
+    }
+    // Aucun début commun (« Doublure satin » / « Crêpe georgette ») : c'est le nom de l'article qui
+    // parle pour toutes ses qualités. Le nom d'une seule ligne ne sert que pour un article inconnu.
+    const name = words.slice(0, common).join(' ') || articleNameOf?.(articleId) || names[0] || articleId;
+    const quantity = Math.round(list.reduce((s, l) => s + l.quantity, 0) * 1000) / 1000;
+
+    // Plusieurs variantes : on ne garde que les champs qui les distinguent (la couleur), pas
+    // ceux qu'elles partagent toutes (la taille « 5000Y » de l'article) — « 101 », pas
+    // « 101 · 5000Y » répété trente fois. Une seule ligne garde tout ce qui la décrit.
+    const shown = (v: unknown) => Boolean(v) && !isVarious(v);
+    const fields = VARIANT_FIELDS.filter(f =>
+      list.length === 1 || new Set(list.map(l => (shown(l[f]) ? normalizeVariantValue(l[f]) : ''))).size > 1);
+    const variantLines = list
+      .map(l => ({ label: fields.map(f => l[f]).filter(shown).join(' · '), quantity: l.quantity }))
+      .sort((a, b) => a.label.localeCompare(b.label, 'fr', { numeric: true }));
+    return { articleId, name, quantity, lines: variantLines };
+  });
+}
+
+/** Info-bulle native d'une case : court, au-delà d'une douzaine de lignes on résume. */
+function contentsTooltip(code: string, groups: ArticleContent[]): string {
+  const MAX_LINES = 12;
+  const out: string[] = [code];
+  let count = 0;
+  let hidden = 0;
+  for (const g of groups) {
+    const variants = g.lines.map(l => ({ label: l.label, qty: l.quantity })).filter(v => v.label);
+    const MAX_VARIANTS = 6;
+    const text = variants.length > 0
+      ? `${g.name} — ${variants.slice(0, MAX_VARIANTS).map(v => `${v.label} : ${v.qty.toLocaleString('fr-FR')}`).join(', ')}` +
+        (variants.length > MAX_VARIANTS ? ` +${variants.length - MAX_VARIANTS}` : '')
+      : `${g.name} — ${g.quantity.toLocaleString('fr-FR')}`;
+    if (count < MAX_LINES) out.push(text);
+    else hidden++;
+    count++;
+  }
+  if (hidden > 0) out.push(`… et ${hidden} autre(s) référence(s)`);
+  return out.join('\n');
+}
+
+/** Solde d'un code dans le lieu affiché, et ce que d'autres lieux ont rattaché au même code. */
+type PlaceBalance = { net: number; elsewhere: number };
+
+/**
+ * Contenu et solde des emplacements d'UN lieu. Un code n'est unique que dans son entrepôt : deux
+ * entrepôts peuvent avoir chacun un « A-01-01 ». Le solde du lieu (`net`) et la part des autres
+ * lieux (`elsewhere`) sont sommés dans la même boucle et arrondis de la même façon, pour qu'un
+ * code utilisé par un seul lieu n'affiche jamais un reliquat « ailleurs » dû aux arrondis.
+ * Sans lieu (storeId vide), tout compte pour le lieu, comme computeLocationContents sans storeId.
+ */
+function computePlaceLocations(
+  locations: StorageLocation[],
+  movementsByCode: Record<string, any[]>,
+  storeId: string,
+  dimensionOf?: (articleId: string) => VariantDimension | null | undefined,
+  articleNameOf?: ArticleNameOf,
+): { contentsByCode: Record<string, ArticleContent[]>; balanceByCode: Record<string, PlaceBalance> } {
+  const round3 = (n: number) => Math.round(n * 1000) / 1000;
+  const contentsByCode: Record<string, ArticleContent[]> = {};
+  const balanceByCode: Record<string, PlaceBalance> = {};
+  for (const loc of locations) {
+    const movs = movementsByCode[loc.code];
+    if (!movs) continue;
+    let net = 0;
+    let elsewhere = 0;
+    for (const m of movs) {
+      const qty = Number(m.quantity) || 0;
+      const signed = m.type === 'OUT' ? -qty : qty;
+      // Un transfert entrant est crédité sur toStoreId, tous les autres sur storeId.
+      const place = m.type === 'IN' && m.reason === 'TRANSFERT' ? (m.toStoreId || m.storeId) : m.storeId;
+      if (!storeId || place === storeId) net += signed;
+      else elsewhere += signed;
+    }
+    balanceByCode[loc.code] = { net: round3(net), elsewhere: round3(elsewhere) };
+    const groups = groupContentsByArticle(
+      computeLocationContents(movs, loc.code, storeId || undefined, dimensionOf), articleNameOf);
+    if (groups.length > 0) contentsByCode[loc.code] = groups;
+  }
+  return { contentsByCode, balanceByCode };
+}
+
 export default function WarehouseLocationsView({
-  stores, locations, movements, adminUid, readOnly,
+  stores, locations, movements, articles, adminUid, readOnly,
 }: WarehouseLocationsViewProps) {
   const firestore = useFirestore();
   const { toast } = useToast();
@@ -80,7 +198,43 @@ export default function WarehouseLocationsView({
     [locations, currentStoreId]
   );
 
-  const occupancy = useMemo(() => computeLocationOccupancy(movements || []), [movements]);
+  // Mouvements répartis par code en une seule passe, pour ne pas relire tout l'historique à
+  // chaque case.
+  const movementsByCode = useMemo(() => {
+    const byCode: Record<string, any[]> = {};
+    for (const m of movements || []) {
+      if (!m?.locationCode) continue;
+      (byCode[m.locationCode] ||= []).push(m);
+    }
+    return byCode;
+  }, [movements]);
+
+  // Dimension ventilée de chaque article (qualité, couleur ou taille) : seule elle distingue les
+  // variantes d'un emplacement. Et son nom, pour nommer un article dont les qualités n'ont aucun
+  // mot en commun. undefined pour un article absent de la liste.
+  const { dimensionOf, articleNameOf } = useMemo(() => {
+    const dims = new Map<string, VariantDimension | null>();
+    const names = new Map<string, string>();
+    for (const a of articles || []) {
+      if (!a?.id) continue;
+      dims.set(a.id, articleVariantDimension(a));
+      names.set(a.id, String(a.nameFR || a.name || a.productName || a.specs || '').trim());
+    }
+    return {
+      dimensionOf: (articleId: string) => (dims.has(articleId) ? dims.get(articleId) ?? null : undefined),
+      articleNameOf: (articleId: string) => names.get(articleId),
+    };
+  }, [articles]);
+
+  // Contenu et solde des emplacements du LIEU AFFICHÉ, par article ET variante : un code n'est
+  // unique que dans son entrepôt, et le magasinier veut savoir ce qu'il y a dans CE rack. La
+  // grille, les compteurs et la fiche lisent ce solde ; `elsewhere` signale le même code utilisé
+  // par un autre lieu.
+  const { contentsByCode, balanceByCode } = useMemo(
+    () => computePlaceLocations(storeLocations, movementsByCode, currentStoreId, dimensionOf, articleNameOf),
+    [movementsByCode, storeLocations, currentStoreId, dimensionOf, articleNameOf]
+  );
+  const placeQty = (code: string | undefined) => (code ? balanceByCode[code]?.net || 0 : 0);
 
   const visibleLocations = useMemo(() => {
     const q = search.trim().toUpperCase();
@@ -104,14 +258,14 @@ export default function WarehouseLocationsView({
   }, [visibleLocations]);
 
   const stats = useMemo(() => {
-    const occupied = storeLocations.filter(l => (occupancy[l.code]?.quantity || 0) > 0).length;
+    const occupied = storeLocations.filter(l => (balanceByCode[l.code]?.net || 0) > 0).length;
     return {
       zones: zones.length,
       total: storeLocations.length,
       occupied,
       free: storeLocations.length - occupied,
     };
-  }, [storeLocations, occupancy, zones.length]);
+  }, [storeLocations, balanceByCode, zones.length]);
 
   const canWrite = Boolean(firestore && adminUid && currentStoreId && !readOnly);
 
@@ -335,7 +489,8 @@ export default function WarehouseLocationsView({
 
   const handleDeleteLocation = async () => {
     if (!canWrite || !editingLocation.id) return;
-    const occ = occupancy[editingLocation.code || '']?.quantity || 0;
+    // Solde de CE lieu : le même code dans un autre entrepôt est un autre rack.
+    const occ = placeQty(editingLocation.code);
     const ok = await confirm({
       title: `Supprimer ${editingLocation.code}`,
       description: occ > 0
@@ -636,13 +791,14 @@ ${labels.map(l => `  <div class="label">
                           </p>
                           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-6 gap-2">
                             {locs.map(loc => {
-                              const occ = occupancy[loc.code];
-                              const qty = occ?.quantity || 0;
+                              const qty = placeQty(loc.code);
                               const inactive = loc.active === false;
+                              const contents = contentsByCode[loc.code];
                               return (
                                 <button
                                   key={loc.id}
                                   onClick={() => openLocationModal(loc)}
+                                  title={qty > 0 && contents ? contentsTooltip(loc.code, contents) : undefined}
                                   className={`text-left p-3 rounded-xl border-2 transition-all hover:shadow-md hover:scale-[1.02] ${
                                     inactive
                                       ? 'bg-stone-50 border-stone-200 opacity-60'
@@ -664,7 +820,7 @@ ${labels.map(l => `  <div class="label">
                                   )}
                                   <p className={`text-[10px] font-black mt-1 ${qty > 0 ? 'text-emerald-700' : 'text-stone-300'}`}>
                                     {qty > 0
-                                      ? `${qty.toLocaleString('fr-FR')} u. · ${occ?.references} réf.`
+                                      ? `${qty.toLocaleString('fr-FR')} u. · ${contents?.length || 0} réf.`
                                       : 'Libre'}
                                   </p>
                                 </button>
@@ -938,15 +1094,56 @@ ${labels.map(l => `  <div class="label">
               </div>
             </label>
 
-            {editingLocation.code && occupancy[editingLocation.code] && (
-              <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-100">
-                <p className="text-[10px] font-black uppercase tracking-widest text-emerald-800">Contenu actuel</p>
-                <p className="text-sm font-black text-emerald-900 mt-0.5">
-                  {occupancy[editingLocation.code].quantity.toLocaleString('fr-FR')} unité(s) ·{' '}
-                  {occupancy[editingLocation.code].references} référence(s)
-                </p>
-              </div>
-            )}
+            {editingLocation.code && movementsByCode[editingLocation.code] && (() => {
+              const code = editingLocation.code;
+              const groups = contentsByCode[code] || [];
+              // Total et références de CE lieu, comme la case de la grille : les références sont
+              // celles du détail ci-dessous, pas les articles épuisés qu'il n'affiche pas.
+              const quantity = placeQty(code);
+              // Quantité rattachée au même code dans un autre lieu : ni comptée ni détaillée ici.
+              const elsewhere = balanceByCode[code]?.elsewhere || 0;
+              return (
+                <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-100">
+                  <p className="text-[10px] font-black uppercase tracking-widest text-emerald-800">Contenu actuel</p>
+                  <p className="text-sm font-black text-emerald-900 mt-0.5">
+                    {quantity.toLocaleString('fr-FR')} unité(s) ·{' '}
+                    {groups.length} référence(s)
+                  </p>
+                  {groups.length > 0 && (
+                    <div className="mt-2 max-h-60 overflow-y-auto space-y-1.5 pr-1">
+                      {groups.map(g => (
+                        <div key={g.articleId} className="bg-white/80 rounded-lg border border-emerald-100 px-2.5 py-1.5">
+                          <div className="flex items-baseline justify-between gap-2">
+                            <p className="text-[11px] font-black text-stone-900 uppercase truncate" title={g.name}>{g.name}</p>
+                            <p className="text-[11px] font-black text-emerald-800 whitespace-nowrap">{g.quantity.toLocaleString('fr-FR')}</p>
+                          </div>
+                          {g.lines.length === 1 ? (
+                            g.lines[0].label && (
+                              <p className="text-[10px] font-bold text-stone-500 uppercase truncate">{g.lines[0].label}</p>
+                            )
+                          ) : (
+                            // Une puce par variante : « 101 · 120 », « 305 · 80 »… lisible même à 30 couleurs.
+                            <div className="mt-1 flex flex-wrap gap-1">
+                              {g.lines.map((l, i) => (
+                                <span key={i} className="inline-flex items-center gap-1 bg-emerald-50 border border-emerald-100 px-1.5 py-0.5 rounded text-[10px] font-bold text-stone-700">
+                                  <span className="uppercase">{l.label || '—'}</span>
+                                  <span className="font-black text-emerald-700">{l.quantity.toLocaleString('fr-FR')}</span>
+                                </span>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {elsewhere > 0 && (
+                    <p className="text-[10px] font-bold text-amber-700 mt-2">
+                      {elsewhere.toLocaleString('fr-FR')} autre(s) unité(s) enregistrée(s) sous le code {code} dans un autre lieu, non comptée(s) ici.
+                    </p>
+                  )}
+                </div>
+              );
+            })()}
           </div>
           <DialogFooter className="flex-row gap-2">
             {editingLocation.id && canWrite && (

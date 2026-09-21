@@ -207,8 +207,10 @@ export default function BaseOrdersView({ articles, factures, subCategories, gene
           size: item.size || '',
           purchasePricePerUnit: Number(item.purchasePricePerUnit) || 0,
           quantity: Number(item.quantity) || 0,
+          // Une seule ventilation par article : entre couleurs et tailles, les couleurs
+          // priment (l'entree en stock ne sait ventiler que sur une dimension).
           colorBreakdown: item.colorBreakdown || null,
-          sizeBreakdown: item.sizeBreakdown || null,
+          sizeBreakdown: item.colorBreakdown ? null : (item.sizeBreakdown || null),
           status: 'PI',
           priority: 'todo',
           orderDate: new Date().toISOString().split('T')[0],

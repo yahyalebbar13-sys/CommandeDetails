@@ -649,11 +649,12 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
     
     let isSplit = false;
     let splitCount = 1;
+    const VENTILATION_LABELS: Record<string, string> = { quality: 'qualités', design: 'modèles', color: 'couleurs', size: 'tailles' };
 
     const groups = new Map<number, any[]>();
     let splitType = '';
 
-    if (qualityBreakdown && qualityBreakdown.length > 0) {
+    if (qualityBreakdown && qualityBreakdown.length > 1) {
       splitType = 'quality';
       for (const row of qualityBreakdown) {
         const price = (row.priceOverride !== '' && row.priceOverride !== undefined) ? Number(row.priceOverride) : Number(formData.purchasePricePerUnit || 0);
@@ -683,6 +684,23 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
       }
     }
 
+    // Un article n'entre en stock que d'une seule façon : la première ventilation renseignée
+    // (qualités, puis modèles, puis couleurs, puis tailles) sert à l'entrée, les autres restent
+    // sur le document pour le bon de commande et la packing list. On le dit plutôt que de les
+    // effacer : ce sont des informations saisies à la main.
+    const autresVentilations = [
+      splitType !== 'quality' && qualityBreakdown && qualityBreakdown.length > 1 ? 'qualités' : null,
+      splitType !== 'design' && designBreakdown && designBreakdown.length > 0 ? 'modèles' : null,
+      splitType !== 'color' && colorBreakdown && colorBreakdown.length > 0 ? 'couleurs' : null,
+      splitType !== 'size' && sizeBreakdown && sizeBreakdown.length > 0 ? 'tailles' : null,
+    ].filter(Boolean) as string[];
+    if (splitType && autresVentilations.length > 0) {
+      toast({
+        title: 'Entrée en stock par ' + (VENTILATION_LABELS[splitType] || splitType),
+        description: `Cet article porte aussi une ventilation par ${autresVentilations.join(' et ')} : elle reste sur la commande mais ne servira pas à l'entrée en stock.`,
+      });
+    }
+
     try {
       if (groups.size > 1) {
         isSplit = true;
@@ -691,10 +709,10 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
         for (const [price, rows] of groups.entries()) {
           const groupQty = rows.reduce((s, r) => s + (Number(r.rolls || r.quantity) || 0), 0);
           const splitData = {
-            qualityBreakdown: splitType === 'quality' ? rows : (qualityBreakdown && qualityBreakdown.length > 1 ? qualityBreakdown : null),
-            designBreakdown: splitType === 'design' ? rows : (designBreakdown && designBreakdown.length > 0 ? designBreakdown : null),
-            colorBreakdown: splitType === 'color' ? rows : (colorBreakdown && colorBreakdown.length > 0 ? colorBreakdown : null),
-            sizeBreakdown: splitType === 'size' ? rows : (sizeBreakdown && sizeBreakdown.length > 0 ? sizeBreakdown : null),
+            qualityBreakdown: splitType === 'quality' ? rows : null,
+            designBreakdown: splitType === 'design' ? rows : null,
+            colorBreakdown: splitType === 'color' ? rows : null,
+            sizeBreakdown: splitType === 'size' ? rows : null,
           };
           if (isFirst) {
             const finalData = cleanUndefined({

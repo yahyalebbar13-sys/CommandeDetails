@@ -140,6 +140,172 @@ export function generateLocationCodes(params: GenerateLocationsParams): string[]
 /** Garde-fou : au-delà, la génération en lot est presque sûrement une erreur de saisie. */
 export const MAX_GENERATED_LOCATIONS = 500;
 
+// ── Variantes ────────────────────────────────────────────────────────────────
+// Un article d'arrivage n'est ventilé que sur UNE dimension à la fois, dans cet ordre de
+// priorité : qualité, puis couleur, puis taille (même règle que l'entrée en stock et que
+// computeStockItems). Chaque ligne de mouvement porte le libellé de sa variante dans le champ
+// de cette dimension (m.quality, m.color ou m.size) ; les autres champs peuvent valoir
+// 'various' et ne doivent donc jamais servir à filtrer.
+
+export type VariantDimension = 'quality' | 'color' | 'size';
+
+/** Une variante de stock : la dimension ventilée et le libellé tel qu'écrit sur les mouvements. */
+export type StockVariant = { dimension: VariantDimension; value: string };
+
+/** Libellés comparés comme dans le calcul du stock : sans casse, espaces autour retirés. */
+export function normalizeVariantValue(value: unknown): string {
+  return String(value ?? '').trim().toLowerCase();
+}
+
+/** Le mouvement appartient-il à cette variante ? Sans variante : toujours (article entier). */
+export function movementMatchesVariant(m: any, variant?: StockVariant | null): boolean {
+  if (!variant || !normalizeVariantValue(variant.value)) return true;
+  return normalizeVariantValue(m?.[variant.dimension]) === normalizeVariantValue(variant.value);
+}
+
+/** Variante d'une ligne de stock éclatée (StockItem virtuel) ; null pour un article simple. */
+export function stockItemVariant(
+  item: { _qualityKey?: string; _colorKey?: string; _sizeKey?: string } | null | undefined
+): StockVariant | null {
+  if (!item) return null;
+  if (item._qualityKey) return { dimension: 'quality', value: item._qualityKey };
+  if (item._colorKey) return { dimension: 'color', value: item._colorKey };
+  if (item._sizeKey) return { dimension: 'size', value: item._sizeKey };
+  return null;
+}
+
+/** Clé texte stable d'une variante (« color:bleu ») pour indexer un état d'écran ; '' = article entier. */
+export function variantKey(variant?: StockVariant | null): string {
+  const value = normalizeVariantValue(variant?.value);
+  return variant && value ? `${variant.dimension}:${value}` : '';
+}
+
+const isVarious = (v: unknown) => normalizeVariantValue(v) === 'various';
+
+/** Quantité d'une ligne de ventilation : `quantity` (qualités, tailles) ou `rolls` (couleurs). */
+export function breakdownRowQuantity(row: any): number {
+  return Number(row?.quantity ?? row?.rolls) || 0;
+}
+
+/** Total d'une ventilation, toutes lignes confondues. */
+export function totalVentilation(rows: any): number {
+  return (Array.isArray(rows) ? rows : []).reduce((somme, row) => somme + breakdownRowQuantity(row), 0);
+}
+
+/**
+ * Valeur à écrire sur un mouvement pour une dimension non ventilée. « various » veut dire
+ * « plusieurs » : l'écrire comme couleur créerait une ligne de stock « various » invendable.
+ */
+export function libelleFixe(value: unknown): string | null {
+  const texte = String(value ?? '').trim();
+  return !texte || isVarious(texte) ? null : texte;
+}
+
+/**
+ * Dimension sur laquelle un article d'arrivage est ventilé, ou null s'il entre en une seule ligne.
+ * La priorité (qualité, puis couleur, puis taille) est celle du calcul du stock
+ * (computeStockItems) : entrée et écran doivent toujours ventiler pareil, sinon la marchandise
+ * entre sur une dimension et s'affiche sur une autre.
+ *
+ * Une ventilation qui annonce PLUS que la quantité de l'article n'est pas la sienne : d'anciennes
+ * saisies recopiaient les couleurs de la commande entière sur chaque article issu d'un
+ * éclatement par prix. La suivre ferait entrer la marchandise deux fois ; l'article entre alors
+ * en une seule ligne (l'écran d'entrée le signale).
+ */
+export function articleVariantDimension(article: any): VariantDimension | null {
+  const candidates: [VariantDimension, any[]][] = [];
+  if (Array.isArray(article?.qualityBreakdown) && article.qualityBreakdown.length > 0) candidates.push(['quality', article.qualityBreakdown]);
+  if (isVarious(article?.color) && Array.isArray(article?.colorBreakdown) && article.colorBreakdown.length > 0) candidates.push(['color', article.colorBreakdown]);
+  if (isVarious(article?.size) && Array.isArray(article?.sizeBreakdown) && article.sizeBreakdown.length > 0) candidates.push(['size', article.sizeBreakdown]);
+  if (candidates.length === 0) return null;
+
+  const [dimension, rows] = candidates[0];
+  const quantite = Number(article?.quantity) || 0;
+  if (quantite > 0 && totalVentilation(rows) - quantite > 0.001) return null;
+  return dimension;
+}
+
+/**
+ * Ventilation présente mais écartée parce qu'elle dépasse la quantité de l'article : à dire à
+ * l'utilisateur avant de valider une entrée, pour qu'il corrige la saisie plutôt que de découvrir
+ * un stock entré en bloc.
+ */
+export function ventilationIgnoree(article: any): { dimension: VariantDimension; total: number } | null {
+  if (articleVariantDimension(article)) return null;
+  const rows =
+    Array.isArray(article?.qualityBreakdown) && article.qualityBreakdown.length > 0 ? ['quality', article.qualityBreakdown] as const :
+    isVarious(article?.color) && Array.isArray(article?.colorBreakdown) && article.colorBreakdown.length > 0 ? ['color', article.colorBreakdown] as const :
+    isVarious(article?.size) && Array.isArray(article?.sizeBreakdown) && article.sizeBreakdown.length > 0 ? ['size', article.sizeBreakdown] as const :
+    null;
+  return rows ? { dimension: rows[0], total: totalVentilation(rows[1]) } : null;
+}
+
+/** Une ligne d'entrée en stock d'un article : une variante (ou l'article entier) et sa quantité. */
+export type InboundVariantLine = {
+  variant: StockVariant | null;
+  /** '' pour l'article entier — voir variantKey. */
+  key: string;
+  label: string;
+  quantity: number;
+  /** Ligne de ventilation d'origine (qualité, couleur ou taille), absente pour l'article entier. */
+  row?: any;
+};
+
+/**
+ * Lignes que l'entrée en stock écrira pour un article, dans l'ordre de la ventilation. Les lignes
+ * à quantité nulle sont écartées, comme à l'écriture. C'est la source commune de l'écran
+ * (une ligne d'emplacement par variante) et de l'écriture des mouvements.
+ */
+export function articleInboundVariants(article: any): InboundVariantLine[] {
+  const dimension = articleVariantDimension(article);
+  if (!dimension) {
+    const quantity = Number(article?.quantity) || 0;
+    return [{ variant: null, key: '', label: '', quantity }];
+  }
+
+  const rows: any[] =
+    dimension === 'quality' ? article.qualityBreakdown :
+    dimension === 'color' ? article.colorBreakdown :
+    article.sizeBreakdown;
+
+  const lines: InboundVariantLine[] = [];
+  for (const row of rows) {
+    const quantity = breakdownRowQuantity(row);
+    if (quantity <= 0) continue;
+    const label =
+      dimension === 'quality' ? String(row?.quality || '').trim() :
+      dimension === 'color' ? String(row?.colorCode || row?.description || row?.color || '').trim() :
+      String(row?.size || '').trim();
+    const variant = label ? { dimension, value: label } : null;
+    lines.push({ variant, key: variantKey(variant), label, quantity, row });
+  }
+  return lines;
+}
+
+/**
+ * Relit les emplacements déjà affectés à une entrée (écran « Revoir / Corriger ») : parts
+ * regroupées par variante PUIS par emplacement. Regrouper par emplacement seul ferait perdre
+ * « quelle couleur est où » au prochain enregistrement.
+ */
+export function rehydrateInboundAllocations(
+  movements: any[], articleId: string, dimension: VariantDimension | null
+): Record<string, InboundAllocation[]> {
+  const byKey: Record<string, Record<string, InboundAllocation>> = {};
+  for (const m of movements || []) {
+    if (!m || m.articleId !== articleId || m.type !== 'IN' || !m.locationCode) continue;
+    const key = dimension ? variantKey({ dimension, value: m[dimension] }) : '';
+    const byCode = (byKey[key] ||= {});
+    const part = (byCode[m.locationCode] ||= { locationCode: m.locationCode, quantity: 0 });
+    part.quantity = Math.round((part.quantity + (Number(m.quantity) || 0)) * 1000) / 1000;
+    if (m.locationId && !part.locationId) part.locationId = m.locationId;
+  }
+  const out: Record<string, InboundAllocation[]> = {};
+  for (const [key, byCode] of Object.entries(byKey)) {
+    out[key] = Object.values(byCode).sort((a, b) => compareLocationCodes(a.locationCode, b.locationCode));
+  }
+  return out;
+}
+
 /**
  * Occupation par emplacement, dérivée des mouvements de stock (source de vérité unique, comme
  * pour le stock par magasin). Un mouvement sans locationCode n'est rattaché à aucun emplacement
@@ -178,11 +344,18 @@ export type ArticleLocationStock = {
 /**
  * Ventile le stock d'un article par emplacement, dans un lieu donné. Dérivé des mouvements,
  * comme tout le reste du calcul de stock — rien n'est stocké.
+ *
+ * Avec une variante (couleur, qualité ou taille d'un article éclaté), seuls ses mouvements
+ * comptent : le rack du Rouge ne contient pas de Bleu, même s'il s'agit du même article.
  */
 export function computeArticleLocationStock(
-  movements: any[], storeId: string, articleId: string
+  movements: any[], storeId: string, articleId: string, variant?: StockVariant | null
 ): ArticleLocationStock[] {
   const acc: Record<string, { qty: number; firstIn: string; locId?: string }> = {};
+  // Solde de l'article entier par rack : plafonne celui d'une variante. Une sortie adressée
+  // avant le suivi par variante (ou saisie à la main) a pu prendre du Bleu dans le rack du
+  // Rouge ; le rack ne contient alors plus ce que le seul Rouge laisse croire.
+  const articleNet: Record<string, number> = {};
 
   for (const m of movements || []) {
     if (!m?.locationCode) continue;
@@ -192,15 +365,22 @@ export function computeArticleLocationStock(
     if (place !== storeId) continue;
 
     const qty = Number(m.quantity) || 0;
+    const signed = m.type === 'OUT' ? -qty : qty;
+    articleNet[m.locationCode] = (articleNet[m.locationCode] || 0) + signed;
+    if (!movementMatchesVariant(m, variant)) continue;
+
     const entry = (acc[m.locationCode] ||= { qty: 0, firstIn: '9999-12-31', locId: m.locationId });
-    entry.qty += m.type === 'OUT' ? -qty : qty;
+    entry.qty += signed;
     if (m.locationId && !entry.locId) entry.locId = m.locationId;
     if (m.type !== 'OUT' && m.date && m.date < entry.firstIn) entry.firstIn = m.date;
   }
 
+  // Arrondi avant le filtre : 1,1 − 1,0 − 0,1 laisse sinon un rack « non vide » à 1e-17.
+  const round3 = (n: number) => Math.round(n * 1000) / 1000;
   return Object.entries(acc)
-    .filter(([, v]) => v.qty > 0)
-    .map(([code, v]) => ({ locationCode: code, locationId: v.locId, quantity: v.qty, firstInDate: v.firstIn }))
+    .map(([code, v]) => ({ code, v, qty: round3(Math.min(v.qty, articleNet[code] ?? v.qty)) }))
+    .filter(({ qty }) => qty > 0)
+    .map(({ code, v, qty }) => ({ locationCode: code, locationId: v.locId, quantity: qty, firstInDate: v.firstIn }))
     .sort((a, b) => a.firstInDate.localeCompare(b.firstInDate) || compareLocationCodes(a.locationCode, b.locationCode));
 }
 
@@ -219,26 +399,31 @@ export type OutboundAllocation = {
  * entré avant la mise en place des emplacements, soit parce que les emplacements n'en
  * contiennent pas assez. L'appelant écrit alors un mouvement sans emplacement pour ce reste,
  * plutôt que de rendre un emplacement négatif.
+ *
+ * Avec une variante, on ne puise que dans les emplacements de CETTE variante. Si aucun n'en
+ * contient, tout sort sans emplacement : prendre dans le rack d'une autre couleur serait une
+ * adresse inventée.
  */
 export function allocateOutbound(params: {
   movements: any[];
   storeId: string;
   articleId: string;
   quantity: number;
+  variant?: StockVariant | null;
 }): { allocations: OutboundAllocation[]; unallocated: number } {
   const total = Number(params.quantity) || 0;
   if (total <= 0) return { allocations: [], unallocated: 0 };
 
-  const buckets = computeArticleLocationStock(params.movements, params.storeId, params.articleId);
+  const buckets = computeArticleLocationStock(params.movements, params.storeId, params.articleId, params.variant);
   const allocations: OutboundAllocation[] = [];
   let remaining = total;
 
   for (const b of buckets) {
     if (remaining <= 0) break;
-    const take = Math.min(remaining, b.quantity);
+    const take = Math.round(Math.min(remaining, b.quantity) * 1000) / 1000;
     if (take <= 0) continue;
     allocations.push({ locationCode: b.locationCode, locationId: b.locationId, quantity: take });
-    remaining -= take;
+    remaining = Math.round((remaining - take) * 1000) / 1000;
   }
 
   // Arrondi défensif : les quantités peuvent être décimales (mètres, yards).
@@ -253,14 +438,16 @@ export function allocateOutbound(params: {
  * ligne sans emplacement, pour ne jamais rendre un rack négatif.
  *
  * `base` contient tous les champs communs du mouvement SAUF quantity/locationCode/locationId.
+ * `variant` restreint la FIFO aux emplacements de la couleur / qualité / taille sortie.
  */
 export function splitOutboundLines<T extends Record<string, any>>(
-  movements: any[], storeId: string, articleId: string, quantity: number, base: T
+  movements: any[], storeId: string, articleId: string, quantity: number, base: T,
+  variant?: StockVariant | null
 ): (T & { quantity: number; locationCode?: string; locationId?: string })[] {
   const qty = Number(quantity) || 0;
   if (qty <= 0) return [];
 
-  const { allocations, unallocated } = allocateOutbound({ movements, storeId, articleId, quantity: qty });
+  const { allocations, unallocated } = allocateOutbound({ movements, storeId, articleId, quantity: qty, variant });
   const lines = allocations.map(a => ({
     ...base,
     quantity: a.quantity,
@@ -320,8 +507,10 @@ export function distributeInboundRows<T extends { quantity: number }>(
         locationCode: buckets[bi].locationCode,
         ...(buckets[bi].locationId ? { locationId: buckets[bi].locationId } : {}),
       });
-      buckets[bi].left -= take;
-      left -= take;
+      // Arrondi à chaque pas : 0.1 + 0.2 ≠ 0.3 laisserait sinon un reliquat fantôme, écrit
+      // comme un mouvement de quantité 0.
+      buckets[bi].left = Math.round((buckets[bi].left - take) * 1000) / 1000;
+      left = Math.round((left - take) * 1000) / 1000;
     }
 
     // Reliquat au-delà des parts saisies : rangé nulle part, mais bien entré en stock.
@@ -335,13 +524,80 @@ export function distributeInboundRows<T extends { quantity: number }>(
  * Emplacement à proposer pour une ENTRÉE quand le formulaire n'offre pas de choix explicite
  * (retour client, ajustement d'inventaire…) : celui où l'article se trouve déjà, à condition
  * qu'il n'y en ait qu'un. Sinon on préfère ne rien décider.
+ *
+ * Avec une variante, « un seul emplacement » s'entend pour CETTE variante : un retour de Bleu
+ * revient dans le rack du Bleu, même si le Rouge du même article est rangé ailleurs.
  */
 export function suggestInboundLocation(
-  movements: any[], storeId: string, articleId: string
+  movements: any[], storeId: string, articleId: string, variant?: StockVariant | null
 ): { locationCode: string; locationId?: string } | null {
-  const buckets = computeArticleLocationStock(movements, storeId, articleId);
+  const buckets = computeArticleLocationStock(movements, storeId, articleId, variant);
   if (buckets.length !== 1) return null;
   return { locationCode: buckets[0].locationCode, locationId: buckets[0].locationId };
+}
+
+/** Ce qu'un emplacement contient, variante par variante. */
+export type LocationContentLine = {
+  articleId: string;
+  productName?: string;
+  color?: string;
+  size?: string;
+  quality?: string;
+  quantity: number;
+};
+
+/**
+ * Contenu d'un emplacement détaillé par article ET par variante (« Rouge 120, Bleu 80 »),
+ * dérivé des mouvements. Sans storeId, tous lieux confondus, comme computeLocationOccupancy.
+ *
+ * `dimensionOf` donne la dimension ventilée de chaque article (articleVariantDimension) : seule
+ * cette dimension distingue alors les variantes, car l'entrée d'une qualité peut écrire
+ * color='various' là où la vente écrit la couleur de la ligne. Sans elle (ou pour un article
+ * inconnu, `undefined`), les trois champs servent de clé, « various » y comptant pour vide.
+ */
+export function computeLocationContents(
+  movements: any[], locationCode: string, storeId?: string,
+  dimensionOf?: (articleId: string) => VariantDimension | null | undefined
+): LocationContentLine[] {
+  const acc: Record<string, LocationContentLine> = {};
+  const clean = (v: unknown) => (v && !isVarious(v) ? String(v) : undefined);
+  for (const m of movements || []) {
+    if (!m || m.locationCode !== locationCode) continue;
+    if (storeId) {
+      const place = m.type === 'IN' && m.reason === 'TRANSFERT' ? (m.toStoreId || m.storeId) : m.storeId;
+      if (place !== storeId) continue;
+    }
+    const articleId = String(m.articleId || '');
+    const dimension = dimensionOf?.(articleId);
+    let key: string;
+    let fields: Pick<LocationContentLine, 'color' | 'size' | 'quality'>;
+    if (dimension === undefined) {
+      fields = { color: clean(m.color), size: clean(m.size), quality: clean(m.quality) };
+      key = [articleId, fields.color, fields.size, fields.quality].map(normalizeVariantValue).join('|');
+    } else if (dimension === null) {
+      // Article non ventilé : une seule ligne, ses attributs ne servent qu'à l'affichage.
+      fields = { color: clean(m.color), size: clean(m.size), quality: clean(m.quality) };
+      key = articleId;
+    } else {
+      const value = clean(m[dimension]);
+      fields = value ? { [dimension]: value } : {};
+      key = `${articleId}|${dimension}:${normalizeVariantValue(value)}`;
+    }
+    const line = (acc[key] ||= {
+      articleId,
+      productName: m.productName || m.nameFR || undefined,
+      ...fields,
+      quantity: 0,
+    });
+    const qty = Number(m.quantity) || 0;
+    line.quantity = Math.round((line.quantity + (m.type === 'OUT' ? -qty : qty)) * 1000) / 1000;
+  }
+  return Object.values(acc)
+    .filter(l => l.quantity > 0)
+    .sort((a, b) =>
+      String(a.productName || '').localeCompare(String(b.productName || '')) ||
+      String(a.quality || a.color || a.size || '').localeCompare(String(b.quality || b.color || b.size || ''))
+    );
 }
 
 /** Tri naturel des codes : A-02-10 après A-02-09, et A-10 après A-09. */
@@ -359,4 +615,42 @@ export function compareLocationCodes(a: string, b: string): number {
     if (cmp !== 0) return cmp;
   }
   return 0;
+}
+
+/**
+ * Lignes de marchandise d'un dossier d'arrivage qui n'ont aucun mouvement d'entrée : une par
+ * variante déclarée (qualité, sinon couleur, sinon taille), une pour un article sans ventilation.
+ *
+ * Compter dossier par dossier (« a-t-il au moins un mouvement ? ») ne suffit pas : une entrée
+ * à moitié écrite — le cas des couleurs, dont les quantités vivent dans `rolls` et n'écrivaient
+ * aucun mouvement — passait pour complète, et la marchandise manquante n'entrait jamais.
+ * Une ventilation entièrement à zéro n'a rien à entrer : la compter bloquerait le dossier dans
+ * la liste de réparation à jamais.
+ *
+ * @param articles  les articles du dossier
+ * @param mouvements les mouvements rattachés au dossier (les non-IN sont ignorés)
+ */
+export function lignesEntreeManquantes(articles: any[], mouvements: any[]): number {
+  const parArticle = new Map<string, any[]>();
+  for (const m of mouvements || []) {
+    if (m?.type !== 'IN') continue;
+    const cle = String(m?.articleId || '');
+    const liste = parArticle.get(cle);
+    if (liste) liste.push(m); else parArticle.set(cle, [m]);
+  }
+
+  let manquantes = 0;
+  for (const article of articles || []) {
+    const attendues = articleInboundVariants(article);
+    if (attendues.length === 0) continue;
+    const faites = parArticle.get(String(article?.id ?? '')) || [];
+    const dimension = articleVariantDimension(article);
+    if (!dimension) {
+      if (faites.length === 0) manquantes++;
+      continue;
+    }
+    const libelles = new Set(faites.map(m => String(m?.[dimension] ?? '').trim()));
+    manquantes += attendues.filter(l => !libelles.has(l.label)).length;
+  }
+  return manquantes;
 }

@@ -11,7 +11,10 @@ import { useToast } from '@/hooks/use-toast';
 import type { TransferOrder, TransferOrderItem, StockItem, StoreLocation, StockMovement, Store } from '@/lib/types';
 import { exportTransferOrderPDF } from '@/lib/pdf-export-reports';
 import { logAudit } from '@/lib/audit-log';
-import { splitOutboundLines, suggestInboundLocation } from '@/lib/warehouse-locations';
+import { cleanUndefined } from '@/lib/utils';
+import {
+  type StockVariant, type VariantDimension, splitOutboundLines, suggestInboundLocation, stockItemVariant,
+} from '@/lib/warehouse-locations';
 
 interface TransferOrdersViewProps {
   transferOrders: TransferOrder[];
@@ -24,7 +27,19 @@ interface TransferOrdersViewProps {
   adminUid: string | null;
 }
 
-
+/**
+ * Variante (couleur, qualité ou taille) d'une ligne de transfert, pour ne prendre et ne ranger
+ * que dans les racks de CETTE variante. La ligne garde l'articleId de sa ligne de stock : pour un
+ * article éclaté, c'est l'id virtuel de computeStockItems (`<id réel>__color__Bleu`), qui porte à
+ * lui seul la dimension et le libellé — utile pour un bon enregistré dont la ligne de stock n'est
+ * plus listée (vue entrepôt : les lignes vides sont masquées).
+ */
+function transferItemVariant(item: TransferOrderItem, stockItems: StockItem[]): StockVariant | null {
+  const fromStock = stockItemVariant(stockItems.find(s => s.articleId === item.articleId));
+  if (fromStock) return fromStock;
+  const m = /__(quality|color|size)__(.+)$/.exec(String(item.articleId || ''));
+  return m ? { dimension: m[1] as VariantDimension, value: m[2] } : null;
+}
 
 export default function TransferOrdersView({ transferOrders, stockItems, stores, movements = [], userRole, activeStore, adminUid }: TransferOrdersViewProps) {
   const { user } = useUser();
@@ -118,12 +133,18 @@ export default function TransferOrdersView({ transferOrders, stockItems, stores,
         createdAt: serverTimestamp(),
       };
 
-      const docRef = await addDoc(collection(firestore, 'users', adminUid, 'transferOrders'), transferData);
+      // cleanUndefined partout : une ligne peut n'avoir ni taille ni qualité (variante couleur), et
+      // Firestore refuse un champ undefined (« Unsupported field value: undefined »).
+      const docRef = await addDoc(collection(firestore, 'users', adminUid, 'transferOrders'), cleanUndefined(transferData));
 
       // Mouvements OUT (source) + IN (destination) dans le même batch atomique
       const batch = writeBatch(firestore);
+      // Copie de travail : chaque ligne générée y est ajoutée, pour que la ligne suivante d'une même
+      // variante ne reprenne pas dans un rack que la précédente vient de vider.
+      const work = [...movements];
       for (const item of selectedItems) {
         const realId = item.realArticleId || item.articleId;
+        const variant = transferItemVariant(item, stockItems);
         const common = {
           articleId: realId,
           categoryId: item.categoryId,
@@ -137,7 +158,8 @@ export default function TransferOrdersView({ transferOrders, stockItems, stores,
           createdAt: serverTimestamp()
         };
 
-        // Sortie de la source : emplacement résolu automatiquement en FIFO, sans rien demander.
+        // Sortie de la source : emplacement résolu automatiquement en FIFO, sans rien demander,
+        // parmi les racks de la variante transférée.
         const outBase = {
           ...common,
           type: 'OUT' as const,
@@ -146,23 +168,27 @@ export default function TransferOrdersView({ transferOrders, stockItems, stores,
           toStoreId: toStore,
           notes: `Transfert ${docRef.id} vers ${getStoreLabel(toStore)}`,
         };
-        for (const line of splitOutboundLines(movements, fromStore, realId, item.sentQty, outBase)) {
-          batch.set(doc(collection(firestore, 'users', adminUid, 'stockMovements')), line);
+        const outLines = splitOutboundLines(work, fromStore, realId, item.sentQty, outBase, variant);
+        for (const line of outLines) {
+          batch.set(doc(collection(firestore, 'users', adminUid, 'stockMovements')), cleanUndefined(line));
         }
+        work.push(...outLines);
 
         // Entrée à destination : on range là où le produit est déjà, si l'endroit est unique.
-        const dest = suggestInboundLocation(movements, toStore, realId);
-        batch.set(doc(collection(firestore, 'users', adminUid, 'stockMovements')), {
+        const dest = suggestInboundLocation(work, toStore, realId, variant);
+        const inLine = {
           ...common,
-          type: 'IN',
-          reason: 'TRANSFERT',
+          type: 'IN' as const,
+          reason: 'TRANSFERT' as const,
           storeId: toStore,
           toStoreId: toStore,
           fromStoreId: fromStore,
           ...(dest ? { locationCode: dest.locationCode, ...(dest.locationId ? { locationId: dest.locationId } : {}) } : {}),
           quantity: item.sentQty,
           notes: `Transfert ${docRef.id} depuis ${getStoreLabel(fromStore)}`,
-        });
+        };
+        batch.set(doc(collection(firestore, 'users', adminUid, 'stockMovements')), cleanUndefined(inLine));
+        work.push(inLine);
       }
       await batch.commit();
 
@@ -218,20 +244,26 @@ export default function TransferOrdersView({ transferOrders, stockItems, stores,
 
       // Update Transfer Order Status
       const orderRef = doc(firestore, 'users', adminUid, 'transferOrders', order.id);
-      batch.update(orderRef, {
+      batch.update(orderRef, cleanUndefined({
         status: 'VALIDATED',
         items: updatedItems,
         receivedDate: now
-      });
+      }));
+
+      // Copie de travail : réceptions et pertes déjà générées y sont ajoutées, pour que deux lignes
+      // d'une même variante ne puisent pas deux fois dans le même rack.
+      const work = [...movements];
 
       // Create IN movements for the receiver + handle discrepancies
       for (const item of updatedItems) {
         const realId = item.realArticleId || item.articleId;
+        const variant = transferItemVariant(item, stockItems);
         if (item.receivedQty && item.receivedQty > 0) {
           const inRef = doc(collection(firestore, 'users', adminUid, 'stockMovements'));
-          // Réception : on range là où le produit est déjà dans ce magasin, si l'endroit est unique.
-          const dest = suggestInboundLocation(movements, order.toStore, realId);
-          batch.set(inRef, {
+          // Réception : on range là où le produit est déjà dans ce magasin, si l'endroit est unique
+          // (pour un article éclaté : là où SA variante est déjà).
+          const dest = suggestInboundLocation(work, order.toStore, realId, variant);
+          const inLine = {
             articleId: realId,
             categoryId: item.categoryId,
             productName: item.productName,
@@ -240,8 +272,8 @@ export default function TransferOrdersView({ transferOrders, stockItems, stores,
             size: item.size,
             quality: item.quality,
             unitOfMeasure: item.unitOfMeasure,
-            type: 'IN',
-            reason: 'TRANSFERT',
+            type: 'IN' as const,
+            reason: 'TRANSFERT' as const,
             storeId: order.toStore,
             toStoreId: order.toStore,
             fromStoreId: order.fromStore,
@@ -250,7 +282,9 @@ export default function TransferOrdersView({ transferOrders, stockItems, stores,
             date: now.split('T')[0],
             notes: `Réception Bon de transfert ${order.id} depuis ${getStoreLabel(order.fromStore)}`,
             createdAt: serverTimestamp()
-          });
+          };
+          batch.set(inRef, cleanUndefined(inLine));
+          work.push(inLine);
         }
 
         // Handle discrepancies (Losses)
@@ -274,9 +308,11 @@ export default function TransferOrdersView({ transferOrders, stockItems, stores,
             notes: `Perte/Manquant lors de la réception ${order.id}`,
             createdAt: serverTimestamp()
           };
-          for (const line of splitOutboundLines(movements, order.toStore, realId, discrepancy, lossBase)) {
-            batch.set(doc(collection(firestore, 'users', adminUid, 'stockMovements')), line);
+          const lossLines = splitOutboundLines(work, order.toStore, realId, discrepancy, lossBase, variant);
+          for (const line of lossLines) {
+            batch.set(doc(collection(firestore, 'users', adminUid, 'stockMovements')), cleanUndefined(line));
           }
+          work.push(...lossLines);
         }
       }
 

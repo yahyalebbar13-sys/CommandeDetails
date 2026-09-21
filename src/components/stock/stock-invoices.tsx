@@ -36,7 +36,7 @@ interface StockInvoicesProps {
   onUpdateStatus: (id: string, status: InvoiceStatus) => Promise<void>;
   onProcessReturn?: (
     invoice: Invoice,
-    returnLines: { articleId: string; categoryId: string; productName: string; nameFR?: string; color?: string; size?: string; unitOfMeasure: string; qty: number; unitPrice: number }[]
+    returnLines: { articleId: string; categoryId: string; productName: string; nameFR?: string; color?: string; size?: string; quality?: string; unitOfMeasure: string; qty: number; unitPrice: number }[]
   ) => Promise<void>;
   onNavigate: (v: any) => void;
 }
@@ -93,6 +93,7 @@ export default function StockInvoices({ invoices, clients, payments, onRecordPay
         nameFR: item.nameFR,
         color: item.color,
         size: item.size,
+        quality: item.quality,
         unitOfMeasure: item.unitOfMeasure,
         qty: Math.min(Math.max(0, Number(returnQtys[idx]) || 0), item.qty),
         unitPrice: item.unitPrice,

@@ -49,7 +49,8 @@ import { authedFetch } from '@/lib/authed-fetch';
 import ArrivalDossierModal from './arrival-dossier-modal';
 import StoreImportRequestsView from './store-import-requests-view';
 import {
-  type StorageLocation, suggestInboundLocation, splitOutboundLines,
+  type StorageLocation, type StockVariant, type VariantDimension, suggestInboundLocation, splitOutboundLines,
+  stockItemVariant, articleVariantDimension, lignesEntreeManquantes, normalizeVariantValue,
 } from '@/lib/warehouse-locations';
 import TreasuryDashboard from './treasury-dashboard';
 import BankReconciliationView from './bank-reconciliation-view';
@@ -123,6 +124,42 @@ function getInitialQtyForStore(item: any, activeStore: string, userStoreId: stri
 
   // Pour un magasin spécifique ou un entrepôt spécifique sélectionné : strictement son stock propre
   return Number(byStore[activeStore]) || 0;
+}
+
+// Lignes de ventilation d'un article éclaté (qualité, couleur ou taille), regroupées par libellé
+// normalisé (sans casse, espaces autour retirés — voir normalizeVariantValue). Les mouvements sont
+// rattachés à une ligne par ce même libellé normalisé : deux lignes « Bleu » et « bleu » (ou deux
+// fois « 101 ») captent donc les MÊMES mouvements, et deux lignes de stock compteraient ce stock
+// deux fois — puis la consolidation d'affichage les additionnerait (160 pour 80). On n'en garde
+// qu'une : la première (son libellé, son prix, ses caractéristiques), à laquelle on ajoute la
+// quantité ventilée et le stock initial des doublons, qui eux sont bien distincts.
+// Les lignes sans libellé sont écartées, comme avant.
+function mergeBreakdownRows(rows: any[], labelOf: (row: any) => unknown): { row: any; label: string }[] {
+  const byLabel = new Map<string, { row: any; label: string }>();
+  for (const row of rows) {
+    const label = String(labelOf(row) ?? '').trim();
+    const key = normalizeVariantValue(label);
+    if (!key) continue;
+    const kept = byLabel.get(key);
+    if (!kept) { byLabel.set(key, { row, label }); continue; }
+
+    const merged: any = { ...kept.row };
+    // `quantity` pour les qualités et les tailles, `rolls` pour les couleurs.
+    for (const field of ['quantity', 'rolls']) {
+      if (kept.row[field] != null || row[field] != null) {
+        merged[field] = (Number(kept.row[field]) || 0) + (Number(row[field]) || 0);
+      }
+    }
+    if (kept.row.initialQtyByStore || row.initialQtyByStore) {
+      const byStore: Record<string, number> = {};
+      for (const source of [kept.row.initialQtyByStore, row.initialQtyByStore]) {
+        for (const [sId, val] of Object.entries(source || {})) byStore[sId] = (byStore[sId] || 0) + (Number(val) || 0);
+      }
+      merged.initialQtyByStore = byStore;
+    }
+    kept.row = merged;
+  }
+  return [...byLabel.values()];
 }
 
 export function computeStockItems(
@@ -276,13 +313,35 @@ export function computeStockItems(
     const colorBreakdown: any[] = Array.isArray(a.colorBreakdown) ? a.colorBreakdown : [];
     const sizeBreakdown:  any[] = Array.isArray(a.sizeBreakdown)  ? a.sizeBreakdown  : [];
 
-    // ── CAS 0 : qualityBreakdown renseigné (multi-qualités fabric ou zipper ou thread ou slider) ──
-    if (qualityBreakdown.length > 0) {
-      const totalQualityQty = qualityBreakdown.reduce((s, r) => s + (Number(r.quantity) || 0), 0) || 1;
-      for (const row of qualityBreakdown) {
-        const qualityLabel = (row.quality || '').trim();
-        if (!qualityLabel) continue;
+    // Mouvements d'une variante : libellé comparé sans casse ni espaces autour, des deux côtés
+    // (les mouvements récents sont écrits nettoyés, les libellés de ventilation pas forcément).
+    const variantMovements = (dimension: VariantDimension, label: string) => {
+      const wanted = normalizeVariantValue(label);
+      return artMovements.filter(m => normalizeVariantValue(m[dimension]) === wanted);
+    };
+    // Le repli au prorata (chaque ligne reçoit une part de TOUS les mouvements de l'article) est
+    // réservé aux données anciennes : tant qu'AUCUN mouvement ne porte le libellé d'une ligne de
+    // la ventilation, on ne sait pas à quelle variante il appartient. Dès qu'un seul en porte un,
+    // les mouvements sont écrits variante par variante et on filtre strictement : une variante
+    // sans mouvement vaut 0 (hors stock initial). Sinon une couleur à 0 rouleau, ou absente de
+    // l'arrivage, recevait une part des entrées déjà comptées chez les autres — du stock qui
+    // n'existe pas, qui se vendait et gonflait la valorisation.
+    const hasVariantMovements = (dimension: VariantDimension, rows: { label: string }[]) => {
+      const labels = new Set(rows.map(r => normalizeVariantValue(r.label)));
+      return artMovements.some(m => labels.has(normalizeVariantValue(m[dimension])));
+    };
 
+    // Dimension ventilée : exactement celle que l'entrée en stock a utilisée pour écrire les
+    // mouvements (articleVariantDimension). Décider autrement ici afficherait la marchandise
+    // sur une dimension où aucun mouvement n'a été écrit.
+    const dimensionVentilee = articleVariantDimension(a);
+
+    // ── CAS 0 : qualityBreakdown renseigné (multi-qualités fabric ou zipper ou thread ou slider) ──
+    if (dimensionVentilee === 'quality') {
+      const totalQualityQty = qualityBreakdown.reduce((s, r) => s + (Number(r.quantity) || 0), 0) || 1;
+      const qualityRows = mergeBreakdownRows(qualityBreakdown, r => r.quality);
+      const strictQuality = hasVariantMovements('quality', qualityRows);
+      for (const { row, label: qualityLabel } of qualityRows) {
         const matchedRowQ = cat?.fabricQualities?.find((q: any) => q.label?.toLowerCase() === qualityLabel.toLowerCase())
           || cat?.zipperQualities?.find((q: any) => q.label?.toLowerCase() === qualityLabel.toLowerCase())
           || cat?.threadQualities?.find((q: any) => q.label?.toLowerCase() === qualityLabel.toLowerCase())
@@ -309,11 +368,10 @@ export function computeStockItems(
           }
         }
 
-        const qualityMov = artMovements.filter(m =>
-          m.quality?.toLowerCase() === qualityLabel.toLowerCase()
-        );
+        const qualityMov = variantMovements('quality', qualityLabel);
         let mouvIN = 0, mouvOUT = 0, mouvADJ = 0;
-        const targetMovs = qualityMov.length > 0
+        // Repli au prorata des quantités ventilées : données anciennes seulement (voir hasVariantMovements).
+        const targetMovs = strictQuality
           ? qualityMov
           : artMovements.map(m => ({
               ...m,
@@ -390,22 +448,19 @@ export function computeStockItems(
     }
 
     // ── CAS 1 : color === 'various' ET colorBreakdown renseigné ──────────────
-    if ((a.color === 'various' || a.color === 'Various') && colorBreakdown.length > 0) {
-      // Un StockItem par entrée dans colorBreakdown
-      for (const row of colorBreakdown) {
-        const colorLabel = (row.colorCode || row.description || row.color || '').trim();
-        if (!colorLabel) continue;
-
+    if (dimensionVentilee === 'color') {
+      // Un StockItem par couleur de colorBreakdown (doublons de libellé fusionnés)
+      const colorRows = mergeBreakdownRows(colorBreakdown, r => r.colorCode || r.description || r.color);
+      const strictColor = hasVariantMovements('color', colorRows);
+      for (const { row, label: colorLabel } of colorRows) {
         const initialQty = isOldArrival ? 0 : getInitialQtyForStore(row, activeStore, userStoreId, stores);
 
         // Mouvements filtrés : ceux qui mentionnent cette couleur spécifiquement
-        // ou bien les mouvements globaux de l'article proportionnellement
-        const colorMov = artMovements.filter(m =>
-          m.color?.toLowerCase() === colorLabel.toLowerCase()
-        );
-        // Fallback : si aucun mouvement avec couleur, prendre les mouvements globaux / nb de couleurs
+        const colorMov = variantMovements('color', colorLabel);
+        // Repli (données anciennes seulement, voir hasVariantMovements) : aucun mouvement ne porte
+        // de couleur de la ventilation, on prend les mouvements globaux / nb de couleurs.
         let mouvIN = 0, mouvOUT = 0, mouvADJ = 0;
-        const targetMovs = colorMov.length > 0 ? colorMov : artMovements.map(m => ({ ...m, quantity: m.quantity / (colorBreakdown.length || 1) }));
+        const targetMovs = strictColor ? colorMov : artMovements.map(m => ({ ...m, quantity: m.quantity / colorRows.length }));
 
         for (const m of targetMovs) {
           if (isOldArrivalMovement(m)) continue;
@@ -478,17 +533,15 @@ export function computeStockItems(
     }
 
     // ── CAS 2 : size === 'various' ET sizeBreakdown renseigné ────────────────
-    if ((a.size === 'various' || a.size === 'Various') && sizeBreakdown.length > 0) {
-      for (const row of sizeBreakdown) {
-        const sizeLabel = (row.size || '').trim();
-        if (!sizeLabel) continue;
-
+    if (dimensionVentilee === 'size') {
+      const sizeRows = mergeBreakdownRows(sizeBreakdown, r => r.size);
+      const strictSize = hasVariantMovements('size', sizeRows);
+      for (const { row, label: sizeLabel } of sizeRows) {
         const initialQty = isOldArrival ? 0 : getInitialQtyForStore(row, activeStore, userStoreId, stores);
-        const sizeMov = artMovements.filter(m =>
-          m.size?.toLowerCase() === sizeLabel.toLowerCase()
-        );
+        const sizeMov = variantMovements('size', sizeLabel);
         let mouvIN = 0, mouvOUT = 0, mouvADJ = 0;
-        const targetMovs = sizeMov.length > 0 ? sizeMov : artMovements.map(m => ({ ...m, quantity: m.quantity / (sizeBreakdown.length || 1) }));
+        // Repli au prorata : données anciennes seulement (voir hasVariantMovements).
+        const targetMovs = strictSize ? sizeMov : artMovements.map(m => ({ ...m, quantity: m.quantity / sizeRows.length }));
 
         for (const m of targetMovs) {
           if (isOldArrivalMovement(m)) continue;
@@ -1162,12 +1215,19 @@ export default function StockApp() {
     const batch = writeBatch(firestore);
     const saleRef = doc(collection(firestore, 'users', effectiveUid, 'sales'));
     batch.set(saleRef, { ...sale, storeId, createdAt: serverTimestamp() });
+    // Copie de travail : deux lignes d'une même variante dans le même ticket doivent voir les
+    // racks déjà entamés par la ligne précédente, sinon le même rack est vidé deux fois.
+    const workingMovements: any[] = [...allMovements];
     for (const item of sale.items) {
       // Résoudre l'ID Firestore réel si l'item vient d'une variante explosée (couleur/taille/qualité)
-      const realArticleId = (stockItems.find(s => s.articleId === item.articleId) as any)?._realArticleId || item.articleId;
+      const stockItem = stockItems.find(s => s.articleId === item.articleId);
+      const realArticleId = (stockItem as any)?._realArticleId || item.articleId;
       const base = {
         articleId: realArticleId, categoryId: item.categoryId,
         productName: item.productName, color: item.color || null, size: item.size || null,
+        // La qualité, comme sur une facture : sans elle, une sortie de qualité éclatée ne serait
+        // rattachée ni au stock ni aux racks de cette qualité.
+        quality: item.quality || null,
         unitOfMeasure: item.unitOfMeasure, type: 'OUT' as const, reason: 'VENTE' as const,
         storeId,
         date: sale.date,
@@ -1176,9 +1236,10 @@ export default function StockApp() {
       };
       // La caisse ne demande jamais l'emplacement : on décrémente automatiquement en FIFO
       // celui qui contient réellement la marchandise. Une ligne peut donc produire plusieurs
-      // mouvements si le produit est éclaté sur plusieurs racks.
-      for (const line of splitOutboundLines(allMovements, storeId, realArticleId, item.qty, base)) {
+      // mouvements si le produit est éclaté sur plusieurs racks — ceux de sa variante seulement.
+      for (const line of splitOutboundLines(workingMovements, storeId, realArticleId, item.qty, base, stockItemVariant(stockItem))) {
         batch.set(doc(collection(firestore, 'users', effectiveUid, 'stockMovements')), line);
+        workingMovements.push(line);
       }
     }
     await batch.commit();
@@ -1275,14 +1336,23 @@ export default function StockApp() {
         storeId,
         createdAt: serverTimestamp()
       });
+      // Copie de travail des mouvements : les lignes déjà générées pour cette facture y sont
+      // ajoutées au fur et à mesure. Sans elle, chaque sortie serait adressée sur le stock d'avant
+      // la facture, et deux sorties d'une même variante (sous-ligne + « Dépassement stock », ou
+      // deux lignes du même produit) prendraient deux fois dans le même rack et le rendraient négatif.
+      const workingMovements: any[] = [...allMovements];
       for (const m of movementsOut) {
         const movStore = m.storeId || storeId;
-        const { quantity, ...rest } = m;
+        // _variant est un champ d'aide du flux de vente (couleur / qualité / taille de la ligne de
+        // stock) : il choisit les racks, et on le retire ici pour qu'il ne soit jamais écrit.
+        const { quantity, _variant, ...rest } = m;
         const base = { ...cleanUndefined(rest), storeId: movStore, createdAt: serverTimestamp() };
         // Facturation : même règle qu'à la caisse, l'emplacement est résolu tout seul en FIFO.
-        for (const line of splitOutboundLines(allMovements, movStore, m.articleId, quantity, base)) {
+        const lines = splitOutboundLines(workingMovements, movStore, m.articleId, quantity, base, _variant);
+        for (const line of lines) {
           batch.set(doc(collection(firestore, 'users', effectiveUid, 'stockMovements')), line);
         }
+        workingMovements.push(...lines);
       }
       if (initialPayments && initialPayments.length > 0) {
         for (const p of initialPayments) {
@@ -1321,12 +1391,31 @@ export default function StockApp() {
   // ── Retours clients (SAV) ────────────────────────────────────────────────
   const handleProcessReturn = useCallback(async (
     invoice: Invoice,
-    returnLines: { articleId: string; categoryId: string; productName: string; nameFR?: string; color?: string; size?: string; unitOfMeasure: string; qty: number; unitPrice: number }[]
+    returnLines: { articleId: string; categoryId: string; productName: string; nameFR?: string; color?: string; size?: string; quality?: string; unitOfMeasure: string; qty: number; unitPrice: number }[]
   ) => {
     if (!user || !firestore) return;
     const effectiveUid = adminUid || user.uid;
     const validLines = returnLines.filter(l => l.qty > 0);
     if (validLines.length === 0) return;
+
+    // Variante du produit retourné (couleur, qualité ou taille d'un article éclaté) : la ligne
+    // porte l'articleId réel et les libellés vendus, la ventilation de l'article dit lequel
+    // compte. L'écran de retour ne transmet pas la qualité : on la reprend de la facture quand
+    // une seule qualité de ce produit y figure. `undefined` = article éclaté, variante inconnue.
+    const returnVariant = (line: typeof validLines[number]): StockVariant | null | undefined => {
+      const dimension = articleVariantDimension(articles.find((a: any) => a.id === line.articleId));
+      if (!dimension) return null;
+      let value = String(line[dimension] || '').trim();
+      if (!value && dimension === 'quality') {
+        const sold = (invoice.items || []).filter(it =>
+          it.articleId === line.articleId && normalizeVariantValue(it.quality) &&
+          normalizeVariantValue(it.color) === normalizeVariantValue(line.color) &&
+          normalizeVariantValue(it.size) === normalizeVariantValue(line.size)
+        );
+        if (new Set(sold.map(it => normalizeVariantValue(it.quality))).size === 1) value = String(sold[0].quality).trim();
+      }
+      return value ? { dimension, value } : undefined;
+    };
 
     const returnValue = validLines.reduce((s, l) => s + l.qty * l.unitPrice, 0);
     const today = getLocalDateString();
@@ -1339,7 +1428,10 @@ export default function StockApp() {
         const returnStore = invoice.storeId || 'CHRIFA';
         // Un retour repart là où le produit est déjà rangé — sans rien demander au vendeur.
         // S'il est éclaté sur plusieurs racks, on ne devine pas et le retour reste non adressé.
-        const back = suggestInboundLocation(allMovements, returnStore, line.articleId);
+        // Pour un article éclaté, seuls les racks de SA variante comptent ; si on ne sait pas
+        // laquelle revient, le retour reste non adressé plutôt que rangé chez une autre couleur.
+        const variant = returnVariant(line);
+        const back = variant === undefined ? null : suggestInboundLocation(allMovements, returnStore, line.articleId, variant);
         batch.set(mRef, cleanUndefined({
           articleId: line.articleId,
           categoryId: line.categoryId,
@@ -1347,6 +1439,8 @@ export default function StockApp() {
           nameFR: line.nameFR || null,
           color: line.color || null,
           size: line.size || null,
+          // Sans la qualité, le retour d'une qualité éclatée n'était crédité à aucune d'elles.
+          quality: (variant?.dimension === 'quality' ? variant.value : line.quality) || null,
           unitOfMeasure: line.unitOfMeasure,
           type: 'IN',
           reason: 'RETOUR',
@@ -1403,7 +1497,7 @@ export default function StockApp() {
       toast({ variant: 'destructive', title: 'Erreur', description: err?.message || "Impossible d'enregistrer le retour." });
       throw err;
     }
-  }, [user, firestore, adminUid, toast, allMovements]);
+  }, [user, firestore, adminUid, toast, allMovements, articles]);
 
   // ── Inventaire physique ───────────────────────────────────────────────────
   const handleFinalizeInventorySession = useCallback(async (storeId: string, itemCount: number, varianceCount: number) => {
@@ -2404,6 +2498,7 @@ export default function StockApp() {
                 stores={stores}
                 locations={storageLocations}
                 movements={allMovements}
+                articles={articles}
                 adminUid={adminUid}
                 readOnly={isReadOnly}
               />
@@ -2760,11 +2855,39 @@ export default function StockApp() {
                 return updatedAt ? updatedAt.getTime() >= sevenDaysAgoTs : false;
               };
 
+              // Articles et mouvements d'entrée indexés par dossier : sans ça chaque ligne
+              // affichée reparcourt la totalité des mouvements.
+              const artsParFacture = new Map<string, any[]>();
+              for (const a of articles as any[]) {
+                for (const cle of new Set([a.factureId, a.facture].filter(Boolean).map(String))) {
+                  const liste = artsParFacture.get(cle);
+                  if (liste) liste.push(a); else artsParFacture.set(cle, [a]);
+                }
+              }
+              const entreesParFacture = new Map<string, any[]>();
+              for (const m of allMovements as any[]) {
+                if (m.type !== 'IN') continue;
+                for (const cle of new Set([m.factureId, m.factureRef].filter(Boolean).map(String))) {
+                  const liste = entreesParFacture.get(cle);
+                  if (liste) liste.push(m); else entreesParFacture.set(cle, [m]);
+                }
+              }
+
               const recentDated = factures
-                .filter(isRecentlyEntered)
-                .map((f: any) => {
-                  const factureArts = articles.filter((a: any) => a.factureId === f.id || a.facture === f.id);
-                  const hasRealMovements = allMovements.some((m: any) => (m.factureId === f.id || m.factureRef === f.id) && m.type === 'IN');
+                .map((f: any) => ({
+                  f,
+                  // Ligne par ligne : un dossier à moitié entré doit rester réparable, pas seulement
+                  // un dossier sans aucun mouvement.
+                  lignesAbsentes: f.stockEntryDate
+                    ? lignesEntreeManquantes(artsParFacture.get(f.id) || [], entreesParFacture.get(f.id) || [])
+                    : 0,
+                }))
+                // Une entrée incomplète reste réparable quelle que soit son ancienneté : sinon le
+                // bouton « Compléter l'Entrée » est hors de portée pour les vieux dossiers ratés.
+                .filter(({ f, lignesAbsentes }: any) => isRecentlyEntered(f) || (f.stockEntryDate && lignesAbsentes > 0))
+                .map(({ f, lignesAbsentes }: any) => {
+                  const factureArts = artsParFacture.get(f.id) || [];
+                  const hasRealMovements = lignesAbsentes === 0;
                   const setAt = toDateSafe(f.stockEntryDateSetAt) || toDateSafe(f.updatedAt);
                   const setAtStr = setAt ? toLocalDateStr(setAt) : null;
                   return {
@@ -2773,6 +2896,7 @@ export default function StockApp() {
                     artCount: factureArts.length,
                     totalQty: factureArts.reduce((s: number, a: any) => s + (Number(a.quantity) || 0), 0),
                     hasRealMovements,
+                    lignesAbsentes,
                     // Affiché seulement quand la saisie est postérieure à la date d'entrée déclarée
                     // (régularisation) — sinon l'info est redondante.
                     backdatedSetAt: setAtStr && setAtStr !== f.stockEntryDate ? setAtStr : null,
@@ -2781,7 +2905,9 @@ export default function StockApp() {
                     sortKey: setAtStr && setAtStr > (f.stockEntryDate || '') ? setAtStr : (f.stockEntryDate || ''),
                   };
                 })
-                .sort((a, b) => b.sortKey.localeCompare(a.sortKey));
+                .sort((a, b) => (a.hasRealMovements === b.hasRealMovements)
+                  ? b.sortKey.localeCompare(a.sortKey)
+                  : (a.hasRealMovements ? 1 : -1));
 
               const missingCount = recentDated.filter(item => !item.hasRealMovements).length;
 
@@ -2793,16 +2919,17 @@ export default function StockApp() {
                       <div>
                         <p className="text-[11px] font-black text-stone-500 uppercase tracking-[0.3em] mb-2">Réconciliation</p>
                         <h2 className="text-3xl font-black text-white uppercase tracking-tighter">
-                          Arrivages <span className="text-emerald-500">Récents</span>
+                          Entrées en <span className="text-emerald-500">Stock</span>
                         </h2>
                         <p className="text-stone-400 text-xs mt-2 max-w-lg">
-                          Dossiers dont la date d'entrée en stock a été saisie depuis /gestion au cours des 7
-                          derniers jours. Complétez l'entrepôt et les valeurs pour créer les mouvements de stock réels.
+                          Dossiers dont la date d'entrée en stock a été saisie au cours des 7 derniers jours,
+                          <span className="text-stone-300"> plus tous ceux dont l'entrée est incomplète</span>, quelle
+                          que soit leur ancienneté. Complétez l'entrepôt et les valeurs pour créer les mouvements manquants.
                         </p>
                       </div>
                       <div className="flex flex-wrap items-center gap-3">
                         <div className="bg-white/5 border border-white/10 rounded-2xl px-5 py-3">
-                          <p className="text-[11px] font-black uppercase tracking-widest text-stone-400">Arrivages (≤ 7j)</p>
+                          <p className="text-[11px] font-black uppercase tracking-widest text-stone-400">Dossiers listés</p>
                           <p className="text-2xl font-black text-white mt-0.5">{recentDated.length}</p>
                         </div>
                         <div className={`border rounded-2xl px-5 py-3 ${missingCount > 0 ? 'bg-amber-500/10 border-amber-500/20' : 'bg-emerald-500/10 border-emerald-500/20'}`}>
@@ -2816,14 +2943,14 @@ export default function StockApp() {
                   {recentDated.length === 0 ? (
                     <div className="bg-white rounded-2xl p-16 text-center border border-stone-100 shadow-sm">
                       <Anchor className="w-12 h-12 text-stone-300 mx-auto mb-4" />
-                      <p className="text-stone-600 font-black uppercase text-xs tracking-widest">Aucun arrivage récent</p>
+                      <p className="text-stone-600 font-black uppercase text-xs tracking-widest">Rien à réconcilier</p>
                       <p className="text-stone-400 text-[11px] font-medium mt-1">
-                        Aucun dossier n'a de date d'entrée en stock saisie au cours des 7 derniers jours.
+                        Aucune entrée en stock saisie ces 7 derniers jours, et aucune entrée incomplète.
                       </p>
                     </div>
                   ) : (
                     <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-                      {recentDated.map(({ f, artCount, totalQty, hasRealMovements, backdatedSetAt }) => (
+                      {recentDated.map(({ f, artCount, totalQty, hasRealMovements, lignesAbsentes, backdatedSetAt }) => (
                         <div
                           key={f.id}
                           className={`bg-white rounded-2xl border-2 p-5 flex flex-col justify-between gap-3 shadow-sm hover:shadow-md transition-all ${
@@ -2859,6 +2986,11 @@ export default function StockApp() {
                                 <p className="text-[10px] font-black text-stone-900 mt-0.5">{artCount} réf. ({(Number(totalQty) || 0).toLocaleString()} pcs)</p>
                               </div>
                             </div>
+                            {!hasRealMovements && (
+                              <p className="text-[10px] font-black text-amber-700 uppercase tracking-wide mt-2 text-center">
+                                {lignesAbsentes} ligne{lignesAbsentes > 1 ? 's' : ''} sans mouvement d'entrée
+                              </p>
+                            )}
                           </div>
                           <button
                             onClick={() => { setPassToStockId(f.id); setPassToStockForceEditable(true); }}

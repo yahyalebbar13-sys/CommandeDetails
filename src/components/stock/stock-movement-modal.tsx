@@ -15,6 +15,7 @@ import {
 import { getLocalDateString } from '@/lib/constants';
 import {
   type StorageLocation, compareLocationCodes, computeArticleLocationStock, suggestInboundLocation,
+  stockItemVariant,
 } from '@/lib/warehouse-locations';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -436,14 +437,18 @@ export default function StockMovementModal({
   // Pré-remplit l'emplacement tout seul — même logique qu'à la caisse : en sortie on prend le
   // plus ancien dépôt (FIFO), en entrée on range là où le produit se trouve déjà. L'utilisateur
   // garde la main pour corriger, mais il n'a rien à saisir dans le cas courant.
+  // Pour un article éclaté, seuls les racks de la variante choisie sont proposés : un mouvement
+  // de Bleu ne pré-remplit jamais le rack du Rouge du même article.
   useEffect(() => {
     if (!form.articleId || availableLocations.length === 0) return;
     const place = form.physicalStoreId || form.storeId;
     if (!place) return;
-    const realId = (stockItems.find(s => s.articleId === form.articleId) as any)?._realArticleId || form.articleId;
+    const stock = stockItems.find(s => s.articleId === form.articleId);
+    const realId = (stock as any)?._realArticleId || form.articleId;
+    const variant = stockItemVariant(stock);
     const suggestion = form.type === 'OUT'
-      ? computeArticleLocationStock(allMovements, place, realId)[0]?.locationCode
-      : suggestInboundLocation(allMovements, place, realId)?.locationCode;
+      ? computeArticleLocationStock(allMovements, place, realId, variant)[0]?.locationCode
+      : suggestInboundLocation(allMovements, place, realId, variant)?.locationCode;
     if (!suggestion) return;
     setForm(f => (f.locationCode ? f : { ...f, locationCode: suggestion }));
   }, [form.articleId, form.type, form.physicalStoreId, form.storeId, availableLocations.length, allMovements, stockItems]);
@@ -556,7 +561,8 @@ export default function StockMovementModal({
               categories={categories}
               generalCategories={generalCategories}
               formType={form.type}
-              onSelect={id => setForm(f => ({ ...f, articleId: id }))}
+              // L'emplacement suit le produit : celui d'une autre variante ne vaut plus.
+              onSelect={id => setForm(f => ({ ...f, articleId: id, locationCode: '' }))}
             />
           ) : (
             // Produit sélectionné — fiche avec champs étiquetés
@@ -565,7 +571,7 @@ export default function StockMovementModal({
                 <Label className="text-[11px] font-black uppercase tracking-widest text-stone-500">Produit sélectionné</Label>
                 <button
                   type="button"
-                  onClick={() => setForm(f => ({ ...f, articleId: '' }))}
+                  onClick={() => setForm(f => ({ ...f, articleId: '', locationCode: '' }))}
                   className="text-[10px] font-black text-stone-400 hover:text-red-600 uppercase tracking-widest underline decoration-dotted transition-colors"
                 >
                   ✕ Changer
