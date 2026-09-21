@@ -1358,7 +1358,9 @@ export default function PassToStockModal({
             onClick={() => onOpenChange(false)}
             className={`${isAlreadyInStock ? 'flex-1 bg-stone-800 hover:bg-stone-900 text-white rounded-xl' : 'flex-1 hover:bg-stone-200'} text-[10px] font-black uppercase tracking-widest h-11`}
           >
-            {isAlreadyInStock ? "Fermer" : "Annuler"}
+            {/* « Annuler » à côté de « Dévalider » se lirait comme « annuler l'arrivage » : dès
+                qu'il y a une entrée, ce bouton ne fait que fermer la fenêtre, il le dit. */}
+            {(isAlreadyInStock || entreeAAnnuler) ? "Fermer" : "Annuler"}
           </Button>
           {entreeAAnnuler && (
             <Button
