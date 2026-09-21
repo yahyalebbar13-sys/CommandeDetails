@@ -39,6 +39,15 @@ check('MSC depuis le nom', scacDeLaCompagnie('MSC') === 'MSCU');
 check('CMA CGM depuis le nom', scacDeLaCompagnie('CMA CGM MAROC') === 'CMDU');
 check('Maersk depuis le préfixe du conteneur', scacDeLaCompagnie('', 'MRKU1234567') === 'MAEU');
 check('inconnu → rien (ShipsGo devine)', scacDeLaCompagnie('Transit Atlas', '26HD1004') === undefined);
+// Codes vérifiés contre le catalogue ShipsGo : leur identifiant n'est pas
+// toujours le SCAC usuel, ni le préfixe du conteneur.
+check('PIL → PCIU et non PILU', scacDeLaCompagnie('PIL') === 'PCIU');
+check('Wan Hai → 22AA', scacDeLaCompagnie('WAN HAI LINES') === '22AA');
+check('Marfret (ligne Maroc)', scacDeLaCompagnie('MARFRET') === 'MFTU');
+check('tous les codes ont le format attendu par ShipsGo',
+  ['MSC', 'MAERSK', 'CMA CGM', 'HAPAG LLOYD', 'ZIM', 'ONE', 'EVERGREEN', 'COSCO', 'OOCL', 'YANG MING',
+   'PIL', 'HAMBURG SUD', 'WAN HAI', 'HMM', 'SEALAND', 'ARKAS', 'MARFRET', 'TARROS', 'MESSINA', 'GRIMALDI']
+    .every(n => /^(SG_)?[A-Z0-9]{4}$/.test(scacDeLaCompagnie(n) || '')));
 
 console.log('\n── Dates ──');
 check('jour gardé dans le fuseau du port', jourDe('2026-03-18T23:30:00+02:00') === '2026-03-18');

@@ -147,10 +147,13 @@ export function referenceValide(reference: string): boolean {
 }
 
 // ─── Compagnie maritime ───────────────────────────────────────────────────────
-// ShipsGo identifie les compagnies par leur code SCAC (4 lettres). Le dossier,
-// lui, garde un nom saisi à la main (« MSC », « CMA CGM »…). La table couvre les
-// compagnies rencontrées sur nos lignes ; le préfixe du numéro de conteneur sert
-// de secours. Sans correspondance on n'envoie rien : ShipsGo devine seul.
+// ShipsGo identifie les compagnies par un code de quatre caractères, proche du
+// SCAC mais pas toujours identique — Wan Hai vaut « 22AA » chez eux, et PIL se
+// dit « PCIU » et non « PILU », qui n'est qu'un préfixe de conteneur. Ces codes
+// ont été confrontés un par un à leur catalogue (GET /ocean/carriers, 206
+// compagnies) le 21 septembre 2026. Un code inconnu ferait rejeter la demande,
+// alors qu'en l'absence de code ShipsGo devine seul : dans le doute, on n'envoie
+// rien.
 const SCAC_PAR_NOM: { motif: RegExp; scac: string }[] = [
   { motif: /\bMSC\b|MEDITERRANEAN SHIPPING/i, scac: 'MSCU' },
   { motif: /MAERSK/i,                          scac: 'MAEU' },
@@ -162,11 +165,17 @@ const SCAC_PAR_NOM: { motif: RegExp; scac: string }[] = [
   { motif: /COSCO/i,                           scac: 'COSU' },
   { motif: /OOCL/i,                            scac: 'OOLU' },
   { motif: /YANG ?MING/i,                      scac: 'YMLU' },
-  { motif: /\bPIL\b|PACIFIC INTERNATIONAL/i,   scac: 'PILU' },
+  { motif: /\bPIL\b|PACIFIC INTERNATIONAL/i,   scac: 'PCIU' },
   { motif: /HAMBURG/i,                         scac: 'SUDU' },
-  { motif: /ARKAS/i,                           scac: 'ARKU' },
-  { motif: /\bWAN ?HAI\b/i,                    scac: 'WHLC' },
+  { motif: /\bWAN ?HAI\b/i,                    scac: '22AA' },
   { motif: /\bHMM\b|HYUNDAI/i,                 scac: 'HDMU' },
+  { motif: /SEALAND/i,                         scac: 'SEJJ' },
+  // Lignes méditerranéennes courantes sur Casablanca et Tanger-Med.
+  { motif: /ARKAS/i,                           scac: 'ARKU' },
+  { motif: /MARFRET/i,                         scac: 'MFTU' },
+  { motif: /TARROS/i,                          scac: 'GETU' },
+  { motif: /MESSINA/i,                         scac: 'LMCU' },
+  { motif: /GRIMALDI/i,                        scac: 'GRIU' },
 ];
 
 /** Préfixes de conteneur sans ambiguïté sur la compagnie propriétaire. */
@@ -178,7 +187,8 @@ const SCAC_PAR_PREFIXE: Record<string, string> = {
   ZIMU: 'ZIMU', ONEY: 'ONEY', TLLU: 'ONEY',
   EGLV: 'EGLV', EGHU: 'EGLV',
   COSU: 'COSU', CSNU: 'COSU', OOLU: 'OOLU',
-  YMLU: 'YMLU', PILU: 'PILU', SUDU: 'SUDU',
+  YMLU: 'YMLU', PILU: 'PCIU', SUDU: 'SUDU',
+  WHLU: '22AA', WHSU: '22AA',
 };
 
 /** Code SCAC à transmettre à ShipsGo, ou undefined si on n'est pas sûr. */
