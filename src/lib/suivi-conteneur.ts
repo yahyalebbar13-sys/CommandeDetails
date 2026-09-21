@@ -167,10 +167,21 @@ export function referenceDepuisDossier(facture: {
   return bl && referenceValide(bl) ? bl : undefined;
 }
 
+/** Date du jour en yyyy-mm-dd, dans le fuseau de celui qui regarde. */
+function aujourdHui(): string {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
 /**
- * Le suivi de ce dossier vaut-il un crédit ? Un dossier sans numéro, déjà suivi,
- * ou dont la marchandise est arrivée n'a plus rien à apprendre d'une compagnie
- * maritime.
+ * Le suivi de ce dossier vaut-il un crédit ?
+ *
+ * Il sert à savoir quand la marchandise arrive — donc uniquement pour ce qui
+ * n'est pas encore arrivé. Sont écartés : un dossier déjà suivi, sans numéro
+ * exploitable, entré en stock, ou dont la date d'arrivée est passée (le
+ * conteneur est alors au port ou en dédouanement, la compagnie n'a plus rien à
+ * annoncer). Un dossier sans date, lui, mérite le suivi : c'est justement la
+ * compagnie qui donnera l'ETA.
  */
 export function dossierAOuvrir(facture: {
   noBL?: string | null;
@@ -180,8 +191,9 @@ export function dossierAOuvrir(facture: {
 }): boolean {
   if (facture?.suivi?.shipmentId) return false;
   if (facture?.stockEntryDate) return false;
-  if (isArrivalOlderThanOneMonth(facture?.arrivalDate)) return false;
-  return Boolean(referenceDepuisDossier(facture));
+  if (!referenceDepuisDossier(facture)) return false;
+  const eta = (facture?.arrivalDate || '').slice(0, 10);
+  return !eta || eta >= aujourdHui();
 }
 
 // ─── Compagnie maritime ───────────────────────────────────────────────────────

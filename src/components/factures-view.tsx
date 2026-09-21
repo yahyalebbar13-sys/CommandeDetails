@@ -1048,7 +1048,7 @@ export default function FacturesView({
             <Radar className="w-4 h-4 text-stone-900 mt-0.5 shrink-0" />
             <div>
               <p className="text-[11px] font-black text-stone-900 uppercase tracking-widest">
-                {aSuivre.length} arrivage{aSuivre.length > 1 ? 's' : ''} en cours sans suivi
+                {aSuivre.length} arrivage{aSuivre.length > 1 ? 's' : ''} attendu{aSuivre.length > 1 ? 's' : ''} sans suivi
               </p>
               <p className="text-[11px] font-medium text-stone-500 mt-0.5">
                 Leur n° de BL est déjà saisi ({aSuivre.slice(0, 3).map(f => f.noBL).join(', ')}

@@ -246,8 +246,16 @@ check('un suivi déjà ouvert garde son numéro',
   referenceDepuisDossier({ noBL: 'AUTRE123456', suivi: { reference: 'MEDUKV285573' } }) === 'MEDUKV285573');
 check('dossier sans BL → rien à suivre', referenceDepuisDossier({ noBL: '' }) === undefined);
 
-check('arrivage en cours avec BL → à ouvrir',
+check('arrivage encore attendu → à ouvrir',
   dossierAOuvrir({ noBL: 'MEDUKV285573', arrivalDate: demain(12) }));
+check('arrivée annoncée aujourd’hui → à ouvrir',
+  dossierAOuvrir({ noBL: 'MEDUKV285573', arrivalDate: demain(0) }));
+check('sans date d’arrivée → à ouvrir (la compagnie la donnera)',
+  dossierAOuvrir({ noBL: 'MEDUKV285573' }));
+// Le suivi sert à savoir quand ça arrive : passé l'ETA, le conteneur est au port
+// et la compagnie n'a plus rien à annoncer.
+check('ETA dépassée → on ne dépense pas',
+  !dossierAOuvrir({ noBL: 'MEDUKV285573', arrivalDate: demain(-2) }));
 check('déjà suivi → on ne repaie pas',
   !dossierAOuvrir({ noBL: 'MEDUKV285573', arrivalDate: demain(12), suivi: { shipmentId: 1 } }));
 check('marchandise en stock → inutile',
