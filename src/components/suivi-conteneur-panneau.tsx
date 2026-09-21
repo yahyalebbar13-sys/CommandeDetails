@@ -287,6 +287,15 @@ export default function SuiviConteneurPanneau({
         </div>
       )}
 
+      {/* Suivi ouvert, mais ShipsGo n'a pas encore eu le temps d'interroger la
+          compagnie : dire que rien n'est cassé et qu'il n'y a rien à faire. */}
+      {(suivi.statut === 'NEW' || suivi.statut === 'INPROGRESS') && !suivi.erreur && (
+        <p className="px-6 py-3 bg-stone-50 text-[11px] font-bold text-stone-500 border-b border-stone-100">
+          ShipsGo interroge {suivi.compagnie || 'la compagnie'} — le trajet apparaît généralement en quelques
+          minutes, parfois quelques heures si la compagnie tarde. Rien à faire de votre côté.
+        </p>
+      )}
+
       {inconnu ? (
         <div className="px-6 py-5 space-y-3">
           <p className="text-[11px] font-bold text-stone-600 leading-relaxed">

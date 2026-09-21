@@ -149,9 +149,16 @@ export async function synchroniserDossier(
   adminUid: string,
   factureId: string,
   facture: any,
-  opts: { reference?: string; autoriserOuverture?: boolean; forcerDate?: boolean } = {},
+  opts: { reference?: string; autoriserOuverture?: boolean; forcerDate?: boolean; auto?: boolean } = {},
 ): Promise<ResultatSynchro> {
   const suiviActuel: SuiviConteneur | undefined = facture?.suivi || undefined;
+
+  // Ouverture déclenchée toute seule (enregistrement d'un arrivage, rattrapage
+  // en lot) : on ne dépense un crédit que là où il apprendra quelque chose. Un
+  // clic explicite dans le dossier, lui, reste souverain.
+  if (opts.auto && !suiviActuel?.shipmentId && dossierVerrouille(facture)) {
+    return { factureId, issue: 'verrouille' };
+  }
 
   const referenceDemandee = opts.reference ? normaliserReference(opts.reference) : '';
   if (referenceDemandee && !referenceValide(referenceDemandee)) {

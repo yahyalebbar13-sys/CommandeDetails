@@ -7,6 +7,8 @@
 // Pur : aucun appel réseau, aucun Firestore — testé par
 // scripts/test-suivi-conteneur.ts. Les appels vivent dans lib/shipsgo.ts.
 
+import { isArrivalOlderThanOneMonth } from './status-utils';
+
 // ─── Ce que ShipsGo renvoie ───────────────────────────────────────────────────
 /** Étape du voyage vue par la compagnie (cf. OceanShipment.status). */
 export type StatutSuivi =
@@ -144,6 +146,42 @@ export function typeReference(reference: string): TypeReference {
 export function referenceValide(reference: string): boolean {
   if (typeReference(reference) === 'conteneur') return true;
   return /^[A-Z0-9/-]{4,64}$/.test(reference);
+}
+
+/**
+ * Numéro à suivre pour ce dossier, sans rien demander à personne : celui déjà
+ * suivi, sinon le n° de BL du dossier.
+ *
+ * Les dossiers portent de vrais connaissements de compagnie — `MEDUKV285573`
+ * (MSC), `COSU9507719430` (COSCO), `ONEYNBOFK9752300` et `NB6IV3256800` (ONE),
+ * `NBOZSL585700` (HMM) — que ShipsGo reconnaît comme Master BL. L'identifiant du
+ * dossier (« 26MH114136 »), lui, n'est connu que du transitaire et ne sert pas.
+ */
+export function referenceDepuisDossier(facture: {
+  noBL?: string | null;
+  suivi?: { reference?: string } | null;
+}): string | undefined {
+  const deja = (facture?.suivi?.reference || '').trim();
+  if (deja) return deja;
+  const bl = normaliserReference(facture?.noBL || '');
+  return bl && referenceValide(bl) ? bl : undefined;
+}
+
+/**
+ * Le suivi de ce dossier vaut-il un crédit ? Un dossier sans numéro, déjà suivi,
+ * ou dont la marchandise est arrivée n'a plus rien à apprendre d'une compagnie
+ * maritime.
+ */
+export function dossierAOuvrir(facture: {
+  noBL?: string | null;
+  stockEntryDate?: string | null;
+  arrivalDate?: string | null;
+  suivi?: { shipmentId?: number; reference?: string } | null;
+}): boolean {
+  if (facture?.suivi?.shipmentId) return false;
+  if (facture?.stockEntryDate) return false;
+  if (isArrivalOlderThanOneMonth(facture?.arrivalDate)) return false;
+  return Boolean(referenceDepuisDossier(facture));
 }
 
 // ─── Compagnie maritime ───────────────────────────────────────────────────────

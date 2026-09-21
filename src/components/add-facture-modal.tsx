@@ -13,6 +13,8 @@ import { setDocumentNonBlocking, updateDocumentNonBlocking } from '@/firebase/no
 import { FileText, Calendar, Truck, Save, AlertTriangle, Hash, Ship, DollarSign, Building2 } from 'lucide-react';
 import { computeEffectiveStatus } from '@/lib/status-utils';
 import { sendStatusNotification } from '@/lib/send-status-notification';
+import { authedFetch } from '@/lib/authed-fetch';
+import { normaliserReference, referenceValide } from '@/lib/suivi-conteneur';
 
 interface AddFactureModalProps {
   open: boolean;
@@ -100,6 +102,52 @@ export default function AddFactureModal({ open, onOpenChange, editFacture, assoc
     }
   }, [editFacture, open]);
 
+  /**
+   * Demande au serveur d'ouvrir le suivi maritime du dossier. Lancé en arrière-plan :
+   * l'enregistrement ne doit pas attendre une compagnie maritime.
+   *
+   * Le dossier vient d'être écrit sans attente (setDocumentNonBlocking) : le
+   * serveur peut ne pas encore le voir. D'où les tentatives espacées sur un 404,
+   * plutôt qu'un échec qui laisserait l'arrivage sans suivi.
+   */
+  const ouvrirSuiviEnFond = async (factureId: string, reference: string) => {
+    for (let essai = 0; essai < 3; essai++) {
+      try {
+        const r = await authedFetch('/api/admin/suivi-conteneur', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ factureId, reference, auto: true }),
+        });
+        if (r.status === 404 && essai < 2) {
+          await new Promise(resoudre => setTimeout(resoudre, 800 * (essai + 1)));
+          continue;
+        }
+        const data = await r.json().catch(() => ({}));
+        if (!r.ok) {
+          // Le suivi reste activable à la main depuis le dossier : on informe
+          // sans transformer ça en échec d'enregistrement.
+          if (r.status !== 503) {
+            toast({
+              variant: 'destructive',
+              title: 'Suivi du conteneur non activé',
+              description: data?.error || 'Réessayez depuis le dossier.',
+            });
+          }
+          return;
+        }
+        if (data.issue === 'suivi-ouvert' || data.issue === 'date-modifiee' || data.issue === 'a-jour') {
+          toast({
+            title: '🚢 Suivi du conteneur activé',
+            description: `${reference} est suivi chez la compagnie. La date d'arrivée se mettra à jour toute seule.`,
+          });
+        }
+        return;
+      } catch {
+        return; // hors ligne : rien de cassé, le dossier est enregistré
+      }
+    }
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!user || !firestore || !formData.id) return;
@@ -134,6 +182,20 @@ export default function AddFactureModal({ open, onOpenChange, editFacture, assoc
     }
 
     setDocumentNonBlocking(docRef, factureData, { merge: true });
+
+    // ─── Suivi maritime, sans rien demander ──────────────────────────────────
+    // Le n° de BL est déjà là : il n'y a aucune raison de le ressaisir ailleurs.
+    // On n'ouvre un suivi (1 crédit) que sur une vraie nouveauté — dossier neuf,
+    // ou connaissement changé — et jamais sur un arrivage déjà réceptionné.
+    const blPrecedent = (capturedEditFacture?.noBL || '').toUpperCase().trim();
+    const blActuel = normaliserReference(factureData.noBL || '');
+    const dejaSuivi = Boolean(capturedEditFacture?.suivi?.shipmentId);
+    const blChange = Boolean(blActuel) && blActuel !== normaliserReference(blPrecedent);
+    // Le serveur écarte lui-même les dossiers clos : la décision de dépenser un
+    // crédit tient à un seul endroit.
+    if (blActuel && referenceValide(blActuel) && (blChange || !dejaSuivi)) {
+      ouvrirSuiviEnFond(factureId, blActuel);
+    }
 
     // ─── DEBUG ───────────────────────────────────────────────────────────────
     console.log('[Facture:save] capturedEditFacture:', capturedEditFacture?.id, 

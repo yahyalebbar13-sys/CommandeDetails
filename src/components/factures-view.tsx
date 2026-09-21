@@ -8,7 +8,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { 
   ChevronLeft, Plus, CalendarDays, Trash2, TrendingDown, 
   AlertCircle, CheckCircle2, FileText, Box, Truck,
-  ShieldCheck, Info, ArrowUpRight, Anchor, Settings2, MousePointer2, Hash, Ship, DollarSign, Building2, Pencil, FileDown, Palette, ClipboardCheck, Archive, AlertTriangle, ExternalLink, Ruler, Lock
+  ShieldCheck, Info, ArrowUpRight, Anchor, Settings2, MousePointer2, Hash, Ship, DollarSign, Building2, Pencil, FileDown, Palette, ClipboardCheck, Archive, AlertTriangle, ExternalLink, Ruler, Lock, Radar, Loader2
 } from 'lucide-react';
 import { exportFacturePDF, exportPackingDetailsPDF } from '@/lib/pdf-export';
 import CommercialExportModal from './commercial-export-modal';
@@ -90,7 +90,8 @@ import { useToast } from '@/hooks/use-toast';
 import DossierChecklistModal from './dossier-checklist-modal';
 import SuiviConteneurPanneau from './suivi-conteneur-panneau';
 import { getStatusInfo } from '@/lib/status-utils';
-import { LIBELLE_STATUT, type SuiviConteneur } from '@/lib/suivi-conteneur';
+import { LIBELLE_STATUT, dossierAOuvrir, type SuiviConteneur } from '@/lib/suivi-conteneur';
+import { authedFetch } from '@/lib/authed-fetch';
 
 interface FacturesViewProps {
   articles: any[];
@@ -253,6 +254,42 @@ export default function FacturesView({
     if (!selectedFactureId) return null;
     return declaredFactures.find(f => f.id === selectedFactureId);
   }, [declaredFactures, selectedFactureId]);
+
+  // ── Arrivages qui pourraient être suivis et ne le sont pas ─────────────────
+  const [lotEnCours, setLotEnCours] = useState(false);
+  const [confirmationLot, setConfirmationLot] = useState(false);
+  const aSuivre = useMemo(() => declaredFactures.filter(dossierAOuvrir), [declaredFactures]);
+
+  const activerSuiviEnLot = async () => {
+    // Deux temps : le premier clic annonce la dépense, le second l'engage.
+    if (!confirmationLot) { setConfirmationLot(true); return; }
+    setLotEnCours(true);
+    try {
+      const r = await authedFetch('/api/admin/suivi-lot', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ factureIds: aSuivre.map(f => f.id) }),
+      });
+      const data = await r.json();
+      if (!r.ok) throw new Error(data?.error || 'Activation impossible');
+      const ouverts = data.ouverts?.length || 0;
+      const rates = data.erreurs?.length || 0;
+      toast({
+        title: ouverts ? `🚢 ${ouverts} suivi${ouverts > 1 ? 's' : ''} ouvert${ouverts > 1 ? 's' : ''}` : 'Aucun suivi ouvert',
+        description: [
+          ouverts ? `${ouverts} conteneur${ouverts > 1 ? 's' : ''} suivi${ouverts > 1 ? 's' : ''} chez la compagnie.` : null,
+          rates ? `${rates} en échec — voir le détail dans chaque dossier.` : null,
+          data.creditsRestants !== undefined ? `Crédits restants : ${data.creditsRestants}.` : null,
+        ].filter(Boolean).join(' '),
+        variant: rates && !ouverts ? 'destructive' : undefined,
+      });
+    } catch (e: any) {
+      toast({ variant: 'destructive', title: 'Activation impossible', description: e.message });
+    } finally {
+      setLotEnCours(false);
+      setConfirmationLot(false);
+    }
+  };
 
   const selectedFactureArticles = useMemo(() => {
     if (!selectedFactureId) return [];
@@ -992,6 +1029,40 @@ export default function FacturesView({
           </div>
         </div>
       </header>
+
+      {/* Rattrapage : les arrivages enregistrés avant le suivi automatique ont
+          déjà leur n° de BL, il suffit de l'utiliser. Le coût est annoncé avant
+          d'être engagé — chaque dossier ouvert vaut un crédit ShipsGo. */}
+      {aSuivre.length > 0 && (
+        <section className="bg-white rounded-3xl border border-stone-200 shadow-sm px-6 py-4 flex flex-wrap items-center justify-between gap-4">
+          <div className="flex items-start gap-3">
+            <Radar className="w-4 h-4 text-stone-900 mt-0.5 shrink-0" />
+            <div>
+              <p className="text-[11px] font-black text-stone-900 uppercase tracking-widest">
+                {aSuivre.length} arrivage{aSuivre.length > 1 ? 's' : ''} en cours sans suivi
+              </p>
+              <p className="text-[11px] font-medium text-stone-500 mt-0.5">
+                Leur n° de BL est déjà saisi ({aSuivre.slice(0, 3).map(f => f.noBL).join(', ')}
+                {aSuivre.length > 3 ? '…' : ''}) : la compagnie peut les suivre dès maintenant.
+                Les nouveaux arrivages, eux, sont suivis dès leur enregistrement.
+              </p>
+            </div>
+          </div>
+          <Button
+            onClick={activerSuiviEnLot}
+            disabled={lotEnCours}
+            className={`h-11 rounded-2xl text-[10px] font-black uppercase tracking-widest px-6 gap-2 shrink-0 text-white ${
+              confirmationLot ? 'bg-amber-600 hover:bg-amber-700' : 'bg-stone-900 hover:bg-stone-800'
+            }`}
+          >
+            {lotEnCours
+              ? <><Loader2 className="w-4 h-4 animate-spin" /> Ouverture…</>
+              : confirmationLot
+                ? `Confirmer — ${aSuivre.length} crédit${aSuivre.length > 1 ? 's' : ''}`
+                : <><Ship className="w-4 h-4" /> Activer le suivi</>}
+          </Button>
+        </section>
+      )}
 
       {orphanedFactureIds.length > 0 && (
         <section className="space-y-4">

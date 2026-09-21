@@ -5,11 +5,13 @@
 import {
   dateArriveeDuSuivi,
   derniereEtape,
+  dossierAOuvrir,
   dossierASynchroniser,
   instantDe,
   jourDe,
   normaliserReference,
   prochaineEtape,
+  referenceDepuisDossier,
   referenceValide,
   resumerShipment,
   sansIndefinis,
@@ -226,6 +228,34 @@ check('ordre entre deux vérifications',
   (instantDe('2026-03-02 08:00:00') as number) < (instantDe('2026-03-10 04:12:00') as number));
 check('vide toléré', instantDe(null) === undefined);
 check('illisible toléré', instantDe('bientôt') === undefined);
+
+console.log('\n── Quel numéro suivre, et faut-il payer pour ? ──');
+// Formats réellement présents dans les dossiers (relevé du 21 septembre 2026).
+const BL_REELS = ['MEDUKV285573', 'COSU9507719430', 'ONEYNBOFK9752300', 'NBOZSL585700', 'NB6IV3256800'];
+const demain = (n: number) => {
+  const d = new Date();
+  d.setDate(d.getDate() + n);
+  return d.toISOString().slice(0, 10);
+};
+
+check('tous les BL réels sont exploitables', BL_REELS.every(bl => referenceValide(normaliserReference(bl))),
+  BL_REELS.filter(bl => !referenceValide(normaliserReference(bl))).join(','));
+check('le n° de BL du dossier est retenu', referenceDepuisDossier({ noBL: 'COSU9507719430' }) === 'COSU9507719430');
+check('espaces de saisie absorbés', referenceDepuisDossier({ noBL: ' medukv 285573 ' }) === 'MEDUKV285573');
+check('un suivi déjà ouvert garde son numéro',
+  referenceDepuisDossier({ noBL: 'AUTRE123456', suivi: { reference: 'MEDUKV285573' } }) === 'MEDUKV285573');
+check('dossier sans BL → rien à suivre', referenceDepuisDossier({ noBL: '' }) === undefined);
+
+check('arrivage en cours avec BL → à ouvrir',
+  dossierAOuvrir({ noBL: 'MEDUKV285573', arrivalDate: demain(12) }));
+check('déjà suivi → on ne repaie pas',
+  !dossierAOuvrir({ noBL: 'MEDUKV285573', arrivalDate: demain(12), suivi: { shipmentId: 1 } }));
+check('marchandise en stock → inutile',
+  !dossierAOuvrir({ noBL: 'MEDUKV285573', arrivalDate: demain(-2), stockEntryDate: demain(-1) }));
+check('arrivage clos depuis plus d’un mois → inutile',
+  !dossierAOuvrir({ noBL: 'MEDUKV285573', arrivalDate: demain(-45) }));
+check('sans BL → rien à ouvrir', !dossierAOuvrir({ noBL: '', arrivalDate: demain(12) }));
+check('BL trop court → rien à ouvrir', !dossierAOuvrir({ noBL: 'AB1', arrivalDate: demain(12) }));
 
 console.log('\n── Dossiers à resynchroniser ──');
 check('suivi en cours → oui', dossierASynchroniser({ suivi }));

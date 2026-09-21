@@ -79,7 +79,12 @@ async function main() {
   }
 
   const date = dateArriveeDuSuivi(suivi);
-  console.log(`\n→ Date qui serait inscrite dans le dossier : ${date || 'aucune (numéro non reconnu)'}\n`);
+  const pourquoi =
+    suivi.statut === 'UNTRACKED' ? 'numéro non reconnu par la compagnie'
+    : suivi.statut === 'NEW' || suivi.statut === 'INPROGRESS'
+      ? 'ShipsGo n’a pas encore interrogé la compagnie — relancez avec --id dans quelques minutes'
+      : 'la compagnie n’annonce pas encore de date';
+  console.log(`\n→ Date qui serait inscrite dans le dossier : ${date || `aucune (${pourquoi})`}\n`);
 }
 
 main().catch((e: any) => {

@@ -66,6 +66,9 @@ export async function POST(req: Request) {
       // Demandé explicitement depuis le dossier : applique la date de la
       // compagnie même si elle contredit une saisie manuelle.
       forcerDate: corps?.forcerDate === true,
+      // Déclenché par l'enregistrement d'un arrivage, pas par un clic : la
+      // dépense d'un crédit y est plus prudente.
+      auto: corps?.auto === true,
     });
 
     if (resultat.issue === 'erreur') {
