@@ -3,6 +3,10 @@
     {
       "path": "/api/cron/low-stock-check",
       "schedule": "0 7 * * *"
+    },
+    {
+      "path": "/api/cron/suivi-conteneurs",
+      "schedule": "0 6 * * *"
     }
   ]
 }

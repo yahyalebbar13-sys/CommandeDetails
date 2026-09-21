@@ -88,7 +88,9 @@ function getTrackingInfo(blNumber: string, shippingLine?: string): { url: string
 import { deleteDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 import { useToast } from '@/hooks/use-toast';
 import DossierChecklistModal from './dossier-checklist-modal';
+import SuiviConteneurPanneau from './suivi-conteneur-panneau';
 import { getStatusInfo } from '@/lib/status-utils';
+import { LIBELLE_STATUT, type SuiviConteneur } from '@/lib/suivi-conteneur';
 
 interface FacturesViewProps {
   articles: any[];
@@ -673,6 +675,14 @@ export default function FacturesView({
           </div>
         </header>
 
+        {/* `key` : sans elle, passer d'un dossier à l'autre garderait la saisie et
+            l'état du panneau précédent — jusqu'à ouvrir un suivi payant sur le mauvais dossier. */}
+        <SuiviConteneurPanneau
+          key={selectedFacture.id}
+          facture={selectedFacture}
+          verrouille={isFactureInStock(selectedFacture)}
+        />
+
         <div className="flex justify-end gap-3">
           <Button
             variant="outline"
@@ -1036,9 +1046,25 @@ export default function FacturesView({
               <div className="p-3 bg-stone-50 rounded-2xl text-stone-400 group-hover:bg-amber-50 group-hover:text-amber-600 transition-colors">
                 <Anchor className="w-6 h-6" />
               </div>
-              <Badge variant="outline" className="text-[9px] font-black uppercase tracking-widest border-stone-200 px-3 py-1">
-                {f.arrivalDate}
-              </Badge>
+              <div className="flex flex-col items-end gap-1.5">
+                <Badge variant="outline" className="text-[9px] font-black uppercase tracking-widest border-stone-200 px-3 py-1">
+                  {f.arrivalDate}
+                </Badge>
+                {/* Position du conteneur chez la compagnie, quand le suivi est ouvert */}
+                {(() => {
+                  const suivi: SuiviConteneur | undefined = f.suivi;
+                  const etat = suivi?.shipmentId ? LIBELLE_STATUT[suivi.statut] : null;
+                  if (!etat) return null;
+                  return (
+                    <span
+                      title={suivi?.portDechargement ? `Arrivée ${suivi.portDechargement} · ${suivi.dateDechargementReelle ? 'réelle' : 'annoncée'}` : undefined}
+                      className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[8px] font-black uppercase tracking-widest border ${etat.ton}`}
+                    >
+                      {etat.emoji} {etat.label}
+                    </span>
+                  );
+                })()}
+              </div>
             </div>
 
             <div className="flex-grow">
