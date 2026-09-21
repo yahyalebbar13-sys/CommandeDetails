@@ -46,11 +46,6 @@ export default function AuthView() {
     }
   };
 
-  const handleQuickStoreSelect = (storeName: string) => {
-    setEmail(storeName);
-    setPassword('Lebtex2026');
-  };
-
   return (
     <div className="min-h-screen flex items-center justify-center bg-[#fdfbf7] p-4">
       <Card className="w-full max-w-md shadow-xl border-stone-200">
@@ -90,36 +85,6 @@ export default function AuthView() {
                 required
                 className="bg-white border-stone-200"
               />
-            </div>
-
-            {/* Boutons de connexion rapide pour les 3 magasins */}
-            <div className="pt-1 pb-1">
-              <p className="text-[10px] font-black text-stone-400 uppercase tracking-wider mb-2 text-center">
-                Connexion rapide magasin (MDP: Lebtex2026)
-              </p>
-              <div className="grid grid-cols-3 gap-2">
-                <button
-                  type="button"
-                  onClick={() => handleQuickStoreSelect('CHRIFA')}
-                  className="py-2 px-2 text-center bg-stone-50 hover:bg-emerald-50 hover:border-emerald-400 border border-stone-200 rounded-xl text-xs font-black text-stone-700 hover:text-emerald-700 transition-all shadow-sm"
-                >
-                  🏪 CHRIFA
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleQuickStoreSelect('Derb omar')}
-                  className="py-2 px-2 text-center bg-stone-50 hover:bg-emerald-50 hover:border-emerald-400 border border-stone-200 rounded-xl text-xs font-black text-stone-700 hover:text-emerald-700 transition-all shadow-sm"
-                >
-                  🏪 Derb omar
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleQuickStoreSelect('IDAA')}
-                  className="py-2 px-2 text-center bg-stone-50 hover:bg-emerald-50 hover:border-emerald-400 border border-stone-200 rounded-xl text-xs font-black text-stone-700 hover:text-emerald-700 transition-all shadow-sm"
-                >
-                  🏪 IDAA
-                </button>
-              </div>
             </div>
 
             <Button type="submit" className="w-full bg-amber-600 hover:bg-amber-700 text-white font-bold py-6" disabled={loading}>
