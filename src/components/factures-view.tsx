@@ -271,6 +271,15 @@ export default function FacturesView({
         body: JSON.stringify({ factureIds: aSuivre.map(f => f.id) }),
       });
       const data = await r.json();
+      if (r.status === 402) {
+        // Crédits épuisés en cours de route : on dit ce qui est passé et ce qui reste.
+        toast({
+          variant: 'destructive',
+          title: 'Crédits ShipsGo épuisés',
+          description: `${data.ouverts?.length || 0} suivi(s) ouvert(s), ${data.restants || 0} dossier(s) non traités. Rechargez des crédits sur shipsgo.com puis relancez.`,
+        });
+        return;
+      }
       if (!r.ok) throw new Error(data?.error || 'Activation impossible');
       const ouverts = data.ouverts?.length || 0;
       const rates = data.erreurs?.length || 0;

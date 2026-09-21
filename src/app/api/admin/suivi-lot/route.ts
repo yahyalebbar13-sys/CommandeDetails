@@ -86,7 +86,21 @@ export async function POST(req: Request) {
       });
       if (r.creditsRestants !== undefined) creditsRestants = r.creditsRestants;
 
-      if (r.issue === 'erreur') erreurs.push({ dossier: factureId, message: r.message || 'échec' });
+      if (r.issue === 'erreur') {
+        erreurs.push({ dossier: factureId, message: r.message || 'échec' });
+        // Crédits épuisés : les dossiers suivants échoueraient tous pareil.
+        // Mieux vaut s'arrêter net et le dire que d'enchaîner dix refus.
+        if (r.codeErreur === 'CREDITS') {
+          return NextResponse.json({
+            success: false,
+            error: 'Crédits ShipsGo épuisés',
+            ouverts,
+            ignores,
+            erreurs,
+            restants: ids.length - ids.indexOf(factureId) - 1,
+          }, { status: 402 });
+        }
+      }
       else if (r.issue === 'verrouille') ignores.push({ dossier: factureId, raison: 'dossier clos' });
       else ouverts.push({ dossier: factureId, reference: r.suivi?.reference || '', statut: r.suivi?.statut });
     }

@@ -12,7 +12,7 @@
 // depuis plus d'un mois. Une fois la marchandise reçue, le voyage ne raconte
 // plus rien d'utile et corriger la date fausserait l'historique.
 
-import { ErreurShipsGo, lireSuivi, ouvrirSuivi } from './shipsgo';
+import { ErreurShipsGo, lireSuivi, ouvrirSuivi, type CodeErreurShipsGo } from './shipsgo';
 import {
   dateArriveeDuSuivi,
   instantDe,
@@ -44,6 +44,8 @@ export type ResultatSynchro = {
   ancienneDate?: string;
   creditsRestants?: number;
   message?: string;
+  /** Renseigné quand l'échec vient de ShipsGo — « CREDITS » arrête un traitement en lot. */
+  codeErreur?: CodeErreurShipsGo;
 };
 
 /** Le dossier est-il figé ? (marchandise reçue, ou arrivage clos d'office) */
@@ -210,7 +212,7 @@ export async function synchroniserDossier(
         .set(sansIndefinis({ suivi: { ...suiviActuel, erreur: message, majLe: new Date().toISOString() } }), { merge: true })
         .catch(() => { /* l'erreur d'origine prime sur celle-ci */ });
     }
-    return { factureId, issue: 'erreur', message, suivi: suiviActuel };
+    return { factureId, issue: 'erreur', message, suivi: suiviActuel, codeErreur: e instanceof ErreurShipsGo ? e.code : undefined };
   }
 }
 
