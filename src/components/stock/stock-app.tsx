@@ -1141,6 +1141,10 @@ export default function StockApp() {
   // Pass-to-stock modal (depuis onglet Arrivages)
   const [passToStockId, setPassToStockId] = useState<string | null>(null);
   const [passToStockForceEditable, setPassToStockForceEditable] = useState(false);
+  // Écran Arrivages : par défaut les dossiers récents et ceux dont l'entrée est incomplète. Sans
+  // ce bouton, un dossier entré correctement il y a plus de 7 jours n'est plus atteignable — donc
+  // ni corrigeable ni dévalidable, /gestion ne proposant aucun bouton sur un dossier verrouillé.
+  const [arrivalsShowAll, setArrivalsShowAll] = useState(false);
   // Fiche dossier en consultation (quantités seules), ouverte depuis les cartes d'arrivage.
   const [dossierViewId, setDossierViewId] = useState<string | null>(null);
 
@@ -2891,7 +2895,9 @@ export default function StockApp() {
                 })
                 // Une entrée incomplète reste réparable quelle que soit son ancienneté : sinon le
                 // bouton « Compléter l'Entrée » est hors de portée pour les vieux dossiers ratés.
-                .filter(({ f, entreeCommencee, lignesAbsentes }: any) => isRecentlyEntered(f) || (entreeCommencee && lignesAbsentes > 0))
+                .filter(({ f, entreeCommencee, lignesAbsentes }: any) => arrivalsShowAll
+                  ? entreeCommencee
+                  : (isRecentlyEntered(f) || (entreeCommencee && lignesAbsentes > 0)))
                 .map(({ f, lignesAbsentes }: any) => {
                   const factureArts = artsParFacture.get(f.id) || [];
                   const hasRealMovements = lignesAbsentes === 0;
@@ -2931,10 +2937,24 @@ export default function StockApp() {
                         <p className="text-stone-400 text-xs mt-2 max-w-lg">
                           Dossiers dont la date d'entrée en stock a été saisie au cours des 7 derniers jours,
                           <span className="text-stone-300"> plus tous ceux dont l'entrée est incomplète</span>, quelle
-                          que soit leur ancienneté. Complétez l'entrepôt et les valeurs pour créer les mouvements manquants.
+                          que soit leur ancienneté. Complétez l'entrepôt et les valeurs pour créer les mouvements
+                          manquants. « Afficher tout » liste aussi les dossiers entrés plus anciens, pour les corriger
+                          ou les dévalider.
                         </p>
                       </div>
                       <div className="flex flex-wrap items-center gap-3">
+                        <button
+                          type="button"
+                          onClick={() => setArrivalsShowAll(v => !v)}
+                          className={`border rounded-2xl px-5 py-3 text-left transition-colors cursor-pointer ${arrivalsShowAll ? 'bg-white/15 border-white/30' : 'bg-white/5 border-white/10 hover:bg-white/10'}`}
+                        >
+                          <p className="text-[11px] font-black uppercase tracking-widest text-stone-400">
+                            {arrivalsShowAll ? 'Tous les dossiers entrés' : 'Récents et incomplets'}
+                          </p>
+                          <p className="text-[10px] font-black text-emerald-400 uppercase tracking-widest mt-0.5">
+                            {arrivalsShowAll ? 'Revenir aux récents' : 'Afficher tout'}
+                          </p>
+                        </button>
                         <div className="bg-white/5 border border-white/10 rounded-2xl px-5 py-3">
                           <p className="text-[11px] font-black uppercase tracking-widest text-stone-400">Dossiers listés</p>
                           <p className="text-2xl font-black text-white mt-0.5">{recentDated.length}</p>
@@ -2952,7 +2972,9 @@ export default function StockApp() {
                       <Anchor className="w-12 h-12 text-stone-300 mx-auto mb-4" />
                       <p className="text-stone-600 font-black uppercase text-xs tracking-widest">Rien à réconcilier</p>
                       <p className="text-stone-400 text-[11px] font-medium mt-1">
-                        Aucune entrée en stock saisie ces 7 derniers jours, et aucune entrée incomplète.
+                        {arrivalsShowAll
+                          ? "Aucun dossier n'est entré en stock."
+                          : "Aucune entrée en stock saisie ces 7 derniers jours, et aucune entrée incomplète."}
                       </p>
                     </div>
                   ) : (

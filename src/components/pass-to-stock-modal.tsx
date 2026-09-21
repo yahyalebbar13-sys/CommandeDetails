@@ -291,6 +291,16 @@ export default function PassToStockModal({
     activeMovements.length > 0
   );
 
+  // Y a-t-il une entrée à annuler ? Indépendant du mode d'ouverture : /stock ouvre toujours le
+  // dossier en « forcé modifiable » pour pouvoir corriger, ce qui faisait disparaître le seul
+  // bouton capable d'annuler une entrée — « Dévalider » n'était plus atteignable nulle part.
+  // Une date d'arrivée vieille d'un mois ne compte pas : elle ne prouve aucune entrée.
+  const entreeAAnnuler = Boolean(
+    facture?.status === 'STOCK' ||
+    facture?.stockEntryDate ||
+    activeMovements.length > 0
+  );
+
   const [formData, setFormData] = useState({
     stockEntryDate: '',
     invoicePaidDhs: 0,
@@ -1350,7 +1360,7 @@ export default function PassToStockModal({
           >
             {isAlreadyInStock ? "Fermer" : "Annuler"}
           </Button>
-          {isAlreadyInStock && (
+          {entreeAAnnuler && (
             <Button
               variant="outline"
               disabled={isUnvalidating}
