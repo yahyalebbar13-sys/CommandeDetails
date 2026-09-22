@@ -84,6 +84,8 @@ export type Category = {
   customsValuePerKg?: number;
   importDutyRate?: number;
   tpiRate?: number;
+  /** Taxe intérieure de consommation, en pourcents — lue et écrite par les vues de coût. */
+  ticRate?: number;
   tvaRate?: number;
   availableSizes?: string[];
   // Fabric config
@@ -270,7 +272,7 @@ export type SupplierPayment = {
   notes?: string;
 };
 
-export type ViewType = 'dashboard' | 'to-order' | 'pending' | 'transit' | 'factures' | 'general-categories' | 'categories' | 'suppliers' | 'data' | 'timeline' | 'cost-analysis' | 'cost-sale' | 'dp' | 'reconciliation' | 'devis-pi' | 'client-profitability' | 'ai' | 'products' | 'base-orders' | 'history-revient' | 'emails' | 'qualities';
+export type ViewType = 'dashboard' | 'to-order' | 'pending' | 'transit' | 'factures' | 'general-categories' | 'categories' | 'suppliers' | 'data' | 'timeline' | 'cost-analysis' | 'cost-sale' | 'dp' | 'reconciliation' | 'devis-pi' | 'client-profitability' | 'ai' | 'products' | 'base-orders' | 'history-revient' | 'emails' | 'qualities' | 'simulateur';
 
 export type StockMovementType = 'IN' | 'OUT' | 'ADJUSTMENT';
 export type StockMovementReason = 'ARRIVAGE' | 'VENTE' | 'PERTE' | 'RETOUR' | 'INVENTAIRE' | 'TRANSFERT';

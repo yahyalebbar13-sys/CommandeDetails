@@ -18,6 +18,7 @@ import AddOrderModal from '@/components/add-order-modal';
 import EditOrderModal from '@/components/edit-order-modal';
 import AuthView from '@/components/auth-view';
 import CostAnalysisView from '@/components/cost-analysis-view';
+import SimulateurRevientView from '@/components/simulateur-revient-view';
 import HistoryRevientView from '@/components/history-revient-view';
 import CostSaleView from '@/components/cost-sale-view';
 import DPView from '@/components/dp-view';
@@ -512,6 +513,7 @@ function AdminApp() {
     { id: 'cost-sale'       as const, label: 'Coût Vente',    icon: ShoppingCart },
     { id: 'dp'              as const, label: 'Déc. Prov.',    icon: FileCheck },
     { id: 'reconciliation'  as const, label: 'Réconcil.',     icon: TrendingUp },
+    { id: 'simulateur'      as const, label: 'Simulateur',    icon: Calculator },
   ];
   const isFinanceTab = financeSubItems.some(f => f.id === activeTab);
   const navItems = [...navGroups.flat(), ...financeSubItems];
