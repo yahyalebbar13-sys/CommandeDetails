@@ -238,7 +238,10 @@ export default function StockSaleFlow({
   );
 
   const [variantModal, setVariantModal] = useState<{ open: boolean; productName: string; variants: StockItem[]; categoryId: string }>({ open: false, productName: '', variants: [], categoryId: '' });
-  const [activeSize, setActiveSize] = useState<string | null>(null);
+  // Variante choisie dans la fenêtre produit : sa dimension compte autant que sa valeur. Un
+  // groupe dont les variantes portent une qualité se présélectionnait sur cette qualité mais se
+  // filtrait sur la taille — le tableau s'ouvrait vide et le produit ne pouvait plus être vendu.
+  const [activeOption, setActiveOption] = useState<{ dimension: 'quality' | 'size'; value: string } | null>(null);
   const [activeVariant, setActiveVariant] = useState<StockItem | null>(null);
   const [customPrices, setCustomPrices] = useState<Record<string, number>>({});
 
@@ -268,10 +271,13 @@ export default function StockSaleFlow({
     });
     
     return Array.from(map.entries()).map(([name, rawVariants]) => {
-      // Deduplicate variants that have the exact same color and size
+      // Deux lignes de stock ne se fusionnent que si elles désignent la MÊME marchandise : la
+      // qualité fait partie de l'identité au même titre que la couleur et la taille. Sans elle,
+      // deux qualités du même coloris n'apparaissaient qu'une fois, avec la somme des deux, et la
+      // vente puisait dans l'une pour l'autre.
       const dedupMap = new Map<string, StockItem>();
       rawVariants.forEach(v => {
-        const vKey = `${v.color || ''}|${v.size || ''}`;
+        const vKey = `${v.quality || ''}|${v.color || ''}|${v.size || ''}`;
         if (!dedupMap.has(vKey)) {
           // Add a new property `originalItems` to keep track of the merged items
           dedupMap.set(vKey, { ...v, originalItems: [v] } as any);
@@ -286,8 +292,8 @@ export default function StockSaleFlow({
       return {
         name,
         variants: variants.sort((a, b) => {
-          const aKey = `${a.color || ''}${a.size || ''}`;
-          const bKey = `${b.color || ''}${b.size || ''}`;
+          const aKey = `${a.quality || ''}${a.color || ''}${a.size || ''}`;
+          const bKey = `${b.quality || ''}${b.color || ''}${b.size || ''}`;
           return aKey.localeCompare(bKey, undefined, { numeric: true, sensitivity: 'base' });
         }),
         totalQty: variants.reduce((s, v) => s + v.currentQty, 0),
@@ -399,8 +405,8 @@ export default function StockSaleFlow({
         );
       }
       if (key === 'qty' && target) {
-        const storeStock = target.sourceStore && target.item.qtyByStore 
-          ? (target.item.qtyByStore[target.sourceStore] ?? target.item.currentQty)
+        const storeStock = target.sourceStore
+          ? availableQtyAtStore(target.item, target.sourceStore)
           : target.item.currentQty;
         const maxQty = Math.max(1, storeStock);
         const boundedQty = Math.max(1, Math.min(val, maxQty));
@@ -413,7 +419,7 @@ export default function StockSaleFlow({
   const updateCartStore = (articleId: string, newStoreId: string) => {
     setCart(prev => prev.map(l => {
       if (l.item.articleId !== articleId) return l;
-      const maxQty = l.item.qtyByStore ? ((l.item.qtyByStore as any)[newStoreId] || l.item.currentQty) : l.item.currentQty;
+      const maxQty = availableQtyAtStore(l.item, normalizeSourceStore(newStoreId));
       return {
         ...l,
         sourceStore: normalizeSourceStore(newStoreId),
@@ -1077,10 +1083,9 @@ export default function StockSaleFlow({
                         <button type="button" key={group.name}
                           onClick={() => {
                             const hasQ = group.variants.some(v => Boolean(v.quality));
-                            const options = hasQ
-                              ? (Array.from(new Set(group.variants.map(v => v.quality).filter(Boolean))) as string[])
-                              : (Array.from(new Set(group.variants.map(v => v.size).filter(Boolean))) as string[]);
-                            setActiveSize(options.length > 0 ? options[0] : null);
+                            const dimension: 'quality' | 'size' = hasQ ? 'quality' : 'size';
+                            const options = Array.from(new Set(group.variants.map(v => v[dimension]).filter(Boolean))) as string[];
+                            setActiveOption(options.length > 0 ? { dimension, value: options[0] } : null);
                             setActiveVariant(null);
                             setVariantModal({ open: true, productName: group.name, variants: group.variants, categoryId: group.categoryId });
                           }}
@@ -1203,7 +1208,7 @@ export default function StockSaleFlow({
           {/* Articles */}
           <div className="space-y-3">
             {cart.map(({ item, qty, unitPrice, sourceStore }, idx) => {
-              const availableStock = sourceStore && item.qtyByStore ? (item.qtyByStore[sourceStore] ?? item.currentQty) : item.currentQty;
+              const availableStock = sourceStore ? availableQtyAtStore(item, sourceStore) : item.currentQty;
               return (
               <div key={item.articleId} className="bg-white rounded-2xl border border-stone-200 overflow-hidden">
                 <div className="p-4 flex items-start gap-4">
@@ -1237,18 +1242,20 @@ export default function StockSaleFlow({
                           onChange={e => updateCartStore(item.articleId, e.target.value)}
                           className="h-6 text-[10px] font-black bg-white rounded border border-stone-300 text-stone-800 px-1 outline-none focus:border-violet-500 cursor-pointer"
                         >
-                          {stores && stores.length > 0 ? (
-                            stores.map(s => {
-                              const q = item.qtyByStore ? ((item.qtyByStore as any)[s.id] || 0) : 0;
-                              return (
-                                <option key={s.id} value={s.id}>
-                                  {s.type === 'WAREHOUSE' ? '🏢' : '🏪'} {s.name} ({q} dispo)
-                                </option>
-                              );
-                            })
-                          ) : (
-                            <option value={sourceStore || selectedStoreId}>{sourceStore || selectedStoreId}</option>
-                          )}
+                          {(() => {
+                            const lieux = (stores || [])
+                              .filter(s => s.type !== 'WAREHOUSE')
+                              .map(s => ({ s, q: availableQtyAtStore(item, s.id) }))
+                              .filter(({ s, q }) => q > 0 || s.id === sourceStore);
+                            if (lieux.length === 0) {
+                              return <option value={sourceStore || selectedStoreId}>{sourceStore || selectedStoreId}</option>;
+                            }
+                            return lieux.map(({ s, q }) => (
+                              <option key={s.id} value={s.id}>
+                                🏪 {s.name} ({q} dispo)
+                              </option>
+                            ));
+                          })()}
                         </select>
                       </div>
                       <span className="text-[10px] text-stone-300 font-bold">{item.categoryId}</span>
@@ -1878,23 +1885,29 @@ export default function StockSaleFlow({
           </div>
           
           {(() => {
-            const sizes = Array.from(new Set(variantModal.variants.map(v => v.size).filter(Boolean))) as string[];
+            // Les pastilles suivent la dimension réellement sélectionnée : qualités si le produit en
+            // porte, tailles sinon. Elles n'énuméraient que les tailles, y compris quand la
+            // sélection portait sur une qualité.
+            const dimension: 'quality' | 'size' = variantModal.variants.some(v => Boolean(v.quality)) ? 'quality' : 'size';
+            const sizes = Array.from(new Set(variantModal.variants.map(v => v[dimension]).filter(Boolean))) as string[];
             if (sizes.length > 0) {
               return (
                 <div className="bg-white px-5 py-3 border-b border-stone-100">
-                  <p className="text-[11px] font-black text-stone-400 uppercase tracking-widest mb-2">Choisir la taille</p>
+                  <p className="text-[11px] font-black text-stone-400 uppercase tracking-widest mb-2">
+                    {dimension === 'quality' ? 'Choisir la qualité' : 'Choisir la taille'}
+                  </p>
                   <div className="flex gap-2 flex-wrap">
                     {sizes.map(size => {
-                      const sizeQty = variantModal.variants.filter(v => v.size === size).reduce((s, v) => s + v.currentQty, 0);
+                      const sizeQty = variantModal.variants.filter(v => v[dimension] === size).reduce((s, v) => s + v.currentQty, 0);
                       return (
-                        <button key={size} onClick={() => setActiveSize(size)}
+                        <button key={size} onClick={() => setActiveOption({ dimension, value: size })}
                           className={`px-5 py-2.5 rounded-xl text-sm font-black transition-all ${
-                            activeSize === size 
+                            activeOption?.value === size 
                               ? 'bg-stone-900 text-white shadow-lg' 
                               : 'bg-stone-100 text-stone-700 hover:bg-stone-200'
                           }`}>
                           {size}
-                          <span className={`ml-1.5 text-[10px] font-bold ${activeSize === size ? 'text-stone-400' : 'text-stone-400'}`}>({sizeQty})</span>
+                          <span className={`ml-1.5 text-[10px] font-bold ${activeOption?.value === size ? 'text-stone-400' : 'text-stone-400'}`}>({sizeQty})</span>
                         </button>
                       );
                     })}
@@ -1945,7 +1958,9 @@ export default function StockSaleFlow({
           ) : (
             <div className="p-5 max-h-[50vh] overflow-y-auto">
               <p className="text-[11px] font-black text-stone-400 uppercase tracking-widest mb-3">
-                {activeSize ? `Couleurs pour la taille ${activeSize}` : 'Variantes disponibles'}
+                {activeOption
+                  ? `Couleurs pour ${activeOption.dimension === 'quality' ? 'la qualité' : 'la taille'} ${activeOption.value}`
+                  : 'Variantes disponibles'}
               </p>
               
               <div className="bg-white rounded-2xl border border-stone-200 overflow-hidden shadow-sm">
@@ -1959,7 +1974,7 @@ export default function StockSaleFlow({
                   </thead>
                   <tbody className="divide-y divide-stone-100">
                     {variantModal.variants
-                      .filter(v => activeSize ? v.size === activeSize : true)
+                      .filter(v => activeOption ? v[activeOption.dimension] === activeOption.value : true)
                       .sort((a, b) => (a.color || a.productName).localeCompare(b.color || b.productName))
                       .map((v) => {
                         const inCartLine = cart.find(l => l.item.articleId === v.articleId);

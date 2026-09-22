@@ -54,6 +54,7 @@ import StoreImportRequestsView from './store-import-requests-view';
 import {
   type StorageLocation, type StockVariant, type VariantDimension, suggestInboundLocation, splitOutboundLines,
   stockItemVariant, articleVariantDimension, lignesEntreeManquantes, normalizeVariantValue,
+  breakdownRowQuantity,
 } from '@/lib/warehouse-locations';
 import TreasuryDashboard from './treasury-dashboard';
 import BankReconciliationView from './bank-reconciliation-view';
@@ -322,16 +323,54 @@ export function computeStockItems(
       const wanted = normalizeVariantValue(label);
       return artMovements.filter(m => normalizeVariantValue(m[dimension]) === wanted);
     };
-    // Le repli au prorata (chaque ligne reçoit une part de TOUS les mouvements de l'article) est
-    // réservé aux données anciennes : tant qu'AUCUN mouvement ne porte le libellé d'une ligne de
-    // la ventilation, on ne sait pas à quelle variante il appartient. Dès qu'un seul en porte un,
-    // les mouvements sont écrits variante par variante et on filtre strictement : une variante
-    // sans mouvement vaut 0 (hors stock initial). Sinon une couleur à 0 rouleau, ou absente de
-    // l'arrivage, recevait une part des entrées déjà comptées chez les autres — du stock qui
-    // n'existe pas, qui se vendait et gonflait la valorisation.
-    const hasVariantMovements = (dimension: VariantDimension, rows: { label: string }[]) => {
+    // Mouvements que la ventilation ne réclame pas : sans libellé, ou sous un libellé qui n'y
+    // figure pas (entrée écrite avant l'étiquetage, libellé renommé depuis…). EUX SEULS se
+    // répartissent entre les lignes. Un mouvement étiqueté appartient à SA variante.
+    //
+    // Avant, la décision était tout-ou-rien pour l'article entier : dès qu'UN SEUL mouvement
+    // portait un libellé — une vente de 5, un ajustement d'inventaire de −2 — tout passait en
+    // mode strict et l'entrée en bloc de 500 n'était plus rattachée à personne : 500 unités
+    // s'évaporaient de l'écran et de la valorisation. À l'inverse, ignorer ces orphelins
+    // effacerait du stock bien réel.
+    const mouvementsOrphelins = (dimension: VariantDimension, rows: { label: string }[]) => {
       const labels = new Set(rows.map(r => normalizeVariantValue(r.label)));
-      return artMovements.some(m => labels.has(normalizeVariantValue(m[dimension])));
+      return artMovements.filter(m => !labels.has(normalizeVariantValue(m[dimension])));
+    };
+
+    // Part des mouvements orphelins qui revient à une ligne : au prorata des quantités ventilées,
+    // et à parts égales seulement si aucune ligne n'en porte. Une ligne à 0 ne reçoit rien —
+    // sinon une couleur commandée mais jamais reçue se retrouverait avec du stock à vendre.
+    const partOrphelins = (orphelins: any[], quantiteLigne: number, totalVentile: number, nbLignes: number) => {
+      const part = totalVentile > 0 ? (quantiteLigne / totalVentile) : (1 / Math.max(1, nbLignes));
+      if (!(part > 0)) return [];
+      return orphelins.map(m => ({ ...m, quantity: Math.round((Number(m.quantity) || 0) * part * 1000) / 1000 }));
+    };
+
+    // Stock initial d'une ligne de ventilation. « Ajouter à l'inventaire » n'inscrit le stock que
+    // sur l'ARTICLE, jamais ligne par ligne : sans répartition, un produit ventilé par couleur ou
+    // par taille affichait 0 partout (invisible dans /stock alors que la boutique l'affichait),
+    // et un produit ventilé par qualité recevait le total ENTIER sur CHAQUE ligne dans qtyByStore
+    // — stock multiplié par le nombre de qualités à la caisse, aux transferts et à l'inventaire.
+    // Le reliquat d'arrondi va à la dernière ligne, pour que la somme retombe juste.
+    const repartirStockInitial = (rows: { row: any }[], parts: number[]): (Record<string, number> | null)[] => {
+      const cartes: (Record<string, number> | null)[] = rows.map(r => (r.row?.initialQtyByStore as any) || null);
+      if (isOldArrival || !a.initialQtyByStore) return isOldArrival ? rows.map(() => null) : cartes;
+      const aRepartir = rows.map((_, i) => i).filter(i => !cartes[i]);
+      if (aRepartir.length === 0) return cartes;
+      const total = parts.reduce((somme, q) => somme + q, 0);
+      for (const [sId, val] of Object.entries(a.initialQtyByStore)) {
+        const totalMagasin = Number(val) || 0;
+        let distribue = 0;
+        aRepartir.forEach((i, rang) => {
+          const part = total > 0 ? (parts[i] / total) : (1 / aRepartir.length);
+          const q = (rang === aRepartir.length - 1)
+            ? Math.round((totalMagasin - distribue) * 1000) / 1000
+            : Math.round(totalMagasin * part);
+          distribue += q;
+          cartes[i] = { ...(cartes[i] || {}), [sId]: q };
+        });
+      }
+      return cartes;
     };
 
     // Dimension ventilée : exactement celle que l'entrée en stock a utilisée pour écrire les
@@ -341,10 +380,12 @@ export function computeStockItems(
 
     // ── CAS 0 : qualityBreakdown renseigné (multi-qualités fabric ou zipper ou thread ou slider) ──
     if (dimensionVentilee === 'quality') {
-      const totalQualityQty = qualityBreakdown.reduce((s, r) => s + (Number(r.quantity) || 0), 0) || 1;
       const qualityRows = mergeBreakdownRows(qualityBreakdown, r => r.quality);
-      const strictQuality = hasVariantMovements('quality', qualityRows);
-      for (const { row, label: qualityLabel } of qualityRows) {
+      const partsQualite = qualityRows.map(r => breakdownRowQuantity(r.row));
+      const totalQualityQty = partsQualite.reduce((somme, q) => somme + q, 0);
+      const cartesQualite = repartirStockInitial(qualityRows, partsQualite);
+      const orphelinsQualite = mouvementsOrphelins('quality', qualityRows);
+      for (const [indexLigne, { row, label: qualityLabel }] of qualityRows.entries()) {
         const matchedRowQ = cat?.fabricQualities?.find((q: any) => q.label?.toLowerCase() === qualityLabel.toLowerCase())
           || cat?.zipperQualities?.find((q: any) => q.label?.toLowerCase() === qualityLabel.toLowerCase())
           || cat?.threadQualities?.find((q: any) => q.label?.toLowerCase() === qualityLabel.toLowerCase())
@@ -353,33 +394,19 @@ export function computeStockItems(
         const rowNameFR = row.nameFR || matchedRowQ?.nameFR || itemFR;
         const rowProductName = rowNameFR || (qualityLabel ? `${baseCategoryName} ${qualityLabel}`.trim() : productName);
 
-        const rowPrice = (row.priceOverride !== '' && row.priceOverride !== undefined && Number(row.priceOverride) > 0)
-          ? Number(row.priceOverride)
-          : price;
-
-        let initialQty = 0;
-        if (!isOldArrival) {
-          if (row.initialQtyByStore) {
-            initialQty = getInitialQtyForStore(row, activeStore, userStoreId, stores);
-          } else if (a.initialQtyByStore) {
-            const rowRatio = (Number(row.quantity) || 0) / totalQualityQty;
-            const proratedStoreMap: Record<string, number> = {};
-            Object.entries(a.initialQtyByStore).forEach(([sId, val]) => {
-              proratedStoreMap[sId] = Math.round((Number(val) || 0) * rowRatio);
-            });
-            initialQty = getInitialQtyForStore({ initialQtyByStore: proratedStoreMap }, activeStore, userStoreId, stores);
-          }
-        }
+        // Prix : le même que pour les couleurs et les tailles. `priceOverride` est un prix d'achat
+        // en DOLLARS (libellé « PA ($) » à la saisie de la commande) : l'écrire ici valorisait le
+        // stock d'un article ventilé par qualité en dollars, et lui seul.
+        const initialQty = cartesQualite[indexLigne]
+          ? getInitialQtyForStore({ initialQtyByStore: cartesQualite[indexLigne] as any }, activeStore, userStoreId, stores)
+          : 0;
 
         const qualityMov = variantMovements('quality', qualityLabel);
         let mouvIN = 0, mouvOUT = 0, mouvADJ = 0;
-        // Repli au prorata des quantités ventilées : données anciennes seulement (voir hasVariantMovements).
-        const targetMovs = strictQuality
-          ? qualityMov
-          : artMovements.map(m => ({
-              ...m,
-              quantity: Math.round((m.quantity * (Number(row.quantity) || 1)) / totalQualityQty)
-            }));
+        const targetMovs = [
+          ...qualityMov,
+          ...partOrphelins(orphelinsQualite, partsQualite[indexLigne], totalQualityQty, qualityRows.length),
+        ];
 
         for (const m of targetMovs) {
           if (isOldArrivalMovement(m)) continue;
@@ -430,21 +457,21 @@ export function computeStockItems(
           pcsPerBag:           row.pcsPerBag ?? a.pcsPerBag,
           bagsPerCarton:       row.bagsPerCarton ?? a.bagsPerCarton,
           unitOfMeasure:       a.unitOfMeasure || 'unité',
-          purchasePricePerUnit: rowPrice,
+          purchasePricePerUnit: price,
           hasTTCCost,
           sellingPrice:        sellPrice,
           initialQty,
           mouvementsIn:        mouvIN,
           mouvementsOut:       mouvOUT,
           currentQty,
-          totalValue:          currentQty * rowPrice,
+          totalValue:          currentQty * price,
           totalSellingValue:   sellPrice ? currentQty * sellPrice : undefined,
           minThreshold:        a.minStockThreshold,
           lastMovementDate:    lastMov?.date ?? a.stockEntryDate,
           stockEntryDate:      a.stockEntryDate,
           _realArticleId:      a.id,
           _qualityKey:         qualityLabel,
-          qtyByStore:          computeQtyByStoreHelper(row.initialQtyByStore ? row : a, targetMovs, isOldArrival),
+          qtyByStore:          computeQtyByStoreHelper({ initialQtyByStore: cartesQualite[indexLigne] || {} }, targetMovs, isOldArrival),
         } as any);
       }
       continue;
@@ -454,16 +481,22 @@ export function computeStockItems(
     if (dimensionVentilee === 'color') {
       // Un StockItem par couleur de colorBreakdown (doublons de libellé fusionnés)
       const colorRows = mergeBreakdownRows(colorBreakdown, r => r.colorCode || r.description || r.color);
-      const strictColor = hasVariantMovements('color', colorRows);
-      for (const { row, label: colorLabel } of colorRows) {
-        const initialQty = isOldArrival ? 0 : getInitialQtyForStore(row, activeStore, userStoreId, stores);
+      const partsCouleur = colorRows.map(r => breakdownRowQuantity(r.row));
+      const totalCouleur = partsCouleur.reduce((somme, q) => somme + q, 0);
+      const cartesCouleur = repartirStockInitial(colorRows, partsCouleur);
+      const orphelinsCouleur = mouvementsOrphelins('color', colorRows);
+      for (const [indexLigne, { row, label: colorLabel }] of colorRows.entries()) {
+        const initialQty = cartesCouleur[indexLigne]
+          ? getInitialQtyForStore({ initialQtyByStore: cartesCouleur[indexLigne] as any }, activeStore, userStoreId, stores)
+          : 0;
 
-        // Mouvements filtrés : ceux qui mentionnent cette couleur spécifiquement
+        // Les mouvements de CETTE couleur, plus sa part de ceux qui n'en portent aucune.
         const colorMov = variantMovements('color', colorLabel);
-        // Repli (données anciennes seulement, voir hasVariantMovements) : aucun mouvement ne porte
-        // de couleur de la ventilation, on prend les mouvements globaux / nb de couleurs.
         let mouvIN = 0, mouvOUT = 0, mouvADJ = 0;
-        const targetMovs = strictColor ? colorMov : artMovements.map(m => ({ ...m, quantity: m.quantity / colorRows.length }));
+        const targetMovs = [
+          ...colorMov,
+          ...partOrphelins(orphelinsCouleur, partsCouleur[indexLigne], totalCouleur, colorRows.length),
+        ];
 
         for (const m of targetMovs) {
           if (isOldArrivalMovement(m)) continue;
@@ -529,7 +562,7 @@ export function computeStockItems(
           // Conserver l'articleId réel pour les mouvements et éditions
           _realArticleId:      a.id,
           _colorKey:           colorLabel,
-          qtyByStore:          computeQtyByStoreHelper(row, targetMovs, isOldArrival),
+          qtyByStore:          computeQtyByStoreHelper({ initialQtyByStore: cartesCouleur[indexLigne] || {} }, targetMovs, isOldArrival),
         } as any);
       }
       continue; // ne pas créer le StockItem générique
@@ -538,13 +571,20 @@ export function computeStockItems(
     // ── CAS 2 : size === 'various' ET sizeBreakdown renseigné ────────────────
     if (dimensionVentilee === 'size') {
       const sizeRows = mergeBreakdownRows(sizeBreakdown, r => r.size);
-      const strictSize = hasVariantMovements('size', sizeRows);
-      for (const { row, label: sizeLabel } of sizeRows) {
-        const initialQty = isOldArrival ? 0 : getInitialQtyForStore(row, activeStore, userStoreId, stores);
+      const partsTaille = sizeRows.map(r => breakdownRowQuantity(r.row));
+      const totalTaille = partsTaille.reduce((somme, q) => somme + q, 0);
+      const cartesTaille = repartirStockInitial(sizeRows, partsTaille);
+      const orphelinsTaille = mouvementsOrphelins('size', sizeRows);
+      for (const [indexLigne, { row, label: sizeLabel }] of sizeRows.entries()) {
+        const initialQty = cartesTaille[indexLigne]
+          ? getInitialQtyForStore({ initialQtyByStore: cartesTaille[indexLigne] as any }, activeStore, userStoreId, stores)
+          : 0;
         const sizeMov = variantMovements('size', sizeLabel);
         let mouvIN = 0, mouvOUT = 0, mouvADJ = 0;
-        // Repli au prorata : données anciennes seulement (voir hasVariantMovements).
-        const targetMovs = strictSize ? sizeMov : artMovements.map(m => ({ ...m, quantity: m.quantity / sizeRows.length }));
+        const targetMovs = [
+          ...sizeMov,
+          ...partOrphelins(orphelinsTaille, partsTaille[indexLigne], totalTaille, sizeRows.length),
+        ];
 
         for (const m of targetMovs) {
           if (isOldArrivalMovement(m)) continue;
@@ -609,7 +649,7 @@ export function computeStockItems(
           stockEntryDate:      a.stockEntryDate,
           _realArticleId:      a.id,
           _sizeKey:            sizeLabel,
-          qtyByStore:          computeQtyByStoreHelper(row, targetMovs, isOldArrival),
+          qtyByStore:          computeQtyByStoreHelper({ initialQtyByStore: cartesTaille[indexLigne] || {} }, targetMovs, isOldArrival),
         } as any);
       }
       continue;

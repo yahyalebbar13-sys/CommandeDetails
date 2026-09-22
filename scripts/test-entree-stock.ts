@@ -154,5 +154,79 @@ check('dossier sans article : rien à réparer',
 check('casse du libellé retouchée après coup : le dossier reste complet',
   lignesEntreeManquantes([artCouleurs], [movIn('C1', { color: 'rouge' }), movIn('C1', { color: 'Bleu' })]) === 0);
 
+// ── Stock initial et mouvements non étiquetés ───────────────────────────
+// « Ajouter à l'inventaire » n'inscrit le stock que sur l'ARTICLE. Il doit se répartir sur les
+// lignes de ventilation : ni disparaître (couleurs, tailles), ni être compté N fois (qualités).
+
+/** Lignes de stock telles que /stock les affiche pour le magasin CHRIFA. */
+function lignesChrifa(article: any, movements: any[] = []) {
+  return computeStockItems(
+    [article] as any, movements as any, [], 'CHRIFA', true, 'ADMIN',
+    [{ id: 'CHRIFA', type: 'STORE' }, { id: 'ENTREPOT', type: 'WAREHOUSE' }], 'CHRIFA', [], []
+  ).map((i: any) => ({
+    libelle: i._qualityKey || i._colorKey || i._sizeKey || '',
+    qte: Math.round(i.currentQty * 1000) / 1000,
+    chrifa: Math.round((i.qtyByStore?.CHRIFA || 0) * 1000) / 1000,
+  }));
+}
+
+console.log('\n── Stock initial d’un produit ventilé ──');
+
+const couleursInventaire = {
+  id: 'INV1', categoryId: 'RUB', quantity: 50, color: 'various',
+  initialQtyByStore: { CHRIFA: 50 },
+  colorBreakdown: [{ colorCode: 'ROUGE', rolls: 30 }, { colorCode: 'BLEU', rolls: 20 }],
+};
+const lc = lignesChrifa(couleursInventaire);
+check('couleurs : le stock initial de l’article se répartit au prorata (30 / 20)',
+  lc.map(l => `${l.libelle}:${l.qte}`).join(',') === 'ROUGE:30,BLEU:20', JSON.stringify(lc));
+check('couleurs : qtyByStore porte la même part',
+  lc.map(l => l.chrifa).join(',') === '30,20', JSON.stringify(lc));
+
+const qualitesInventaire = {
+  id: 'INV2', categoryId: 'ZIP', quantity: 200,
+  initialQtyByStore: { CHRIFA: 200 },
+  qualityBreakdown: [{ quality: 'CL-5', quantity: 100 }, { quality: 'CL-7', quantity: 100 }],
+};
+const lq = lignesChrifa(qualitesInventaire);
+check('qualités : chaque ligne reçoit sa part, pas le total',
+  lq.map(l => l.qte).join(',') === '100,100', JSON.stringify(lq));
+check('qualités : qtyByStore ne multiplie plus le stock par le nombre de qualités',
+  lq.reduce((s, l) => s + l.chrifa, 0) === 200, JSON.stringify(lq));
+
+const taillesInventaire = {
+  id: 'INV3', categoryId: 'ACC', quantity: 15, size: 'various',
+  initialQtyByStore: { CHRIFA: 15 },
+  sizeBreakdown: [{ size: '20cm', quantity: 10 }, { size: '40cm', quantity: 5 }],
+};
+const lt = lignesChrifa(taillesInventaire);
+check('tailles : le stock initial ne disparaît plus',
+  lt.map(l => l.qte).join(',') === '10,5', JSON.stringify(lt));
+
+console.log('\n── Mouvements sans libellé de variante ──');
+
+// Entrée en bloc (aucune couleur sur le mouvement) puis vente d'une couleur précise : avant, ce
+// seul mouvement étiqueté faisait basculer tout l'article en mode strict et les 500 s'évaporaient.
+const enBloc = {
+  id: 'BLOC1', categoryId: 'RUB', quantity: 500, color: 'various',
+  colorBreakdown: [{ colorCode: 'ROUGE', rolls: 300 }, { colorCode: 'BLEU', rolls: 200 }],
+};
+const lb = lignesChrifa(enBloc, [
+  { articleId: 'BLOC1', type: 'IN', reason: 'ARRIVAGE', storeId: 'CHRIFA', date: '2026-09-01', quantity: 500 },
+  { articleId: 'BLOC1', type: 'OUT', reason: 'VENTE', storeId: 'CHRIFA', date: '2026-09-10', quantity: 5, color: 'BLEU' },
+]);
+check('une vente étiquetée ne fait plus disparaître le stock des autres couleurs',
+  Math.round(lb.reduce((s, l) => s + l.qte, 0)) === 495, JSON.stringify(lb));
+check('l’entrée en bloc se répartit au prorata des quantités, pas à parts égales',
+  lb.map(l => `${l.libelle}:${l.qte}`).join(',') === 'ROUGE:300,BLEU:195', JSON.stringify(lb));
+
+// Une couleur commandée mais jamais reçue ne doit recevoir aucune part.
+const lj = lignesChrifa({
+  id: 'BLOC2', categoryId: 'RUB', quantity: 300, color: 'various',
+  colorBreakdown: [{ colorCode: 'ROUGE', rolls: 300 }, { colorCode: 'VERT', rolls: 0 }],
+}, [{ articleId: 'BLOC2', type: 'IN', reason: 'ARRIVAGE', storeId: 'CHRIFA', date: '2026-09-01', quantity: 300 }]);
+check('une couleur à zéro rouleau ne reçoit aucune part des entrées',
+  lj.map(l => `${l.libelle}:${l.qte}`).join(',') === 'ROUGE:300,VERT:0', JSON.stringify(lj));
+
 console.log(`\n${pass} réussis, ${fail} échoués`);
 if (fail > 0) process.exit(1);

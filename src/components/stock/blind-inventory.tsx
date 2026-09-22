@@ -53,8 +53,17 @@ export default function BlindInventory({
     return item.qtyByStore ? ((item.qtyByStore as any)[activeStore] || 0) : 0;
   };
 
+  // Le comptage porte sur ce qui est physiquement dans CE magasin. Le sélecteur de produits, lui,
+  // affichait currentQty : pour CHRIFA il additionne les entrepôts. Le magasinier voyait 700,
+  // comptait 700, et la fiche annonçait un théorique de 400 : l'écran écrivait un ajustement de
+  // +300 qui créait de la marchandise. Les deux regardent désormais le même nombre.
+  const stockDuPerimetre = useMemo(
+    () => stockItems.map(i => ({ ...i, currentQty: theoreticalQty(i) })),
+    [stockItems, activeStore, isRealStore]
+  );
+
   const handlePick = (articleId: string) => {
-    const item = stockItems.find(i => i.articleId === articleId);
+    const item = stockDuPerimetre.find(i => i.articleId === articleId);
     if (!item) return;
     setSelected(item);
     setCountedValue('');
@@ -185,7 +194,7 @@ export default function BlindInventory({
                     </button>
                   </div>
                   <ProductPicker
-                    stockItems={stockItems}
+                    stockItems={stockDuPerimetre}
                     categories={categories}
                     generalCategories={generalCategories}
                     formType="ADJUSTMENT"
