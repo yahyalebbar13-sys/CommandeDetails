@@ -56,7 +56,7 @@ import StoreImportRequestsView from './store-import-requests-view';
 import {
   type StorageLocation, type StockVariant, type VariantDimension, suggestInboundLocation, splitOutboundLines,
   stockItemVariant, articleVariantDimension, lignesEntreeManquantes, normalizeVariantValue,
-  breakdownRowQuantity,
+  breakdownRowQuantity, libelleFixe,
 } from '@/lib/warehouse-locations';
 import TreasuryDashboard from './treasury-dashboard';
 import BankReconciliationView from './bank-reconciliation-view';
@@ -1209,10 +1209,7 @@ export default function StockApp() {
   // ─── Handlers ────────────────────────────────────────────────────────────
   // Ce qui sera écrit : calculé à l'avance pour être relu avant de valider, et recopié dans le
   // corrigé du devoir après coup. Aucun produit n'est créé, seulement des mouvements d'entrée.
-  const lignesFormation: LigneChargement[] = useMemo(
-    () => planifierChargement(articles, (a: any) => articleVariantDimension(a) === null),
-    [articles]
-  );
+  const lignesFormation: LigneChargement[] = useMemo(() => planifierChargement(articles), [articles]);
 
   const handleChargerStockFormation = async () => {
     if (!user || !firestore || lignesFormation.length === 0) return;
@@ -1224,24 +1221,29 @@ export default function StockApp() {
     setFormationEnCours(true);
     try {
       const movsColl = collection(firestore, 'users', effectiveUid, 'stockMovements');
-      const ecritures = lignesFormation.map(l => () => cleanUndefined({
+      // Une écriture PAR VARIANTE : le libellé part dans son propre champ (quality / color /
+      // size), comme le fait une vraie entrée en stock. Un produit multicouleur entré en bloc
+      // n'afficherait aucune de ses couleurs, et la recrue ne verrait jamais le cas le plus
+      // fréquent du magasin.
+      const ecritures = lignesFormation.flatMap(l => l.variantes.map(v => () => cleanUndefined({
         articleId:            l.article.id,
         categoryId:           l.article.categoryId || null,
         productName:          l.nom,
         nameFR:               l.article.nameFR || null,
-        color:                l.article.color || null,
-        size:                 l.article.size || null,
-        quality:              l.article.quality || null,
+        color:                v.dimension === 'color' ? v.label : (libelleFixe(l.article.color) || null),
+        size:                 v.dimension === 'size' ? v.label : (libelleFixe(l.article.size) || null),
+        quality:              v.dimension === 'quality' ? v.label : (libelleFixe(l.article.quality) || null),
         unitOfMeasure:        l.article.unitOfMeasure || 'unité',
         type:                 'IN' as const,
         reason:               'INVENTAIRE' as const,
         storeId:              l.lieu === 'MAGASIN' ? magasin : entrepot,
-        quantity:             l.quantite,
+        quantity:             v.quantite,
         date:                 aujourdhui,
         purchasePricePerUnit: l.prixUnitaire > 0 ? l.prixUnitaire : null,
-        notes:                `STOCK DE FORMATION · ligne n°${l.rang} du devoir`,
+        notes:                `STOCK DE FORMATION · ligne n°${l.rang} du devoir`
+                              + (v.label ? ` · ${v.label}` : ''),
         createdAt:            serverTimestamp(),
-      }));
+      })));
       // Par lots, comme partout ailleurs : une écriture par ligne relancerait le calcul du stock
       // à chaque fois.
       for (let i = 0; i < ecritures.length; i += 450) {
@@ -1257,6 +1259,7 @@ export default function StockApp() {
         entityType: 'stockMovement',
         entityId: 'stock-formation',
         description: `Stock de formation chargé · ${lignesFormation.length} référence(s), `
+          + `${lignesFormation.reduce((somme, l) => somme + l.variantes.length, 0)} ligne(s) de stock, `
           + `${lignesFormation.reduce((somme, l) => somme + l.quantite, 0).toLocaleString('fr-MA')} unité(s)`,
         metadata: { references: lignesFormation.length, magasin, entrepot },
       });
@@ -3385,8 +3388,9 @@ export default function StockApp() {
           </div>
 
           <Encadre ton="info" className="mt-2">
-            Aucun produit n'est créé. Les quantités ci-dessous sont posées sur les {lignesFormation.length} premières
-            références simples de votre catalogue, par ordre alphabétique — la liste est donc toujours la même.
+            Aucun produit n'est créé. Les quantités sont posées sur {lignesFormation.length} références existantes,
+            prises <span className="font-black">une par famille à tour de rôle</span> et en alternant produits simples
+            et produits ventilés (couleurs, qualités, tailles) — la liste est toujours la même.
             Les dix premières vont en <span className="font-black">boutique</span>, les suivantes en{' '}
             <span className="font-black">réserve</span>. Tout s'efface avec « Reset Stock (0) ».
           </Encadre>
@@ -3403,6 +3407,7 @@ export default function StockApp() {
                   <tr>
                     <th className="px-3 py-2 text-[10px] font-black uppercase tracking-widest text-stone-500 w-10">N°</th>
                     <th className="px-3 py-2 text-[10px] font-black uppercase tracking-widest text-stone-500">Produit</th>
+                    <th className="px-3 py-2 text-[10px] font-black uppercase tracking-widest text-stone-500">Famille</th>
                     <th className="px-3 py-2 text-[10px] font-black uppercase tracking-widest text-stone-500">Lieu</th>
                     <th className="px-3 py-2 text-[10px] font-black uppercase tracking-widest text-stone-500 text-right">Quantité</th>
                     <th className="px-3 py-2 text-[10px] font-black uppercase tracking-widest text-stone-500 text-right">Valeur</th>
@@ -3412,7 +3417,15 @@ export default function StockApp() {
                   {lignesFormation.map(l => (
                     <tr key={l.rang} className="hover:bg-stone-50/60">
                       <td className="px-3 py-2 text-[11px] font-black text-stone-400">{l.rang}</td>
-                      <td className="px-3 py-2 text-[12px] font-bold text-stone-900">{l.nom}</td>
+                      <td className="px-3 py-2 text-[12px] font-bold text-stone-900">
+                        {l.nom}
+                        {l.variantes.length > 1 && (
+                          <span className="block text-[10px] font-medium text-stone-500 mt-0.5">
+                            {l.variantes.map(v => `${v.label} : ${v.quantite}`).join(' · ')}
+                          </span>
+                        )}
+                      </td>
+                      <td className="px-3 py-2 text-[11px] font-bold text-stone-400 uppercase">{l.categorie}</td>
                       <td className="px-3 py-2">
                         <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded-full ${
                           l.lieu === 'MAGASIN' ? 'bg-violet-100 text-violet-700' : 'bg-stone-100 text-stone-600'
@@ -3431,7 +3444,9 @@ export default function StockApp() {
                 </tbody>
                 <tfoot className="bg-stone-50 border-t-2 border-stone-200">
                   <tr>
-                    <td colSpan={3} className="px-3 py-2 text-[11px] font-black uppercase tracking-widest text-stone-500">Total</td>
+                    <td colSpan={4} className="px-3 py-2 text-[11px] font-black uppercase tracking-widest text-stone-500">
+                      Total · {lignesFormation.reduce((somme, l) => somme + l.variantes.length, 0)} ligne(s) de stock
+                    </td>
                     <td className="px-3 py-2 text-[12px] font-black text-stone-900 text-right tabular-nums">
                       {lignesFormation.reduce((somme, l) => somme + l.quantite, 0).toLocaleString('fr-MA')}
                     </td>
