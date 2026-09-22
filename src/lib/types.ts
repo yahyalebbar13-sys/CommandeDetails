@@ -559,6 +559,12 @@ export type ClientPayment = {
   id: string;
   clientId: string;
   invoiceId?: string;
+  /**
+   * Les factures que ce règlement solde, et pour quel montant. Un chèque unique peut en couvrir
+   * plusieurs : sans ce détail, son rejet rouvrait la dette d'une seule d'entre elles, choisie par
+   * son rang. Absent sur les règlements enregistrés avant : on retombe alors sur invoiceId.
+   */
+  allocations?: { invoiceId: string; amount: number }[];
   amount: number;
   date: string;
   method: PaymentMethod;

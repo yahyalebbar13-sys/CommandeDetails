@@ -272,11 +272,15 @@ export default function TreasuryDashboard({
   // Valider et émettre la remise
   const handleConfirmRemise = async () => {
     if (!remiseModalCompany || !onCreateRemittance) return;
-    if (remiseModalIncludedIds.length === 0) return;
+    if (modalRemisePayments.length === 0) return;
 
     try {
       setIsSubmittingRemise(true);
-      await onCreateRemittance(remiseModalCompany, remiseModalIncludedIds, remiseModalNotes);
+      // On envoie les effets RÉELLEMENT affichés dans la fenêtre (modalRemisePayments, filtrés sur
+      // la société), pas la liste brute des cases cochées : celle-ci pouvait contenir des chèques
+      // d'une autre société ou non affectés, qui partaient alors sur le bordereau et se
+      // retrouvaient réaffectés au compte de la société choisie.
+      await onCreateRemittance(remiseModalCompany, modalRemisePayments.map(p => p.id), remiseModalNotes);
       setRemiseModalCompany(null);
       setSelectedPaymentIds([]);
       setActiveTab('REMITTANCES'); // Bascule automatique vers l'historique

@@ -46,6 +46,9 @@ import StoresView       from './stores-view';
 import StockWarehouses  from './stock-warehouses';
 import WarehouseLocationsView from './warehouse-locations-view';
 import { authedFetch } from '@/lib/authed-fetch';
+import {
+  centimes, effetEnAttente, imputationsDuPaiement, agregerParFacture, statutFacture,
+} from '@/lib/reglement';
 import ArrivalDossierModal from './arrival-dossier-modal';
 import StoreImportRequestsView from './store-import-requests-view';
 import {
@@ -805,6 +808,9 @@ export default function StockApp() {
   const isOnline = useOnlineStatus();
   const [debugInfo, setDebugInfo] = useState<string>('');
   const [resetConfirmOpen, setResetConfirmOpen] = useState(false);
+  // Mot à recopier avant la remise à zéro : elle efface le fichier clients et tout l'historique
+  // commercial, c'est irréversible, et un bouton seul se clique par erreur.
+  const [resetConfirmText, setResetConfirmText] = useState('');
   const [searchOpen, setSearchOpen] = useState(false);
 
   useEffect(() => {
@@ -833,10 +839,13 @@ export default function StockApp() {
       if (data.success) {
         const r = data.report || {};
         toast({
-          title: 'Stock réinitialisé à 0 !',
-          description: `${r.deletedMovements ?? 0} mouvement(s), ${r.deletedAuditLogEntries ?? 0} entrée(s) d'audit et ${r.deletedLocalTestArticles ?? 0} article(s) de test supprimés.`,
+          title: 'Stock réinitialisé à 0',
+          description: `${r.deletedMovements ?? 0} mouvement(s), ${r.deletedClients ?? 0} client(s), `
+            + `${r.deletedInvoices ?? 0} facture(s), ${r.deletedClientPayments ?? 0} paiement(s), `
+            + `${r.deletedTransferOrders ?? 0} transfert(s) et ${r.deletedAuditLogEntries ?? 0} entrée(s) d'audit supprimés.`,
         });
         setResetConfirmOpen(false);
+        setResetConfirmText('');
       } else {
         toast({
           title: 'Erreur',
@@ -1533,6 +1542,18 @@ export default function StockApp() {
   }, [user, firestore, adminUid, toast]);
 
   // ── Paiements clients ─────────────────────────────────────────────────────
+  // Un effet (chèque, LC, traite) court-il encore sur cette facture ? On regarde TOUS les
+  // règlements qui la visent, celui qu'on est en train de modifier étant pris avec son NOUVEAU
+  // statut. C'est ce qui départage « payée » et « en attente », et c'est ce calcul qui manquait :
+  // un chèque encaissé laissait la facture éternellement « en attente ».
+  const effetEnCoursSurFacture = useCallback((invoiceId: string, paiementId?: string, nouveauStatut?: string) => {
+    return (payments as any[]).some((p: any) => {
+      if (!imputationsDuPaiement(p).some(l => l.invoiceId === invoiceId)) return false;
+      const statut = (paiementId && p.id === paiementId) ? nouveauStatut : p.status;
+      return effetEnAttente({ ...p, status: statut });
+    });
+  }, [payments]);
+
   const handleRecordMultiplePayments = useCallback(async (
     paymentList: Omit<ClientPayment, 'id' | 'createdAt'>[],
     invoiceUpdates?: { invoiceId: string; paidAmount: number; remainingBalance: number; status: InvoiceStatus }[]
@@ -1550,37 +1571,42 @@ export default function StockApp() {
       });
     }
 
+    // Les montants sont agrégés PAR FACTURE avant d'écrire. Chaque ligne de règlement partait
+    // auparavant du solde d'avant et écrasait la précédente dans le même lot : sur 6 000 espèces
+    // + 4 000 chèque pour une facture de 10 000, la facture finissait à 4 000 payés et le client
+    // était relancé pour de l'argent déjà versé. Et le statut n'est plus celui que l'écran
+    // appelant a choisi — c'est toujours statutFacture qui tranche, pour les trois écrans.
+    const cumulNouveaux = agregerParFacture(paymentList);
+    const aMettreAJour = new Map<string, { paidAmount: number; effetEnCours: boolean }>();
+
     if (invoiceUpdates && invoiceUpdates.length > 0) {
       for (const upd of invoiceUpdates) {
-        const invRef = doc(firestore, 'users', effectiveUid, 'invoices', upd.invoiceId);
-        batch.update(invRef, {
-          paidAmount: upd.paidAmount,
-          remainingBalance: upd.remainingBalance,
-          status: upd.status,
+        aMettreAJour.set(upd.invoiceId, {
+          paidAmount: centimes(upd.paidAmount),
+          effetEnCours: cumulNouveaux.get(upd.invoiceId)?.effetEnCours || false,
         });
       }
     } else {
-      for (const payment of paymentList) {
-        if (payment.invoiceId) {
-          const inv = invoices.find(i => i.id === payment.invoiceId);
-          if (inv) {
-            const hasPendingEffect = payment.method === 'CHEQUE' || payment.method === 'LC' || payment.method === 'EFFET' || payment.method === 'LCN' || payment.status === 'PENDING';
-            const newPaid = (inv.paidAmount || 0) + payment.amount;
-            const newBalance = Math.max(0, (inv.totalAfterDiscount || 0) - newPaid);
-            const newStatus: InvoiceStatus = newBalance === 0 
-              ? (hasPendingEffect ? 'PENDING' : 'PAID') 
-              : newPaid > 0 
-                ? (hasPendingEffect ? 'PENDING' : 'PARTIAL') 
-                : 'UNPAID';
-            const invRef = doc(firestore, 'users', effectiveUid, 'invoices', payment.invoiceId);
-            batch.update(invRef, {
-              paidAmount: newPaid,
-              remainingBalance: newBalance,
-              status: newStatus,
-            });
-          }
-        }
+      for (const [invoiceId, cumul] of cumulNouveaux) {
+        const inv = invoices.find(i => i.id === invoiceId);
+        if (!inv) continue;
+        aMettreAJour.set(invoiceId, {
+          paidAmount: centimes((inv.paidAmount || 0) + cumul.montant),
+          effetEnCours: cumul.effetEnCours,
+        });
       }
+    }
+
+    for (const [invoiceId, { paidAmount, effetEnCours }] of aMettreAJour) {
+      const inv = invoices.find(i => i.id === invoiceId);
+      if (!inv) continue;
+      const total = centimes(inv.totalAfterDiscount);
+      const enAttente = effetEnCours || effetEnCoursSurFacture(invoiceId);
+      batch.update(doc(firestore, 'users', effectiveUid, 'invoices', invoiceId), {
+        paidAmount,
+        remainingBalance: Math.max(0, centimes(total - paidAmount)),
+        status: statutFacture(total, paidAmount, enAttente) as InvoiceStatus,
+      });
     }
 
     await batch.commit();
@@ -1600,7 +1626,7 @@ export default function StockApp() {
       title: 'Paiement(s) validé(s)',
       description: `${(Number(totalAmount) || 0).toLocaleString('fr-MA', { minimumFractionDigits: 2 })} MAD (${methods})`
     });
-  }, [user, firestore, adminUid, invoices, toast]);
+  }, [user, firestore, adminUid, invoices, toast, effetEnCoursSurFacture]);
 
   const handleRecordPayment = useCallback(async (payment: Omit<ClientPayment, 'id' | 'createdAt'>) => {
     await handleRecordMultiplePayments([payment]);
@@ -1636,36 +1662,25 @@ export default function StockApp() {
       metadata: { prevStatus, newStatus: status, amount: payment?.amount, checkNumber: payment?.checkNumber },
     });
 
-    // When rejecting a payment, re-open the balance on the associated invoice
-    if (status === 'REJECTED' && prevStatus !== 'REJECTED') {
-      if (payment?.invoiceId) {
-        const invoice = invoices.find((inv: any) => inv.id === payment.invoiceId);
-        if (invoice) {
-          const newRemaining = Math.min(invoice.totalAfterDiscount, (invoice.remainingBalance || 0) + payment.amount);
-          const newPaid = Math.max(0, (invoice.paidAmount || 0) - payment.amount);
-          const newStatus = newPaid <= 0 ? 'UNPAID' : newPaid < invoice.totalAfterDiscount ? 'PARTIAL' : 'PAID';
-          await updateDoc(doc(firestore, 'users', effectiveUid, 'invoices', payment.invoiceId), {
-            remainingBalance: newRemaining,
-            paidAmount: newPaid,
-            status: newStatus,
-          });
-        }
-      }
-    } else if (prevStatus === 'REJECTED' && (status === 'CLEARED' || status === 'PENDING')) {
-      // Re-applying the payment if it was previously marked as rejected
-      if (payment?.invoiceId) {
-        const invoice = invoices.find((inv: any) => inv.id === payment.invoiceId);
-        if (invoice) {
-          const newRemaining = Math.max(0, (invoice.remainingBalance || 0) - payment.amount);
-          const newPaid = Math.min(invoice.totalAfterDiscount, (invoice.paidAmount || 0) + payment.amount);
-          const newStatus = newRemaining <= 0 ? 'PAID' : 'PARTIAL';
-          await updateDoc(doc(firestore, 'users', effectiveUid, 'invoices', payment.invoiceId), {
-            remainingBalance: newRemaining,
-            paidAmount: newPaid,
-            status: newStatus,
-          });
-        }
-      }
+    // Un règlement peut solder PLUSIEURS factures (règlement global) : on suit ses imputations
+    // réelles, et non le seul invoiceId du premier rang. Rattacher un chèque de 9 000 à la facture
+    // « de même rang » faisait disparaître la dette des autres au moment du rejet.
+    // Au signe près, rejet et remise en circulation sont la même opération ; l'encaissement, lui,
+    // ne change aucun montant (il était déjà compté à la remise) mais fait passer la facture de
+    // « en attente » à « payée » — ce que personne ne faisait.
+    const sens = (status === 'REJECTED' && prevStatus !== 'REJECTED') ? -1
+      : (prevStatus === 'REJECTED' && (status === 'CLEARED' || status === 'PENDING')) ? 1
+      : 0;
+    for (const ligne of imputationsDuPaiement(payment)) {
+      const invoice = invoices.find((inv: any) => inv.id === ligne.invoiceId);
+      if (!invoice) continue;
+      const total = centimes(invoice.totalAfterDiscount);
+      const paye = Math.max(0, Math.min(total, centimes((invoice.paidAmount || 0) + sens * ligne.amount)));
+      await updateDoc(doc(firestore, 'users', effectiveUid, 'invoices', ligne.invoiceId), {
+        paidAmount: paye,
+        remainingBalance: Math.max(0, centimes(total - paye)),
+        status: statutFacture(total, paye, effetEnCoursSurFacture(ligne.invoiceId, paymentId, status)) as InvoiceStatus,
+      });
     }
 
     if (status === 'REJECTED') {
@@ -1685,7 +1700,7 @@ export default function StockApp() {
         description: `Le chèque/effet est à nouveau en attente dans le portefeuille.`,
       });
     }
-  }, [user, firestore, adminUid, toast, payments, invoices]);
+  }, [user, firestore, adminUid, toast, payments, invoices, effetEnCoursSurFacture]);
 
   const handleAssignPaymentCompany = useCallback(async (paymentId: string, company: CashingCompany) => {
     if (!user || !firestore) return;
@@ -1711,6 +1726,24 @@ export default function StockApp() {
     const targetPayments = payments.filter(p => selectedPaymentIds.includes(p.id));
     if (targetPayments.length === 0) {
       toast({ title: 'Erreur', description: 'Aucun chèque sélectionné pour la remise.', variant: 'destructive' });
+      return;
+    }
+
+    // Un effet déjà affecté à une AUTRE société, déjà remis, ou rejeté, n'entre pas dans ce
+    // bordereau : la mise à jour plus bas force cashingCompany sur chaque effet retenu, et
+    // déposerait donc l'argent d'une société sur le compte de l'autre.
+    const refus = targetPayments.filter(p =>
+      (p.cashingCompany && p.cashingCompany !== company)
+      || p.remittanceId
+      || String(p.status || '').toUpperCase() === 'REJECTED');
+    if (refus.length > 0) {
+      const detail = refus.slice(0, 3).map(p => `n°${p.checkNumber || '—'}`).join(', ');
+      toast({
+        variant: 'destructive',
+        title: 'Remise refusée',
+        description: `${refus.length} effet(s) ne peuvent pas figurer sur ce bordereau (${detail}${refus.length > 3 ? '…' : ''}) : `
+          + `déjà affectés à une autre société, déjà remis, ou impayés. Retirez-les de la sélection.`,
+      });
       return;
     }
 
@@ -2026,12 +2059,12 @@ export default function StockApp() {
     return navItemsRaw.filter(item => {
       // Pour ADMIN : supprimer totalement Caisse et Frais & Dépenses
       if (userRole === 'ADMIN' && (item.id === 'sale' || item.id === 'expenses')) return false;
-      // Pour ADMIN : lecture seule dans /stock — les transferts et la validation d'arrivage
-      // (désormais gérée depuis /gestion → Arrivages) restent réservés aux magasins/entrepôts.
-      // Transferts reste réservé aux magasins/entrepôts — les transferts internes n'ont pas
-      // leur place côté admin. Arrivages reste visible pour l'admin mais avec un contenu
-      // différent (réconciliation des arrivages datés depuis /gestion, cf. plus bas).
-      if (userRole === 'ADMIN' && item.id === 'transfers') return false;
+      // Transferts : l'onglet était masqué à l'ADMIN — c'est-à-dire au SEUL profil que les règles
+      // Firestore autorisent à écrire les deux mouvements d'un transfert. Un compte magasin peut
+      // écrire la sortie de chez lui mais pas l'entrée chez l'autre, et le lot étant atomique, sa
+      // tentative n'écrivait rien du tout : la marchandise partait avec son bon, les deux stocks
+      // restaient inchangés. Tant que les règles ne sont pas élargies, c'est l'admin qui valide.
+      // (Arrivages reste visible pour l'admin, avec un contenu différent : la réconciliation.)
       if (item.adminOnly && userRole !== 'ADMIN') return false;
       if (item.commercialOnly && userRole === 'ADMIN') return false;
       if (item.adminOrMainOnly && !isChrifaOrAdmin) return false;
@@ -2458,7 +2491,7 @@ export default function StockApp() {
             {activeView === 'audit' && (
               <AuditLogView entries={auditLogEntries} />
             )}
-            {activeView === 'transfers' && userRole !== 'ADMIN' && (
+            {activeView === 'transfers' && (
               <TransferOrdersView
                 transferOrders={filteredTransfers}
                 stockItems={stockItems}
@@ -3212,7 +3245,7 @@ export default function StockApp() {
         </DialogContent>
       </Dialog>
       {/* Modal de Confirmation Réinitialisation Stock (Mode Simulation) */}
-      <Dialog open={resetConfirmOpen} onOpenChange={setResetConfirmOpen}>
+      <Dialog open={resetConfirmOpen} onOpenChange={open => { setResetConfirmOpen(open); if (!open) setResetConfirmText(''); }}>
         <DialogContent className="sm:max-w-md rounded-3xl p-6">
           <div className="flex items-center gap-3 mb-2">
             <div className="w-10 h-10 rounded-2xl bg-rose-100 flex items-center justify-center text-rose-600 shrink-0">
@@ -3228,17 +3261,39 @@ export default function StockApp() {
             </div>
           </div>
 
+          {/* La liste reflète exactement ce que supprime src/app/api/admin/reset-stock/route.ts.
+              Elle annonçait « ventes, factures et paiements » et taisait le fichier clients, les
+              dépenses, les remises de chèques, les transferts et le journal d'audit. */}
           <div className="bg-rose-50 border border-rose-200 rounded-2xl p-4 my-2 text-xs text-rose-900 space-y-1.5">
-            <p className="font-bold">Cette action va :</p>
+            <p className="font-black uppercase tracking-widest text-[10px]">Suppression définitive et irréversible</p>
             <ul className="list-disc list-inside space-y-1 text-[11px] text-rose-800">
-              <li>Supprimer tous les mouvements de stock (/stock)</li>
-              <li>Supprimer les ventes, factures de caisse et paiements (/stock)</li>
-              <li>Remettre toutes les quantités physiques en stock à 0</li>
-              <li>Réactiver les arrivages récents pour retester « Passer au stock »</li>
+              <li><span className="font-black">Tout le fichier clients</span> de /stock</li>
+              <li>Tous les mouvements de stock</li>
+              <li>Toutes les ventes, commandes, factures de caisse et paiements</li>
+              <li>Toutes les dépenses commerciales et remises de chèques</li>
+              <li>Tous les bons de transfert</li>
+              <li><span className="font-black">Tout le journal d'audit</span> (l'historique de qui a fait quoi)</li>
+              <li>L'entrepôt principal (ENTREPOT) et le stock initial saisi dans /stock</li>
             </ul>
-            <p className="font-black text-emerald-800 text-[11px] pt-1">
-              ✓ Vos 495 articles et 46 factures dans /gestion restent 100% INTACTS.
+            <p className="font-bold text-[11px] pt-1">
+              Les arrivages de /gestion gardent leur statut « en stock » mais perdent leurs mouvements :
+              ils repasseront « à compléter » dans l'onglet Arrivages, à réentrer un par un.
             </p>
+            <p className="font-black text-emerald-800 text-[11px] pt-1">
+              ✓ Les articles et les dossiers d'arrivage de /gestion ne sont pas supprimés.
+            </p>
+          </div>
+
+          <div className="space-y-1.5">
+            <p className="text-[11px] font-bold text-stone-600">
+              Pour confirmer, recopiez <span className="font-black text-rose-700">EFFACER</span> :
+            </p>
+            <Input
+              value={resetConfirmText}
+              onChange={e => setResetConfirmText(e.target.value)}
+              placeholder="EFFACER"
+              className="h-10 rounded-xl text-sm font-black uppercase tracking-widest"
+            />
           </div>
 
           <div className="flex items-center justify-end gap-2.5 mt-4">
@@ -3252,8 +3307,8 @@ export default function StockApp() {
             </Button>
             <Button
               onClick={handleResetStockSimulation}
-              disabled={isResetting}
-              className="bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-black uppercase tracking-wider gap-1.5 shadow-md shadow-rose-600/20"
+              disabled={isResetting || resetConfirmText.trim().toUpperCase() !== 'EFFACER'}
+              className="bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-black uppercase tracking-wider gap-1.5 shadow-md shadow-rose-600/20 disabled:opacity-40"
             >
               {isResetting ? (
                 <>

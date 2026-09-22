@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { useFirestore, useUser } from '@/firebase';
-import { collection, doc, addDoc, updateDoc, serverTimestamp, writeBatch } from 'firebase/firestore';
+import { collection, doc, updateDoc, serverTimestamp, writeBatch } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import type { TransferOrder, TransferOrderItem, StockItem, StoreLocation, StockMovement, Store } from '@/lib/types';
 import { exportTransferOrderPDF } from '@/lib/pdf-export-reports';
@@ -133,12 +133,16 @@ export default function TransferOrdersView({ transferOrders, stockItems, stores,
         createdAt: serverTimestamp(),
       };
 
+      // Le bon ET ses mouvements dans le MÊME lot : écrit avant, il restait en base marqué
+      // « Validé », quantités reçues remplies et imprimable, alors qu'aucun mouvement n'avait pu
+      // être écrit — un bon fantôme que rien ne permettait de rejouer.
       // cleanUndefined partout : une ligne peut n'avoir ni taille ni qualité (variante couleur), et
       // Firestore refuse un champ undefined (« Unsupported field value: undefined »).
-      const docRef = await addDoc(collection(firestore, 'users', adminUid, 'transferOrders'), cleanUndefined(transferData));
+      const docRef = doc(collection(firestore, 'users', adminUid, 'transferOrders'));
 
       // Mouvements OUT (source) + IN (destination) dans le même batch atomique
       const batch = writeBatch(firestore);
+      batch.set(docRef, cleanUndefined(transferData));
       // Copie de travail : chaque ligne générée y est ajoutée, pour que la ligne suivante d'une même
       // variante ne reprenne pas dans un rack que la précédente vient de vider.
       const work = [...movements];

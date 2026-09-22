@@ -9,6 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import type { Client, SaleOrder, Invoice, ClientPayment, PaymentMethod, InvoiceStatus } from '@/lib/types';
 import { cleanUndefined } from '@/lib/utils';
+import { centimes, repartirSurFactures, statutFacture } from '@/lib/reglement';
 import { useToast } from '@/hooks/use-toast';
 
 interface StockClientsProps {
@@ -262,21 +263,40 @@ export default function StockClients({ clients, orders, invoices, payments, user
         .filter(i => i.remBalance > 0)
         .sort((a, b) => a.date.localeCompare(b.date));
 
-      let remainingToAllocate = totalReceived;
-      const invoiceUpdates: { invoiceId: string; paidAmount: number; remainingBalance: number; status: InvoiceStatus }[] = [];
+      // Chaque LIGNE de règlement est imputée facture par facture, la plus ancienne d'abord, et
+      // garde la trace de ce qu'elle solde. Avant, la ligne n° 1 était collée à la facture n° 1 et
+      // la ligne n° 2 à la facture n° 2, quels que soient les montants : un chèque de 9 000 qui
+      // couvrait deux factures n'en portait qu'une, et son rejet effaçait la mauvaise dette.
+      const soldes = unpaidInvoices.map(inv => ({ id: inv.id, reste: centimes(inv.remBalance) }));
+      const imputationsParLigne = validLines.map(line => {
+        const lignes = repartirSurFactures(parseFloat(line.amount), soldes);
+        for (const l of lignes) {
+          const cible = soldes.find(x => x.id === l.invoiceId);
+          if (cible) cible.reste = centimes(cible.reste - l.amount);
+        }
+        return lignes;
+      });
 
+      // Ce que chaque facture reçoit, toutes lignes confondues.
+      const allouePar = new Map<string, number>();
+      for (const lignes of imputationsParLigne) {
+        for (const l of lignes) allouePar.set(l.invoiceId, centimes((allouePar.get(l.invoiceId) || 0) + l.amount));
+      }
+
+      const invoiceUpdates: { invoiceId: string; paidAmount: number; remainingBalance: number; status: InvoiceStatus }[] = [];
       for (const inv of unpaidInvoices) {
-        if (remainingToAllocate <= 0) break;
-        const alloc = Math.min(remainingToAllocate, inv.remBalance);
-        const newPaid = (inv.paidAmount || 0) + alloc;
-        const newRem = Math.max(0, (inv.totalAfterDiscount || 0) - newPaid);
+        const alloue = allouePar.get(inv.id) || 0;
+        if (alloue <= 0) continue;
+        const total = centimes(inv.totalAfterDiscount);
+        const newPaid = centimes((inv.paidAmount || 0) + alloue);
         invoiceUpdates.push({
           invoiceId: inv.id,
           paidAmount: newPaid,
-          remainingBalance: newRem,
-          status: newRem === 0 ? 'PAID' : 'PARTIAL'
+          remainingBalance: Math.max(0, centimes(total - newPaid)),
+          // Statut provisoire : c'est /stock qui tranche à l'écriture, en tenant compte des effets
+          // encore en l'air. Un chèque ne rend jamais une facture « payée » ici.
+          status: statutFacture(total, newPaid, false) as InvoiceStatus,
         });
-        remainingToAllocate -= alloc;
       }
 
       // Préparer les enregistrements de paiement
@@ -290,8 +310,12 @@ export default function StockClients({ clients, orders, invoices, payments, user
           notes: line.notes || (validLines.length > 1 ? `Paiement mixte (${line.method})` : 'Paiement global de solde'),
         };
 
-        if (invoiceUpdates.length > 0 && idx < invoiceUpdates.length && invoiceUpdates[idx]) {
-          p.invoiceId = invoiceUpdates[idx].invoiceId;
+        // Les factures que CETTE ligne solde, et pour quel montant. `invoiceId` reste renseigné
+        // avec la première d'entre elles : les anciens écrans ne lisent que ce champ.
+        const imputations = imputationsParLigne[idx] || [];
+        if (imputations.length > 0) {
+          p.allocations = imputations;
+          p.invoiceId = imputations[0].invoiceId;
         } else if (unpaidInvoices.length > 0) {
           p.invoiceId = unpaidInvoices[0].id;
         }
