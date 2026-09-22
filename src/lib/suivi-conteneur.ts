@@ -82,6 +82,8 @@ export type SuiviConteneur = {
   dateAppliquee?: string;
   /** Date annoncée par la compagnie mais non appliquée, parce qu'elle contredit une saisie manuelle. */
   dateProposee?: string;
+  /** Clés des changements déjà annoncés — évite de prévenir deux fois du même. */
+  notifie?: string[];
   /** Rempli quand la dernière synchronisation a échoué — l'ancien suivi reste lisible. */
   erreur?: string | null;
 };
@@ -283,6 +285,25 @@ export function instantDe(horodatage?: string | null): number | undefined {
 type ShipmentBrut = any;
 
 /**
+ * Deux libellés de lieu désignent-ils le même port ?
+ *
+ * ShipsGo n'écrit pas toujours pareil selon qu'il s'agit d'une escale ou de la
+ * destination : « CASABLANCA », « Casablanca, Morocco », « TANGER (TANGIER) ».
+ * On compare sur les lettres seules, dans un sens ou dans l'autre, et on
+ * refuse de conclure sur un libellé trop court.
+ */
+export function memeLieu(a?: string | null, b?: string | null): boolean {
+  const net = (s?: string | null) =>
+    (s || '')
+      .normalize('NFD').replace(/[̀-ͯ]/g, '')
+      .toUpperCase().replace(/[^A-Z]/g, '');
+  const x = net(a);
+  const y = net(b);
+  if (x.length < 4 || y.length < 4) return false;
+  return x === y || x.includes(y) || y.includes(x);
+}
+
+/**
  * Retire les clés dont la valeur est `undefined`, en profondeur.
  *
  * Firestore REFUSE `undefined` : `{ navire: undefined }` fait lever l'écriture
@@ -346,9 +367,21 @@ export function resumerShipment(shipment: ShipmentBrut, maintenant = new Date())
     [...etapes].reverse().find(e => e.navire);
 
   const dechargement = route?.port_of_discharge || null;
-  // Dernier déchargement réel : sous un Master BL, la marchandise n'est à terre
-  // que quand le dernier conteneur est descendu, pas le premier.
-  const dateReelle = [...etapes].reverse().find(e => e.code === 'DISC' && e.reel)?.date;
+  const portFinal = dechargement?.location?.name;
+
+  // Un conteneur pour Casablanca est presque toujours déchargé en route, à
+  // Algeciras ou Tanger, pour changer de navire. Ce déchargement-là est un
+  // transbordement, pas une arrivée : le prendre pour l'arrivée finale
+  // avancerait la date du dossier de plusieurs semaines, déclencherait une
+  // fausse alerte et ferait passer en stock une marchandise encore en mer.
+  //
+  // On ne retient donc un déchargement comme définitif que s'il a lieu au port
+  // de destination. Dans le doute — libellés de ports qui ne se ressemblent
+  // pas — on garde la date annoncée, quitte à la corriger plus tard.
+  const dechargementsReels = [...etapes].reverse().filter(e => e.code === 'DISC' && e.reel);
+  const dateReelle = dechargementsReels.find(e => memeLieu(e.lieu, portFinal))?.date
+    // Sans escale annoncée, un déchargement réel ne peut être que celui d'arrivée.
+    ?? (route && Number(route.ts_count) === 0 ? dechargementsReels[0]?.date : undefined);
   const eta = jourDe(dechargement?.date_of_discharge);
 
   const reference = shipment?.container_number || shipment?.booking_number || '';

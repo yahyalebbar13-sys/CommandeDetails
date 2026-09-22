@@ -50,9 +50,20 @@ export type ResultatSynchro = {
   codeErreur?: CodeErreurShipsGo;
 };
 
-/** Le dossier est-il figé ? (marchandise reçue, ou arrivage clos d'office) */
+/**
+ * Le dossier est-il figé ? (marchandise reçue, ou arrivage clos d'office)
+ *
+ * La clôture d'office après un mois suppose que la date d'arrivée est juste.
+ * Tant que la compagnie dit le conteneur en route, on ne s'y fie pas : sinon
+ * une date erronée figerait le dossier, et la vraie arrivée ne pourrait plus
+ * jamais y être inscrite. Seule l'entrée en stock, saisie par un humain, ferme
+ * vraiment un dossier.
+ */
 export function dossierVerrouille(facture: any): boolean {
-  return Boolean(facture?.stockEntryDate) || isArrivalOlderThanOneMonth(facture?.arrivalDate);
+  if (facture?.stockEntryDate) return true;
+  const statut = facture?.suivi?.statut;
+  if (statut && statut !== 'DISCHARGED' && statut !== 'UNTRACKED') return false;
+  return isArrivalOlderThanOneMonth(facture?.arrivalDate);
 }
 
 /**
@@ -115,7 +126,16 @@ export async function appliquerShipment(
   }
   if (!dateAChanger && nouvelleDate && nouvelleDate !== ancienneDate && !verrouille) {
     suivi.dateProposee = nouvelleDate;
+  } else {
+    // Une fusion Firestore garderait l'ancienne proposition pour toujours :
+    // le dossier afficherait « la compagnie annonce le X » après l'avoir appliqué.
+    suivi.dateProposee = null as unknown as undefined;
   }
+
+  // Les alertes déjà parties restent inscrites : c'est ce registre, et non
+  // l'état du suivi, qui décide de ce qu'il reste à annoncer.
+  const dejaNotifie: string[] = Array.isArray(precedent?.notifie) ? precedent!.notifie! : [];
+  suivi.notifie = dejaNotifie;
 
   const maj: Record<string, unknown> = { suivi };
   if (dateAChanger) {
@@ -131,12 +151,23 @@ export async function appliquerShipment(
   // suivi passent par cette ligne.
   await db.doc(`users/${adminUid}/factures/${factureId}`).set(sansIndefinis(maj), { merge: true });
 
-  // Prévenir seulement si quelque chose a bougé pour de vrai. L'envoi ne peut
-  // pas faire échouer l'enregistrement : un webhook doit être acquitté même si
-  // Gmail est indisponible.
-  const changements = changementsNotables(precedent, suivi);
+  // Prévenir seulement de ce qui a bougé pour de vrai, et une seule fois. Le
+  // webhook, le cron et la relecture à l'ouverture d'un dossier voient tous les
+  // trois le même changement : sans registre, l'alerte partirait trois fois.
+  const changements = changementsNotables(precedent, suivi).filter(c => !dejaNotifie.includes(c.cle));
   if (changements.length) {
-    await notifierChangements(factureId, suivi, changements).catch(() => { /* journalisé en amont */ });
+    try {
+      await notifierChangements(factureId, suivi, changements);
+      // Les clés ne sont inscrites qu'une fois l'envoi réussi : une alerte
+      // perdue repartira au prochain passage plutôt que d'être oubliée.
+      // Les cent dernières suffisent — un voyage en compte une dizaine.
+      const registre = [...dejaNotifie, ...changements.map(c => c.cle)].slice(-100);
+      await db.doc(`users/${adminUid}/factures/${factureId}`)
+        .set({ suivi: { notifie: registre } }, { merge: true })
+        .catch(() => { /* au pire, une alerte se répétera */ });
+    } catch {
+      // Notification impossible : le dossier est à jour, l'alerte réessaiera.
+    }
   }
 
   return {

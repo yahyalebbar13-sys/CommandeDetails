@@ -176,7 +176,7 @@ async function main() {
       { id: '26HD1004', arrivalDate: ETA_DOSSIER, stockEntryDate: jour(-2) }, shipmentEnMer);
     const ecrit = db.ecritures[0]?.donnees;
     check('date inchangée', ecrit?.arrivalDate === undefined);
-    check('aucune date proposée non plus', ecrit?.suivi?.dateProposee === undefined);
+    check('aucune date proposée non plus', !ecrit?.suivi?.dateProposee, String(ecrit?.suivi?.dateProposee));
     check('issue', r.issue === 'verrouille', r.issue);
     check('le suivi est quand même enregistré', ecrit?.suivi?.statut === 'SAILING');
   }
@@ -205,7 +205,7 @@ async function main() {
     const db2 = faireDb();
     const recent = { ...shipmentEnMer, checked_at: `${jour(0)} 06:00:00` };
     await appliquerShipment(db2, UID, '26HD1004', dossier, recent);
-    check('une photo plus récente passe', db2.ecritures.length === 1);
+    check('une photo plus récente passe', db2.ecritures.length >= 1, String(db2.ecritures.length));
   }
 
   console.log('\n── Déchargé : la date réelle prime ──');
@@ -224,6 +224,121 @@ async function main() {
     const ecrit = db.ecritures[0]?.donnees;
     check('dernier déchargement retenu', ecrit?.arrivalDate === jour(-2), `→ ${ecrit?.arrivalDate}`);
     check('marquée comme réelle', ecrit?.suivi?.dateDechargementReelle === true);
+  }
+
+  console.log('\n── Transbordement : le déchargement d’escale n’est pas l’arrivée ──');
+  {
+    // Le cas marocain ordinaire : Ningbo → Algeciras (changement de navire) →
+    // Casablanca. Le conteneur est physiquement déchargé à Algeciras, mais la
+    // marchandise n'arrive que des semaines plus tard.
+    const db = faireDb();
+    const transbordement = {
+      ...shipmentEnMer,
+      status: 'SAILING',
+      route: {
+        ...shipmentEnMer.route,
+        ts_count: 1,
+        port_of_discharge: {
+          location: { name: 'CASABLANCA' },
+          date_of_discharge: `${ETA_COMPAGNIE}T09:00:00+01:00`,
+          date_of_discharge_predicted: null,
+        },
+      },
+      containers: [{ number: 'MSCU1234567', status: 'SAILING', movements: [
+        mouvement('LOAD', 'ACT', jour(-30), { ...NAVIRE, location: { name: 'NINGBO' } }),
+        mouvement('DISC', 'ACT', jour(-4), { ...NAVIRE, location: { name: 'ALGECIRAS' } }),
+        mouvement('LOAD', 'ACT', jour(-2), { ...NAVIRE, location: { name: 'ALGECIRAS' } }),
+        mouvement('ARRV', 'EST', ETA_COMPAGNIE, { ...NAVIRE, location: { name: 'CASABLANCA' } }),
+      ] }],
+    };
+    const r = await appliquerShipment(db, UID, '26HD1004', { id: '26HD1004', arrivalDate: ETA_DOSSIER }, transbordement);
+    const ecrit = db.ecritures[0]?.donnees;
+    check('la date d’escale n’est pas retenue', ecrit?.suivi?.dateDechargement !== jour(-4), `→ ${ecrit?.suivi?.dateDechargement}`);
+    check('l’ETA de destination est gardée', ecrit?.suivi?.dateDechargement === ETA_COMPAGNIE);
+    check('elle reste annoncée, pas réelle', ecrit?.suivi?.dateDechargementReelle === false);
+    check('le dossier n’est pas déclaré arrivé', r.issue === 'date-modifiee' && ecrit?.arrivalDate === ETA_COMPAGNIE, r.issue);
+  }
+
+  console.log('\n── Déchargement au port de destination ──');
+  {
+    const db = faireDb();
+    const arrive = {
+      ...shipmentEnMer,
+      status: 'DISCHARGED',
+      route: { ...shipmentEnMer.route, ts_count: 1 },
+      containers: [{ number: 'MSCU1234567', status: 'DISCHARGED', movements: [
+        mouvement('DISC', 'ACT', jour(-6), { ...NAVIRE, location: { name: 'ALGECIRAS' } }),
+        mouvement('DISC', 'ACT', jour(-1), { ...NAVIRE, location: { name: 'CASABLANCA' } }),
+      ] }],
+    };
+    await appliquerShipment(db, UID, '26HD1004', { id: '26HD1004', arrivalDate: ETA_DOSSIER }, arrive);
+    const ecrit = db.ecritures[0]?.donnees;
+    check('c’est le déchargement de Casablanca qui compte', ecrit?.arrivalDate === jour(-1), `→ ${ecrit?.arrivalDate}`);
+    check('marquée comme réelle', ecrit?.suivi?.dateDechargementReelle === true);
+  }
+
+  console.log('\n── Un dossier en mer ne se ferme pas tout seul ──');
+  {
+    // Une date d'arrivée vieille de plus d'un mois fermait le dossier d'office.
+    // Si cette date est fausse, le dossier devenait impossible à corriger.
+    const db = faireDb();
+    const dossier = {
+      id: '26HD1004',
+      arrivalDate: jour(-40),
+      suivi: { shipmentId: 1001, reference: 'MEDUXY123456', statut: 'SAILING', verifieLe: `${jour(-2)} 00:00:00` },
+    };
+    const r = await appliquerShipment(db, UID, '26HD1004', dossier, shipmentEnMer);
+    check('la vraie date peut encore être inscrite', r.issue === 'date-modifiee', r.issue);
+    check('et elle l’est', db.ecritures[0]?.donnees?.arrivalDate === ETA_COMPAGNIE);
+
+    const db2 = faireDb();
+    const recu = { ...dossier, stockEntryDate: jour(-1) };
+    const r2 = await appliquerShipment(db2, UID, '26HD1004', recu, shipmentEnMer);
+    check('mais une entrée en stock ferme bien le dossier', r2.issue === 'verrouille', r2.issue);
+  }
+
+  console.log('\n── Une même nouvelle n’est annoncée qu’une fois ──');
+  {
+    // Le webhook, le cron et l'ouverture du dossier voient tous le même
+    // départ : sans registre, l'alerte partirait trois fois.
+    const dossier = {
+      id: '26HD1004',
+      arrivalDate: ETA_COMPAGNIE,
+      suivi: {
+        shipmentId: 1001, reference: 'MEDUXY123456', statut: 'LOADED',
+        dateDechargement: ETA_COMPAGNIE, dateDechargementReelle: false,
+        etapes: [{ code: 'LOAD', libelle: 'Chargé à bord', reel: true, date: jour(-20), lieu: 'CASABLANCA' }],
+        verifieLe: `${jour(-3)} 00:00:00`, majLe: `${jour(-3)}T00:00:00Z`,
+      },
+    };
+    const db = faireDb();
+    await appliquerShipment(db, UID, '26HD1004', dossier, shipmentEnMer);
+    // Une alerte envoyée ajoute une seconde écriture : celle du registre.
+    check('une alerte est partie', db.ecritures.length === 2, `écritures : ${db.ecritures.length}`);
+    const registre = db.ecritures[db.ecritures.length - 1].donnees?.suivi?.notifie;
+    check('les nouvelles annoncées sont inscrites', Array.isArray(registre) && registre.length > 0, JSON.stringify(registre));
+
+    // Deuxième passage avec la même charge, en repartant du suivi déjà notifié.
+    const db2 = faireDb();
+    const apres = { ...dossier, suivi: { ...db.ecritures[0].donnees.suivi, notifie: registre } };
+    await appliquerShipment(db2, UID, '26HD1004', apres, shipmentEnMer);
+    check('rien de neuf : aucune seconde alerte', db2.ecritures.length === 1, `écritures : ${db2.ecritures.length}`);
+  }
+
+  console.log('\n── Un horodatage corrigé ne renotifie pas ──');
+  {
+    const base = {
+      shipmentId: 1001, reference: 'MEDUXY123456', statut: 'SAILING' as const,
+      dateDechargement: ETA_COMPAGNIE, dateDechargementReelle: false,
+      conteneurs: [], abonnes: [], typeReference: 'bl' as const, majLe: `${jour(-2)}T00:00:00Z`,
+      etapes: [{ code: 'DEPA' as const, libelle: 'Départ du port', reel: true, date: jour(-19), lieu: 'NINGBO' }],
+      notifie: ['etape:DEPA|NINGBO'],
+    };
+    // ShipsGo corrige la date du même départ : le lieu et l'événement ne bougent pas.
+    const corrige = { ...base, etapes: [{ ...base.etapes[0], date: jour(-18) }] };
+    const { changementsNotables } = await import('../src/lib/suivi-changements');
+    const c = changementsNotables(base as any, corrige as any).filter(x => !base.notifie.includes(x.cle));
+    check('le départ n’est pas réannoncé', c.length === 0, JSON.stringify(c.map(x => x.cle)));
   }
 
   console.log('\n── Numéro non reconnu par la compagnie ──');

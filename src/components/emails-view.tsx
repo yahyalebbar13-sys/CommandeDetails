@@ -248,7 +248,11 @@ export default function EmailsView({
   // numéro de conteneur ou un nom de navire trouve des messages qu'aucun
   // mot-clé ne ramènerait.
   const references = useMemo(() => referencesRecherchables(factures), [factures]);
-  const requeteReferences = useMemo(() => rechercheGmailReferences(references), [references]);
+  const requeteReferences = useMemo(
+    // Ce que nos deux boîtes s'écrivent entre elles n'est pas une nouvelle du transitaire.
+    () => rechercheGmailReferences(references, { exclureExpediteurs: MAILBOXES.map(b => b.email) }),
+    [references],
+  );
 
   useEffect(() => {
     for (const { key: box } of MAILBOXES) {
@@ -263,7 +267,7 @@ export default function EmailsView({
         });
         continue;
       }
-      const cle = `${j.token}:${rafraichir}`;
+      const cle = `${j.token}:${rafraichir}:${requeteReferences}`;
       if (chargements.current[box] === cle) continue;
       chargements.current[box] = cle;
       setAvisParBoite(prev => ({ ...prev, [box]: { enCours: true, trouves: prev[box]?.trouves || [], erreur: '' } }));
@@ -272,14 +276,27 @@ export default function EmailsView({
       // numéros qu'on connaît déjà (BL, conteneurs, navires). Le second
       // rattrape les messages qui parlent d'un conteneur sans jamais employer
       // le mot « arrivée ».
+      // L'échec de la seconde recherche ne doit pas passer pour « rien trouvé » :
+      // il est dit, sans faire disparaître ce que la première a ramené.
+      let erreurReferences = '';
       Promise.all([
         lireEmails(j.token, RECHERCHE_AVIS, 40),
-        requeteReferences ? lireEmails(j.token, requeteReferences, 30).catch(() => []) : Promise.resolve([]),
+        requeteReferences
+          ? lireEmails(j.token, requeteReferences, 30).catch(err => {
+              if (err instanceof SessionGmailExpiree) throw err;
+              erreurReferences = `recherche par n° de conteneur indisponible (${err?.message || 'erreur'})`;
+              return [] as EmailComplet[];
+            })
+          : Promise.resolve([] as EmailComplet[]),
       ])
         .then(
           async ([parMotsCles, parReferences]) => {
             const parId = new Map<string, EmailComplet>();
             for (const e of [...parMotsCles, ...parReferences]) parId.set(e.id, e);
+            // Gmail cherche jusque dans les pièces jointes et se moque de la
+            // mise en forme : ce qu'il a trouvé par nos références EST lié à un
+            // dossier, même si notre relecture du texte ne sait pas le montrer.
+            const validesParGmail = new Set(parReferences.map(e => e.id));
 
             const trouves: AvisTrouve[] = [];
             for (const email of parId.values()) {
@@ -287,17 +304,24 @@ export default function EmailsView({
               if (envoyeParLaSociete(email.from)) continue;
               const avis = detecterAvisArrivee(email);
               const citees = referencesCitees(email, references);
-              if (avis || citees.length) trouves.push({ box, email, avis, citees });
+              if (avis || citees.length || validesParGmail.has(email.id)) {
+                trouves.push({ box, email, avis, citees });
+              }
               // Rendre la main au navigateur entre deux messages : la page reste fluide.
               await new Promise(r => setTimeout(r, 0));
             }
-            return { trouves, erreur: '' };
+            trouves.sort((a, b) => b.email.date.localeCompare(a.email.date));
+            return { trouves, erreur: erreurReferences ? `${labelBoite(box)} : ${erreurReferences}` : '' };
           },
-          err => ({ trouves: [] as AvisTrouve[], erreur: `${labelBoite(box)} : ${gererErreur(box, err)}` })
+          err => ({ trouves: null, erreur: `${labelBoite(box)} : ${gererErreur(box, err)}` })
         )
         .then(r => {
           if (chargements.current[box] !== cle) return;
-          setAvisParBoite(prev => ({ ...prev, [box]: { enCours: false, ...r } }));
+          // Un rafraîchissement raté ne fait pas disparaître ce qu'on affichait.
+          setAvisParBoite(prev => ({
+            ...prev,
+            [box]: { enCours: false, erreur: r.erreur, trouves: r.trouves ?? prev[box]?.trouves ?? [] },
+          }));
         });
     }
   }, [jetons, rafraichir, gererErreur, requeteReferences, references]);
@@ -404,11 +428,17 @@ export default function EmailsView({
 
   const boiteInfo = MAILBOXES.find(b => b.key === boite)!;
   const avisDuMessage = useMemo(() => (ouvert ? detecterAvisArrivee(ouvert.email) : null), [ouvert]);
+  const citeesDuMessage = useMemo(
+    () => (ouvert ? referencesCitees(ouvert.email, references) : []),
+    [ouvert, references],
+  );
+  // Un message peut concerner un dossier sans employer la moindre formule
+  // d'avis : le rattachement ne doit pas dépendre de cette formule.
   const dossierDuMessage = useMemo(
-    () => (ouvert && avisDuMessage && factures.length
+    () => (ouvert && factures.length
       ? matchEmailToArrivages(ouvert.email, factures, { accountKey: ouvert.box, suppliers: supplierHints, limit: 1 })[0]
       : undefined),
-    [ouvert, avisDuMessage, factures, supplierHints]
+    [ouvert, factures, supplierHints]
   );
   const htmlOuvert = ouvert && htmlAffiche?.id === ouvert.email.id ? htmlAffiche.html : ouvert?.email.html || '';
   const imagesDistantes = !!ouvert && imagesDistantesPour === ouvert.email.id;
@@ -576,14 +606,20 @@ export default function EmailsView({
               </div>
             </div>
 
-            {avisDuMessage && (
-              <div className="mx-6 mt-4 p-4 rounded-xl border border-rose-200 bg-rose-50/40 space-y-2">
+            {(avisDuMessage || citeesDuMessage.length > 0 || dossierDuMessage) && (
+              <div className={`mx-6 mt-4 p-4 rounded-xl border space-y-2 ${
+                avisDuMessage ? 'border-rose-200 bg-rose-50/40' : 'border-indigo-200 bg-indigo-50/40'
+              }`}>
                 <div className="flex items-center gap-2 flex-wrap">
-                  <Ship className="w-4 h-4 text-rose-700" />
-                  <h4 className="text-[11px] font-black text-rose-800 uppercase tracking-widest">Avis d&apos;arrivée</h4>
-                  <span className="text-[10px] text-stone-400 font-medium">reconnu sur « {avisDuMessage.preuve} »</span>
+                  <Ship className={`w-4 h-4 ${avisDuMessage ? 'text-rose-700' : 'text-indigo-700'}`} />
+                  <h4 className={`text-[11px] font-black uppercase tracking-widest ${avisDuMessage ? 'text-rose-800' : 'text-indigo-800'}`}>
+                    {avisDuMessage ? 'Avis d’arrivée' : 'Lié à un de vos conteneurs'}
+                  </h4>
+                  {avisDuMessage && (
+                    <span className="text-[10px] text-stone-400 font-medium">reconnu sur « {avisDuMessage.preuve} »</span>
+                  )}
                 </div>
-                <DetailsAvis avis={avisDuMessage} />
+                {avisDuMessage ? <DetailsAvis avis={avisDuMessage} /> : <RefsCitees citees={citeesDuMessage} />}
                 {dossierDuMessage ? (
                   <div className="space-y-1">
                     <DossierAvis match={dossierDuMessage} avis={avisDuMessage} />

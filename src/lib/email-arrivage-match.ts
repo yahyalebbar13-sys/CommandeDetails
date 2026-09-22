@@ -102,10 +102,18 @@ const JOUR = 86400000;
  * jusqu'à un mois et demi après l'arrivée (dédouanement, DUM, factures).
  */
 function dossierWindow(f: Facture): { start: number; end: number } | null {
-  const ship = parseDate(f.shippingDate);
-  const arr = parseDate(f.arrivalDate);
-  const stock = parseDate(f.stockEntryDate);
-  const anchors = [ship, arr, stock].filter((x): x is number => x !== null);
+  const suivi = (f as any).suivi as SuiviConteneur | undefined;
+  const anchors = [
+    parseDate(f.shippingDate),
+    parseDate(f.arrivalDate),
+    parseDate(f.stockEntryDate),
+    // Ce que la compagnie a constaté vaut mieux que ce qui a été saisi : un
+    // dossier chargé il y a deux mois avec une ETA lointaine reste vivant
+    // pendant toute la traversée, donc cherchable et rattachable.
+    parseDate(suivi?.dateChargement),
+    parseDate(suivi?.dateDechargement),
+    parseDate(suivi?.etapes?.find(e => e.reel)?.date),
+  ].filter((x): x is number => x !== null);
   if (anchors.length === 0) return null;
   return {
     start: Math.min(...anchors) - 21 * JOUR,
@@ -139,11 +147,23 @@ function buildHaystack(email: MatchableEmail): Haystack {
   };
 }
 
-/** Mot présent dans un texte brut, avec frontières de mot (évite « MH » dans « MHZ »). */
+/**
+ * Mot ou expression présent dans un texte brut, avec frontières de mot (évite
+ * « MH » dans « MHZ »).
+ *
+ * Les mots d'une expression sont séparés par « ce qui n'est ni lettre ni
+ * chiffre » plutôt que par une espace stricte : un tableau HTML aplati donne
+ * « SEASPAN | BRIGHTNESS », un retour à la ligne coupe « MSC\nANNA », et une
+ * correspondance qui exigerait l'espace exacte manquerait les deux — alors que
+ * Gmail, lui, les a trouvés.
+ */
 function hasWord(haystack: string, word: string): boolean {
   if (word.length < 3) return false;
-  const escaped = word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  return new RegExp(`(^|[^A-Za-z0-9])${escaped}([^A-Za-z0-9]|$)`, 'i').test(haystack);
+  const echapper = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const mots = word.split(/[^A-Za-z0-9]+/).filter(Boolean);
+  if (!mots.length) return false;
+  const motif = mots.map(echapper).join('[^A-Za-z0-9]+');
+  return new RegExp(`(^|[^A-Za-z0-9])${motif}([^A-Za-z0-9]|$)`, 'i').test(haystack);
 }
 
 // Mots trop communs dans les raisons sociales pour identifier qui que ce soit.
@@ -200,7 +220,15 @@ export function navireIdentifiable(nom: string | null | undefined): boolean {
   const clean = (nom || '').trim();
   if (clean.length < 6) return false;
   const mots = clean.split(/[^A-Za-z0-9]+/).filter(Boolean);
-  return mots.some(m => m.length >= 4 && !LIEUX_COURANTS.has(m.toUpperCase()) && !MOTS_GENERIQUES.has(m.toUpperCase()));
+  if (mots.some(m => m.length >= 4 && !LIEUX_COURANTS.has(m.toUpperCase()) && !MOTS_GENERIQUES.has(m.toUpperCase()))) {
+    return true;
+  }
+  // Les armateurs baptisent volontiers leurs navires d'un nom de port :
+  // « CMA CGM TANGER », « MSC CASABLANCA ». Le nom reste identifiable, parce
+  // que c'est l'ensemble « armateur + port » qui est cherché, jamais le port
+  // seul — au contraire de « TANGER A », qui n'a rien pour le distinguer.
+  const ARMATEURS = /^(MSC|CMA|CGM|ONE|EVER|EVERGREEN|HMM|COSCO|MAERSK|OOCL|ZIM|HAPAG|YANG|WAN|ARKAS|MARFRET|TARROS|SEASPAN|MAERSKLINE)$/i;
+  return mots.length >= 2 && ARMATEURS.test(mots[0]) && mots.slice(1).some(m => m.length >= 3);
 }
 
 /**
@@ -267,13 +295,21 @@ export function scoreEmailAgainstFacture(
   // « avis d'arrivée » ni le numéro de BL.
   const suivi = (facture as any).suivi as SuiviConteneur | undefined;
   if (suivi?.shipmentId) {
+    // Le meilleur emplacement l'emporte, quel que soit l'ordre des conteneurs
+    // dans le dossier : sinon un objet citant le second conteneur serait noté
+    // moins bien qu'un corps de message citant le premier.
+    let meilleur: { code: string; label: string; points: number } | null = null;
     for (const numero of suivi.conteneurs || []) {
       const n = normalizeRef(numero);
       if (n.length < 10) continue;
-      if (h.subject.includes(n)) { add('conteneur_objet', `Conteneur ${numero} dans l'objet`, 58); break; }
-      if (h.attachments.includes(n)) { add('conteneur_piece_jointe', `Conteneur ${numero} dans une pièce jointe`, 46); break; }
-      if (h.body.includes(n)) { add('conteneur_corps', `Conteneur ${numero} dans le message`, 44); break; }
+      const trouve =
+        h.subject.includes(n) ? { code: 'conteneur_objet', label: `Conteneur ${numero} dans l'objet`, points: 58 }
+        : h.attachments.includes(n) ? { code: 'conteneur_piece_jointe', label: `Conteneur ${numero} dans une pièce jointe`, points: 46 }
+        : h.body.includes(n) ? { code: 'conteneur_corps', label: `Conteneur ${numero} dans le message`, points: 44 }
+        : null;
+      if (trouve && (!meilleur || trouve.points > meilleur.points)) meilleur = trouve;
     }
+    if (meilleur) add(meilleur.code, meilleur.label, meilleur.points);
 
     // Le navire ne désigne pas un dossier à lui seul — plusieurs conteneurs
     // voyagent sur le même bateau — mais c'est un indice sérieux, et c'est
@@ -314,7 +350,18 @@ export function scoreEmailAgainstFacture(
     if (h.date >= window.start && h.date <= window.end) {
       add('periode', 'Email dans la période du dossier', 10);
     } else {
-      add('hors_periode', 'Email hors de la période du dossier', -12);
+      // Un numéro de BL ou de conteneur ne désigne qu'un dossier au monde : la
+      // date n'a pas à le contredire. Une restitution de conteneur vide ou une
+      // facture de surestaries arrive bien après la fenêtre et reste liée au
+      // dossier. L'écart reste dit — il éclaire la lecture — mais ne pèse plus.
+      const numeroUnique = reasons.some(r => r.code.startsWith('bl_') || r.code.startsWith('conteneur_'));
+      add(
+        'hors_periode',
+        numeroUnique
+          ? 'Email hors de la période du dossier, mais son numéro ne laisse pas de doute'
+          : 'Email hors de la période du dossier',
+        numeroUnique ? 0 : -12,
+      );
     }
   }
 
@@ -355,6 +402,14 @@ export function matchEmailToArrivages(
   // du suivant, on ne propose que lui.
   if (scored.length > 1 && scored[0].confidence === 'sure' && scored[0].score - scored[1].score >= 25) {
     return [scored[0]];
+  }
+
+  // Deux dossiers au coude à coude — le même navire, le même fournisseur — ne
+  // doivent pas être départagés par l'ordre du tableau. On ne les annonce plus
+  // comme sûrs : l'utilisateur tranchera.
+  if (scored.length > 1 && scored[0].score - scored[1].score < 10 && scored[0].confidence === 'sure') {
+    scored[0] = { ...scored[0], confidence: 'probable' };
+    scored[1] = { ...scored[1], confidence: 'probable' };
   }
   return scored.slice(0, limit);
 }
@@ -423,8 +478,11 @@ export function referencesRecherchables(
     const suivi = (f as any).suivi as SuiviConteneur | undefined;
     // Le conteneur d'abord : c'est le terme qui ne peut désigner rien d'autre.
     for (const c of suivi?.conteneurs || []) if (normalizeRef(c).length >= 10) ajouter(c, f.id, 'conteneur');
-    const bl = (f.noBL || '').trim();
-    if (isRefUsable(normalizeRef(bl))) ajouter(bl, f.id, 'bl');
+    // Un champ BL contient parfois plusieurs numéros (« BL1 / BL2 ») : cherchés
+    // ensemble, ils formeraient une expression que personne n'écrit jamais.
+    for (const bl of (f.noBL || '').split(/[\s,;/]+/)) {
+      if (isRefUsable(normalizeRef(bl))) ajouter(bl.trim(), f.id, 'bl');
+    }
     if (navireIdentifiable(suivi?.navire)) ajouter(suivi!.navire!, f.id, 'navire');
   }
 
@@ -439,12 +497,23 @@ export function referencesRecherchables(
  */
 export function rechercheGmailReferences(
   refs: ReferenceRecherchable[],
-  opts: { jours?: number } = {},
+  opts: { jours?: number; exclureExpediteurs?: string[] } = {},
 ): string {
   if (!refs.length) return '';
   const jours = opts.jours ?? 120;
-  const termes = refs.map(r => (/\s/.test(r.terme) ? `"${r.terme.replace(/"/g, '')}"` : r.terme));
-  return `newer_than:${jours}d -in:sent -in:drafts -from:me {${termes.join(' ')}}`;
+  // Tout est guillemeté, sans exception : entre guillemets, un tiret, une
+  // accolade, un « : » ou le mot OR redeviennent du texte ordinaire. Sans quoi
+  // un numéro de BL saisi « -ABC/12 » ou « from:x » détournerait la recherche,
+  // voire la viderait de ses résultats.
+  const termes = refs
+    .map(r => r.terme.replace(/["\\]/g, ' ').trim())
+    .filter(Boolean)
+    .map(t => `"${t}"`);
+  if (!termes.length) return '';
+
+  // Ce que nos propres boîtes s'écrivent n'est pas une nouvelle du transitaire.
+  const exclusions = (opts.exclureExpediteurs || []).map(e => `-from:${e}`).join(' ');
+  return `newer_than:${jours}d -in:sent -in:drafts -from:me ${exclusions} {${termes.join(' ')}}`.replace(/\s+/g, ' ').trim();
 }
 
 /** Ce qui, dans un email, a déclenché sa remontée — pour le dire à l'écran. */

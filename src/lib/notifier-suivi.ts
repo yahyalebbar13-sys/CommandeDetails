@@ -20,17 +20,26 @@ const jourFr = (iso?: string) => {
   return j && m && a ? `${j}/${m}/${a}` : iso;
 };
 
+/** `<` et `&` dans un nom de navire casseraient le message HTML de Telegram. */
+const echapper = (s: unknown) =>
+  String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
 async function envoyerTelegram(texte: string): Promise<void> {
   const token = (process.env.TELEGRAM_BOT_TOKEN || '').trim();
   const chat = (process.env.TELEGRAM_CHAT_ID || '').trim();
   if (!token || !chat) return;
 
-  await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+  const r = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ chat_id: chat, text: texte, parse_mode: 'HTML', disable_web_page_preview: true }),
     signal: AbortSignal.timeout(10_000),
   });
+  // Un jeton révoqué ou un chat_id faux répond 400/403 : sans ce contrôle,
+  // l'échec passait pour un succès et les alertes disparaissaient en silence.
+  if (!r.ok) {
+    throw new Error(`Telegram ${r.status} : ${(await r.text().catch(() => '')).slice(0, 200)}`);
+  }
 }
 
 async function envoyerEmail(objet: string, html: string): Promise<void> {
@@ -38,12 +47,19 @@ async function envoyerEmail(objet: string, html: string): Promise<void> {
   const appPass = (process.env.GMAIL_APP_PASSWORD || '').replace(/\s/g, '');
   if (!appPass) return;
 
+  // Bornes indispensables : sans elles, un SMTP lent tient la route ouverte
+  // jusqu'au délai de la fonction. Le webhook ShipsGo, lui, rejoue l'événement
+  // dès qu'il n'est pas acquitté à temps — une boîte mail poussive suffirait
+  // à faire renvoyer le même événement quatre fois.
   const transporter = nodemailer.createTransport({
     host: 'smtp.gmail.com',
     port: 587,
     secure: false,
     auth: { user: gmailUser, pass: appPass },
     tls: { rejectUnauthorized: false },
+    connectionTimeout: 5000,
+    greetingTimeout: 5000,
+    socketTimeout: 8000,
   });
 
   await transporter.sendMail({
@@ -112,10 +128,10 @@ export async function notifierChangements(
   const tete = changements[0].titre;
   const objet = `🚢 ${factureId} — ${tete}`;
   const texte =
-    `<b>🚢 Dossier ${factureId}</b>\n${suivi.reference}${suivi.compagnie ? ` · ${suivi.compagnie}` : ''}\n\n` +
-    `${resumerChangements(changements)}\n\n` +
+    `<b>🚢 Dossier ${echapper(factureId)}</b>\n${echapper(suivi.reference)}${suivi.compagnie ? ` · ${echapper(suivi.compagnie)}` : ''}\n\n` +
+    `${echapper(resumerChangements(changements))}\n\n` +
     `Arrivée ${suivi.dateDechargementReelle ? 'réelle' : 'annoncée'} : ${jourFr(suivi.dateDechargement)}` +
-    `${suivi.portDechargement ? ` à ${suivi.portDechargement}` : ''}`;
+    `${suivi.portDechargement ? ` à ${echapper(suivi.portDechargement)}` : ''}`;
 
   const envois = await Promise.allSettled([
     envoyerEmail(objet, corpsHtml(factureId, suivi, changements)),
