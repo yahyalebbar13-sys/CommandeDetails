@@ -5,7 +5,8 @@
 
 import {
   matchEmailToArrivages, bestArrivageForEmail, normalizeRef,
-  extractRefCandidates,
+  extractRefCandidates, navireIdentifiable, referencesRecherchables,
+  rechercheGmailReferences, referencesCitees,
 } from '../src/lib/email-arrivage-match';
 
 const factures: any[] = [
@@ -105,6 +106,87 @@ m = bestArrivageForEmail(
   facturesGen, { accountKey: 'lebtex' });
 check('mots génériques seuls ne prouvent rien (TRANSIT/MAROC/SARL)',
   !m?.reasons.find(r => r.code === 'transitaire'), `→ ${m?.reasons.map(r => r.code).join()}`);
+
+// ─── Ce que la compagnie maritime nous apprend ────────────────────────────────
+// Le suivi ShipsGo donne le conteneur, le navire et le voyage : autant d'indices
+// que le message n'a pas besoin de nommer « avis d'arrivée » pour être reconnu.
+const AUJOURDHUI = Date.parse('2026-09-15T12:00:00Z');
+const suivi = {
+  shipmentId: 6771254, reference: 'NBOGD2212400', statut: 'SAILING',
+  conteneurs: ['TIIU7634594'], navire: 'SEASPAN BRIGHTNESS', voyage: '0102W',
+  etapes: [], abonnes: [], majLe: '2026-09-15T00:00:00Z', dateDechargementReelle: false,
+};
+const avecSuivi: any[] = [
+  { id: 'S1', noBL: 'NBOGD2212400', supplierId: 'MH', declaringCompany: 'Lebtex',
+    shippingLine: 'ONE', arrivalDate: '2026-09-20', suivi },
+  { id: 'S2', noBL: 'MEDUKV285573', supplierId: 'JIMMY', declaringCompany: 'Lebtex',
+    arrivalDate: '2026-09-18' },
+];
+
+console.log('\n── Un message qui ne dit pas « avis d\'arrivée » ──');
+m = bestArrivageForEmail(
+  { subject: 'Container TIIU7634594 - documents', from: 'ops@agent.ma',
+    text: 'Veuillez trouver les documents.', date: '2026-09-14' },
+  avecSuivi, { accountKey: 'lebtex' });
+check('rattaché par le n° de conteneur', m?.factureId === 'S1', `→ ${m?.factureId}`);
+check('et c’est un rattachement sûr', m?.confidence === 'sure', `→ ${m?.confidence} (${m?.score})`);
+check('la raison est affichable',
+  !!m?.reasons.find(r => r.code === 'conteneur_objet'), `→ ${m?.reasons.map(r => r.code).join()}`);
+
+console.log('\n── Le navire comme indice ──');
+m = bestArrivageForEmail(
+  { subject: 'Préavis SEASPAN BRIGHTNESS voyage 0102W', from: 'agence@one-line.com',
+    text: 'Le navire est annoncé.', date: '2026-09-14' },
+  avecSuivi, { accountKey: 'lebtex' });
+check('rattaché au bon dossier', m?.factureId === 'S1', `→ ${m?.factureId}`);
+check('navire compté', !!m?.reasons.find(r => r.code === 'navire_objet'));
+check('voyage compté en renfort', !!m?.reasons.find(r => r.code === 'voyage'));
+
+console.log('\n── Un navire qui ne distingue rien ──');
+check('« TANGER A » écarté', !navireIdentifiable('TANGER A'));
+check('« CASABLANCA » écarté', !navireIdentifiable('CASABLANCA'));
+check('« MSC ANNA » retenu', navireIdentifiable('MSC ANNA'));
+check('« SEASPAN BRIGHTNESS » retenu', navireIdentifiable('SEASPAN BRIGHTNESS'));
+check('nom trop court écarté', !navireIdentifiable('ZIM'));
+{
+  const piege: any[] = [{ id: 'P1', noBL: 'X123456', supplierId: 'MH', arrivalDate: '2026-09-20',
+    suivi: { ...suivi, navire: 'TANGER A' } }];
+  const r = bestArrivageForEmail(
+    { subject: 'Info', text: 'Le port de Tanger a été atteint hier.', from: 'x@y.ma', date: '2026-09-14' },
+    piege, { accountKey: 'lebtex' });
+  check('« Tanger a été atteint » ne rattache rien', !r?.reasons.find(x => x.code.startsWith('navire')), `→ ${r?.reasons.map(x => x.code).join()}`);
+}
+
+console.log('\n── Chercher dans Gmail par ce qu’on connaît ──');
+const refs = referencesRecherchables(avecSuivi, { maintenant: AUJOURDHUI });
+check('le conteneur est cherché', refs.some(r => r.terme === 'TIIU7634594' && r.type === 'conteneur'));
+check('les BL aussi', refs.filter(r => r.type === 'bl').length === 2, JSON.stringify(refs.map(r => r.terme)));
+check('le navire aussi', refs.some(r => r.terme === 'SEASPAN BRIGHTNESS' && r.type === 'navire'));
+check('chaque terme sait d’où il vient', refs.every(r => r.factureId));
+
+const requete = rechercheGmailReferences(refs);
+check('syntaxe OU de Gmail', requete.includes('{') && requete.includes('}'));
+check('navire entre guillemets', requete.includes('"SEASPAN BRIGHTNESS"'), requete);
+check('limité dans le temps', requete.includes('newer_than:120d'));
+check('sans les messages envoyés', requete.includes('-in:sent'));
+check('aucune référence → aucune requête', rechercheGmailReferences([]) === '');
+
+const vieux: any[] = [{ id: 'V1', noBL: 'ANCIEN123', arrivalDate: '2025-01-01', supplierId: 'MH' }];
+check('un dossier clos depuis longtemps n’est plus cherché',
+  referencesRecherchables(vieux, { maintenant: AUJOURDHUI }).length === 0);
+
+check('plafond respecté',
+  referencesRecherchables(Array.from({ length: 60 }, (_, i) => ({
+    id: `F${i}`, noBL: `BL${100000 + i}`, arrivalDate: '2026-09-20', supplierId: 'MH',
+  })) as any, { maintenant: AUJOURDHUI, maxTermes: 24 }).length === 24);
+
+console.log('\n── Dire pourquoi un message est remonté ──');
+const citees = referencesCitees(
+  { subject: 'Container TIIU7634594', text: 'navire SEASPAN BRIGHTNESS' },
+  refs);
+check('conteneur reconnu', citees.some(r => r.type === 'conteneur'));
+check('navire reconnu', citees.some(r => r.type === 'navire'));
+check('rien d’inventé', !citees.some(r => r.terme === 'MEDUKV285573'));
 
 console.log(`\n═══ ${pass} réussis, ${fail} échoués ═══\n`);
 process.exit(fail > 0 ? 1 : 0);

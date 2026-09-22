@@ -10,6 +10,7 @@
 // par une raison affichable.
 
 import type { Facture } from './types';
+import type { SuiviConteneur } from './suivi-conteneur';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 export type MatchConfidence = 'sure' | 'probable' | 'faible';
@@ -178,6 +179,30 @@ function findPartnerName(haystacks: string[], name: string): 'phrase' | 'token' 
   return distinctifs.some(w => haystacks.some(h => hasWord(h, w))) ? 'token' : null;
 }
 
+// Villes et ports qui reviennent dans presque tous les messages : un navire qui
+// ne se distingue que par un de ces mots ferait correspondre n'importe quoi.
+const LIEUX_COURANTS = new Set([
+  'TANGER', 'TANGIER', 'CASABLANCA', 'CASA', 'MAROC', 'MOROCCO', 'AGADIR',
+  'NINGBO', 'SHANGHAI', 'SHENZHEN', 'QINGDAO', 'BUSAN', 'YANTIAN', 'XIAMEN',
+  'SINGAPORE', 'VALENCIA', 'BARCELONA', 'ALGECIRAS', 'ROTTERDAM', 'ANTWERP',
+  'HAMBURG', 'GENOVA', 'GENOA', 'MALTA', 'PIRAEUS', 'JEBEL', 'DUBAI', 'PORT',
+]);
+
+/**
+ * Ce nom de navire peut-il servir d'indice ?
+ *
+ * « SEASPAN BRIGHTNESS » ou « MSC ANNA » désignent un bateau. « TANGER A »,
+ * lui, se retrouverait dans « Tanger a été atteint » : un navire qui n'a pour
+ * seul mot distinctif qu'un nom de port est écarté, sans quoi il rattacherait à
+ * un dossier tous les messages parlant de la région.
+ */
+export function navireIdentifiable(nom: string | null | undefined): boolean {
+  const clean = (nom || '').trim();
+  if (clean.length < 6) return false;
+  const mots = clean.split(/[^A-Za-z0-9]+/).filter(Boolean);
+  return mots.some(m => m.length >= 4 && !LIEUX_COURANTS.has(m.toUpperCase()) && !MOTS_GENERIQUES.has(m.toUpperCase()));
+}
+
 /**
  * Note un email contre un dossier d'arrivage.
  * @param accountKey boîte mail d'où vient l'email ('lebtex' | 'robeinbox')
@@ -236,7 +261,39 @@ export function scoreEmailAgainstFacture(
     add('compagnie', `Compagnie ${line} citée`, 8);
   }
 
-  // ⑤ Société déclarante ↔ boîte mail
+  // ⑤ Ce que la compagnie maritime nous a appris du conteneur
+  // Un numéro de conteneur est unique au monde : le voir dans un message ne
+  // laisse aucun doute sur le dossier concerné, même si le message ne dit ni
+  // « avis d'arrivée » ni le numéro de BL.
+  const suivi = (facture as any).suivi as SuiviConteneur | undefined;
+  if (suivi?.shipmentId) {
+    for (const numero of suivi.conteneurs || []) {
+      const n = normalizeRef(numero);
+      if (n.length < 10) continue;
+      if (h.subject.includes(n)) { add('conteneur_objet', `Conteneur ${numero} dans l'objet`, 58); break; }
+      if (h.attachments.includes(n)) { add('conteneur_piece_jointe', `Conteneur ${numero} dans une pièce jointe`, 46); break; }
+      if (h.body.includes(n)) { add('conteneur_corps', `Conteneur ${numero} dans le message`, 44); break; }
+    }
+
+    // Le navire ne désigne pas un dossier à lui seul — plusieurs conteneurs
+    // voyagent sur le même bateau — mais c'est un indice sérieux, et c'est
+    // souvent le seul mot commun entre un préavis et le dossier.
+    const navire = (suivi.navire || '').trim();
+    if (navireIdentifiable(navire)) {
+      if (hasWord(h.rawSubject, navire)) add('navire_objet', `Navire ${navire} dans l'objet`, 18);
+      else if (hasWord(h.rawBody, navire)) add('navire_corps', `Navire ${navire} cité`, 12);
+    }
+
+    // Le n° de voyage seul ressemble à n'importe quelle référence : il ne
+    // compte qu'en compagnie du navire, où il confirme le bon départ.
+    const voyage = (suivi.voyage || '').trim();
+    const navireVu = reasons.some(r => r.code.startsWith('navire_'));
+    if (navireVu && voyage.length >= 3 && (hasWord(h.rawSubject, voyage) || hasWord(h.rawBody, voyage))) {
+      add('voyage', `Voyage ${voyage} confirmé`, 8);
+    }
+  }
+
+  // ⑥ Société déclarante ↔ boîte mail
   const expected = opts.accountKey ? ACCOUNT_COMPANY[opts.accountKey] : undefined;
   const declaring = (facture.declaringCompany || '').trim();
   if (expected && declaring) {
@@ -251,7 +308,7 @@ export function scoreEmailAgainstFacture(
     // Société hors des deux boîtes (ex: « New fournitures ») → neutre.
   }
 
-  // ⑥ Cohérence de date
+  // ⑦ Cohérence de date
   const window = dossierWindow(facture);
   if (window && h.date !== null) {
     if (h.date >= window.start && h.date <= window.end) {
@@ -312,3 +369,90 @@ export function bestArrivageForEmail(
 }
 
 export const MATCH_THRESHOLDS = { SEUIL_SURE, SEUIL_PROBABLE, SEUIL_MIN };
+
+// ─── Chercher par ce qu'on sait, plutôt que par ce qu'on espère ───────────────
+// La détection par mots-clés ne trouve que les messages qui disent « avis
+// d'arrivée ». Or un transitaire écrit « Votre conteneur TIIU7634594 », une
+// compagnie met le n° de BL en objet sans autre formule, et un préavis parle du
+// navire. Tous ces messages ont un point commun : ils citent quelque chose que
+// nous connaissons déjà — parce que le dossier le porte, ou parce que la
+// compagnie nous l'a dit via ShipsGo.
+
+/** Une référence à chercher dans la boîte, et d'où elle vient. */
+export type ReferenceRecherchable = {
+  terme: string;
+  /** Le dossier qui l'a fournie. */
+  factureId: string;
+  type: 'bl' | 'conteneur' | 'navire';
+};
+
+/** Les dossiers dont il vaut la peine de fouiller la correspondance. */
+function dossierVivant(f: Facture, maintenant: number): boolean {
+  const w = dossierWindow(f);
+  if (!w) return true;                       // sans date, on ne présume rien
+  return maintenant >= w.start && maintenant <= w.end;
+}
+
+/**
+ * Les termes à chercher dans Gmail pour ne rien rater des dossiers en cours :
+ * numéros de BL, numéros de conteneurs et noms de navires.
+ */
+export function referencesRecherchables(
+  factures: Facture[],
+  opts: { maintenant?: number; maxTermes?: number } = {},
+): ReferenceRecherchable[] {
+  const maintenant = opts.maintenant ?? Date.now();
+  const maxTermes = opts.maxTermes ?? 24;
+  const sorties: ReferenceRecherchable[] = [];
+  const vus = new Set<string>();
+
+  const ajouter = (terme: string, factureId: string, type: ReferenceRecherchable['type']) => {
+    const t = terme.trim();
+    const cle = t.toUpperCase();
+    if (!t || vus.has(cle)) return;
+    vus.add(cle);
+    sorties.push({ terme: t, factureId, type });
+  };
+
+  // Les dossiers les plus récents d'abord : c'est là que l'actualité se joue.
+  const vivants = factures
+    .filter(f => dossierVivant(f, maintenant))
+    .sort((a, b) => String(b.arrivalDate || '').localeCompare(String(a.arrivalDate || '')));
+
+  for (const f of vivants) {
+    const suivi = (f as any).suivi as SuiviConteneur | undefined;
+    // Le conteneur d'abord : c'est le terme qui ne peut désigner rien d'autre.
+    for (const c of suivi?.conteneurs || []) if (normalizeRef(c).length >= 10) ajouter(c, f.id, 'conteneur');
+    const bl = (f.noBL || '').trim();
+    if (isRefUsable(normalizeRef(bl))) ajouter(bl, f.id, 'bl');
+    if (navireIdentifiable(suivi?.navire)) ajouter(suivi!.navire!, f.id, 'navire');
+  }
+
+  return sorties.slice(0, maxTermes);
+}
+
+/**
+ * Requête Gmail correspondante. Gmail traite `{a b c}` comme un OU, et met
+ * entre guillemets ce qui contient une espace (« SEASPAN BRIGHTNESS »).
+ * Renvoie '' quand il n'y a rien à chercher — à l'appelant de ne pas
+ * interroger la boîte pour rien.
+ */
+export function rechercheGmailReferences(
+  refs: ReferenceRecherchable[],
+  opts: { jours?: number } = {},
+): string {
+  if (!refs.length) return '';
+  const jours = opts.jours ?? 120;
+  const termes = refs.map(r => (/\s/.test(r.terme) ? `"${r.terme.replace(/"/g, '')}"` : r.terme));
+  return `newer_than:${jours}d -in:sent -in:drafts -from:me {${termes.join(' ')}}`;
+}
+
+/** Ce qui, dans un email, a déclenché sa remontée — pour le dire à l'écran. */
+export function referencesCitees(email: MatchableEmail, refs: ReferenceRecherchable[]): ReferenceRecherchable[] {
+  const h = buildHaystack(email);
+  return refs.filter(r => {
+    if (r.type === 'navire') return hasWord(h.rawSubject, r.terme) || hasWord(h.rawBody, r.terme);
+    const n = normalizeRef(r.terme);
+    return n.length >= 5 && (h.subject.includes(n) || h.body.includes(n) || h.attachments.includes(n));
+  });
+}

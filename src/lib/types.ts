@@ -1,3 +1,4 @@
+import type { SuiviConteneur } from './suivi-conteneur';
 export type OrderStatus = 'TO_ORDER' | 'PI' | 'SHIPPED';
 
 export type StoreLocation = string;

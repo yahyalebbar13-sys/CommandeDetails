@@ -23,9 +23,19 @@ import {
 } from '@/lib/gmail-browser';
 import type { EmailComplet, EmailResume } from '@/lib/gmail-message';
 import { detecterAvisArrivee, RECHERCHE_GMAIL_AVIS, type AvisArrivee } from '@/lib/avis-arrivee';
-import { matchEmailToArrivages, type ArrivageMatch, type SupplierHint } from '@/lib/email-arrivage-match';
+import {
+  matchEmailToArrivages, referencesCitees, referencesRecherchables, rechercheGmailReferences,
+  type ArrivageMatch, type ReferenceRecherchable, type SupplierHint,
+} from '@/lib/email-arrivage-match';
 
-type AvisTrouve = { box: MailboxKey; email: EmailComplet; avis: AvisArrivee };
+type AvisTrouve = {
+  box: MailboxKey;
+  email: EmailComplet;
+  /** null quand le message n'emploie aucune formule d'avis mais cite une de nos références. */
+  avis: AvisArrivee | null;
+  /** Ce que le message cite et que nous connaissons : conteneur, BL, navire. */
+  citees: ReferenceRecherchable[];
+};
 type Ouvert = { box: MailboxKey; email: EmailComplet };
 type EtatAvis = { enCours: boolean; trouves: AvisTrouve[]; erreur: string };
 
@@ -97,11 +107,28 @@ function DetailsAvis({ avis }: { avis: AvisArrivee }) {
   );
 }
 
+/** Ce que le message cite et que nous connaissons déjà — la raison de sa remontée. */
+function RefsCitees({ citees }: { citees: ReferenceRecherchable[] }) {
+  if (!citees.length) return null;
+  const libelle = (r: ReferenceRecherchable) =>
+    r.type === 'conteneur' ? `Conteneur ${r.terme}` : r.type === 'navire' ? `Navire ${r.terme}` : `BL ${r.terme}`;
+  return (
+    <div className="flex items-center gap-1.5 flex-wrap">
+      {citees.slice(0, 3).map(r => (
+        <span key={`${r.type}:${r.terme}`} className={`${puce} bg-indigo-50 text-indigo-700 border-indigo-200`}>
+          {r.type === 'navire' ? <Ship className="w-3 h-3" /> : <Container className="w-3 h-3" />}
+          {libelle(r)}
+        </span>
+      ))}
+    </div>
+  );
+}
+
 /** Dossier d'arrivage reconnu, et écart éventuel avec la date annoncée. */
-function DossierAvis({ match, avis }: { match: ArrivageMatch; avis: AvisArrivee }) {
+function DossierAvis({ match, avis }: { match: ArrivageMatch; avis: AvisArrivee | null }) {
   const style = CONFIANCE[match.confidence];
   const dateDossier = (match.arrivalDate || '').slice(0, 10);
-  const ecart = !!avis.dateArrivee && !!dateDossier && dateDossier !== avis.dateArrivee;
+  const ecart = !!avis?.dateArrivee && !!dateDossier && dateDossier !== avis.dateArrivee;
   return (
     <div className="flex items-center gap-1.5 flex-wrap">
       <span title={match.reasons.map(r => r.label).join(' · ')} className={`${puce} ${style.chip}`}>
@@ -217,6 +244,12 @@ export default function EmailsView({
   // ── Avis d'arrivée : chaque boîte connectée, chargée une fois par jeton ────
   const chargements = useRef<Partial<Record<MailboxKey, string>>>({});
 
+  // Ce qu'on sait déjà des dossiers en cours sert à fouiller la boîte : un
+  // numéro de conteneur ou un nom de navire trouve des messages qu'aucun
+  // mot-clé ne ramènerait.
+  const references = useMemo(() => referencesRecherchables(factures), [factures]);
+  const requeteReferences = useMemo(() => rechercheGmailReferences(references), [references]);
+
   useEffect(() => {
     for (const { key: box } of MAILBOXES) {
       const j = jetons[box];
@@ -235,15 +268,26 @@ export default function EmailsView({
       chargements.current[box] = cle;
       setAvisParBoite(prev => ({ ...prev, [box]: { enCours: true, trouves: prev[box]?.trouves || [], erreur: '' } }));
 
-      lireEmails(j.token, RECHERCHE_AVIS, 40)
+      // Deux filets plutôt qu'un : les formules d'avis d'arrivée, et les
+      // numéros qu'on connaît déjà (BL, conteneurs, navires). Le second
+      // rattrape les messages qui parlent d'un conteneur sans jamais employer
+      // le mot « arrivée ».
+      Promise.all([
+        lireEmails(j.token, RECHERCHE_AVIS, 40),
+        requeteReferences ? lireEmails(j.token, requeteReferences, 30).catch(() => []) : Promise.resolve([]),
+      ])
         .then(
-          async emails => {
+          async ([parMotsCles, parReferences]) => {
+            const parId = new Map<string, EmailComplet>();
+            for (const e of [...parMotsCles, ...parReferences]) parId.set(e.id, e);
+
             const trouves: AvisTrouve[] = [];
-            for (const email of emails) {
+            for (const email of parId.values()) {
               if (chargements.current[box] !== cle) break;
               if (envoyeParLaSociete(email.from)) continue;
               const avis = detecterAvisArrivee(email);
-              if (avis) trouves.push({ box, email, avis });
+              const citees = referencesCitees(email, references);
+              if (avis || citees.length) trouves.push({ box, email, avis, citees });
               // Rendre la main au navigateur entre deux messages : la page reste fluide.
               await new Promise(r => setTimeout(r, 0));
             }
@@ -256,7 +300,7 @@ export default function EmailsView({
           setAvisParBoite(prev => ({ ...prev, [box]: { enCours: false, ...r } }));
         });
     }
-  }, [jetons, rafraichir, gererErreur]);
+  }, [jetons, rafraichir, gererErreur, requeteReferences, references]);
 
   const etatsAvis = Object.values(avisParBoite) as EtatAvis[];
   const avisEnCours = etatsAvis.some(e => e.enCours);
@@ -457,14 +501,14 @@ export default function EmailsView({
         <div className="bg-white rounded-2xl border border-stone-200 overflow-hidden">
           <div className="flex items-center gap-2 px-5 py-3 border-b border-stone-100">
             <Ship className="w-4 h-4 text-stone-900" />
-            <h2 className="text-[11px] font-black text-stone-900 uppercase tracking-widest">Avis d&apos;arrivée reçus</h2>
+            <h2 className="text-[11px] font-black text-stone-900 uppercase tracking-widest">Emails liés à vos arrivages</h2>
             {avisEnCours
               ? <Loader2 className="w-3.5 h-3.5 animate-spin text-amber-500" />
               : <span className="text-[10px] font-bold text-stone-400">{avis.length}</span>}
           </div>
           {avisErreur && <p className="px-5 pt-3 text-[11px] font-bold text-red-600">{avisErreur}</p>}
           {!avisEnCours && avis.length === 0 ? (
-            !avisErreur && <p className="px-5 py-4 text-[11px] font-bold text-stone-400">Aucun avis d&apos;arrivée trouvé.</p>
+            !avisErreur && <p className="px-5 py-4 text-[11px] font-bold text-stone-400">Aucun message lié à vos arrivages en cours.</p>
           ) : (
             <div className="divide-y divide-stone-50 max-h-[420px] overflow-auto">
               {avis.map(a => {
@@ -484,7 +528,7 @@ export default function EmailsView({
                       <span className="text-[10px] text-stone-400 font-medium shrink-0">{formatDate(a.email.date)}</span>
                     </div>
                     <p className="text-[11px] text-stone-500 truncate">{fromName(a.email.from)}</p>
-                    <DetailsAvis avis={a.avis} />
+                    {a.avis ? <DetailsAvis avis={a.avis} /> : <RefsCitees citees={a.citees} />}
                     {dossier ? <DossierAvis match={dossier} avis={a.avis} /> : factures.length > 0 && (
                       <span className="flex items-center gap-1.5 text-[10px] font-bold text-stone-400">
                         <HelpCircle className="w-3 h-3" />Aucun dossier reconnu
