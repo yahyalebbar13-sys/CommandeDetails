@@ -5,7 +5,7 @@ import {
   Loader2, LogOut, LayoutDashboard, List, ArrowLeftRight, Bell, Package,
   Boxes, ShoppingCart, TrendingUp, Users, ClipboardList, FileText, Anchor, Archive, CheckCircle2, Download, Truck, Store as StoreIcon,
   Settings, MapPin, Send, Home, AlertTriangle, Building2, Sparkles, Warehouse, CreditCard, Receipt, Search,
-  Calendar, Clock, Filter, Lock, RotateCcw, Globe, WifiOff, ChevronLeft, GraduationCap
+  Calendar, Clock, Filter, Lock, RotateCcw, Globe, WifiOff, ChevronLeft, GraduationCap, Printer
 } from 'lucide-react';
 import { useUser, useFirebase, useCollection, useMemoFirebase } from '@/firebase';
 import { signOut } from 'firebase/auth';
@@ -47,6 +47,7 @@ import StockWarehouses  from './stock-warehouses';
 import WarehouseLocationsView from './warehouse-locations-view';
 import { authedFetch } from '@/lib/authed-fetch';
 import { planifierChargement, listeAImprimer, type LigneChargement } from '@/lib/stock-formation';
+import { choisirCibles, devoirHtml, corrigeHtml } from '@/lib/devoir-formation';
 import { Encadre, BoutonValider } from './ui-formulaire';
 import {
   centimes, effetEnAttente, imputationsDuPaiement, agregerParFacture, statutFacture,
@@ -1210,6 +1211,50 @@ export default function StockApp() {
   // Ce qui sera écrit : calculé à l'avance pour être relu avant de valider, et recopié dans le
   // corrigé du devoir après coup. Aucun produit n'est créé, seulement des mouvements d'entrée.
   const lignesFormation: LigneChargement[] = useMemo(() => planifierChargement(articles), [articles]);
+
+  // Les noms de lieux tels qu'ils apparaîtront dans le devoir imprimé : la recrue doit lire
+  // « Derb Omar », pas « DERB_OMAR ».
+  const lieuxFormation = useMemo(() => {
+    const principal = stores.find((st: any) => st.isMain) || stores.find((st: any) => st.id === 'CHRIFA');
+    const reserve = stores.find((st: any) => st.type === 'WAREHOUSE');
+    const autre = stores.find((st: any) => st.type !== 'WAREHOUSE' && st.id !== principal?.id);
+    return {
+      boutique: principal?.name || principal?.id || 'CHRIFA',
+      reserve: reserve?.name || reserve?.id || 'la réserve',
+      autreMagasin: autre?.name || autre?.id || 'un autre magasin',
+    };
+  }, [stores]);
+
+  /** Ouvre un document imprimable : la fenêtre du navigateur fait le PDF. */
+  const imprimerDocument = (html: string) => {
+    const fenetre = window.open('', '_blank');
+    if (!fenetre) {
+      toast({
+        variant: 'destructive',
+        title: 'Fenêtre bloquée',
+        description: "Autorisez les pop-ups pour imprimer le document.",
+      });
+      return;
+    }
+    fenetre.document.write(html);
+    fenetre.document.close();
+    fenetre.focus();
+  };
+
+  const imprimerDevoir = (avecReponses: boolean) => {
+    const cibles = choisirCibles(lignesFormation);
+    if (!cibles) {
+      toast({
+        variant: 'destructive',
+        title: 'Devoir impossible',
+        description: 'Il faut au moins cinq références en boutique pour construire le devoir.',
+      });
+      return;
+    }
+    imprimerDocument(avecReponses
+      ? corrigeHtml(lignesFormation, cibles, lieuxFormation)
+      : devoirHtml(lignesFormation, cibles, lieuxFormation));
+  };
 
   const handleChargerStockFormation = async () => {
     if (!user || !firestore || lignesFormation.length === 0) return;
@@ -3462,22 +3507,36 @@ export default function StockApp() {
           <div className="mt-4 space-y-2">
             {formationCharge ? (
               <>
-                <Encadre ton="astuce">
-                  Stock chargé. Copiez la liste et collez-la dans le corrigé du devoir : c'est elle qui donne les
-                  quantités de départ de chaque référence.
+                <Encadre ton="astuce" titre="Stock chargé">
+                  Le devoir et son corrigé sont écrits avec les <span className="font-black">vrais noms</span> de ces
+                  produits et leurs variantes : imprimez-les (la fenêtre d'impression du navigateur fait le PDF).
+                  Le corrigé contient les réponses — ne le donnez pas avant la correction.
                 </Encadre>
-                <div className="flex gap-2.5">
+                <div className="grid grid-cols-2 gap-2.5">
+                  <Button
+                    onClick={() => imprimerDevoir(false)}
+                    className="rounded-xl text-xs font-black bg-stone-900 hover:bg-stone-800 gap-1.5"
+                  >
+                    <Printer className="w-3.5 h-3.5" /> Imprimer le devoir
+                  </Button>
+                  <Button
+                    variant="outline"
+                    onClick={() => imprimerDevoir(true)}
+                    className="rounded-xl text-xs font-bold gap-1.5"
+                  >
+                    <Printer className="w-3.5 h-3.5" /> Imprimer le corrigé
+                  </Button>
                   <Button
                     variant="outline"
                     onClick={() => {
                       navigator.clipboard?.writeText(listeAImprimer(lignesFormation));
-                      toast({ title: 'Liste copiée', description: 'Collez-la dans le corrigé du devoir.' });
+                      toast({ title: 'Liste copiée', description: 'Collez-la où vous voulez.' });
                     }}
-                    className="flex-1 rounded-xl text-xs font-bold"
+                    className="rounded-xl text-xs font-bold"
                   >
                     Copier la liste
                   </Button>
-                  <Button onClick={() => setFormationOpen(false)} className="flex-1 rounded-xl text-xs font-black bg-stone-900 hover:bg-stone-800">
+                  <Button variant="ghost" onClick={() => setFormationOpen(false)} className="rounded-xl text-xs font-bold">
                     Fermer
                   </Button>
                 </div>
