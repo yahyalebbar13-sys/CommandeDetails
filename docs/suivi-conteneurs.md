@@ -81,6 +81,37 @@ Le panneau affiche aussi :
   la désinscription est immédiate. C'est un envoi vers l'extérieur : il ne se
   déclenche que sur une action explicite dans le dossier.
 
+## Être prévenu quand un conteneur bouge
+
+Une alerte part dès qu'un changement compte vraiment : étape franchie (départ,
+arrivée, déchargement), date d'arrivée qui bouge, ou numéro que la compagnie ne
+reconnaît plus. Le reste — une revérification sans nouveauté, une escale encore
+prévisionnelle, un glissement d'un jour — n'envoie rien. La règle vit dans
+`src/lib/suivi-changements.ts` et est testée.
+
+**Email** — rien à configurer : le message part de la boîte Gmail déjà utilisée
+par l'alerte de stock bas, vers `GMAIL_USER`. Sur téléphone, l'application Gmail
+le pousse comme n'importe quel mail. Pour l'envoyer ailleurs, poser
+`SUIVI_ALERTE_EMAIL`.
+
+**Telegram** (facultatif, gratuit, notification instantanée) :
+
+1. Sur Telegram, écrire à **@BotFather** → `/newbot` → il renvoie un jeton.
+2. Écrire un message à son propre bot, puis ouvrir
+   `https://api.telegram.org/bot<JETON>/getUpdates` pour y lire `chat.id`.
+3. Poser les deux variables sur Vercel :
+
+   ```
+   TELEGRAM_BOT_TOKEN=<le jeton de BotFather>
+   TELEGRAM_CHAT_ID=<le chat.id>
+   ```
+
+Sans ces variables, ce canal est simplement ignoré. Un envoi qui échoue ne fait
+jamais échouer la mise à jour du dossier.
+
+Pour voir à quoi ressemble l'alerte sans encombrer sa boîte :
+`npx tsx scripts/apercu-notification.ts`.
+
 ## Ce qui est écrit dans le dossier
 
 | Champ | Contenu |

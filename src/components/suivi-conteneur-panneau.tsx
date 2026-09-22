@@ -9,7 +9,7 @@
 // Ouvrir un suivi coûte un crédit ShipsGo — le bouton le dit, et l'action reste
 // volontaire. Relire est gratuit.
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   Ship, Anchor, MapPin, RefreshCw, Loader2, AlertTriangle, CheckCircle2,
   CalendarClock, ExternalLink, Container, Radar, Lock, Mail, X, Send,
@@ -19,7 +19,7 @@ import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
 import { authedFetch } from '@/lib/authed-fetch';
 import {
-  LIBELLE_STATUT, derniereEtape, prochaineEtape, type SuiviConteneur,
+  LIBELLE_STATUT, derniereEtape, instantDe, prochaineEtape, type SuiviConteneur,
 } from '@/lib/suivi-conteneur';
 import type { Carte } from '@/lib/suivi-carte';
 import SuiviCarte from './suivi-carte';
@@ -101,6 +101,22 @@ export default function SuiviConteneurPanneau({
       .catch(() => { if (vivant) setCarte(null); });
     return () => { vivant = false; };
   }, [tracable, shipmentId, majLe, facture.id]);
+
+  // Ouvrir un dossier, c'est vouloir savoir où en est son conteneur : on relit
+  // la compagnie si la dernière lecture date. C'est gratuit — seule l'ouverture
+  // d'un suivi coûte un crédit. Une seule fois par affichage du dossier.
+  const dejaRafraichi = useRef(false);
+  useEffect(() => {
+    if (!tracable || verrouille || dejaRafraichi.current) return;
+    const age = Date.now() - (instantDe(suivi?.majLe) ?? 0);
+    if (age < 30 * 60 * 1000) return;   // relu il y a moins d'une demi-heure
+    dejaRafraichi.current = true;
+    authedFetch('/api/admin/suivi-conteneur', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ factureId: facture.id }),
+    }).catch(() => { /* hors ligne : le dossier reste lisible tel quel */ });
+  }, [tracable, verrouille, suivi?.majLe, facture.id]);
 
   const gererAbonne = async (corps: { email?: string; abonneId?: number; action: 'ajouter' | 'retirer' }) => {
     if (abonneEnCours !== null) return;

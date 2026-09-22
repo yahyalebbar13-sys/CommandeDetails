@@ -47,3 +47,5 @@ firestore-debug.log
 service-account.json
 *.dump.json
 storeAccess_dump.json
+# aperçu local des notifications (scripts/apercu-notification.ts)
+apercu-notification.html

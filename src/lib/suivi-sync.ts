@@ -26,6 +26,8 @@ import {
   type SuiviConteneur,
 } from './suivi-conteneur';
 import { isArrivalOlderThanOneMonth } from './status-utils';
+import { changementsNotables } from './suivi-changements';
+import { notifierChangements } from './notifier-suivi';
 
 export type IssueSynchro =
   | 'a-jour'           // suivi relu, rien de neuf dans le dossier
@@ -128,6 +130,14 @@ export async function appliquerShipment(
   // sansIndefinis(). Le filet est posé ici parce que TOUTES les écritures de
   // suivi passent par cette ligne.
   await db.doc(`users/${adminUid}/factures/${factureId}`).set(sansIndefinis(maj), { merge: true });
+
+  // Prévenir seulement si quelque chose a bougé pour de vrai. L'envoi ne peut
+  // pas faire échouer l'enregistrement : un webhook doit être acquitté même si
+  // Gmail est indisponible.
+  const changements = changementsNotables(precedent, suivi);
+  if (changements.length) {
+    await notifierChangements(factureId, suivi, changements).catch(() => { /* journalisé en amont */ });
+  }
 
   return {
     factureId,
