@@ -5,7 +5,7 @@ import {
   Loader2, LogOut, LayoutDashboard, List, ArrowLeftRight, Bell, Package,
   Boxes, ShoppingCart, TrendingUp, Users, ClipboardList, FileText, Anchor, Archive, CheckCircle2, Download, Truck, Store as StoreIcon,
   Settings, MapPin, Send, Home, AlertTriangle, Building2, Sparkles, Warehouse, CreditCard, Receipt, Search,
-  Calendar, Clock, Filter, Lock, RotateCcw, Globe, WifiOff, ChevronLeft
+  Calendar, Clock, Filter, Lock, RotateCcw, Globe, WifiOff, ChevronLeft, GraduationCap
 } from 'lucide-react';
 import { useUser, useFirebase, useCollection, useMemoFirebase } from '@/firebase';
 import { signOut } from 'firebase/auth';
@@ -46,6 +46,8 @@ import StoresView       from './stores-view';
 import StockWarehouses  from './stock-warehouses';
 import WarehouseLocationsView from './warehouse-locations-view';
 import { authedFetch } from '@/lib/authed-fetch';
+import { planifierChargement, listeAImprimer, type LigneChargement } from '@/lib/stock-formation';
+import { Encadre, BoutonValider } from './ui-formulaire';
 import {
   centimes, effetEnAttente, imputationsDuPaiement, agregerParFacture, statutFacture,
 } from '@/lib/reglement';
@@ -848,6 +850,11 @@ export default function StockApp() {
   const isOnline = useOnlineStatus();
   const [debugInfo, setDebugInfo] = useState<string>('');
   const [resetConfirmOpen, setResetConfirmOpen] = useState(false);
+  // Stock de formation : chargement de quantités connues sur de vrais produits du catalogue,
+  // pour faire travailler une nouvelle recrue. Effacé par « Reset Stock (0) » comme le reste.
+  const [formationOpen, setFormationOpen] = useState(false);
+  const [formationEnCours, setFormationEnCours] = useState(false);
+  const [formationCharge, setFormationCharge] = useState(false);
   // Mot à recopier avant la remise à zéro : elle efface le fichier clients et tout l'historique
   // commercial, c'est irréversible, et un bouton seul se clique par erreur.
   const [resetConfirmText, setResetConfirmText] = useState('');
@@ -1200,6 +1207,73 @@ export default function StockApp() {
   const isLoading = isUserLoading || loadingArt || loadingCat;
 
   // ─── Handlers ────────────────────────────────────────────────────────────
+  // Ce qui sera écrit : calculé à l'avance pour être relu avant de valider, et recopié dans le
+  // corrigé du devoir après coup. Aucun produit n'est créé, seulement des mouvements d'entrée.
+  const lignesFormation: LigneChargement[] = useMemo(
+    () => planifierChargement(articles, (a: any) => articleVariantDimension(a) === null),
+    [articles]
+  );
+
+  const handleChargerStockFormation = async () => {
+    if (!user || !firestore || lignesFormation.length === 0) return;
+    const effectiveUid = adminUid || user.uid;
+    const magasin = (stores.find((st: any) => st.isMain)?.id || 'CHRIFA') as string;
+    const entrepot = (stores.find((st: any) => st.type === 'WAREHOUSE')?.id || magasin) as string;
+    const aujourdhui = toLocalDateStr(new Date());
+
+    setFormationEnCours(true);
+    try {
+      const movsColl = collection(firestore, 'users', effectiveUid, 'stockMovements');
+      const ecritures = lignesFormation.map(l => () => cleanUndefined({
+        articleId:            l.article.id,
+        categoryId:           l.article.categoryId || null,
+        productName:          l.nom,
+        nameFR:               l.article.nameFR || null,
+        color:                l.article.color || null,
+        size:                 l.article.size || null,
+        quality:              l.article.quality || null,
+        unitOfMeasure:        l.article.unitOfMeasure || 'unité',
+        type:                 'IN' as const,
+        reason:               'INVENTAIRE' as const,
+        storeId:              l.lieu === 'MAGASIN' ? magasin : entrepot,
+        quantity:             l.quantite,
+        date:                 aujourdhui,
+        purchasePricePerUnit: l.prixUnitaire > 0 ? l.prixUnitaire : null,
+        notes:                `STOCK DE FORMATION · ligne n°${l.rang} du devoir`,
+        createdAt:            serverTimestamp(),
+      }));
+      // Par lots, comme partout ailleurs : une écriture par ligne relancerait le calcul du stock
+      // à chaque fois.
+      for (let i = 0; i < ecritures.length; i += 450) {
+        const batch = writeBatch(firestore);
+        ecritures.slice(i, i + 450).forEach(faire => { batch.set(doc(movsColl), faire()); });
+        await batch.commit();
+      }
+
+      logAudit(firestore, effectiveUid, {
+        action: 'STOCK_IN',
+        userId: user.uid,
+        userEmail: user.email || '',
+        entityType: 'stockMovement',
+        entityId: 'stock-formation',
+        description: `Stock de formation chargé · ${lignesFormation.length} référence(s), `
+          + `${lignesFormation.reduce((somme, l) => somme + l.quantite, 0).toLocaleString('fr-MA')} unité(s)`,
+        metadata: { references: lignesFormation.length, magasin, entrepot },
+      });
+
+      setFormationCharge(true);
+      toast({
+        title: 'Stock de formation chargé',
+        description: `${lignesFormation.length} référence(s) en stock. Copiez la liste pour le corrigé du devoir.`,
+      });
+    } catch (e: any) {
+      console.error('[formation] chargement impossible :', e);
+      toast({ variant: 'destructive', title: 'Erreur', description: e?.message || 'Chargement impossible.' });
+    } finally {
+      setFormationEnCours(false);
+    }
+  };
+
   const handleAddMovement = useCallback(async (movement: Omit<StockMovement, 'id' | 'createdAt'>) => {
     if (!user || !firestore) return;
     try {
@@ -2317,6 +2391,13 @@ export default function StockApp() {
               <ChevronLeft className="w-4 h-4 shrink-0" /> StockVue
             </a>
             {userRole === 'ADMIN' && (
+              <button onClick={() => { setFormationCharge(false); setFormationOpen(true); }}
+                title="Charger un stock d'entraînement sur de vrais produits, pour former quelqu'un"
+                className="w-full flex items-center gap-2.5 h-[34px] px-3 rounded-xl text-[11.5px] font-bold text-emerald-400 hover:text-emerald-300 hover:bg-emerald-500/10 transition-colors">
+                <GraduationCap className="w-3.5 h-3.5 shrink-0" /> Stock de formation
+              </button>
+            )}
+            {userRole === 'ADMIN' && (
               <button onClick={() => setResetConfirmOpen(true)}
                 title="Remettre le stock à 0 pour démarrer une nouvelle simulation"
                 className="w-full flex items-center gap-2.5 h-[34px] px-3 rounded-xl text-[11.5px] font-bold text-rose-400 hover:text-rose-300 hover:bg-rose-500/10 transition-colors">
@@ -3285,6 +3366,121 @@ export default function StockApp() {
         </DialogContent>
       </Dialog>
       {/* Modal de Confirmation Réinitialisation Stock (Mode Simulation) */}
+      {/* ── Stock de formation ─────────────────────────────────────────────────
+          Charge des quantités connues sur de VRAIS produits du catalogue, pour faire travailler
+          une nouvelle recrue. Aucun produit n'est créé : ce sont des mouvements d'entrée
+          ordinaires, que « Reset Stock (0) » efface comme les autres. */}
+      <Dialog open={formationOpen} onOpenChange={setFormationOpen}>
+        <DialogContent className="sm:max-w-2xl rounded-3xl p-6 max-h-[90vh] overflow-y-auto">
+          <div className="flex items-center gap-3 mb-1">
+            <div className="w-10 h-10 rounded-2xl bg-emerald-100 flex items-center justify-center text-emerald-700 shrink-0">
+              <GraduationCap className="w-5 h-5" />
+            </div>
+            <div>
+              <DialogTitle className="text-base font-black text-stone-900">Stock de formation</DialogTitle>
+              <DialogDescription className="text-xs text-stone-500 font-bold">
+                De quoi faire travailler quelqu'un sur de vrais produits
+              </DialogDescription>
+            </div>
+          </div>
+
+          <Encadre ton="info" className="mt-2">
+            Aucun produit n'est créé. Les quantités ci-dessous sont posées sur les {lignesFormation.length} premières
+            références simples de votre catalogue, par ordre alphabétique — la liste est donc toujours la même.
+            Les dix premières vont en <span className="font-black">boutique</span>, les suivantes en{' '}
+            <span className="font-black">réserve</span>. Tout s'efface avec « Reset Stock (0) ».
+          </Encadre>
+
+          {lignesFormation.length === 0 ? (
+            <Encadre ton="attention" className="mt-3">
+              Aucun produit simple trouvé dans le catalogue. Le chargement ne peut désigner que des références sans
+              ventilation par qualité, couleur ou taille.
+            </Encadre>
+          ) : (
+            <div className="mt-3 rounded-2xl border border-stone-200 overflow-hidden">
+              <table className="w-full text-left">
+                <thead className="bg-stone-50 border-b border-stone-200">
+                  <tr>
+                    <th className="px-3 py-2 text-[10px] font-black uppercase tracking-widest text-stone-500 w-10">N°</th>
+                    <th className="px-3 py-2 text-[10px] font-black uppercase tracking-widest text-stone-500">Produit</th>
+                    <th className="px-3 py-2 text-[10px] font-black uppercase tracking-widest text-stone-500">Lieu</th>
+                    <th className="px-3 py-2 text-[10px] font-black uppercase tracking-widest text-stone-500 text-right">Quantité</th>
+                    <th className="px-3 py-2 text-[10px] font-black uppercase tracking-widest text-stone-500 text-right">Valeur</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-stone-100">
+                  {lignesFormation.map(l => (
+                    <tr key={l.rang} className="hover:bg-stone-50/60">
+                      <td className="px-3 py-2 text-[11px] font-black text-stone-400">{l.rang}</td>
+                      <td className="px-3 py-2 text-[12px] font-bold text-stone-900">{l.nom}</td>
+                      <td className="px-3 py-2">
+                        <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded-full ${
+                          l.lieu === 'MAGASIN' ? 'bg-violet-100 text-violet-700' : 'bg-stone-100 text-stone-600'
+                        }`}>
+                          {l.lieu === 'MAGASIN' ? 'Boutique' : 'Réserve'}
+                        </span>
+                      </td>
+                      <td className="px-3 py-2 text-[12px] font-black text-stone-900 text-right tabular-nums">
+                        {l.quantite.toLocaleString('fr-MA')}
+                      </td>
+                      <td className="px-3 py-2 text-[12px] font-bold text-stone-500 text-right tabular-nums">
+                        {l.valeur > 0 ? l.valeur.toLocaleString('fr-MA', { minimumFractionDigits: 2 }) : '—'}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+                <tfoot className="bg-stone-50 border-t-2 border-stone-200">
+                  <tr>
+                    <td colSpan={3} className="px-3 py-2 text-[11px] font-black uppercase tracking-widest text-stone-500">Total</td>
+                    <td className="px-3 py-2 text-[12px] font-black text-stone-900 text-right tabular-nums">
+                      {lignesFormation.reduce((somme, l) => somme + l.quantite, 0).toLocaleString('fr-MA')}
+                    </td>
+                    <td className="px-3 py-2 text-[12px] font-black text-stone-900 text-right tabular-nums">
+                      {lignesFormation.reduce((somme, l) => somme + l.valeur, 0).toLocaleString('fr-MA', { minimumFractionDigits: 2 })}
+                    </td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+          )}
+
+          <div className="mt-4 space-y-2">
+            {formationCharge ? (
+              <>
+                <Encadre ton="astuce">
+                  Stock chargé. Copiez la liste et collez-la dans le corrigé du devoir : c'est elle qui donne les
+                  quantités de départ de chaque référence.
+                </Encadre>
+                <div className="flex gap-2.5">
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      navigator.clipboard?.writeText(listeAImprimer(lignesFormation));
+                      toast({ title: 'Liste copiée', description: 'Collez-la dans le corrigé du devoir.' });
+                    }}
+                    className="flex-1 rounded-xl text-xs font-bold"
+                  >
+                    Copier la liste
+                  </Button>
+                  <Button onClick={() => setFormationOpen(false)} className="flex-1 rounded-xl text-xs font-black bg-stone-900 hover:bg-stone-800">
+                    Fermer
+                  </Button>
+                </div>
+              </>
+            ) : (
+              <BoutonValider
+                onClick={handleChargerStockFormation}
+                enCours={formationEnCours}
+                libelleEnCours="Chargement…"
+                raisonDesactive={lignesFormation.length === 0 ? "Aucun produit simple à charger dans le catalogue." : null}
+              >
+                Charger le stock de formation
+              </BoutonValider>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
       <Dialog open={resetConfirmOpen} onOpenChange={open => { setResetConfirmOpen(open); if (!open) setResetConfirmText(''); }}>
         <DialogContent className="sm:max-w-md rounded-3xl p-6">
           <div className="flex items-center gap-3 mb-2">
