@@ -681,6 +681,9 @@ function AdminApp() {
             <div className={activeTab === 'cost-analysis' ? 'block animate-in fade-in' : 'hidden'}>
               <CostAnalysisView articles={articles} factures={factures} subCategories={subCategories} />
             </div>
+            <div className={activeTab === 'simulateur' ? 'block animate-in fade-in' : 'hidden'}>
+              <SimulateurRevientView articles={articles} factures={factures} subCategories={subCategories} />
+            </div>
             <div className={activeTab === 'history-revient' ? 'block animate-in fade-in' : 'hidden'}>
               <HistoryRevientView articles={articles} factures={factures} subCategories={subCategories} />
             </div>
