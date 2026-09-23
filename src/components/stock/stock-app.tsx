@@ -5,7 +5,7 @@ import {
   Loader2, LogOut, LayoutDashboard, List, ArrowLeftRight, Bell, Package,
   Boxes, ShoppingCart, TrendingUp, Users, ClipboardList, FileText, Anchor, Archive, CheckCircle2, Download, Truck, Store as StoreIcon,
   Settings, MapPin, Send, Home, AlertTriangle, Building2, Sparkles, Warehouse, CreditCard, Receipt, Search,
-  Calendar, Clock, Filter, Lock, RotateCcw, Globe, WifiOff, ChevronLeft, GraduationCap, Printer
+  Calendar, Clock, Filter, Lock, RotateCcw, Globe, WifiOff, ChevronLeft, GraduationCap
 } from 'lucide-react';
 import { useUser, useFirebase, useCollection, useMemoFirebase } from '@/firebase';
 import { signOut } from 'firebase/auth';
@@ -48,6 +48,7 @@ import WarehouseLocationsView from './warehouse-locations-view';
 import { authedFetch } from '@/lib/authed-fetch';
 import { planifierChargement, listeAImprimer, type LigneChargement } from '@/lib/stock-formation';
 import { choisirCibles, devoirHtml, corrigeHtml } from '@/lib/devoir-formation';
+import { exportDevoirFormationPDF } from '@/lib/pdf-devoir-formation';
 import { Encadre, BoutonValider } from './ui-formulaire';
 import {
   centimes, effetEnAttente, imputationsDuPaiement, agregerParFacture, statutFacture,
@@ -1234,35 +1235,36 @@ export default function StockApp() {
     };
   }, [stores]);
 
-  /** Ouvre un document imprimable : la fenêtre du navigateur fait le PDF. */
-  const imprimerDocument = (html: string) => {
-    const fenetre = window.open('', '_blank');
-    if (!fenetre) {
-      toast({
-        variant: 'destructive',
-        title: 'Fenêtre bloquée',
-        description: "Autorisez les pop-ups pour imprimer le document.",
-      });
-      return;
-    }
-    fenetre.document.write(html);
-    fenetre.document.close();
-    fenetre.focus();
-  };
-
-  const imprimerDevoir = (avecReponses: boolean) => {
+  /**
+   * Le devoir part en PDF téléchargé. La fenêtre d'impression du navigateur demandait une
+   * manipulation de plus, se faisait bloquer par les pop-ups, et ne produisait pas un fichier
+   * qu'on puisse envoyer tel quel à la recrue.
+   */
+  const exporterDevoir = (avecReponses: boolean) => {
     const cibles = choisirCibles(lignesFormation);
     if (!cibles) {
       toast({
         variant: 'destructive',
         title: 'Devoir impossible',
-        description: 'Il faut au moins cinq références en boutique pour construire le devoir.',
+        description: "Il faut au moins cinq références en boutique, avec assez de quantité, pour construire le devoir.",
       });
       return;
     }
-    imprimerDocument(avecReponses
-      ? corrigeHtml(lignesFormation, cibles, lieuxFormation)
-      : devoirHtml(lignesFormation, cibles, lieuxFormation));
+    try {
+      exportDevoirFormationPDF(
+        avecReponses
+          ? corrigeHtml(lignesFormation, cibles, lieuxFormation)
+          : devoirHtml(lignesFormation, cibles, lieuxFormation),
+        avecReponses ? 'corrige-formation' : 'devoir-formation',
+      );
+      toast({
+        title: avecReponses ? 'Corrigé exporté' : 'Devoir exporté',
+        description: `${avecReponses ? 'corrige-formation.pdf' : 'devoir-formation.pdf'} est dans vos téléchargements.`,
+      });
+    } catch (e: any) {
+      console.error('[formation] export PDF impossible :', e);
+      toast({ variant: 'destructive', title: 'Export impossible', description: e?.message || 'Le PDF n’a pas pu être créé.' });
+    }
   };
 
   const handleChargerStockFormation = async () => {
@@ -3575,7 +3577,8 @@ export default function StockApp() {
               <>
                 <Encadre ton="astuce" titre={formationCharge ? 'Stock chargé' : 'Stock de formation déjà en place'}>
                   Le devoir et son corrigé sont écrits avec les <span className="font-black">vrais noms</span> de ces
-                  produits et leurs variantes : imprimez-les (la fenêtre d'impression du navigateur fait le PDF).
+                  produits et leurs variantes. Les deux boutons ci-dessous téléchargent un
+                  <span className="font-black"> PDF</span>, prêt à envoyer ou à imprimer.
                   Le corrigé contient les réponses — ne le donnez pas avant la correction.
                   {!formationCharge && (
                     <span className="block mt-1">
@@ -3586,17 +3589,17 @@ export default function StockApp() {
                 </Encadre>
                 <div className="grid grid-cols-2 gap-2.5">
                   <Button
-                    onClick={() => imprimerDevoir(false)}
+                    onClick={() => exporterDevoir(false)}
                     className="rounded-xl text-xs font-black bg-stone-900 hover:bg-stone-800 gap-1.5"
                   >
-                    <Printer className="w-3.5 h-3.5" /> Imprimer le devoir
+                    <Download className="w-3.5 h-3.5" /> Devoir en PDF
                   </Button>
                   <Button
                     variant="outline"
-                    onClick={() => imprimerDevoir(true)}
+                    onClick={() => exporterDevoir(true)}
                     className="rounded-xl text-xs font-bold gap-1.5"
                   >
-                    <Printer className="w-3.5 h-3.5" /> Imprimer le corrigé
+                    <Download className="w-3.5 h-3.5" /> Corrigé en PDF
                   </Button>
                   <Button
                     variant="outline"
