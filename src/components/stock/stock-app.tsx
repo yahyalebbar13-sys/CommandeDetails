@@ -3501,7 +3501,8 @@ export default function StockApp() {
             Aucun produit n'est créé. Les quantités sont posées sur {lignesFormation.length} références existantes,
             prises <span className="font-black">une par famille à tour de rôle</span> et en alternant produits simples
             et produits ventilés (couleurs, qualités, tailles) — la liste est toujours la même.
-            Les dix premières vont en <span className="font-black">boutique</span>, les suivantes en{' '}
+            Les {lignesFormation.filter(l => l.lieu === 'MAGASIN').length} premières vont en{' '}
+            <span className="font-black">boutique</span>, les suivantes en{' '}
             <span className="font-black">réserve</span>. Tout s'efface avec « Reset Stock (0) ».
           </Encadre>
 

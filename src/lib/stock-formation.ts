@@ -7,8 +7,8 @@
  * « Reset Stock (0) » les efface comme les autres.
  *
  * Trois exigences ont façonné ce fichier :
- * - **plusieurs catégories** : on prend une référence par catégorie à tour de rôle, sinon les 24
- *   lignes tombent toutes dans le même rayon et la recrue n'apprend qu'un seul écran ;
+ * - **plusieurs catégories** : on prend une référence par catégorie à tour de rôle, sinon toutes
+ *   les lignes tombent dans le même rayon et la recrue n'apprend qu'un seul écran ;
  * - **des produits ventilés** (couleurs, qualités, tailles) : c'est là que se font les vraies
  *   erreurs de stock, donc ils alternent avec les produits simples, en boutique comme en réserve ;
  * - **une liste stable** : même catalogue = même liste, sinon le corrigé du devoir ne correspond
@@ -30,9 +30,11 @@ export type LigneFormation = {
  * Le plan de chargement. Quantités rondes et variées (de 80 à 5 000) : elles se vérifient de
  * tête, et elles se divisent toujours juste entre quatre variantes.
  *
- * Les dix premières lignes vont en BOUTIQUE — ce sont celles que la recrue vendra, comptera et
- * corrigera. Les quatorze suivantes restent en RÉSERVE : c'est ce qui lui fait découvrir qu'un
- * produit peut exister sans être vendable là où il se trouve.
+ * Les quatorze premières lignes vont en BOUTIQUE — ce sont celles que la recrue vendra, comptera
+ * et corrigera. Il en faut autant parce que le devoir enchaîne neuf ventes, dont trois par
+ * couleur : avec dix références seulement, les mêmes produits revenaient à chaque exercice.
+ * Les quatorze suivantes restent en RÉSERVE : c'est ce qui lui fait découvrir qu'un produit peut
+ * exister sans être vendable là où il se trouve.
  */
 export const PLAN_FORMATION: LigneFormation[] = [
   { rang: 1,  quantite: 500,   lieu: 'MAGASIN' },
@@ -45,20 +47,24 @@ export const PLAN_FORMATION: LigneFormation[] = [
   { rang: 8,  quantite: 120,   lieu: 'MAGASIN' },
   { rang: 9,  quantite: 2000,  lieu: 'MAGASIN' },
   { rang: 10, quantite: 1200,  lieu: 'MAGASIN' },
-  { rang: 11, quantite: 800,   lieu: 'ENTREPOT' },
-  { rang: 12, quantite: 600,   lieu: 'ENTREPOT' },
-  { rang: 13, quantite: 5000,  lieu: 'ENTREPOT' },
-  { rang: 14, quantite: 4000,  lieu: 'ENTREPOT' },
-  { rang: 15, quantite: 2500,  lieu: 'ENTREPOT' },
-  { rang: 16, quantite: 3000,  lieu: 'ENTREPOT' },
-  { rang: 17, quantite: 1500,  lieu: 'ENTREPOT' },
-  { rang: 18, quantite: 240,   lieu: 'ENTREPOT' },
-  { rang: 19, quantite: 120,   lieu: 'ENTREPOT' },
-  { rang: 20, quantite: 80,    lieu: 'ENTREPOT' },
-  { rang: 21, quantite: 2000,  lieu: 'ENTREPOT' },
-  { rang: 22, quantite: 500,   lieu: 'ENTREPOT' },
-  { rang: 23, quantite: 300,   lieu: 'ENTREPOT' },
-  { rang: 24, quantite: 150,   lieu: 'ENTREPOT' },
+  { rang: 11, quantite: 800,   lieu: 'MAGASIN' },
+  { rang: 12, quantite: 360,   lieu: 'MAGASIN' },
+  { rang: 13, quantite: 250,   lieu: 'MAGASIN' },
+  { rang: 14, quantite: 180,   lieu: 'MAGASIN' },
+  { rang: 15, quantite: 800,   lieu: 'ENTREPOT' },
+  { rang: 16, quantite: 600,   lieu: 'ENTREPOT' },
+  { rang: 17, quantite: 5000,  lieu: 'ENTREPOT' },
+  { rang: 18, quantite: 4000,  lieu: 'ENTREPOT' },
+  { rang: 19, quantite: 2500,  lieu: 'ENTREPOT' },
+  { rang: 20, quantite: 3000,  lieu: 'ENTREPOT' },
+  { rang: 21, quantite: 1500,  lieu: 'ENTREPOT' },
+  { rang: 22, quantite: 240,   lieu: 'ENTREPOT' },
+  { rang: 23, quantite: 120,   lieu: 'ENTREPOT' },
+  { rang: 24, quantite: 80,    lieu: 'ENTREPOT' },
+  { rang: 25, quantite: 2000,  lieu: 'ENTREPOT' },
+  { rang: 26, quantite: 500,   lieu: 'ENTREPOT' },
+  { rang: 27, quantite: 300,   lieu: 'ENTREPOT' },
+  { rang: 28, quantite: 150,   lieu: 'ENTREPOT' },
 ];
 
 /** Au-delà de quatre variantes, les suivantes restent à zéro : toutes les couleurs commandées ne sont jamais reçues. */

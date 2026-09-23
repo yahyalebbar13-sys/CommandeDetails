@@ -77,14 +77,18 @@ check('chaque ligne porte le détail de ses variantes',
   plan.every(l => l.variantes.reduce((s, v) => s + v.quantite, 0) === l.quantite),
   JSON.stringify(plan.map(l => [l.rang, l.variantes.map(v => v.quantite)])));
 check('la famille est reportée pour l’affichage', plan.every(l => l.categorie.length > 0));
-check('les dix premières lignes vont en boutique', PLAN_FORMATION.slice(0, 10).every(l => l.lieu === 'MAGASIN'));
-check('les suivantes vont en réserve', PLAN_FORMATION.slice(10).every(l => l.lieu === 'ENTREPOT'));
+check('les quatorze premières lignes vont en boutique', PLAN_FORMATION.slice(0, 14).every(l => l.lieu === 'MAGASIN'));
+check('les suivantes vont en réserve', PLAN_FORMATION.slice(14).every(l => l.lieu === 'ENTREPOT'));
+// Le devoir enchaîne neuf ventes dont trois par couleur : il lui faut assez de rayon pour ne pas
+// faire travailler la recrue dix fois sur le même produit.
+check('la boutique reçoit assez de références pour le devoir',
+  PLAN_FORMATION.filter(l => l.lieu === 'MAGASIN').length >= 14);
 check('valeur = quantité × prix d’achat',
   plan[0].valeur === Math.round(plan[0].quantite * plan[0].prixUnitaire * 100) / 100);
 check('un produit sans prix ne casse rien', planifierChargement([simple('x', 'Sans prix', 'C', 0)])[0].valeur === 0);
-check('le plan couvre 24 références', PLAN_FORMATION.length === 24);
-check('les rangs vont de 1 à 24 sans trou',
-  PLAN_FORMATION.map(l => l.rang).join(',') === Array.from({ length: 24 }, (_, i) => i + 1).join(','));
+check('le plan couvre 28 références', PLAN_FORMATION.length === 28);
+check('les rangs vont de 1 à 28 sans trou',
+  PLAN_FORMATION.map(l => l.rang).join(',') === Array.from({ length: 28 }, (_, i) => i + 1).join(','));
 check('toutes les quantités du plan se divisent juste en quatre variantes',
   PLAN_FORMATION.every(l => [40, 30, 20, 10].every(p => Number.isInteger((l.quantite * p) / 100))),
   PLAN_FORMATION.filter(l => [40, 30, 20, 10].some(p => !Number.isInteger((l.quantite * p) / 100))).map(l => l.quantite).join(','));
