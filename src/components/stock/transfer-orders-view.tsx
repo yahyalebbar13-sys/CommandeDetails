@@ -21,6 +21,9 @@ import {
 
 interface TransferOrdersViewProps {
   transferOrders: TransferOrder[];
+  /** Familles et pôles : servent à décrire les produits sur le bon imprimé (qualité, GSM, curseur…). */
+  categories?: any[];
+  generalCategories?: any[];
   stockItems: StockItem[];
   stores: Store[];
   /** Mouvements, pour résoudre automatiquement les emplacements (FIFO en sortie). */
@@ -44,7 +47,7 @@ function transferItemVariant(item: TransferOrderItem, stockItems: StockItem[]): 
   return m ? { dimension: m[1] as VariantDimension, value: m[2] } : null;
 }
 
-export default function TransferOrdersView({ transferOrders, stockItems, stores, movements = [], userRole, activeStore, adminUid }: TransferOrdersViewProps) {
+export default function TransferOrdersView({ transferOrders, stockItems, stores, movements = [], userRole, activeStore, adminUid, categories = [], generalCategories = [] }: TransferOrdersViewProps) {
   const { user } = useUser();
   const firestore = useFirestore();
   const { toast } = useToast();
@@ -458,7 +461,7 @@ export default function TransferOrdersView({ transferOrders, stockItems, stores,
                     <Button
                       size="sm"
                       variant="outline"
-                      onClick={() => exportTransferOrderPDF(order, stores)}
+                      onClick={() => exportTransferOrderPDF(order, stores, categories, generalCategories)}
                       className="h-8 px-3 rounded-xl border-stone-200 text-stone-700 hover:text-blue-600 hover:border-blue-200 text-[11px] font-bold gap-1.5 shadow-sm"
                       title="Le bon imprimé accompagne la marchandise pendant le trajet"
                     >
@@ -833,7 +836,7 @@ export default function TransferOrdersView({ transferOrders, stockItems, stores,
             <Button
               variant="outline"
               type="button"
-              onClick={() => validateModal.order && exportTransferOrderPDF(validateModal.order, stores)}
+              onClick={() => validateModal.order && exportTransferOrderPDF(validateModal.order, stores, categories, generalCategories)}
               className="rounded-xl text-xs font-bold gap-1.5"
               title="Le bon imprimé accompagne la marchandise pendant le trajet"
             >

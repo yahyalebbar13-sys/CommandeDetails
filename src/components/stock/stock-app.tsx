@@ -2639,7 +2639,7 @@ export default function StockApp() {
               <BankReconciliationView payments={payments} clients={clients} />
             )}
             {activeView === 'movements' && (
-              <StockMovements activeStore={activeStore} movements={filteredMovements} stockItems={stockItems} categories={categories} articles={articles} stores={stores} locations={storageLocations} onAddMovement={handleAddMovement} readOnly={userRole === 'ADMIN'} />
+              <StockMovements activeStore={activeStore} movements={filteredMovements} stockItems={stockItems} categories={categories} generalCategories={generalCategories} articles={articles} stores={stores} locations={storageLocations} onAddMovement={handleAddMovement} readOnly={userRole === 'ADMIN'} />
             )}
             {activeView === 'inventory' && (
               <BlindInventory
@@ -2665,6 +2665,8 @@ export default function StockApp() {
                 transferOrders={filteredTransfers}
                 stockItems={stockItems}
                 stores={stores}
+                categories={categories}
+                generalCategories={generalCategories}
                 movements={allMovements}
                 userRole={userRole}
                 activeStore={activeStore}

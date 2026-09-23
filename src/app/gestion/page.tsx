@@ -720,7 +720,7 @@ function AdminApp() {
         <div className="max-w-[1600px] mx-auto px-6 flex justify-between items-center text-stone-400 text-[9px] font-black uppercase tracking-[0.2em]">
           <p>© 2024 STOCKVUE LOGISTICS ENGINE</p>
           <div className="flex items-center gap-6">
-            <Button size="sm" onClick={() => exportGlobalPackingPDF(articles, generalCategories)} variant="outline" className="h-8 px-3 rounded-lg border-stone-200 text-stone-700 hover:bg-stone-50 flex items-center gap-1.5 text-[9px] uppercase font-black tracking-widest shadow-sm transition-all duration-300">
+            <Button size="sm" onClick={() => exportGlobalPackingPDF(articles, generalCategories, subCategories)} variant="outline" className="h-8 px-3 rounded-lg border-stone-200 text-stone-700 hover:bg-stone-50 flex items-center gap-1.5 text-[9px] uppercase font-black tracking-widest shadow-sm transition-all duration-300">
               <FileDown className="w-3.5 h-3.5 shrink-0" /> <span>Export Global Packing</span>
             </Button>
             <span className="text-stone-300">CORE VERSION 2.8.5</span>

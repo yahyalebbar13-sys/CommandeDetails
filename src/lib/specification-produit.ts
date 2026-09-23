@@ -16,13 +16,18 @@ import { QUALITY_SCHEMA, detectSpecType } from './quality-schema';
 
 export type LigneSpecification = { cle: string; label: string; valeur: string };
 
-/** Les champs techniques portés par chaque type, pour deviner un type à partir d'un article. */
+/**
+ * Les champs techniques propres à chaque type, pour deviner un type quand ni le pôle ni la famille
+ * ne sont connus. L'ordre compte : le premier type dont un champ est rempli l'emporte, donc les
+ * champs les moins partagés passent en premier. `rollLength`, `size`, `pcsPerBag` et
+ * `bagsPerCarton` n'y figurent pas : plusieurs types les utilisent, ils ne prouvent rien.
+ */
 const INDICES_PAR_TYPE: [string, string[]][] = [
-  ['zipper',    ['zipperType', 'sliderType', 'tapeWeightGsm']],
+  ['zipper',    ['zipperType', 'sliderType', 'tapeWeightGsm', 'length']],
   ['fabric',    ['gsm', 'fabricWidth', 'packagingPerBag']],
-  ['thread',    ['coneWeightG', 'threadWeightG', 'lengthPerPiece']],
-  ['slider',    ['sliderWeightG']],
   ['tape',      ['weightPerM', 'rollsPerShrink', 'rollsPerCarton']],
+  ['thread',    ['coneWeightG', 'threadWeightG', 'lengthPerPiece', 'lengthUnit']],
+  ['slider',    ['sliderWeightG']],
   ['accessory', ['thickness', 'weightPerPiece', 'pcsPerBox', 'boxPerCarton']],
 ];
 
@@ -46,6 +51,16 @@ export function specTypeDeLArticle(article: any, categories: any[] = [], general
 
   const parLaFamille = categorie ? detectSpecType({ ...categorie, specType: categorie?.specType }) : undefined;
   if (parLaFamille) return parLaFamille;
+
+  // Par le NOM, même sans catalogue : « CURSEUR N5 », « RUBAN SATIN », « BOUTON PRESSION » se
+  // reconnaissent seuls. C'est ce qui sauve les documents où le catalogue n'est pas transmis —
+  // un curseur décrit par sa seule taille ne porte sinon aucun champ qui le distingue.
+  for (const nom of [article?.categoryId, article?.name, article?.nameFR]) {
+    const texte = String(nom ?? '').trim();
+    if (!texte) continue;
+    const parLeNom = detectSpecType({ name: texte });
+    if (parLeNom) return parLeNom;
+  }
 
   for (const [type, champs] of INDICES_PAR_TYPE) {
     if (champs.some(champ => rempli(article?.[champ]))) return type;

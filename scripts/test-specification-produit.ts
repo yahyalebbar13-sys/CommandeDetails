@@ -43,6 +43,16 @@ check('sans catalogue : deviné d’après les caractéristiques portées',
   specTypeDeLArticle({ coneWeightG: 120 }) === 'thread');
 check('sans catalogue ni caractéristique : rien à afficher',
   specTypeDeLArticle({ categoryId: 'inconnue' }) === undefined);
+// Sans catalogue, le NOM suffit souvent : c'est ce qui sauve les documents où les familles et les
+// pôles ne sont pas transmis. Un curseur décrit par sa seule taille ne porte sinon aucun indice.
+check('sans catalogue : reconnu par son nom (curseur)',
+  specTypeDeLArticle({ categoryId: 'CURSEUR N5 AUTO', size: 'N5' }) === 'slider');
+check('sans catalogue : reconnu par son nom (ruban)',
+  specTypeDeLArticle({ categoryId: 'RUBAN SATIN 1CM' }) === 'tape');
+check('sans catalogue : un ruban n’est plus pris pour un fil',
+  specTypeDeLArticle({ categoryId: 'RUBAN ELASTIQUE', lengthPerPiece: '50' }) === 'tape');
+check('sans catalogue : reconnu par son nom (fermeture)',
+  specTypeDeLArticle({ categoryId: 'FERMETURE N5 C/E' }) === 'zipper');
 check('le pôle prime sur la devinette',
   specTypeDeLArticle({ categoryId: 'f1', zipperType: 'C/E' }, familles, poles) === 'fabric');
 

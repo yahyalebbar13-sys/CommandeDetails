@@ -15,6 +15,11 @@ import { useUser, useFirestore } from '@/firebase';
 import { doc } from 'firebase/firestore';
 import { updateDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 import AddOrderModal from '@/components/add-order-modal';
+import {
+  specificationsArticle, qualiteDeLArticle, precisionsLigne, specTypeDeLArticle,
+  type LigneSpecification,
+} from '@/lib/specification-produit';
+import { QUALITIES_FIELD_BY_SPEC } from '@/lib/quality-schema';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 const UI_COLORS = ['#CC8626','#1E293B','#3B82F6','#10B981','#6366F1','#F43F5E','#8B5CF6','#EC4899'];
@@ -33,6 +38,74 @@ const GROUPS_ORDER = [
 function fmt(n: number) { return Math.round(n).toLocaleString('fr-MA'); }
 function fmtDec(n: number, d = 2) {
   return Number(n).toLocaleString('fr-MA', { minimumFractionDigits: d, maximumFractionDigits: d });
+}
+
+// ── Ce qu'EST le produit : tout passe par la brique partagée ──────────────────
+/**
+ * La ligne de qualité du catalogue qui correspond à l'article.
+ *
+ * Les fiches de stock ne transportent que les caractéristiques de la fermeture et du tissu
+ * (GSM, largeur, curseur…). Celles du fil, du ruban, du curseur seul et de l'accessoire
+ * — poids du cône, poids au mètre, épaisseur, conditionnement — vivent dans la qualité déclarée
+ * sur la famille ou sur le pôle. On va les y chercher pour que les six types décrivent enfin
+ * leur produit au lieu d'afficher une ligne vide.
+ */
+function ligneQualiteCatalogue(article: any, categories: any[] = [], generalCategories: any[] = []): any | undefined {
+  const libelle = qualiteDeLArticle(article);
+  if (!libelle) return undefined;
+  const type = specTypeDeLArticle(article, categories, generalCategories);
+  const champ = type ? QUALITIES_FIELD_BY_SPEC[type] : undefined;
+  if (!champ) return undefined;
+
+  const famille = (categories || []).find((c: any) =>
+    c?.id === article?.categoryId || c?.name === article?.categoryId || c?.nameFR === article?.categoryId);
+  const pole = (generalCategories || []).find((g: any) =>
+    g?.id === (article?.generalCategoryId || famille?.generalCategoryId));
+
+  const cible = libelle.toLowerCase();
+  for (const liste of [famille?.[champ], pole?.[champ]]) {
+    if (!Array.isArray(liste)) continue;
+    const trouvee = liste.find((q: any) =>
+      String(q?.label ?? '').trim().toLowerCase() === cible ||
+      String(q?.nameFR ?? '').trim().toLowerCase() === cible);
+    if (trouvee) return trouvee;
+  }
+  return undefined;
+}
+
+/** Les caractéristiques d'un article, dans l'ordre du modèle de son type. */
+function caracteristiques(article: any, categories: any[] = [], generalCategories: any[] = []): LigneSpecification[] {
+  return specificationsArticle(
+    article, categories, generalCategories,
+    ligneQualiteCatalogue(article, categories, generalCategories),
+  );
+}
+
+/** Les mêmes, résumées sur une ligne, pour un onglet ou un badge de carte. */
+function caracteristiquesCourtes(article: any, categories: any[] = [], generalCategories: any[] = [], max = 3): string {
+  return caracteristiques(article, categories, generalCategories)
+    .slice(0, max)
+    .map(l => `${l.label} ${l.valeur}`)
+    .join(' · ');
+}
+
+/** La photo d'une qualité (curseurs) : pas une caractéristique, mais elle fait reconnaître la pièce. */
+function photoQualite(article: any, categories: any[] = [], generalCategories: any[] = []): string | undefined {
+  const url = ligneQualiteCatalogue(article, categories, generalCategories)?.imageUrl || article?.imageUrl;
+  return typeof url === 'string' && url.trim() ? url.trim() : undefined;
+}
+
+/** Un libellé de variante n'est jamais « various » : c'est une marque interne, pas une couleur. */
+function libelleVariante(valeur: any): string | null {
+  const texte = String(valeur ?? '').trim();
+  if (!texte || texte.toLowerCase() === 'various') return null;
+  return texte;
+}
+
+/** « 1 qualité » / « 4 qualités » : le résumé d'une liste de variantes en tête de fiche. */
+function resumeValeurs(valeurs: string[], singulier: string, pluriel: string): string {
+  if (valeurs.length <= 3) return valeurs.join(' · ');
+  return `${valeurs.length} ${valeurs.length > 1 ? pluriel : singulier}`;
 }
 
 // ── Calcul FIFO ───────────────────────────────────────────────────────────────
@@ -97,7 +170,7 @@ function StockHeader({
       <div className="absolute top-0 right-0 w-72 h-72 bg-[#CC8626]/10 rounded-full -translate-y-1/2 translate-x-1/2 blur-3xl pointer-events-none" />
       <div className="relative z-10 flex items-start justify-between flex-wrap gap-6">
         <div>
-          <p className="text-[11px] font-black text-[#E0A24C] uppercase tracking-[0.4em] mb-1">Stock Physique Validé</p>
+          <p className="text-[11px] font-black text-[#E0A24C] uppercase tracking-[0.22em] mb-1">Stock Physique Validé</p>
           <h2 className="text-3xl font-black text-white uppercase tracking-tighter leading-none">
             Fiches de <span className="text-[#E0A24C]">Stock</span>
           </h2>
@@ -113,7 +186,7 @@ function StockHeader({
             <div key={label} className="bg-white/10 backdrop-blur-sm rounded-2xl px-4 py-3 text-center">
               <Icon className={`w-4 h-4 ${color} mx-auto mb-1`} />
               <p className={`text-[15px] font-black ${color} leading-none`}>{value}</p>
-              <p className="text-[11px] font-black text-[#8A8272] uppercase tracking-widest mt-1">{label}</p>
+              <p className="text-[11px] font-black text-[#8A8272] uppercase tracking-wider mt-1">{label}</p>
             </div>
           ))}
         </div>
@@ -124,9 +197,11 @@ function StockHeader({
 
 // ── Fiche complète d'un produit (niveau 4) ───────────────────────────────────
 function ProductFiche({
-  article, variants, movements, factures, onBack, color, inline = false, userRole = 'COMMERCIAL'
+  article, variants, movements, factures, onBack, color, inline = false, userRole = 'COMMERCIAL',
+  categories = [], generalCategories = [],
 }: {
   article: any; variants: any[]; movements: any[]; factures: any[]; onBack: () => void; color: string; inline?: boolean; userRole?: string;
+  categories?: any[]; generalCategories?: any[];
 }) {
   const artMovs = useMemo(() =>
     movements.filter(m => variants.some(v => m.articleId === v.articleId))
@@ -173,24 +248,31 @@ function ProductFiche({
     });
   }, [variants]);
 
+  // Un produit est « décliné » dès qu'il porte une qualité ou une caractéristique technique
+  // autre que sa taille — les six types comptent, plus seulement le tissu et la fermeture.
   const hasQualities = useMemo(() => {
-    return variants.some(v => Boolean(v.quality || v.gsm || v.fabricWidth || v.sliderType));
-  }, [variants]);
+    return variants.some(v =>
+      Boolean(qualiteDeLArticle(v)) ||
+      caracteristiques(v, categories, generalCategories).some(s => s.cle !== 'size'));
+  }, [variants, categories, generalCategories]);
 
   const variantsByGroup = useMemo(() => {
     const map = new Map<string, any[]>();
     groupedVariantsDetails.forEach((v: any) => {
       let groupKey = 'STANDARD';
       if (hasQualities) {
-        groupKey = v.quality || [v.gsm ? `${v.gsm}g/m²` : '', v.fabricWidth ? `${v.fabricWidth}cm` : '', v.rollLength ? `${v.rollLength}${v.rollLengthUnit || 'm'}` : ''].filter(Boolean).join(' · ') || (v.size || 'Standard');
+        groupKey = qualiteDeLArticle(v)
+          || caracteristiquesCourtes(v, categories, generalCategories, 3)
+          || libelleVariante(v.size)
+          || 'Standard';
       } else {
-        groupKey = v.size || 'STANDARD';
+        groupKey = libelleVariante(v.size) || 'STANDARD';
       }
       if (!map.has(groupKey)) map.set(groupKey, []);
       map.get(groupKey)!.push(v);
     });
     return Array.from(map.entries()).sort((a, b) => a[0].localeCompare(b[0], undefined, { numeric: true, sensitivity: 'base' }));
-  }, [groupedVariantsDetails, hasQualities]);
+  }, [groupedVariantsDetails, hasQualities, categories, generalCategories]);
 
   const [selectedGroup, setSelectedGroup] = useState<string>(variantsByGroup[0]?.[0] || 'STANDARD');
 
@@ -204,12 +286,46 @@ function ProductFiche({
   const currentGroupVariants = variantsByGroup.find(v => v[0] === selectedGroup)?.[1] || [];
   const firstGroupVar = currentGroupVariants[0] || article;
 
+  // ── Ce qu'EST le produit, en tête de fiche ───────────────────────────────
+  const qualitesDistinctes = useMemo(
+    () => Array.from(new Set(variants.map(v => qualiteDeLArticle(v)).filter(Boolean))) as string[],
+    [variants]);
+  const couleursDistinctes = useMemo(
+    () => Array.from(new Set(variants.map(v => libelleVariante(v.color)).filter(Boolean))) as string[],
+    [variants]);
+  const taillesDistinctes = useMemo(
+    () => Array.from(new Set(variants.map(v => libelleVariante(v.size)).filter(Boolean))) as string[],
+    [variants]);
+
+  // Les caractéristiques de la déclinaison affichée, dans l'ordre du modèle de son type.
+  const specsGroupe = useMemo(
+    () => caracteristiques(firstGroupVar, categories, generalCategories),
+    [firstGroupVar, categories, generalCategories]);
+  const photoGroupe = useMemo(
+    () => photoQualite(firstGroupVar, categories, generalCategories),
+    [firstGroupVar, categories, generalCategories]);
+  const qualiteGroupe = qualiteDeLArticle(firstGroupVar);
+
+  // La taille mérite sa colonne dès qu'une variante du groupe en porte une — sauf quand elle
+  // sert déjà d'onglet, où elle ne ferait que se répéter à chaque ligne.
+  const afficheTaille = (hasQualities || selectedGroup === 'STANDARD')
+    && currentGroupVariants.some((v: any) => libelleVariante(v.size));
+
+  const identite = [
+    { titre: 'Qualité', valeurs: qualitesDistinctes, singulier: 'qualité', pluriel: 'qualités',
+      classe: 'bg-violet-50 border-violet-200 text-violet-800', label: 'text-violet-500' },
+    { titre: 'Couleur', valeurs: couleursDistinctes, singulier: 'couleur', pluriel: 'couleurs',
+      classe: 'bg-white border-stone-200 text-stone-800', label: 'text-stone-400' },
+    { titre: 'Taille', valeurs: taillesDistinctes, singulier: 'taille', pluriel: 'tailles',
+      classe: 'bg-white border-stone-200 text-stone-800', label: 'text-stone-400' },
+  ].filter(b => b.valeurs.length > 0);
+
   return (
     <div className="space-y-6">
       {/* Breadcrumb — caché en mode inline */}
       {!inline && (
         <div className="flex items-center gap-2">
-          <button onClick={onBack} className="flex items-center gap-1.5 text-[11px] font-black text-stone-500 hover:text-stone-900 uppercase tracking-widest transition-colors bg-stone-100 hover:bg-stone-200 px-3 py-1.5 rounded-lg">
+          <button onClick={onBack} className="flex items-center gap-1.5 text-[11px] font-black text-stone-500 hover:text-stone-900 uppercase tracking-wider transition-colors bg-stone-100 hover:bg-stone-200 px-3 py-1.5 rounded-lg">
             <ChevronLeft className="w-3.5 h-3.5" /> Retour
           </button>
         </div>
@@ -220,7 +336,7 @@ function ProductFiche({
         <div className="h-1.5 w-full" style={{ background: color }} />
         <div className="p-6 flex flex-col md:flex-row md:items-center justify-between gap-6">
           <div>
-            <p className="text-[10px] font-black text-stone-900 uppercase tracking-widest">
+            <p className="text-[11px] font-black text-stone-900 uppercase tracking-wider">
               {article.categoryNameFR || article.categoryId}
               {article.categoryNameFR && article.categoryNameFR !== article.categoryId && (
                 <span className="text-stone-400 font-bold ml-1.5 lowercase">({article.categoryId})</span>
@@ -228,22 +344,33 @@ function ProductFiche({
             </p>
             <h3 className="text-2xl font-black text-stone-900 uppercase tracking-tighter mt-1">{article.nameFR || article.productName}</h3>
             {article.nameFR && article.nameFR.toLowerCase() !== article.productName.toLowerCase() && (
-              <p className="text-[10px] font-bold text-stone-400 uppercase mt-0.5">{article.productName}</p>
+              <p className="text-[11px] font-bold text-stone-400 uppercase mt-0.5">{article.productName}</p>
+            )}
+            {/* Qualité et variante : de quoi reconnaître le produit sans descendre dans le tableau */}
+            {identite.length > 0 && (
+              <div className="flex flex-wrap items-center gap-2 mt-3">
+                {identite.map(b => (
+                  <span key={b.titre} className={`inline-flex items-baseline gap-1.5 text-[12px] px-2.5 py-1 rounded-lg border ${b.classe}`}>
+                    <span className={`text-[11px] font-bold uppercase tracking-wider ${b.label}`}>{b.titre}</span>
+                    <span className="font-black">{resumeValeurs(b.valeurs, b.singulier, b.pluriel)}</span>
+                  </span>
+                ))}
+              </div>
             )}
           </div>
           <div className="flex flex-wrap items-center gap-x-6 gap-y-4 justify-end">
             <div className="text-center">
-              <p className="text-[11px] font-black text-stone-400 uppercase tracking-widest mb-1">Entrées</p>
+              <p className="text-[11px] font-black text-stone-400 uppercase tracking-wider mb-1">Entrées</p>
               <p className="text-lg font-black text-emerald-600">+{fmt(totalIn)}</p>
             </div>
             <div className="w-px h-8 bg-stone-100 hidden sm:block"></div>
             <div className="text-center">
-              <p className="text-[11px] font-black text-stone-400 uppercase tracking-widest mb-1">Sorties</p>
+              <p className="text-[11px] font-black text-stone-400 uppercase tracking-wider mb-1">Sorties</p>
               <p className="text-lg font-black text-rose-600">{totalOut > 0 ? `-${fmt(totalOut)}` : '0'}</p>
             </div>
             <div className="w-px h-8 bg-stone-100 hidden sm:block"></div>
             <div className="text-center">
-              <p className="text-[11px] font-black text-stone-400 uppercase tracking-widest mb-1">En Stock</p>
+              <p className="text-[11px] font-black text-stone-400 uppercase tracking-wider mb-1">En Stock</p>
               <p className={`text-2xl font-black ${isAlert ? 'text-amber-600' : 'text-stone-900'}`}>{fmt(currentQty)} <span className="text-xs text-stone-400">{article.unitOfMeasure}</span></p>
             </div>
             
@@ -251,12 +378,12 @@ function ProductFiche({
               <>
                 <div className="w-px h-8 bg-stone-100 hidden sm:block"></div>
                 <div className="text-center bg-stone-50 rounded-xl px-4 py-2 border border-stone-100">
-                  <p className="text-[11px] font-black text-stone-500 uppercase tracking-widest mb-1">Coût unitaire moy.</p>
-                  <p className="text-lg font-black text-violet-600">{fmtDec(avgCost)} <span className="text-[10px] text-stone-400">MAD</span></p>
+                  <p className="text-[11px] font-black text-stone-500 uppercase tracking-wider mb-1">Coût unitaire moy.</p>
+                  <p className="text-lg font-black text-violet-600">{fmtDec(avgCost)} <span className="text-[11px] text-stone-400">MAD</span></p>
                 </div>
                 <div className="text-center bg-emerald-50 rounded-xl px-4 py-2 border border-emerald-100">
-                  <p className="text-[11px] font-black text-emerald-700 uppercase tracking-widest mb-1">Valeur du Stock</p>
-                  <p className="text-2xl font-black text-emerald-600">{fmt(totalValue)} <span className="text-[10px] text-emerald-400">MAD</span></p>
+                  <p className="text-[11px] font-black text-emerald-700 uppercase tracking-wider mb-1">Valeur du Stock</p>
+                  <p className="text-2xl font-black text-emerald-600">{fmt(totalValue)} <span className="text-[11px] text-emerald-400">MAD</span></p>
                 </div>
               </>
             )}
@@ -275,7 +402,7 @@ function ProductFiche({
               <button
                 key={groupName}
                 onClick={() => setSelectedGroup(groupName)}
-                className={`px-6 py-2.5 rounded-2xl text-[11px] font-black uppercase tracking-widest transition-all whitespace-nowrap border ${
+                className={`px-6 py-2.5 rounded-2xl text-[11px] font-black uppercase tracking-wider transition-all whitespace-nowrap border ${
                   selectedGroup === groupName 
                     ? hasQualities ? 'bg-violet-900 text-white border-violet-900 shadow-md scale-105' : 'bg-stone-900 text-white border-stone-900 shadow-md scale-105'
                     : 'bg-white text-stone-500 border-stone-200 hover:bg-stone-50 hover:text-stone-700'
@@ -287,49 +414,48 @@ function ProductFiche({
           </div>
         )}
 
-        {/* Fiche technique de la qualité sélectionnée */}
-        {firstGroupVar && (firstGroupVar.gsm || firstGroupVar.fabricWidth || firstGroupVar.rollLength || firstGroupVar.packagingPerBag || firstGroupVar.slider || firstGroupVar.sliderType || firstGroupVar.zipperType) && (
-          <div className="bg-violet-50/70 border border-violet-100 rounded-2xl px-5 py-3 flex flex-wrap items-center gap-3">
-            <span className="text-[11px] font-black text-violet-800 uppercase tracking-widest flex items-center gap-1.5">
-              <Tag className="w-3 h-3 text-violet-600" /> Spécifications techniques ({selectedGroup}) :
-            </span>
-            {firstGroupVar.gsm && (
-              <span className="bg-white text-violet-700 font-black text-[10px] px-2.5 py-1 rounded-lg border border-violet-200 shadow-xs">
-                {firstGroupVar.gsm} g/m²
-              </span>
-            )}
-            {firstGroupVar.fabricWidth && (
-              <span className="bg-white text-blue-700 font-black text-[10px] px-2.5 py-1 rounded-lg border border-blue-200 shadow-xs">
-                Largeur : {firstGroupVar.fabricWidth} cm
-              </span>
-            )}
-            {firstGroupVar.rollLength && (
-              <span className="bg-white text-stone-700 font-black text-[10px] px-2.5 py-1 rounded-lg border border-stone-200 shadow-xs">
-                Longueur : {firstGroupVar.rollLength} {firstGroupVar.rollLengthUnit || 'm'}/rlx
-              </span>
-            )}
-            {firstGroupVar.packagingPerBag && (
-              <span className="bg-white text-amber-700 font-black text-[10px] px-2.5 py-1 rounded-lg border border-amber-200 shadow-xs">
-                Conditionnement : {firstGroupVar.packagingPerBag} rlx/sac
-              </span>
-            )}
-            {firstGroupVar.zipperType && (
-              <span className="bg-white text-amber-700 font-black text-[10px] px-2.5 py-1 rounded-lg border border-amber-200 shadow-xs">
-                Type : {firstGroupVar.zipperType}
-              </span>
-            )}
-            {firstGroupVar.slider && (
-              <span className="bg-white text-stone-700 font-black text-[10px] px-2.5 py-1 rounded-lg border border-stone-200 shadow-xs">
-                Curseur : {firstGroupVar.slider} {firstGroupVar.sliderType ? `(${firstGroupVar.sliderType})` : ''}
-              </span>
-            )}
+        {/* ── Caractéristiques de la déclinaison affichée ──
+            Lues dans le modèle du type de produit : tissu, fermeture, fil, curseur, ruban ou
+            accessoire. Chacun a les siennes, aucune n'est écrite en dur ici. */}
+        {(specsGroupe.length > 0 || photoGroupe) && (
+          <div className="bg-violet-50/70 border border-violet-100 rounded-2xl px-5 py-4">
+            <div className="flex flex-wrap items-center gap-2 mb-3">
+              <Tag className="w-3.5 h-3.5 text-violet-600" />
+              <span className="text-[12px] font-black text-violet-900 uppercase tracking-wider">Caractéristiques</span>
+              {qualiteGroupe ? (
+                <span className="text-[12px] font-black text-violet-700 bg-white border border-violet-200 px-2 py-0.5 rounded-md">
+                  {qualiteGroupe}
+                </span>
+              ) : selectedGroup && selectedGroup !== 'STANDARD' && (
+                <span className="text-[12px] font-bold text-violet-700">{selectedGroup}</span>
+              )}
+            </div>
+            <div className="flex flex-wrap items-stretch gap-2">
+              {photoGroupe && (
+                <img
+                  src={photoGroupe}
+                  alt={qualiteGroupe || 'Photo de la qualité'}
+                  className="w-14 h-14 rounded-xl object-cover bg-white border border-violet-200 shrink-0"
+                />
+              )}
+              {specsGroupe.map(spec => (
+                <span key={spec.cle} className="bg-white border border-violet-200 rounded-xl px-3 py-1.5 shadow-xs">
+                  <span className="block text-[11px] font-bold text-violet-500 uppercase tracking-wider leading-none mb-1">
+                    {spec.label}
+                  </span>
+                  <span className="block text-[13px] font-black text-stone-800 leading-none">
+                    {spec.valeur}
+                  </span>
+                </span>
+              ))}
+            </div>
           </div>
         )}
 
         <div className="bg-white rounded-3xl border border-stone-100 shadow-sm overflow-hidden animate-in fade-in duration-300">
           <div className="px-6 py-4 border-b border-stone-50 bg-stone-50/50 flex items-center gap-2">
             <Package className="w-4 h-4 text-stone-500" />
-            <h4 className="text-[10px] font-black text-stone-700 uppercase tracking-widest">
+            <h4 className="text-[11px] font-black text-stone-700 uppercase tracking-wider">
               {hasQualities 
                 ? `Couleurs & Variantes · ${selectedGroup}`
                 : selectedGroup === 'STANDARD' ? 'État des Variantes' : `Couleurs pour la taille : ${selectedGroup}`}
@@ -339,16 +465,16 @@ function ProductFiche({
             <table className="w-full text-xs">
               <thead>
                 <tr className="border-b border-stone-100">
-                  <th className="px-6 py-3 text-left font-black text-stone-400 uppercase tracking-widest text-[11px]">Couleur</th>
-                  {!hasQualities && selectedGroup === 'STANDARD' && <th className="px-6 py-3 text-left font-black text-stone-400 uppercase tracking-widest text-[11px]">Taille</th>}
-                  <th className="px-6 py-3 text-right font-black text-stone-400 uppercase tracking-widest text-[11px]">Seuil Min.</th>
-                  <th className="px-6 py-3 text-right font-black text-emerald-600/70 uppercase tracking-widest text-[11px]">Entrées</th>
-                  <th className="px-6 py-3 text-right font-black text-rose-600/70 uppercase tracking-widest text-[11px]">Sorties</th>
-                  <th className="px-6 py-3 text-right font-black text-stone-800 uppercase tracking-widest text-[11px]">Stock Réel</th>
-                  <th className="px-6 py-3 text-left font-black text-stone-400 uppercase tracking-widest text-[11px]">Répartition (par entrepôt)</th>
-                  {userRole === 'ADMIN' && <th className="px-6 py-3 text-right font-black text-violet-600/70 uppercase tracking-widest text-[11px]">Coût Unitaire</th>}
-                  {userRole === 'ADMIN' && <th className="px-6 py-3 text-right font-black text-emerald-600/70 uppercase tracking-widest text-[11px]">Valeur</th>}
-                  <th className="px-6 py-3 text-right font-black text-stone-400 uppercase tracking-widest text-[11px]">Statut</th>
+                  <th className="px-6 py-3 text-left font-black text-stone-400 uppercase tracking-wider text-[11px]">Couleur</th>
+                  {afficheTaille && <th className="px-6 py-3 text-left font-black text-stone-400 uppercase tracking-wider text-[11px]">Taille</th>}
+                  <th className="px-6 py-3 text-right font-black text-stone-400 uppercase tracking-wider text-[11px]">Seuil Min.</th>
+                  <th className="px-6 py-3 text-right font-black text-emerald-600/70 uppercase tracking-wider text-[11px]">Entrées</th>
+                  <th className="px-6 py-3 text-right font-black text-rose-600/70 uppercase tracking-wider text-[11px]">Sorties</th>
+                  <th className="px-6 py-3 text-right font-black text-stone-800 uppercase tracking-wider text-[11px]">Stock Réel</th>
+                  <th className="px-6 py-3 text-left font-black text-stone-400 uppercase tracking-wider text-[11px]">Répartition (par entrepôt)</th>
+                  {userRole === 'ADMIN' && <th className="px-6 py-3 text-right font-black text-violet-600/70 uppercase tracking-wider text-[11px]">Coût Unitaire</th>}
+                  {userRole === 'ADMIN' && <th className="px-6 py-3 text-right font-black text-emerald-600/70 uppercase tracking-wider text-[11px]">Valeur</th>}
+                  <th className="px-6 py-3 text-right font-black text-stone-400 uppercase tracking-wider text-[11px]">Statut</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-stone-50">
@@ -358,11 +484,15 @@ function ProductFiche({
                   return (
                     <tr key={i} className="hover:bg-stone-50 transition-colors">
                       <td className="px-6 py-4">
-                        {v.color ? <span className="font-bold text-stone-700">{v.color}</span> : <span className="text-stone-300">—</span>}
+                        {libelleVariante(v.color)
+                          ? <span className="font-bold text-stone-700">{libelleVariante(v.color)}</span>
+                          : <span className="text-stone-300">—</span>}
                       </td>
-                      {!hasQualities && selectedGroup === 'STANDARD' && (
+                      {afficheTaille && (
                         <td className="px-6 py-4">
-                          {v.size ? <span className="font-bold text-stone-700">{v.size}</span> : <span className="text-stone-300">—</span>}
+                          {libelleVariante(v.size)
+                            ? <span className="font-bold text-stone-700">{libelleVariante(v.size)}</span>
+                            : <span className="text-stone-300">—</span>}
                         </td>
                       )}
                       <td className="px-6 py-4 text-right">
@@ -381,7 +511,7 @@ function ProductFiche({
                                 <span className="text-[11px] font-black uppercase text-stone-500 tracking-wider">
                                   {sId === 'ENTREPOT' ? 'Entrepôt' : sId === 'CHRIFA' ? 'CHRIFA' : sId === 'DERB_OMAR' ? 'Derb omar' : sId === 'IDAA' ? 'IDAA' : sId.replace('_', ' ')}:
                                 </span>
-                                <span className="text-[10px] font-bold text-stone-700">{fmt(q)}</span>
+                                <span className="text-[11px] font-bold text-stone-700">{fmt(q)}</span>
                               </div>
                             ))}
                           </div>
@@ -415,11 +545,20 @@ function ProductFiche({
           <div className="px-6 py-4 border-b border-stone-50 bg-stone-50/50 flex items-center justify-between">
             <div className="flex items-center gap-2">
               <TrendingUp className="w-4 h-4 text-stone-500" />
-              <h4 className="text-[10px] font-black text-stone-700 uppercase tracking-widest">Derniers Mouvements</h4>
+              <h4 className="text-[11px] font-black text-stone-700 uppercase tracking-wider">Derniers Mouvements</h4>
             </div>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full text-xs">
+              <thead>
+                <tr className="border-b border-stone-100">
+                  <th className="px-6 py-3 text-left font-black text-stone-400 uppercase tracking-wider text-[11px]">Date</th>
+                  <th className="px-6 py-3 text-left font-black text-stone-400 uppercase tracking-wider text-[11px]">Sens</th>
+                  <th className="px-6 py-3 text-left font-black text-stone-400 uppercase tracking-wider text-[11px]">Variante</th>
+                  <th className="px-6 py-3 text-left font-black text-stone-400 uppercase tracking-wider text-[11px]">Motif</th>
+                  <th className="px-6 py-3 text-right font-black text-stone-400 uppercase tracking-wider text-[11px]">Quantité</th>
+                </tr>
+              </thead>
               <tbody className="divide-y divide-stone-50">
                 {artMovs.slice(0, 10).map((mv, i) => {
                   const isIN  = mv.type === 'IN';
@@ -435,11 +574,14 @@ function ProductFiche({
                                   'bg-amber-50 text-amber-700'
                         }`}>
                           {isIN  ? <ArrowDownToLine className="w-3 h-3" /> : isOUT ? <ArrowUpFromLine className="w-3 h-3" /> : null}
-                          {mv.type}
+                          {isIN ? 'Entrée' : isOUT ? 'Sortie' : 'Ajustement'}
                         </span>
                       </td>
+                      {/* La variante concernée : qualité, couleur, taille — jamais « various » */}
                       <td className="px-6 py-3">
-                        <span className="font-bold text-stone-600">{mv.color} {mv.size}</span>
+                        {precisionsLigne(mv).length > 0
+                          ? <span className="font-bold text-stone-700">{precisionsLigne(mv).join(' · ')}</span>
+                          : <span className="text-stone-300">—</span>}
                       </td>
                       <td className="px-6 py-3 text-stone-400 font-medium">
                         {mv.reason || '—'}
@@ -453,15 +595,13 @@ function ProductFiche({
                   );
                 })}
               </tbody>
+              {/* Cinq colonnes, comme les lignes au-dessus : le pied ne déborde plus la table. */}
               <tfoot>
                 <tr className="bg-stone-900 text-white border-t-2 border-stone-700">
-                  <td colSpan={3} className="px-5 py-3 text-[11px] font-black text-stone-400 uppercase tracking-widest">Totaux</td>
-                  <td className="px-5 py-3 text-right font-black text-emerald-400">+{fmt(totalIn)}</td>
-                  <td className="px-5 py-3 text-right font-black text-rose-400">{totalOut > 0 ? `-${fmt(totalOut)}` : '—'}</td>
-                  <td className="px-5 py-3 text-right font-black text-white text-[14px]">{fmt(article.currentQty)}</td>
-                  {userRole === 'ADMIN' && <td className="px-5 py-3 text-right font-black text-violet-300">{avgCost > 0 ? fmtDec(avgCost) : '—'}</td>}
-                  {userRole === 'ADMIN' && <td className="px-5 py-3 text-right font-black text-emerald-400">{totalValue > 0 ? `${fmt(totalValue)} MAD` : '—'}</td>}
-                  <td className="px-5 py-3"></td>
+                  <td colSpan={2} className="px-6 py-3 text-[11px] font-black text-stone-400 uppercase tracking-wider">Totaux</td>
+                  <td className="px-6 py-3 text-left font-black text-emerald-400">Entrées +{fmt(totalIn)}</td>
+                  <td className="px-6 py-3 text-left font-black text-rose-400">Sorties {totalOut > 0 ? `-${fmt(totalOut)}` : '—'}</td>
+                  <td className="px-6 py-3 text-right font-black text-white text-[14px]">{fmt(article.currentQty)}</td>
                 </tr>
               </tfoot>
             </table>
@@ -474,10 +614,12 @@ function ProductFiche({
 
 // ── Tableau niveau 3 : produits d'une sous-catégorie ─────────────────────────
 function ProductsTable({
-  items, subCatName, movements, factures, onBack, headerProp, userRole = 'COMMERCIAL'
+  items, subCatName, movements, factures, onBack, headerProp, userRole = 'COMMERCIAL',
+  categories = [], generalCategories = [],
 }: {
   items: any[]; subCatName: string; movements: any[]; factures: any[];
   onBack: () => void; headerProp?: React.ReactNode; userRole?: string;
+  categories?: any[]; generalCategories?: any[];
 }) {
   const [selectedArticle, setSelectedArticle] = useState<any | null>(null);
 
@@ -511,6 +653,8 @@ function ProductsTable({
           onBack={onBack}
           inline={false}
           userRole={userRole}
+          categories={categories}
+          generalCategories={generalCategories}
         />
       </div>
     );
@@ -528,6 +672,8 @@ function ProductsTable({
           onBack={() => setSelectedArticle(null)}
           inline={false}
           userRole={userRole}
+          categories={categories}
+          generalCategories={generalCategories}
         />
       </div>
     );
@@ -538,17 +684,17 @@ function ProductsTable({
       {headerProp && <div className="mb-6">{headerProp}</div>}
       {/* Breadcrumb */}
       <div className="flex items-center gap-2">
-        <button onClick={onBack} className="flex items-center gap-1.5 text-[11px] font-black text-stone-500 hover:text-stone-900 uppercase tracking-widest transition-colors">
+        <button onClick={onBack} className="flex items-center gap-1.5 text-[11px] font-black text-stone-500 hover:text-stone-900 uppercase tracking-wider transition-colors">
           <ChevronLeft className="w-3.5 h-3.5" /> Retour
         </button>
         <span className="text-stone-200">/</span>
-        <span className="text-[11px] font-black text-stone-900 uppercase tracking-widest">{subCatName}</span>
+        <span className="text-[11px] font-black text-stone-900 uppercase tracking-wider">{subCatName}</span>
       </div>
 
       {alertCount > 0 && (
         <div className="bg-amber-50 border border-amber-200 rounded-2xl px-5 py-3 flex items-center gap-3">
           <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
-          <p className="text-[10px] font-black text-amber-800 uppercase tracking-wider">
+          <p className="text-[11px] font-black text-amber-800 uppercase tracking-wider">
             {alertCount} produit{alertCount > 1 ? 's' : ''} sous le seuil minimum · cliquez sur un produit pour voir le détail FIFO
           </p>
         </div>
@@ -559,7 +705,7 @@ function ProductsTable({
         <div className="px-6 py-4 border-b border-stone-100 flex items-center justify-between bg-stone-50/50">
           <div className="flex items-center gap-2">
             <TrendingUp className="w-4 h-4 text-emerald-500" />
-            <span className="text-[10px] font-black text-stone-700 uppercase tracking-wider">
+            <span className="text-[11px] font-black text-stone-700 uppercase tracking-wider">
               {subCatName} · {items.length} produit{items.length !== 1 ? 's' : ''}
             </span>
           </div>
@@ -572,7 +718,7 @@ function ProductsTable({
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 p-6">
           {groupedVariants.length === 0 ? (
-            <div className="col-span-full py-16 text-center text-stone-300 text-[11px] font-black uppercase tracking-widest">
+            <div className="col-span-full py-16 text-center text-stone-300 text-[11px] font-black uppercase tracking-wider">
               Aucun article validé dans cette sous-catégorie
             </div>
           ) : (
@@ -629,12 +775,18 @@ function ProductsTable({
                     )}
                     <div className="flex flex-wrap items-center gap-1.5 mt-2 mb-4">
                       {(() => {
-                        const distinctQualities = Array.from(new Set(variants.map((v: any) => v.quality).filter(Boolean)));
+                        // Qualité, variante et caractéristiques : lues par la brique partagée,
+                        // donc valables pour les six types — plus seulement le GSM d'un tissu.
+                        const distinctQualities = Array.from(
+                          new Set(variants.map((v: any) => qualiteDeLArticle(v)).filter(Boolean))) as string[];
+                        const taille = libelleVariante(a.size);
+                        const couleur = libelleVariante(a.color);
+                        const specs = caracteristiquesCourtes(a, categories, generalCategories, 2);
                         return (
                           <>
                             {distinctQualities.length > 1 && (
                               <span className="text-[11px] font-black bg-violet-100 border border-violet-200 text-violet-700 px-2 py-0.5 rounded-md uppercase">
-                                {distinctQualities.length} déclinaisons
+                                {distinctQualities.length} qualités
                               </span>
                             )}
                             {distinctQualities.length === 1 && (
@@ -648,10 +800,14 @@ function ProductsTable({
                               </span>
                             ) : (
                               <>
-                                {a.size  && <span className="text-[11px] font-bold bg-stone-50 border border-stone-100 text-stone-500 px-2 py-0.5 rounded-md uppercase">{a.size}</span>}
-                                {a.color && <span className="text-[11px] font-bold bg-stone-50 border border-stone-100 text-stone-500 px-2 py-0.5 rounded-md uppercase">{a.color}</span>}
-                                {a.gsm && <span className="text-[11px] font-bold bg-blue-50 border border-blue-100 text-blue-700 px-2 py-0.5 rounded-md uppercase">{a.gsm}g/m²</span>}
+                                {taille  && <span className="text-[11px] font-bold bg-stone-50 border border-stone-100 text-stone-500 px-2 py-0.5 rounded-md uppercase">{taille}</span>}
+                                {couleur && <span className="text-[11px] font-bold bg-stone-50 border border-stone-100 text-stone-500 px-2 py-0.5 rounded-md uppercase">{couleur}</span>}
                               </>
+                            )}
+                            {specs && (
+                              <span className="w-full text-[11px] font-bold text-stone-500 leading-snug line-clamp-2" title={specs}>
+                                {specs}
+                              </span>
                             )}
                           </>
                         );
@@ -661,14 +817,14 @@ function ProductsTable({
                   <div className="mt-auto pt-4 border-t border-stone-100">
                     <div className="flex justify-between items-end mb-3">
                       <div>
-                        <p className="text-[11px] font-black text-stone-400 uppercase tracking-widest mb-0.5">Stock Réel</p>
+                        <p className="text-[11px] font-black text-stone-400 uppercase tracking-wider mb-0.5">Stock Réel</p>
                         <p className={`text-2xl font-black leading-none ${totalCurrent === 0 ? 'text-red-600' : isAlert ? 'text-amber-600' : 'text-stone-900'}`}>
-                          {fmt(totalCurrent)} <span className="text-[10px] text-stone-400 font-bold">{a.unitOfMeasure}</span>
+                          {fmt(totalCurrent)} <span className="text-[11px] text-stone-400 font-bold">{a.unitOfMeasure}</span>
                         </p>
                       </div>
                       {userRole === 'ADMIN' && (
                         <div className="text-right">
-                          <p className="text-[11px] font-black text-stone-400 uppercase tracking-widest mb-0.5">Valeur FIFO</p>
+                          <p className="text-[11px] font-black text-stone-400 uppercase tracking-wider mb-0.5">Valeur FIFO</p>
                           <p className="text-sm font-black text-violet-700">{fmt(fifoVal)} <span className="text-[11px]">MAD</span></p>
                         </div>
                       )}
@@ -748,7 +904,7 @@ export default function StockFiches({
     <div className="flex flex-wrap items-center justify-end gap-3">
       <Button
         onClick={() => setIsNewProductModalOpen(true)}
-        className="bg-[#CC8626] hover:bg-[#B3721C] text-white font-black uppercase text-[11px] tracking-widest px-5 h-11 rounded-xl shadow-md shadow-[#CC8626]/20 flex items-center gap-2 transition-all hover:scale-[1.02] active:scale-95"
+        className="bg-[#CC8626] hover:bg-[#B3721C] text-white font-black uppercase text-[11px] tracking-wider px-5 h-11 rounded-xl shadow-md shadow-[#CC8626]/20 flex items-center gap-2 transition-all hover:scale-[1.02] active:scale-95"
       >
         <Plus className="w-4 h-4" />
         Nouveau Produit
@@ -861,6 +1017,7 @@ export default function StockFiches({
         <ProductsTable
           items={items} subCatName={subCat?.nameFR || subCat?.name || selSubCat}
           movements={movements} factures={factures}
+          categories={categories} generalCategories={generalCategories}
           onBack={() => setSelSubCat(null)}
           headerProp={
             <div className="space-y-4 mb-6">
@@ -896,12 +1053,12 @@ export default function StockFiches({
         <StockHeader totalRefs={totalRefs} totalStock={totalStock} totalVal={totalVal} alertCount={alertCount} userRole={userRole} />
         {actionBar}
         <div className="flex items-center gap-2">
-          <button onClick={() => setSelGenCat(null)} className="flex items-center gap-1.5 text-[11px] font-black text-stone-500 hover:text-stone-900 uppercase tracking-widest transition-colors">
+          <button onClick={() => setSelGenCat(null)} className="flex items-center gap-1.5 text-[11px] font-black text-stone-500 hover:text-stone-900 uppercase tracking-wider transition-colors">
             <ChevronLeft className="w-3.5 h-3.5" /> Retour
           </button>
           <span className="text-stone-200">/</span>
           <div className="flex items-center gap-2"><div className="w-2 h-2 rounded-full" style={{ backgroundColor: lineColor }} />
-            <span className="text-[11px] font-black text-stone-900 uppercase tracking-widest">{gc?.nameFR || gc?.name}</span>
+            <span className="text-[11px] font-black text-stone-900 uppercase tracking-wider">{gc?.nameFR || gc?.name}</span>
             {gc?.nameFR && gc.nameFR !== gc.name && (
               <span className="text-[11px] font-bold text-stone-400 uppercase tracking-tight">({gc.name})</span>
             )}
@@ -910,7 +1067,7 @@ export default function StockFiches({
         {subCatsWS.length === 0 ? (
           <div className="bg-white rounded-2xl p-16 text-center border border-stone-100">
             <Package className="w-10 h-10 text-stone-200 mx-auto mb-3" />
-            <p className="text-stone-300 font-black uppercase text-[10px] tracking-widest">Aucune sous-catégorie avec du stock validé</p>
+            <p className="text-stone-300 font-black uppercase text-[11px] tracking-wider">Aucune sous-catégorie avec du stock validé</p>
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
@@ -930,7 +1087,7 @@ export default function StockFiches({
                         <Layers className="w-3.5 h-3.5" />
                       </div>
                       {alerts > 0 && (
-                        <span className="text-[10px] font-black bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-full uppercase flex items-center gap-0.5">
+                        <span className="text-[11px] font-black bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-full uppercase flex items-center gap-0.5">
                           <AlertTriangle className="w-2.5 h-2.5" /> {alerts}
                         </span>
                       )}
@@ -1002,7 +1159,7 @@ export default function StockFiches({
         <div className="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0 scrollbar-none">
           <button
             onClick={() => setSelectedLineFilter('ALL')}
-            className={`px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all whitespace-nowrap ${
+            className={`px-3 py-1.5 rounded-xl text-[11px] font-black uppercase tracking-wider transition-all whitespace-nowrap ${
               selectedLineFilter === 'ALL'
                 ? 'bg-stone-900 text-white shadow-sm'
                 : 'bg-stone-100 text-stone-500 hover:bg-stone-200'
@@ -1018,7 +1175,7 @@ export default function StockFiches({
               <button
                 key={lineName}
                 onClick={() => setSelectedLineFilter(lineName)}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all whitespace-nowrap ${
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[11px] font-black uppercase tracking-wider transition-all whitespace-nowrap ${
                   isSelected
                     ? 'text-white shadow-sm'
                     : 'bg-stone-50 text-stone-600 hover:bg-stone-100'
@@ -1041,14 +1198,14 @@ export default function StockFiches({
             <Boxes className="w-10 h-10 text-emerald-200" />
           </div>
           <div>
-            <p className="text-stone-500 font-black uppercase text-[11px] tracking-widest">Aucun pôle configuré ou en stock</p>
+            <p className="text-stone-500 font-black uppercase text-[11px] tracking-wider">Aucun pôle configuré ou en stock</p>
             <p className="text-stone-300 text-[11px] font-bold mt-2">
               Les pôles et lignes sont synchronisés avec la gestion des groupes.
             </p>
           </div>
         </div>
       ) : displayedLines.length === 0 ? (
-        <div className="py-16 text-center text-stone-400 font-black uppercase text-[10px] tracking-widest bg-white rounded-2xl border border-stone-100">
+        <div className="py-16 text-center text-stone-400 font-black uppercase text-[11px] tracking-wider bg-white rounded-2xl border border-stone-100">
           Aucun pôle trouvé pour cette recherche ou cette ligne
         </div>
       ) : (

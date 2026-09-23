@@ -1,6 +1,250 @@
 // Utility functions for PDF export using jsPDF + jspdf-autotable
 // Dynamically imported to avoid SSR issues
 
+import {
+  specificationsArticle,
+  specificationsEnLigne,
+  qualiteDeLArticle,
+  type LigneSpecification,
+} from '@/lib/specification-produit';
+import { breakdownRowQuantity, libelleFixe } from '@/lib/warehouse-locations';
+
+// ── Décrire un article sur un document ─────────────────────────────────────
+/**
+ * Les documents qui partent chez le fournisseur, le transitaire, le client et le magasinier
+ * décrivaient deux types de produits en dur — fermeture et tissu — puis retombaient sur
+ * l'ancien champ texte libre `specs` que plus personne ne remplit. Un fil, un curseur, un ruban
+ * ou un accessoire s'imprimait donc sans aucune caractéristique : un carton qu'on ne peut pas
+ * contrôler à la réception, une commande qui ne dit pas ce qu'on veut.
+ *
+ * Tout ce qui décrit un article passe désormais par la brique partagée
+ * src/lib/specification-produit.ts, qui lit le modèle de la famille
+ * (src/lib/quality-schema.ts) : six types, chacun avec SES caractéristiques.
+ *
+ * Deuxième règle tenue ici : « various » est la marque interne d'un article ventilé, jamais une
+ * couleur ni une taille. Un article ventilé s'imprime ligne par ligne, avec sa quantité.
+ */
+
+/**
+ * Un article complété par sa ligne de qualité, pour tout ce que l'article ne porte pas lui-même.
+ * Sur un article ventilé, le grammage ou la longueur vivent sur la ligne de qualité et non sur
+ * l'article : sans ce complément, la brique ne reconnaîtrait pas le type d'un article que les
+ * PDF reçoivent sans le catalogue des pôles, et la ligne s'imprimerait nue. Ce qui est renseigné
+ * sur l'article n'est jamais écrasé.
+ */
+function articleComplete(article: any, ligneQualite: any): any {
+  const sujet: any = { ...(article || {}) };
+  for (const [cle, valeur] of Object.entries(ligneQualite || {})) {
+    const actuel = sujet[cle];
+    if (actuel === null || actuel === undefined || String(actuel).trim() === '') sujet[cle] = valeur;
+  }
+  return sujet;
+}
+
+/** Les caractéristiques d'un article — ou d'une de ses qualités — dans l'ordre de son modèle. */
+export function specsArticle(article: any, ligneQualite?: any, categories: any[] = []): LigneSpecification[] {
+  const sujet = ligneQualite ? articleComplete(article, ligneQualite) : article;
+  return specificationsArticle(sujet, categories, [], ligneQualite);
+}
+
+/**
+ * Les mêmes sur une seule ligne : « GSM 180 · Largeur (cm) 150 ».
+ *
+ * Plafonné à cinq caractéristiques : dans une colonne de tableau de 40 mm, les huit d'une
+ * fermeture font une cellule de 40 mm de haut, et un article à quatre qualités transforme le
+ * tableau en suite de pavés. Les cinq premières sont celles du modèle, donc les plus parlantes.
+ */
+export function specsLigne(article: any, ligneQualite?: any, categories: any[] = [], max = 5): string {
+  const sujet = ligneQualite ? articleComplete(article, ligneQualite) : article;
+  const lignes = specificationsArticle(sujet, categories, [], ligneQualite);
+  const retenues = lignes.slice(0, max).map(l => `${l.label} ${l.valeur}`);
+  if (lignes.length > max) retenues.push(`+${lignes.length - max}`);
+  return retenues.join(' · ');
+}
+
+/**
+ * Les mêmes intitulés en anglais : le bon de commande (Purchase Order) est rédigé en anglais
+ * pour le fournisseur, il ne doit pas se mettre à parler français au milieu d'un tableau.
+ */
+const LABEL_SPEC_EN: Record<string, string> = {
+  gsm: 'Weight (GSM)',
+  fabricWidth: 'Fabric Width (cm)',
+  rollLength: 'Roll Length',
+  rollLengthUnit: 'Length Unit',
+  packagingPerBag: 'Pcs/bag',
+  length: 'Length',
+  zipperType: 'Zipper Type (C/E, O/E)',
+  slider: 'Slider',
+  sliderType: 'Slider Type',
+  tapeWeightGsm: 'Tape Weight (g/m)',
+  sliderWeightG: 'Slider Weight (g)',
+  pcsPerBag: 'Pcs/bag',
+  bagsPerCarton: 'Bags/ctn',
+  coneWeightG: 'Cone Weight (g)',
+  threadWeightG: 'Thread Weight (g)',
+  lengthPerPiece: 'Length / piece',
+  lengthUnit: 'Length Unit',
+  size: 'Size',
+  width: 'Width',
+  weightPerM: 'Weight / m',
+  rollsPerShrink: 'Rolls/shrink',
+  rollsPerCarton: 'Rolls/ctn',
+  thickness: 'Thickness',
+  weightPerPiece: 'Weight / pc',
+  pcsPerBox: 'Pcs/box',
+  boxPerCarton: 'Box/ctn',
+};
+
+export function specsArticleEn(article: any, ligneQualite?: any): [string, string][] {
+  return specsArticle(article, ligneQualite).map(l => [LABEL_SPEC_EN[l.cle] || l.label, l.valeur] as [string, string]);
+}
+
+export function specsLigneEn(article: any, ligneQualite?: any): string {
+  return specsArticleEn(article, ligneQualite).map(([label, valeur]) => `${label} ${valeur}`).join(' · ');
+}
+
+type DimensionVentilation = 'quality' | 'color' | 'size' | 'design';
+
+type LigneVentilation = {
+  dimension: DimensionVentilation;
+  libelle: string;
+  quantite: number;
+  source: any;
+};
+
+/** Le mot du métier pour chaque dimension de ventilation. */
+const MOT_DIMENSION: Record<DimensionVentilation, { un: string; plusieurs: string }> = {
+  quality: { un: 'Qualité', plusieurs: 'Qualités' },
+  color:   { un: 'Couleur', plusieurs: 'Couleurs' },
+  size:    { un: 'Taille',  plusieurs: 'Tailles'  },
+  design:  { un: 'Modèle',  plusieurs: 'Modèles'  },
+};
+
+function lignesDe(rows: any, dimension: DimensionVentilation, libelleDe: (row: any) => unknown): LigneVentilation[] {
+  return (Array.isArray(rows) ? rows : [])
+    .map(row => ({
+      dimension,
+      libelle: (libelleFixe(libelleDe(row)) || '').toUpperCase(),
+      quantite: breakdownRowQuantity(row),
+      source: row,
+    }))
+    .filter(l => l.libelle !== '' || l.quantite > 0);
+}
+
+/**
+ * Les lignes d'un article ventilé : une par qualité, couleur ou taille, avec sa quantité.
+ * L'ordre de priorité — qualité, puis couleur, puis taille — est celui du calcul du stock :
+ * le papier et l'écran doivent toujours ventiler pareil. Un article non ventilé ne rend rien.
+ * Les quantités des couleurs se lisent dans `rolls`, les autres dans `quantity`
+ * (breakdownRowQuantity).
+ */
+export function lignesVentilation(article: any): LigneVentilation[] {
+  const qualites = lignesDe(article?.qualityBreakdown, 'quality', (r: any) => r?.quality);
+  if (qualites.length > 0) return qualites;
+  const couleurs = lignesDe(article?.colorBreakdown, 'color', (r: any) => r?.colorCode || r?.description || r?.color);
+  if (couleurs.length > 0) return couleurs;
+  const tailles = lignesDe(article?.sizeBreakdown, 'size', (r: any) => r?.size);
+  if (tailles.length > 0) return tailles;
+  return lignesDe(article?.designBreakdown, 'design', (r: any) => r?.designRef);
+}
+
+/** « CL-5 — 1 200 PCS » : le libellé d'une ligne ventilée, suivi de sa quantité. */
+export function texteVentilation(ligne: LigneVentilation, unite?: string): string {
+  const libelle = ligne.libelle || '—';
+  if (ligne.quantite <= 0) return libelle;
+  return `${libelle} — ${ligne.quantite.toLocaleString('fr-MA')}${unite ? ' ' + unite : ''}`;
+}
+
+/** Plusieurs libellés dans une seule cellule, écourtés au-delà de `max` : « A · B · C · +2 ». */
+/** Tronque à la largeur disponible en le signalant : un texte coupé net se lit comme complet. */
+function tronquer(doc: any, texte: string, largeur: number): string {
+  const morceaux = doc.splitTextToSize(texte, largeur);
+  if (morceaux.length <= 1) return morceaux[0] || '';
+  const premier = String(morceaux[0]);
+  return doc.splitTextToSize(premier + ' …', largeur)[0] || premier;
+}
+
+export function resumeLibelles(labels: string[], max = 3): string {
+  const propres = labels.map(l => String(l || '').split('\n')[0].trim()).filter(Boolean);
+  if (propres.length === 0) return '—';
+  const visibles = propres.slice(0, max);
+  const reste = propres.length - visibles.length;
+  return visibles.join(' · ') + (reste > 0 ? ` · +${reste}` : '');
+}
+
+/** La même ventilation sur une seule ligne, écourtée quand elle est longue. */
+export function resumeVentilation(lignes: LigneVentilation[], unite?: string, max = 4): string {
+  const visibles = lignes.slice(0, max).map(l => texteVentilation(l, unite));
+  const reste = lignes.length - visibles.length;
+  return visibles.join(' · ') + (reste > 0 ? ` · +${reste}` : '');
+}
+
+/**
+ * La cellule d'une dimension : la ventilation ligne par ligne quand l'article en a une,
+ * sinon sa valeur fixe — jamais « various ».
+ */
+export function celluleDimension(
+  article: any,
+  dimension: DimensionVentilation,
+  valeurFixe: unknown,
+  unite?: string,
+  vide = '—',
+): string {
+  const lignes = lignesVentilation(article).filter(l => l.dimension === dimension);
+  if (lignes.length > 0) return lignes.map(l => texteVentilation(l, unite)).join('\n');
+  const fixe = libelleFixe(valeurFixe);
+  return fixe ? fixe.toUpperCase() : vide;
+}
+
+/**
+ * La cellule « couleur » : la ventilation par couleur, à défaut celle par modèle — un curseur
+ * se commande et se reçoit par référence de modèle, c'est sa couleur à lui.
+ */
+export function celluleCouleur(article: any, unite?: string, vide = '—'): string {
+  return celluleDimension(article, 'color', article?.color, unite, '')
+    || celluleDimension(article, 'design', null, unite, '')
+    || vide;
+}
+
+/**
+ * Ce qu'il faut sous le nom d'un article pour le reconnaître à la réception : sa qualité, sa
+ * taille et sa couleur quand elles sont fixes, ses caractéristiques techniques, puis le détail
+ * de sa ventilation. Une ligne de texte par élément, à placer sous le nom.
+ */
+export function detailsArticle(
+  article: any,
+  options?: { unite?: string; max?: number; categories?: any[]; ignorer?: DimensionVentilation[] },
+): string[] {
+  const lignes: string[] = [];
+  const ventilation = lignesVentilation(article);
+  const ventilees = new Set(ventilation.map(l => l.dimension));
+  // Une dimension qui a déjà sa propre colonne ne se répète pas sous le nom.
+  const ignorees = new Set(options?.ignorer || []);
+
+  const qualite = ventilees.has('quality') || ignorees.has('quality') ? null : qualiteDeLArticle(article);
+  const taille = ventilees.has('size') || ignorees.has('size') ? null : libelleFixe(article?.size);
+  const couleur = ventilees.has('color') || ignorees.has('color') ? null : libelleFixe(article?.color);
+  const precisions = [
+    qualite ? `Qualité ${qualite.toUpperCase()}` : null,
+    taille ? `Taille ${taille.toUpperCase()}` : null,
+    couleur ? `Couleur ${couleur.toUpperCase()}` : null,
+  ].filter(Boolean) as string[];
+  if (precisions.length > 0) lignes.push(precisions.join(' · '));
+
+  const specs = specsLigne(article, undefined, options?.categories);
+  if (specs) lignes.push(specs);
+
+  if (ventilation.length > 0 && !ignorees.has(ventilation[0].dimension)) {
+    const mot = MOT_DIMENSION[ventilation[0].dimension];
+    const titre = ventilation.length > 1 ? mot.plusieurs : mot.un;
+    lignes.push(`${titre} : ${resumeVentilation(ventilation, options?.unite, options?.max ?? 4)}`);
+  }
+
+  const note = libelleFixe(article?.specs);
+  if (note) lignes.push(note);
+  return lignes;
+}
+
 // ── Shared logo helper ─────────────────────────────────────────────────────
 export async function addPdfLogoHeader(
   doc: any,
@@ -159,36 +403,40 @@ export async function exportFacturePDF(facture: any, articles: any[]) {
       'Fournisseur', 'Quantité', 'Unité', 'CBM', 'N.W (kg)',
       'P.A. Unit. ($)', 'Valeur ($)'
     ]],
-    body: articles.map(a => [
-      (a.name || '').toUpperCase(),
-      a.size || '-',
-      a.color || '-',
-      (() => {
-        if (Array.isArray(a.qualityBreakdown) && a.qualityBreakdown.length > 0) {
-          return `VARIOUS (${a.qualityBreakdown.length} qual.)`;
-        }
-        const parts: string[] = [];
-        if (a.zipperType) {
-          parts.push(`${a.zipperType} / ${a.slider || '-'} (${a.sliderType || '-'})`);
-          if (a.pcsPerBag && a.bagsPerCarton) parts.push(`${a.pcsPerBag}p/bag · ${a.bagsPerCarton}b/ctn`);
-          else if (a.pcsPerBag) parts.push(`${a.pcsPerBag}p/bag`);
-        } else if (a.gsm || a.fabricWidth) {
-          if (a.gsm) parts.push(`${a.gsm}gsm`);
-          if (a.fabricWidth) parts.push(`${a.fabricWidth}cm`);
-          if (a.rollLength) parts.push(`${a.rollLength}${a.rollLengthUnit || 'm'}`);
-          if (a.packagingPerBag) parts.push(`${a.packagingPerBag}rlx/sac`);
-        }
-        if (a.specs) parts.push(a.specs);
-        return parts.length > 0 ? parts.join(' · ') : '-';
-      })(),
-      (a.supplierId || '').toUpperCase(),
-      Number(a.quantity).toLocaleString('fr-MA'),
-      (a.unitOfMeasure || '').toUpperCase(),
-      Number(a.cubicMeasurement || 0).toFixed(4),
-      Number(a.netWeight || 0).toFixed(2),
-      Number(a.purchasePricePerUnit || 0).toFixed(4),
-      (Number(a.quantity) * Number(a.purchasePricePerUnit)).toLocaleString('fr-MA', { maximumFractionDigits: 2 }),
-    ]),
+    body: articles.map(a => {
+      const unite = (a.unitOfMeasure || '').toUpperCase();
+      // La colonne Technique porte la qualité : ventilée, une ligne par qualité avec ses
+      // propres caractéristiques ; sinon la qualité de l'article et ses caractéristiques.
+      const qualites = lignesVentilation(a).filter(l => l.dimension === 'quality');
+      const technique: string[] = [];
+      if (qualites.length > 0) {
+        qualites.forEach(l => {
+          const detail = specsLigne(a, l.source);
+          technique.push(`${texteVentilation(l, unite)}${detail ? ` · ${detail}` : ''}`);
+        });
+      } else {
+        const qualite = qualiteDeLArticle(a);
+        if (qualite) technique.push(qualite.toUpperCase());
+        const specs = specsLigne(a);
+        if (specs) technique.push(specs);
+      }
+      const note = libelleFixe(a.specs);
+      if (note) technique.push(note);
+
+      return [
+        (a.name || '').toUpperCase(),
+        celluleDimension(a, 'size', a.size, unite, '-'),
+        celluleCouleur(a, unite, '-'),
+        technique.length > 0 ? technique.join('\n') : '-',
+        (a.supplierId || '').toUpperCase(),
+        Number(a.quantity).toLocaleString('fr-MA'),
+        unite,
+        Number(a.cubicMeasurement || 0).toFixed(4),
+        Number(a.netWeight || 0).toFixed(2),
+        Number(a.purchasePricePerUnit || 0).toFixed(4),
+        (Number(a.quantity) * Number(a.purchasePricePerUnit)).toLocaleString('fr-MA', { maximumFractionDigits: 2 }),
+      ];
+    }),
     foot: [[
       `TOTAL — ${articles.length} articles`, '', '', '', '',
       articles.reduce((s, a) => s + Number(a.quantity), 0).toLocaleString('fr-MA'),
@@ -202,7 +450,13 @@ export async function exportFacturePDF(facture: any, articles: any[]) {
     bodyStyles: { fontSize: 7, cellPadding: 2.5 },
     alternateRowStyles: { fillColor: [250, 250, 249] },
     columnStyles: {
-      0: { cellWidth: 40, fontStyle: 'bold' },
+      // Taille, couleur et technique peuvent désormais tenir plusieurs lignes (un article
+      // ventilé s'imprime ligne par ligne) : on leur réserve leur largeur pour que les
+      // colonnes chiffrées ne se retrouvent pas écrasées.
+      0: { cellWidth: 36, fontStyle: 'bold' },
+      1: { cellWidth: 22 },
+      2: { cellWidth: 26 },
+      3: { cellWidth: 50 },
       5: { halign: 'right' },
       7: { halign: 'right' },
       8: { halign: 'right' },
@@ -308,10 +562,12 @@ export async function exportCostAnalysisPDF(
       'MT Total\n(MAD)', 'P.A.U TTC\n(MAD/U)'
     ]],
     body: rows.map(r => {
-      let articleName = (r.name || r.categoryId || '').toUpperCase();
-      if (r.size && r.size !== 'various') {
-        articleName += `\n(Taille: ${r.size})`;
-      }
+      // Sous le nom : qualité, taille, couleur, caractéristiques du modèle et détail de la
+      // ventilation — de quoi reconnaître l'article sans ouvrir l'écran.
+      const articleName = [
+        (r.name || r.categoryId || '').toUpperCase(),
+        ...detailsArticle(r, { unite: (r.unitOfMeasure || '').toUpperCase(), max: 3 }),
+      ].filter(Boolean).join('\n');
       return [
         articleName,
       r.categoryId || '-',
@@ -332,8 +588,9 @@ export async function exportCostAnalysisPDF(
     bodyStyles: { fontSize: 6.5, cellPadding: 2 },
     alternateRowStyles: { fillColor: [250, 250, 249] },
     columnStyles: {
-      0: { cellWidth: 38, fontStyle: 'bold' },
-      1: { cellWidth: 22 },
+      // La colonne Article porte maintenant le détail du produit sous son nom.
+      0: { cellWidth: 44, fontStyle: 'bold' },
+      1: { cellWidth: 20 },
       2: { halign: 'right' },
       3: { halign: 'right' },
       4: { halign: 'right' },
@@ -481,17 +738,39 @@ export async function exportCoutRevientSimplePDF(
   yPos += 22;
 
   // ── Table — P.A.U TTC par article ──
-  const tableRows = rows.map(r => [
-    (r.categoryId || '—').toUpperCase(),
-    r.size ? r.size.toUpperCase() : '—',
-    r.color ? r.color.toUpperCase() : '—',
-    (r.specs || (r.zipperType ? `${r.zipperType}${r.slider ? ' / ' + r.slider : ''}` : '') || r.name || '—').toUpperCase() || '—',
-    Number(r.qty).toLocaleString('fr-MA'),
-    (r.unitOfMeasure || 'U').toUpperCase(),
-    r.pauTtc > 0
-      ? r.pauTtc.toLocaleString('fr-MA', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-      : '—',
-  ]);
+  const tableRows = rows.map(r => {
+    const unite = (r.unitOfMeasure || 'U').toUpperCase();
+    // Technique : la qualité (ventilée, une ligne par qualité avec ses caractéristiques)
+    // puis les caractéristiques du modèle de la famille. Plus de retombée sur `specs`.
+    const qualites = lignesVentilation(r).filter(l => l.dimension === 'quality');
+    const technique: string[] = [];
+    if (qualites.length > 0) {
+      qualites.forEach(l => {
+        const detail = specsLigne(r, l.source);
+        technique.push(`${texteVentilation(l, unite)}${detail ? ` · ${detail}` : ''}`);
+      });
+    } else {
+      const qualite = qualiteDeLArticle(r);
+      if (qualite) technique.push(qualite.toUpperCase());
+      const specs = specsLigne(r);
+      if (specs) technique.push(specs);
+    }
+    const note = libelleFixe(r.specs);
+    if (note) technique.push(note);
+    if (technique.length === 0) technique.push((r.name || '—').toUpperCase());
+
+    return [
+      (r.categoryId || '—').toUpperCase(),
+      celluleDimension(r, 'size', r.size, unite),
+      celluleCouleur(r, unite),
+      technique.join('\n'),
+      Number(r.qty).toLocaleString('fr-MA'),
+      unite,
+      r.pauTtc > 0
+        ? r.pauTtc.toLocaleString('fr-MA', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+        : '—',
+    ];
+  });
 
   autoTable(doc, {
     startY: yPos,
@@ -527,13 +806,14 @@ export async function exportCoutRevientSimplePDF(
     },
     alternateRowStyles: { fillColor: LIGHT_BG },
     columnStyles: {
-      0: { fontStyle: 'bold', cellWidth: 28 },
-      1: { cellWidth: 18, halign: 'center' },
-      2: { cellWidth: 22, halign: 'center' },
+      // Taille et couleur peuvent tenir plusieurs lignes quand l'article est ventilé.
+      0: { fontStyle: 'bold', cellWidth: 26 },
+      1: { cellWidth: 22, halign: 'center' },
+      2: { cellWidth: 26, halign: 'center' },
       3: { fontStyle: 'bold', cellWidth: 'auto' },
       4: { halign: 'right', cellWidth: 20 },
-      5: { halign: 'center', cellWidth: 16 },
-      6: { halign: 'right', fontStyle: 'bold', textColor: EMERALD, cellWidth: 32 },
+      5: { halign: 'center', cellWidth: 14 },
+      6: { halign: 'right', fontStyle: 'bold', textColor: EMERALD, cellWidth: 30 },
     },
     theme: 'striped',
   });
@@ -683,7 +963,9 @@ export async function exportCoutVenteSimplePDF(
 
   autoTable(doc, {
     startY: yPos,
-    head: [['Catégorie', 'Taille', 'Technique / Spécification', 'Couleur', 'Quantité', 'Unité', 'P.V.U TTC (MAD)']],
+    // La 3e colonne porte le code SH de la famille, pas une spécification : le titre le dit
+    // maintenant. Ce tableau agrège par catégorie, il ne décrit pas un article.
+    head: [['Catégorie', 'Taille', 'Code SH', 'Couleur', 'Quantité', 'Unité', 'P.V.U TTC (MAD)']],
     body: tableRows,
     foot: [[
       { content: `TOTAL — ${rows.length} catégorie(s)`, colSpan: 4, styles: { halign: 'left' as const } },
@@ -867,12 +1149,19 @@ export async function exportDossierArticlesPDF(
     const qty = Number(r.qty || r.quantity || 0);
     const pauDollar = Number(r.pauDollar || r.purchasePricePerUnit || 0);
     const pauMad = r.pauTtc > 0 ? r.pauTtc : (tauxChange > 0 && pauDollar > 0 ? pauDollar * tauxChange : 0);
+    const unite = (r.unitOfMeasure || 'U').toUpperCase();
+    // La description porte le nom, puis ce qui identifie vraiment la marchandise :
+    // qualité, couleur, caractéristiques du modèle, et le détail de la ventilation.
+    const description = [
+      (r.name || r.categoryId || '—').toUpperCase(),
+      ...detailsArticle(r, { unite, max: 6, ignorer: ['size'] }),
+    ].filter(Boolean).join('\n');
     return [
       (r.categoryId || '—').toUpperCase(),
-      r.size && r.size !== 'various' ? r.size.toUpperCase() : '—',
-      (r.name || r.categoryId || '—').toUpperCase(),
+      celluleDimension(r, 'size', r.size, unite),
+      description,
       qty.toLocaleString('fr-MA'),
-      (r.unitOfMeasure || 'U').toUpperCase(),
+      unite,
       pauMad > 0
         ? pauMad.toLocaleString('fr-MA', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
         : '—',
@@ -913,12 +1202,13 @@ export async function exportDossierArticlesPDF(
     },
     alternateRowStyles: { fillColor: LIGHT_BG },
     columnStyles: {
-      0: { fontStyle: 'bold', cellWidth: 32 },
-      1: { cellWidth: 22, halign: 'center' },
+      // La colonne Taille liste les tailles d'un article ventilé : elle a besoin d'air.
+      0: { fontStyle: 'bold', cellWidth: 30 },
+      1: { cellWidth: 28, halign: 'center' },
       2: { fontStyle: 'bold' },
       3: { halign: 'right', cellWidth: 22 },
       4: { halign: 'center', cellWidth: 14 },
-      5: { halign: 'right', fontStyle: 'bold', textColor: TEAL, cellWidth: 36 },
+      5: { halign: 'right', fontStyle: 'bold', textColor: TEAL, cellWidth: 34 },
     },
     theme: 'striped',
     didParseCell: (data: any) => {
@@ -1040,8 +1330,18 @@ export async function exportCostSalePDF(
       'P.V.U TTC\n(MAD/U)'
     ]],
     body: rows.map(r => {
-      let articleName = (r.name || r.categoryId || '').toUpperCase();
-      if (r.size && r.size !== 'various') articleName += `\n(Taille: ${r.size})`;
+      // Ce tableau agrège parfois plusieurs articles d'une même famille : on descend alors la
+      // taille et la couleur communes, sinon le détail de l'article lui-même.
+      const unite = (r.unit || r.unitOfMeasure || '').toUpperCase();
+      const communs = [
+        !libelleFixe(r.size) && libelleFixe(r.uniqueSize) ? `Taille ${libelleFixe(r.uniqueSize)!.toUpperCase()}` : null,
+        !libelleFixe(r.color) && libelleFixe(r.uniqueColor) ? `Couleur ${libelleFixe(r.uniqueColor)!.toUpperCase()}` : null,
+      ].filter(Boolean).join(' · ');
+      const articleName = [
+        (r.name || r.categoryId || '').toUpperCase(),
+        communs || null,
+        ...detailsArticle(r, { unite, max: 3 }),
+      ].filter(Boolean).join('\n');
       return [
         articleName,
         r.categoryId || '-',
@@ -1064,8 +1364,9 @@ export async function exportCostSalePDF(
     bodyStyles: { fontSize: 6, cellPadding: 2 },
     alternateRowStyles: { fillColor: [250, 250, 249] },
     columnStyles: {
-      0: { cellWidth: 30, fontStyle: 'bold' },
-      1: { cellWidth: 18 },
+      // La colonne Article porte maintenant le détail du produit sous son nom.
+      0: { cellWidth: 34, fontStyle: 'bold' },
+      1: { cellWidth: 16 },
       2: { halign: 'right' },
       3: { halign: 'right' },
       4: { halign: 'right' },
@@ -1697,15 +1998,24 @@ export async function exportClientDossierPDF(
   yPos += 35;
 
   // 2. Table des articles
-  const tableRows = articles.map((a, i) => [
-    String(i + 1),
-    (a.categoryId || a.name || "—").toUpperCase(),
-    a.size && a.size !== "various" ? a.size.toUpperCase() : (a.sizeBreakdown?.length ? "MULTIPLE" : "—"),
-    a.color && a.color !== "various" ? a.color.toUpperCase() : (a.colorBreakdown?.length ? "MULTIPLE" : "—"),
-    `${Number(a.quantity).toLocaleString("fr-MA")} ${a.unitOfMeasure || "U"}`,
-    a.arrivalDate ? a.arrivalDate : "—",
-    a.status === "STOCK" ? "En Stock" : a.status === "CUSTOMS" ? "Dédouanement" : a.status === "TRANSIT" ? "En Transit" : a.status === "SHIPPED" ? "Expédié" : a.status === "PI" ? "En Prod." : "À Commander"
-  ]);
+  // « MULTIPLE » ne dit rien au client : un article ventilé montre ses tailles et ses couleurs
+  // avec leurs quantités, et le type de produit porte ses caractéristiques.
+  const tableRows = articles.map((a, i) => {
+    const unite = (a.unitOfMeasure || "U").toUpperCase();
+    const typeProduit = [
+      (a.categoryId || a.name || "—").toUpperCase(),
+      ...detailsArticle(a, { unite, max: 4, ignorer: ['size', 'color'] }),
+    ].filter(Boolean).join('\n');
+    return [
+      String(i + 1),
+      typeProduit,
+      celluleDimension(a, 'size', a.size, unite),
+      celluleCouleur(a, unite),
+      `${Number(a.quantity).toLocaleString("fr-MA")} ${a.unitOfMeasure || "U"}`,
+      a.arrivalDate ? a.arrivalDate : "—",
+      a.status === "STOCK" ? "En Stock" : a.status === "CUSTOMS" ? "Dédouanement" : a.status === "TRANSIT" ? "En Transit" : a.status === "SHIPPED" ? "Expédié" : a.status === "PI" ? "En Prod." : "À Commander"
+    ];
+  });
 
   autoTable(doc, {
     startY: yPos,
@@ -1966,34 +2276,33 @@ export async function exportDevisClientPIPDF(params: {
   doc.line(MX + 65, y - 1, W - MX, y - 1);
   y += 4;
 
-  const colorLabel = (() => {
-    const cb: any[] = Array.isArray(article.colorBreakdown) ? article.colorBreakdown : [];
-    if (cb.length > 0) return `${cb.length} COULEUR(S)`;
-    return (article.color && article.color !== 'various') ? article.color.toUpperCase() : '—';
-  })();
+  // Une dimension ventilée s'annonce par son nombre de lignes : le détail, ligne par ligne avec
+  // sa quantité, est dans le récapitulatif du devis juste en dessous.
+  const libelleDimension = (
+    dimension: DimensionVentilation,
+    valeurFixe: unknown,
+    motPluriel: string,
+  ): string => {
+    const lignes = lignesVentilation(article).filter(l => l.dimension === dimension);
+    if (lignes.length > 0) return `${lignes.length} ${motPluriel}`;
+    const fixe = libelleFixe(valeurFixe);
+    return fixe ? fixe.toUpperCase() : '—';
+  };
 
   const specs: [string, string][] = [
     ['Désignation / Catégorie', (article.categoryId || '—').toUpperCase()],
-    ['Taille',                  article.size && article.size !== 'various' ? article.size.toUpperCase() : 'DIVERSES'],
-    ['Couleur',                 colorLabel],
+    ['Taille',                  libelleDimension('size', article.size, 'TAILLE(S)')],
+    ['Couleur',                 libelleDimension('color', article.color, 'COULEUR(S)')],
     ['Quantité commandée',      fmtQty(article.quantity, article.unitOfMeasure)],
     ['Date de commande',        article.orderDate || todayStr],
   ];
-  if (article.zipperType) {
-    specs.push(['Type Fermeture', article.zipperType.toUpperCase()]);
-    specs.push(['Curseur / Type', `${article.slider || '—'} / ${article.sliderType || '—'}`.toUpperCase()]);
-    if (article.tapeWeightGsm) specs.push(['Poids Ruban', `${article.tapeWeightGsm} g/m`]);
-    if (article.sliderWeightG) specs.push(['Poids Curseur', `${article.sliderWeightG} g/pc`]);
-    if (article.pcsPerBag) specs.push(['Condit. Sac', `${article.pcsPerBag} pcs/sac`]);
-    if (article.bagsPerCarton) specs.push(['Condit. Carton', `${article.bagsPerCarton} sacs/ctn`]);
-  }
-  if (article.gsm || article.fabricWidth || article.rollLength) {
-    if (article.gsm) specs.push(['Grammage', `${article.gsm} g/m²`]);
-    if (article.fabricWidth) specs.push(['Largeur', `${article.fabricWidth} cm`]);
-    if (article.rollLength) specs.push(['Longueur', `${article.rollLength} ${article.rollLengthUnit || 'm'}/rlx`]);
-    if (article.packagingPerBag) specs.push(['Conditionnement', `${article.packagingPerBag} rlx/sac`]);
-  }
-  if (article.specs) specs.push(['Notes Techniques', article.specs]);
+  const qualiteDevis = libelleDimension('quality', qualiteDeLArticle(article), 'QUALITÉ(S)');
+  if (qualiteDevis !== '—') specs.push(['Qualité', qualiteDevis]);
+  // Les caractéristiques viennent du modèle de la famille : grammage et largeur pour un tissu,
+  // poids du cône pour un fil, épaisseur pour un accessoire — chaque type a les siennes.
+  specsArticle(article).forEach(l => specs.push([l.label, l.valeur]));
+  const noteDevis = libelleFixe(article.specs);
+  if (noteDevis) specs.push(['Notes Techniques', noteDevis]);
 
   const cellW = CW / 2;
   const cellH = 10;
@@ -2031,9 +2340,16 @@ export async function exportDevisClientPIPDF(params: {
   let totalAvantRemise = 0;
   let totalRemiseMad = 0;
 
+  // Sur un devis groupé, la grille de spécifications n'est pas imprimée : chaque ligne porte
+  // alors elle-même les caractéristiques de son article, sinon le client reçoit un prix sans
+  // savoir sur quelle marchandise il porte.
+  const specsSurLaLigne = items.length > 1;
+
   items.forEach(item => {
     const art = item.article;
     const comp = item.computed;
+    const specsArt = specsSurLaLigne ? specsLigne(art) : '';
+    const suffixeSpecs = specsArt ? `\n${specsArt}` : '';
     const pu = comp.prixVenteUniteMad;
     const puNet = comp.prixRemiseUniteMad ?? pu; // after discount
     const remise = comp.remise ?? 0;
@@ -2052,9 +2368,14 @@ export async function exportDevisClientPIPDF(params: {
         const qty = Number(r.quantity || 0);
         if (qty <= 0) return;
         const lineTotal = qty * puNet;
+        // Chaque qualité porte ses propres caractéristiques : c'est ce qui distingue deux
+        // qualités du même produit, et c'est sur quoi le client donne son accord.
+        const qualite = qualiteDeLArticle(art, r);
+        const detailQualite = specsLigne(art, r);
         const row: string[] = [
           String(index++),
-          `${(art.categoryId || '—').toUpperCase()} — ${(r.quality || '—').toUpperCase()}`,
+          `${(art.categoryId || '—').toUpperCase()} — ${(qualite || '—').toUpperCase()}`
+            + (detailQualite ? `\n${detailQualite}` : ''),
           fmtQty(qty, art.unitOfMeasure),
           pu.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
         ];
@@ -2072,7 +2393,7 @@ export async function exportDevisClientPIPDF(params: {
         const lineTotal = qty * puNet;
         const row: string[] = [
           String(index++),
-          `${(art.categoryId || '—').toUpperCase()}${r.colorCode ? ' — ' + r.colorCode.toUpperCase() : ''}${r.description ? ' ' + r.description : ''}`,
+          `${(art.categoryId || '—').toUpperCase()}${r.colorCode ? ' — ' + r.colorCode.toUpperCase() : ''}${r.description ? ' ' + r.description : ''}${suffixeSpecs}`,
           fmtQty(qty, art.unitOfMeasure),
           pu.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
         ];
@@ -2090,7 +2411,7 @@ export async function exportDevisClientPIPDF(params: {
         const lineTotal = qty * puNet;
         const row: string[] = [
           String(index++),
-          `${(art.categoryId || '—').toUpperCase()} — Taille ${(r.size || '—').toUpperCase()}`,
+          `${(art.categoryId || '—').toUpperCase()} — Taille ${(libelleFixe(r.size) || '—').toUpperCase()}${suffixeSpecs}`,
           fmtQty(qty, art.unitOfMeasure),
           pu.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
         ];
@@ -2102,9 +2423,16 @@ export async function exportDevisClientPIPDF(params: {
         lineItems.push(row);
       });
     } else {
+      const precisionsArt = [
+        qualiteDeLArticle(art),
+        libelleFixe(art.size),
+        libelleFixe(art.color),
+      ].filter(Boolean).map(v => String(v).toUpperCase()).join(' · ');
       const row: string[] = [
         String(index++),
-        (art.name || art.categoryId || '—').toUpperCase(),
+        (art.name || art.categoryId || '—').toUpperCase()
+          + (precisionsArt ? `\n${precisionsArt}` : '')
+          + suffixeSpecs,
         fmtQty(art.quantity, art.unitOfMeasure),
         pu.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
       ];
@@ -2469,30 +2797,25 @@ export async function exportBesoinsPDF(
       doc.text((a.categoryId || '').toUpperCase(), COL_LEFT, y + 14);
     }
 
-    // Specs row (size, color, specs, zipper, packaging, fabric)
-    const specParts: string[] = [];
-    if (Array.isArray(a.qualityBreakdown) && a.qualityBreakdown.length > 0) {
-      specParts.push(`Multi-Qualités (${a.qualityBreakdown.length})`);
-    }
-    if (a.size && a.size !== 'various') specParts.push(`Taille: ${a.size}`);
-    if (a.color && a.color !== 'various') specParts.push(`Couleur: ${a.color}`);
-    if (a.zipperType) {
-      specParts.push(`${a.zipperType}${a.slider ? ' / ' + a.slider : ''}`);
-      if (a.pcsPerBag) specParts.push(`${a.pcsPerBag} p/bag`);
-      if (a.bagsPerCarton) specParts.push(`${a.bagsPerCarton} b/ctn`);
-    }
-    if (a.gsm || a.fabricWidth) {
-      if (a.gsm) specParts.push(`${a.gsm}gsm`);
-      if (a.fabricWidth) specParts.push(`${a.fabricWidth}cm`);
-      if (a.packagingPerBag) specParts.push(`${a.packagingPerBag} rlx/sac`);
-    }
-    if (!a.zipperType && a.specs) specParts.push(a.specs);
-    if (a.supplierId) specParts.push(`Fourn.: ${a.supplierId}`);
-    if (specParts.length > 0) {
+    // Ce qu'on commande : qualité, taille, couleur, ventilation et caractéristiques du modèle.
+    // Une ligne de besoin sans caractéristiques, c'est une commande qui ne dit pas ce qu'on veut.
+    const largeurInfo = (COL_RIGHT - 25) - COL_LEFT - 2;
+    const uniteBesoin = (a.unitOfMeasure || '').toUpperCase();
+    const lignesInfo = detailsArticle(a, { unite: uniteBesoin, max: 3 });
+    if (a.supplierId) lignesInfo.push(`Fourn. : ${a.supplierId}`);
+    const aBadgeClient = !!(a.isPreorder && a.clientName);
+    // Deux lignes tiennent sous le nom quand aucun badge client ne vient s'y loger.
+    const maxLignes = aBadgeClient ? 1 : 2;
+    const aImprimer = lignesInfo.length > maxLignes
+      ? [...lignesInfo.slice(0, maxLignes - 1), lignesInfo.slice(maxLignes - 1).join('  ·  ')]
+      : lignesInfo;
+    if (aImprimer.length > 0) {
       doc.setTextColor(...MUTED);
       doc.setFontSize(6.5);
       doc.setFont('helvetica', 'normal');
-      doc.text(specParts.join('  ·  ').slice(0, 100), COL_LEFT, y + 20);
+      aImprimer.forEach((ligne, i) => {
+        doc.text(tronquer(doc, ligne, largeurInfo), COL_LEFT, y + 19.5 + i * 4);
+      });
     }
 
     // Client badge if preorder
@@ -2701,10 +3024,23 @@ export async function exportCommercialPDF(
       dosTtc += total;
       grandTotalQty += qty;
       grandTotalTtc += total;
+      // La désignation porte les caractéristiques du produit ; la colonne variantes montre les
+      // couleurs ou tailles réellement commandées, jamais la mention interne « various ».
+      const uniteRow = (row.unitOfMeasure || '').toUpperCase();
+      const designation = [
+        (row.categoryId || row.name || '—').toUpperCase(),
+        ...detailsArticle(row, { unite: uniteRow, max: 3, ignorer: ['color', 'size'] }),
+      ].filter(Boolean).join('\n');
+      // Le résumé fourni par l'écran retombe sur la couleur de l'article, qui peut valoir
+      // « various » : on ne le reprend que s'il dit quelque chose.
+      const variantes = libelleFixe(row._variantsSummary)
+        || celluleCouleur(row, uniteRow, '')
+        || celluleDimension(row, 'size', row.size, uniteRow, '')
+        || '—';
       tableBody.push([
         idx + 1,
-        (row.categoryId || row.name || '—').toUpperCase(),
-        row._variantsSummary || row.color || '—',
+        designation,
+        variantes,
         qty.toLocaleString('fr-MA'),
         row.unitOfMeasure || 'u',
         pu > 0 ? pu.toLocaleString('fr-MA', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '—',
@@ -3059,40 +3395,48 @@ export async function exportBaseOrderPDF(order: any) {
     doc.line(MX + 44, y - 1, W - MX, y - 1);
     y += 4;
 
-    const colorLabel = (() => {
-      const cb: any[] = Array.isArray(article.colorBreakdown) ? article.colorBreakdown : [];
-      if (cb.length > 0) return `${cb.length} COLOR(S)`;
-      return (article.color && article.color !== "various") ? article.color.toUpperCase() : "—";
-    })();
+    // Une dimension ventilée s'annonce par son nombre de lignes ; le détail est dans le
+    // tableau de ventilation juste en dessous. « VARIOUS » est notre marque interne : le
+    // fournisseur ne doit jamais la lire sur sa commande.
+    const libelleDimension = (
+      dimension: DimensionVentilation,
+      valeurFixe: unknown,
+      motPluriel: string,
+    ): string => {
+      const lignes = lignesVentilation(article).filter(l => l.dimension === dimension);
+      if (lignes.length > 0) return `${lignes.length} ${motPluriel}`;
+      const fixe = libelleFixe(valeurFixe);
+      return fixe ? fixe.toUpperCase() : "—";
+    };
 
     const specs: [string,string][] = [
       ["Category / Product",  (article.categoryId || "—").toUpperCase()],
-      ["Size",                article.size && article.size !== "various" ? article.size.toUpperCase() : "VARIOUS"],
-      ["Color",               colorLabel],
+      ["Size",                libelleDimension('size', article.size, 'SIZE(S)')],
+      ["Color",               libelleDimension('color', article.color, 'COLOR(S)')],
       ["Quantity Ordered",    fmtQty(article.quantity, article.unitOfMeasure)],
       ["Base Unit Price",     article.purchasePricePerUnit ? `$${Number(article.purchasePricePerUnit).toFixed(4)}` : "—"],
       ["Total Value",         article.purchasePricePerUnit && article.quantity ? `$${(Number(article.purchasePricePerUnit) * Number(article.quantity)).toFixed(2)}` : "—"],
     ];
 
-    if (article.zipperType) {
-      specs.push(["Zipper Type", article.zipperType.toUpperCase()]);
-      specs.push(["Slider / Type", `${article.slider || "—"} / ${article.sliderType || "—"}`.toUpperCase()]);
-      if (article.tapeWeightGsm) specs.push(["Tape Weight", `${article.tapeWeightGsm} g/m`]);
-      if (article.sliderWeightG) specs.push(["Slider Weight", `${article.sliderWeightG} g/pc`]);
-      if (article.pcsPerBag) specs.push(["Packaging (Bag)", `${article.pcsPerBag} pcs/bag`]);
-      if (article.bagsPerCarton) specs.push(["Packaging (Carton)", `${article.bagsPerCarton} bags/ctn`]);
-    }
-    if (article.gsm || article.fabricWidth || article.rollLength) {
-      if (article.gsm) specs.push(["Weight (GSM)", `${article.gsm} g/m²`]);
-      if (article.fabricWidth) specs.push(["Fabric Width", `${article.fabricWidth} cm`]);
-      if (article.rollLength) specs.push(["Roll Length", `${article.rollLength} ${article.rollLengthUnit || 'm'}/roll`]);
-      if (article.packagingPerBag) specs.push(["Packaging", `${article.packagingPerBag} rolls/bag`]);
-    }
-    if (article.specs) specs.push(["Technical Notes", article.specs]);
+    const qualityLabel = libelleDimension('quality', qualiteDeLArticle(article), 'QUALITY(IES)');
+    if (qualityLabel !== "—") specs.push(["Quality", qualityLabel]);
+    // Les caractéristiques sortent du modèle de la famille : le fournisseur d'un fil, d'un
+    // curseur, d'un ruban ou d'un accessoire reçoit enfin les siennes, pas une case vide.
+    specsArticleEn(article).forEach(([label, valeur]) => specs.push([label, valeur]));
+    const technicalNote = libelleFixe(article.specs);
+    if (technicalNote) specs.push(["Technical Notes", technicalNote]);
 
     const specCols = 2;
     const cellW = CW / specCols;
     const cellH = 10;
+    // La grille se dessine d'un bloc, sans saut de page : avec le modèle complet d'une fermeture
+    // elle peut atteindre huit lignes et sortir de la feuille. On vérifie donc qu'elle tient
+    // AVANT de la commencer, et on passe à la page suivante sinon.
+    const hauteurGrille = Math.ceil(specs.length / specCols) * cellH;
+    if (y + hauteurGrille > H - MX) {
+      doc.addPage();
+      y = MX;
+    }
     specs.forEach((s, i) => {
       const col = i % specCols;
       const row = Math.floor(i / specCols);
@@ -3189,20 +3533,13 @@ export async function exportBaseOrderPDF(order: any) {
         const qty = Number(r.quantity) || 0;
         const rowTotal = qty * rowPrice;
         totalValue += rowTotal;
-        const specsDetail = [
-          r.gsm ? `${r.gsm}gsm` : null,
-          r.fabricWidth ? `${r.fabricWidth}cm` : null,
-          r.rollLength ? `${r.rollLength}${r.rollLengthUnit || 'm'}` : null,
-          r.packagingPerBag ? `${r.packagingPerBag}rlx/sac` : null,
-          r.zipperType ? `Zip: ${r.zipperType}` : null,
-          r.slider ? `Slider: ${r.slider}` : null,
-          r.pcsPerBag ? `${r.pcsPerBag}p/bag` : null,
-          r.bagsPerCarton ? `${r.bagsPerCarton}b/ctn` : null,
-        ].filter(Boolean).join(' · ');
+        // Chaque qualité porte ses propres caractéristiques, celles de son type de produit.
+        const specsDetail = specsLigneEn(article, r);
+        const quality = qualiteDeLArticle(article, r);
 
         return [
           String(i + 1),
-          `${(r.quality || "—").toUpperCase()}${specsDetail ? ' (' + specsDetail + ')' : ''}`,
+          `${(quality || "—").toUpperCase()}${specsDetail ? '\n' + specsDetail : ''}`,
           fmtQty(qty, article.unitOfMeasure),
           rowPrice > 0 ? `$${rowPrice.toFixed(4)}` : "—",
           rowTotal > 0 ? `$${rowTotal.toFixed(2)}` : "—"
@@ -3223,7 +3560,7 @@ export async function exportBaseOrderPDF(order: any) {
         totalValue += rowTotal;
         return [
           String(i + 1),
-          (r.color || r.colorCode || "—").toUpperCase(),
+          (libelleFixe(r.colorCode) || libelleFixe(r.description) || libelleFixe(r.color) || "—").toUpperCase(),
           fmtQty(qty, article.unitOfMeasure),
           rowPrice > 0 ? `$${rowPrice.toFixed(4)}` : "—",
           rowTotal > 0 ? `$${rowTotal.toFixed(2)}` : "—"
@@ -3244,7 +3581,7 @@ export async function exportBaseOrderPDF(order: any) {
         totalValue += rowTotal;
         return [
           String(i + 1),
-          (r.size || "—").toUpperCase(),
+          (libelleFixe(r.size) || "—").toUpperCase(),
           fmtQty(qty, "U"),
           rowPrice > 0 ? `$${rowPrice.toFixed(4)}` : "—",
           rowTotal > 0 ? `$${rowTotal.toFixed(2)}` : "—"
@@ -3394,7 +3731,14 @@ export async function exportPackingDetailsPDF(facture: any, articles: any[], sub
 
   for (const art of articles) {
     const artName  = (art.name || art.categoryId || '—').toUpperCase();
-    const artColor = art.color && art.color.trim() !== '' ? art.color.trim().toUpperCase() : '';
+    // La clé de regroupement se lit sur la couleur BRUTE : un article en « various » et un
+    // article sans couleur portent le même nom mais ne sont pas la même marchandise, et les
+    // fondre additionnerait leurs quantités, leur CBM et leur poids net dans le récapitulatif.
+    const artColorBrut = String(art.color || '').trim().toUpperCase();
+    // Pour l'affichage en revanche, « various » n'est pas une couleur : c'est la marque d'un
+    // article ventilé. L'écrire ferait un tableau « NOM — VARIOUS » que le magasinier ne peut
+    // rapprocher de rien.
+    const artColor = (libelleFixe(art.color) || '').toUpperCase();
     const qb = Array.isArray(art.qualityBreakdown) ? art.qualityBreakdown : [];
     const cb = Array.isArray(art.colorBreakdown)  ? art.colorBreakdown  : [];
     const sb = Array.isArray(art.sizeBreakdown)   ? art.sizeBreakdown   : [];
@@ -3407,38 +3751,35 @@ export async function exportPackingDetailsPDF(facture: any, articles: any[], sub
     if (qb.length > 0) {
       breakLabel = 'Qualité';
       rows = qb.map((r: any) => {
-        const specsDetail = [
-          r.gsm ? `${r.gsm}gsm` : null,
-          r.fabricWidth ? `${r.fabricWidth}cm` : null,
-          r.rollLength ? `${r.rollLength}${r.rollLengthUnit || 'm'}` : null,
-          r.packagingPerBag ? `${r.packagingPerBag}rlx/sac` : null,
-          r.zipperType ? `Zip: ${r.zipperType}` : null,
-          r.slider ? `Curseur: ${r.slider}` : null,
-          r.pcsPerBag ? `${r.pcsPerBag}p/bag` : null,
-          r.bagsPerCarton ? `${r.bagsPerCarton}b/ctn` : null,
-        ].filter(Boolean).join(' · ');
+        // Chaque qualité porte les caractéristiques de SON type de produit : le magasinier
+        // contrôle le carton sur ce qui est écrit là.
+        const specsDetail = specsLigne(art, r, subCategories);
         return {
-          label: (r.quality || '?').toUpperCase() + (specsDetail ? `\n${specsDetail}` : ''),
+          label: (qualiteDeLArticle(art, r) || '?').toUpperCase() + (specsDetail ? `\n${specsDetail}` : ''),
           qty: Number(r.quantity) || 0,
           color: VIOLET,
         };
       });
     } else if (cb.length > 0) {
       breakLabel = 'Couleur';
-      rows = cb.map((r: any) => ({ label: (r.colorCode || r.color || '?').toUpperCase(), qty: Number(r.rolls) || Number(r.quantity) || 0, color: VIOLET }));
+      rows = cb.map((r: any) => ({
+        label: (libelleFixe(r.colorCode) || libelleFixe(r.description) || libelleFixe(r.color) || '?').toUpperCase(),
+        qty: Number(r.rolls) || Number(r.quantity) || 0,
+        color: VIOLET,
+      }));
     } else if (sb.length > 0) {
       breakLabel = 'Taille';
-      rows = sb.map((r: any) => ({ 
-        label: (r.size || '?').toUpperCase() + (r.description ? `\n${r.description}` : ''), 
-        qty: Number(r.quantity) || 0, 
-        color: BLUE 
+      rows = sb.map((r: any) => ({
+        label: (libelleFixe(r.size) || '?').toUpperCase() + (r.description ? `\n${r.description}` : ''),
+        qty: Number(r.quantity) || 0,
+        color: BLUE
       }));
     } else if (db.length > 0) {
       breakLabel = 'Modèle / Design';
-      rows = db.map((r: any) => ({ label: (r.designRef || '?').toUpperCase(), qty: Number(r.rolls) || 0, color: AMBER }));
+      rows = db.map((r: any) => ({ label: (libelleFixe(r.designRef) || '?').toUpperCase(), qty: Number(r.rolls) || 0, color: AMBER }));
     } else {
       // Pas de breakdown : utiliser la taille comme label de ligne
-      const sizeLabel = art.size && art.size.trim() !== '' ? art.size.toUpperCase() : null;
+      const sizeLabel = libelleFixe(art.size)?.toUpperCase() || null;
       if (sizeLabel) {
         breakLabel = 'Taille';
         rows = [{ label: sizeLabel, qty: Number(art.quantity) || 0, color: BLUE }];
@@ -3450,7 +3791,7 @@ export async function exportPackingDetailsPDF(facture: any, articles: any[], sub
 
     // Clé de groupe : nom + couleur si couleur présente (et pas de colorBreakdown), sinon nom seul
     // Cela crée un tableau séparé par couleur, chaque tableau montrant les tailles
-    const key = (qb.length === 0 && cb.length === 0 && artColor) ? `${artName}||${artColor}` : artName;
+    const key = (qb.length === 0 && cb.length === 0 && artColorBrut) ? `${artName}||${artColorBrut}` : artName;
 
     const artQty = rows.reduce((s, r) => s + r.qty, 0);
 
@@ -3461,25 +3802,22 @@ export async function exportPackingDetailsPDF(facture: any, articles: any[], sub
           ? Number(art.pcsPerCtn) 
           : (art.pcsPerBag && art.bagsPerCarton ? Number(art.pcsPerBag) * Number(art.bagsPerCarton) : Number(defaultPcs));
 
+        // Le bandeau du produit porte la qualité de l'article et les caractéristiques de son
+        // modèle — tissu, fermeture, fil, curseur, ruban ou accessoire.
         const specsList: string[] = [];
-        if (art.zipperType) {
-          specsList.push(`${art.zipperType} / ${art.slider || '—'} (${art.sliderType || '—'})`);
-          if (art.pcsPerBag && art.bagsPerCarton) specsList.push(`${art.pcsPerBag} p/bag · ${art.bagsPerCarton} b/ctn`);
-          else if (art.pcsPerBag) specsList.push(`${art.pcsPerBag} p/bag`);
-        }
-        if (art.gsm || art.fabricWidth) {
-          if (art.gsm) specsList.push(`${art.gsm}gsm`);
-          if (art.fabricWidth) specsList.push(`${art.fabricWidth}cm`);
-          if (art.packagingPerBag) specsList.push(`${art.packagingPerBag} rlx/sac`);
-        }
-        if (art.specs) specsList.push(art.specs);
+        const qualiteArt = qualiteDeLArticle(art);
+        if (qualiteArt) specsList.push(`Qualité ${qualiteArt.toUpperCase()}`);
+        const specsArt = specsLigne(art, undefined, subCategories);
+        if (specsArt) specsList.push(specsArt);
+        const noteArt = libelleFixe(art.specs);
+        if (noteArt) specsList.push(noteArt);
 
         groupMap.set(key, {
           name: artName,
           displayName: artColor ? `${artName}  —  ${artColor}` : artName,
           colorLabel: artColor,
           unit: (art.unitOfMeasure || 'pcs').toUpperCase(),
-          size: art.size || '—',
+          size: libelleFixe(art.size)?.toUpperCase() || '—',
           supplierId: (art.supplierId || '—').toUpperCase(),
           specs: specsList.join(' · '),
           cbmTotal: Number(art.cubicMeasurement || 0),
@@ -3546,7 +3884,10 @@ export async function exportPackingDetailsPDF(facture: any, articles: any[], sub
       doc.setTextColor(...MUTED);
       doc.setFontSize(6.5);
       doc.setFont('helvetica', 'normal');
-      doc.text(g.specs, MX + 13, curY + 13);
+      // Le bandeau est partagé avec les chiffres de droite : on garde ce qui tient sur la ligne,
+      // le détail complet est dans le tableau du produit juste en dessous.
+      const largeurSpecs = pageW - MX * 2 - 13 - 92;
+      doc.text(tronquer(doc, g.specs, largeurSpecs), MX + 13, curY + 13);
     }
 
     // Right stats — no P.A.
@@ -3633,7 +3974,11 @@ export async function exportPackingDetailsPDF(facture: any, articles: any[], sub
       g.name,
       g.supplierId,
       g.size,
-      g.rows.length > 1 ? `VARIOUS (${g.rows.length})` : (g.rows[0]?.label || '—'),
+      // Une désignation ventilée nomme ses lignes — « various » ne dit rien au magasinier.
+      // Deux libellés au maximum : la colonne est en largeur automatique, et trois noms de
+      // couleurs longs écrasaient la colonne Désignation, qui est celle qui identifie la ligne.
+      // Le détail complet est dans le tableau du produit, juste au-dessus.
+      resumeLibelles(g.rows.map(r => r.label), 2),
       { content: g.totalQty.toLocaleString('fr-MA'), styles: { halign: 'right', fontStyle: 'bold' } },
       g.unit,
       { content: g.pcsPerCtn ? String(g.pcsPerCtn) : '—', styles: { halign: 'center' } },
@@ -3657,6 +4002,9 @@ export async function exportPackingDetailsPDF(facture: any, articles: any[], sub
     margin: { left: MX, right: MX },
     tableLineColor: [220, 220, 220],
     tableLineWidth: 0.15,
+    // La désignation ne se fait pas écraser par les colonnes voisines : sans largeur imposée,
+    // autoTable la réduisait à 21 mm et coupait le nom du produit en trois.
+    columnStyles: { 0: { cellWidth: 36 }, 3: { cellWidth: 26 } },
   });
 
   // ── Page footers ─────────────────────────────────────────────────────────

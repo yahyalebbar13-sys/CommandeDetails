@@ -1,6 +1,9 @@
 import { addPdfLogoHeader } from './pdf-export';
 import { getArticleFrenchName } from './product-name-utils';
 import {
+  qualiteDeLArticle, specificationsArticle, type LigneSpecification,
+} from './specification-produit';
+import {
   articleInboundVariants, articleVariantDimension, compareLocationCodes, variantKey,
 } from './warehouse-locations';
 
@@ -64,24 +67,24 @@ function sameMeasure(a: any, b: any): boolean {
   return Boolean(norm(a)) && norm(a) === norm(b);
 }
 
-function specsOf(x: any): string {
-  return [
-    x.gsm ? `${x.gsm} g/m²` : null,
-    // La largeur est souvent déjà portée par la taille (« 150cm ») : ne pas la répéter.
-    x.fabricWidth && !sameMeasure(x.size, `${x.fabricWidth}cm`) ? `larg. ${x.fabricWidth} cm` : null,
-    x.rollLength ? `${x.rollLength} ${x.rollLengthUnit || 'm'}/rouleau` : null,
-    x.packagingPerBag ? `${x.packagingPerBag} rlx/sac` : null,
-    x.zipperType ? `type ${x.zipperType}` : null,
-    x.slider ? `curseur ${x.slider}` : null,
-    x.sliderType ? String(x.sliderType) : null,
-    x.pcsPerBag ? `${x.pcsPerBag} pcs/sac` : null,
-    x.bagsPerCarton ? `${x.bagsPerCarton} sacs/ctn` : null,
-    x.coneWeightG ? `cône ${x.coneWeightG} g` : null,
-    x.lengthPerPiece ? `${x.lengthPerPiece} ${x.lengthUnit || 'm'}/pièce` : null,
-    x.thickness ? `ép. ${x.thickness}` : null,
-    x.pcsPerBox ? `${x.pcsPerBox} pcs/boîte` : null,
-  ].filter(Boolean).join(' · ');
-}
+/**
+ * Le conditionnement, dans les clés des six modèles : c'est ce que le magasinier compte carton
+ * par carton. Il est rappelé sur chaque ligne de ventilation, qui doit se lire seule.
+ */
+const CLES_CONDITIONNEMENT = new Set([
+  'packagingPerBag', 'pcsPerBag', 'bagsPerCarton',
+  'rollsPerShrink', 'rollsPerCarton', 'pcsPerBox', 'boxPerCarton',
+]);
+
+/** « GSM 180 · Largeur (cm) 150 · Pcs/bag 20 » */
+const enLigne = (lignes: LigneSpecification[]): string =>
+  lignes.map(l => `${l.label} ${l.valeur}`).join(' · ');
+
+/** Un libellé fixe de l'article : vide s'il est absent ou s'il vaut « various ». */
+const fixe = (v: any): string => {
+  const texte = String(v ?? '').trim();
+  return !texte || isVarious(texte) ? '' : texte;
+};
 
 export async function exportArrivalPackingPDF(params: ArrivalPackingParams): Promise<void> {
   const {
@@ -101,6 +104,25 @@ export async function exportArrivalPackingPDF(params: ArrivalPackingParams): Pro
 
   const generatedAt = pdfText(new Date().toLocaleDateString('fr-FR', { day: '2-digit', month: 'long', year: 'numeric' }));
   const storeName = (id?: string) => stores.find((s: any) => s.id === id)?.name || id || '';
+
+  // ── Caractéristiques techniques, dans le modèle du type de l'article ─────
+  // Fermeture, tissu, fil, curseur, ruban ou accessoire : chaque type a ses propres
+  // caractéristiques, lues dans le modèle de sa famille. Une ligne de qualité porte les siennes,
+  // qui priment — c'est précisément ce qui distingue deux qualités du même produit.
+  const caracteristiques = (article: any, ligneQualite?: any, tailleAffichee?: any): LigneSpecification[] =>
+    specificationsArticle(article, categories, generalCategories, ligneQualite).filter(l => {
+      if (isVarious(l.valeur)) return false;                                  // marque interne, jamais imprimée
+      if (l.cle === 'size') return !sameMeasure(tailleAffichee, l.valeur);    // déjà dans la colonne Taille
+      if (l.cle === 'fabricWidth') return !sameMeasure(tailleAffichee, `${l.valeur}cm`); // « 150CM » = la largeur
+      return true;
+    });
+
+  const specsTexte = (article: any, ligneQualite?: any, tailleAffichee?: any) =>
+    enLigne(caracteristiques(article, ligneQualite, tailleAffichee));
+
+  /** Le seul conditionnement de l'article : à rappeler sur ses lignes de couleur et de taille. */
+  const conditionnementTexte = (article: any) =>
+    enLigne(caracteristiques(article).filter(l => CLES_CONDITIONNEMENT.has(l.cle)));
 
   // ── Emplacements de rangement, par article puis par variante ─────────────
   // Même regroupement que la fiche dossier : la variante est lue dans le champ de la dimension
@@ -324,13 +346,20 @@ export async function exportArrivalPackingPDF(params: ArrivalPackingParams): Pro
       const placementOf = (r: any) =>
         placements && variantKeyOfRow.has(r) ? variantPlacementText(placements.get(variantKeyOfRow.get(r)!), withStore) : '';
 
+      // Les libellés fixes de l'article : ils se répètent sur chaque ligne de ventilation, qui
+      // doit se lire seule, carton en main.
+      const qualiteFixe = qualiteDeLArticle(a) || '';
+      const couleurFixe = fixe(a.color);
+      const tailleFixe = fixe(a.size);
+      const conditionnement = conditionnementTexte(a);
+
       body.push([
         { content: String(lineNo), styles: { halign: 'center', fontStyle: 'bold' } },
         { content: frName + (internal && internal.toLowerCase() !== frName.toLowerCase() ? `\n${internal}` : ''), styles: { fontStyle: 'bold' } },
-        qualities.length > 0 ? `${qualities.length} qualités` : pdfText(a.quality || '—'),
-        colors.length > 0 ? `${colors.length} couleurs` : (a.color && !isVarious(a.color) ? pdfText(a.color) : '—'),
-        sizes.length > 0 ? `${sizes.length} tailles` : (a.size && !isVarious(a.size) ? pdfText(a.size) : '—'),
-        pdfText(specsOf(a) || '—'),
+        qualities.length > 0 ? `${qualities.length} qualités` : pdfText(qualiteFixe || '—'),
+        colors.length > 0 ? `${colors.length} couleurs` : pdfText(couleurFixe || '—'),
+        sizes.length > 0 ? `${sizes.length} tailles` : pdfText(tailleFixe || '—'),
+        pdfText(specsTexte(a, undefined, sizes.length > 0 ? '' : tailleFixe) || '—'),
         { content: nf(a.quantity), styles: { halign: 'right', fontStyle: 'bold', textColor: EMERALD } },
         { content: pdfText(unit), styles: { halign: 'center' } },
         { content: Number(a.netWeight) > 0 ? nf(a.netWeight) : '—', styles: { halign: 'right' } },
@@ -348,22 +377,35 @@ export async function exportArrivalPackingPDF(params: ArrivalPackingParams): Pro
         { content: pdfText(q), styles: SUBROW },
         { content: pdfText(c), styles: { ...SUBROW, textColor: INK } },
         { content: pdfText(s), styles: SUBROW },
-        { content: pdfText(specs), styles: SUBROW },
+        { content: pdfText(specs), styles: { ...SUBROW, fontSize: 7 } },
         { content: nf(qty), styles: { ...SUBROW, halign: 'right', textColor: INK } },
         { content: pdfText(unit), styles: { ...SUBROW, halign: 'center' } },
         { content: '', styles: SUBROW }, { content: '', styles: SUBROW },
         { content: pdfText(place), styles: { ...SUBROW, textColor: INK, fontStyle: 'bold' } },
       ];
 
+      // Chaque qualité porte ses propres caractéristiques : elles remplacent celles de l'article.
       for (const r of qualities) {
-        body.push(subRow(r.nameFR || r.quality || '—', '', r.size || '', specsOf(r), rowQty(r), placementOf(r)));
+        const taille = fixe(r.size) || tailleFixe;
+        body.push(subRow(
+          r.nameFR || qualiteDeLArticle(a, r) || '—', couleurFixe, taille,
+          specsTexte(a, r, taille), rowQty(r), placementOf(r),
+        ));
       }
+      // Couleurs et tailles partagent les caractéristiques de l'article : on rappelle le
+      // conditionnement, qui est ce que le magasinier compte devant le carton.
       for (const r of colors) {
         const label = r.colorCode || r.color || '—';
-        body.push(subRow('', r.description && r.description !== label ? `${label} — ${r.description}` : label, '', '', rowQty(r), placementOf(r)));
+        body.push(subRow(
+          qualiteFixe, r.description && r.description !== label ? `${label} — ${r.description}` : label,
+          tailleFixe, conditionnement, rowQty(r), placementOf(r),
+        ));
       }
       for (const r of sizes) {
-        body.push(subRow('', '', r.description ? `${r.size} — ${r.description}` : (r.size || '—'), '', rowQty(r), placementOf(r)));
+        body.push(subRow(
+          qualiteFixe, couleurFixe, r.description ? `${r.size} — ${r.description}` : (r.size || '—'),
+          conditionnement, rowQty(r), placementOf(r),
+        ));
       }
 
       // Variantes entrées en stock sous un libellé que la ventilation ne porte plus (retouchée
@@ -376,8 +418,11 @@ export async function exportArrivalPackingPDF(params: ArrivalPackingParams): Pro
           const qty = Array.from(p.spots.values()).reduce((s, x) => s + x.qty, 0) + p.unplaced;
           const label = p.label || '—';
           body.push(subRow(
-            dimension === 'quality' ? label : '', dimension === 'color' ? label : '', dimension === 'size' ? label : '',
-            'hors ventilation', qty, variantPlacementText(p, withStore),
+            dimension === 'quality' ? label : qualiteFixe,
+            dimension === 'color' ? label : couleurFixe,
+            dimension === 'size' ? label : tailleFixe,
+            ['hors ventilation', conditionnement].filter(Boolean).join(' · '),
+            qty, variantPlacementText(p, withStore),
           ));
         }
       }
@@ -401,19 +446,21 @@ export async function exportArrivalPackingPDF(params: ArrivalPackingParams): Pro
       fillColor: [68, 64, 60], textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 7.5,
       halign: 'center', valign: 'middle',
     },
-    // Désignation et Caractéristiques cèdent quelques millimètres à la colonne Emplacement
-    // (~30 mm) : « A-02-01 : 1 234 » y tient sur une ligne, ligne de variante comprise.
+    // La colonne Emplacement garde ses ~30 mm : « A-02-01 : 1 234 » y tient sur une ligne, ligne
+    // de variante comprise. Les caractéristiques disent maintenant les six types au complet
+    // (jusqu'à huit valeurs pour une fermeture) : les autres colonnes leur cèdent 17 mm, et le
+    // corps y passe en 7 pt pour tenir en trois ou quatre lignes.
     columnStyles: {
       0: { cellWidth: 9 },
-      1: { cellWidth: 54 },
-      2: { cellWidth: 26 },
-      3: { cellWidth: 30 },
-      4: { cellWidth: 20 },
-      5: { cellWidth: 40 },
+      1: { cellWidth: 46 },
+      2: { cellWidth: 23 },
+      3: { cellWidth: 28 },
+      4: { cellWidth: 18 },
+      5: { cellWidth: 57, fontSize: 7 },
       6: { cellWidth: 20 },
       7: { cellWidth: 13 },
-      8: { cellWidth: 16 },
-      9: { cellWidth: 15 },
+      8: { cellWidth: 15 },
+      9: { cellWidth: 14 },
       10: { cellWidth: 'auto' },
     },
     // Recopier l'en-tête sombre sur chaque nouvelle page

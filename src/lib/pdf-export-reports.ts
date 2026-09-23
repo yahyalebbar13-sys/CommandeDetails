@@ -1,8 +1,32 @@
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import type { CheckRemittance } from '@/lib/types';
+import { precisionsLigne, qualiteDeLArticle, specificationsArticle } from '@/lib/specification-produit';
 
 const fmt = (n: number) => n.toLocaleString('fr-MA', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+/**
+ * Une valeur de colonne (couleur, taille) passée par le filtre commun à tous les documents :
+ * « various » est la marque interne d'un article ventilé, pas une couleur. Sur un bon de
+ * transfert, l'imprimer revient à annoncer au magasinier une marchandise qui n'existe pas.
+ * (Le nom du champ importe peu ici : precisionsLigne applique le même filtre aux trois.)
+ */
+const valeurImprimable = (valeur: unknown, defaut = ''): string =>
+  precisionsLigne({ color: valeur })[0] ?? defaut;
+
+/**
+ * Les caractéristiques techniques d'une ligne, lues dans le modèle de sa famille (GSM et largeur
+ * pour un tissu, longueur et curseur pour une fermeture, poids du cône pour un fil, épaisseur pour
+ * un accessoire…), sur une seule ligne : « Longueur 60 · Type C/E · Curseur AUTOLOCK ».
+ *
+ * La taille est écartée : elle a déjà sa propre colonne sur ces documents, et le modèle du curseur
+ * comme celui de l'accessoire la comptent parmi leurs caractéristiques.
+ */
+const caracteristiques = (article: any, categories: any[] = [], generalCategories: any[] = []): string =>
+  specificationsArticle(article, categories, generalCategories)
+    .filter(ligne => ligne.cle !== 'size')
+    .map(ligne => `${ligne.label} ${ligne.valeur}`)
+    .join(' · ');
 
 interface PDFReportOptions {
   title: string;
@@ -135,21 +159,27 @@ export function exportMovementsPDF(movements: any[], customTitle?: string, custo
     subtitle: customSubtitle || `${movements.length} mouvement${movements.length > 1 ? 's' : ''} enregistré${movements.length > 1 ? 's' : ''}`,
     landscape: true,
     columns: [
-      { header: 'Date', dataKey: 'date', width: 22 },
-      { header: 'Type', dataKey: 'type', width: 18 },
-      { header: 'Motif', dataKey: 'reason', width: 22 },
+      { header: 'Date', dataKey: 'date', width: 20 },
+      { header: 'Type', dataKey: 'type', width: 16 },
+      { header: 'Motif', dataKey: 'reason', width: 20 },
       { header: 'Produit', dataKey: 'productName' },
+      { header: 'Qualité', dataKey: 'quality', width: 20 },
       { header: 'Couleur', dataKey: 'color', width: 20 },
-      { header: 'Qté', dataKey: 'quantity', width: 15 },
-      { header: 'Magasin / Dépôt', dataKey: 'storeId', width: 25 },
+      { header: 'Taille', dataKey: 'size', width: 16 },
+      { header: 'Qté', dataKey: 'quantity', width: 13 },
+      { header: 'Magasin / Dépôt', dataKey: 'storeId', width: 24 },
       { header: 'Notes / Réf', dataKey: 'notes' },
     ],
+    // Un mouvement porte toujours sa variante : sans la qualité ni la taille, deux lignes du même
+    // produit se ressemblent et le journal ne se pointe pas.
     data: movements.map(m => ({
       date: m.date || '',
       type: m.type === 'IN' ? 'Entrée' : m.type === 'OUT' ? 'Sortie' : 'Ajustement',
       reason: m.reason || '',
       productName: m.productName || '',
-      color: m.color || '',
+      quality: qualiteDeLArticle(m) || '—',
+      color: valeurImprimable(m.color, '—'),
+      size: valeurImprimable(m.size, '—'),
       quantity: m.quantity || 0,
       storeId: m.storeId || '',
       notes: m.notes || '',
@@ -256,7 +286,7 @@ export function exportInvoicesPDF(invoices: any[]) {
 /**
  * Export du stock en PDF
  */
-export function exportStockPDF(stockItems: any[]) {
+export function exportStockPDF(stockItems: any[], categories: any[] = [], generalCategories: any[] = []) {
   const totalValue = stockItems.reduce((s, i) => s + (i.totalValue || 0), 0);
   const totalQty = stockItems.reduce((s, i) => s + (i.currentQty || 0), 0);
 
@@ -266,18 +296,24 @@ export function exportStockPDF(stockItems: any[]) {
     landscape: true,
     columns: [
       { header: 'Produit', dataKey: 'name' },
-      { header: 'Couleur', dataKey: 'color', width: 20 },
-      { header: 'Taille', dataKey: 'size', width: 18 },
-      { header: 'Qté', dataKey: 'qty', width: 15 },
-      { header: 'Seuil', dataKey: 'min', width: 15 },
-      { header: 'Prix achat', dataKey: 'cost', width: 22 },
-      { header: 'Valeur', dataKey: 'value', width: 25 },
-      { header: 'Prix vente', dataKey: 'sell', width: 22 },
+      { header: 'Qualité', dataKey: 'quality', width: 22 },
+      { header: 'Couleur', dataKey: 'color', width: 22 },
+      { header: 'Taille', dataKey: 'size', width: 16 },
+      { header: 'Caractéristiques', dataKey: 'specs', width: 60 },
+      { header: 'Qté', dataKey: 'qty', width: 14 },
+      { header: 'Seuil', dataKey: 'min', width: 14 },
+      { header: 'Prix achat', dataKey: 'cost', width: 20 },
+      { header: 'Valeur', dataKey: 'value', width: 22 },
+      { header: 'Prix vente', dataKey: 'sell', width: 20 },
     ],
+    // Une ligne de stock est déjà une variante (une couleur, une qualité ou une taille) : elle
+    // s'imprime avec ce qui la distingue, puis avec les caractéristiques de sa famille.
     data: stockItems.map(item => ({
       name: item.productName || '',
-      color: item.color || '',
-      size: item.size || '',
+      quality: qualiteDeLArticle(item) || '—',
+      color: valeurImprimable(item.color, '—'),
+      size: valeurImprimable(item.size, '—'),
+      specs: caracteristiques(item, categories, generalCategories) || '—',
       qty: item.currentQty || 0,
       min: item.minThreshold || '—',
       cost: `${fmt(item.purchasePricePerUnit || 0)}`,
@@ -339,9 +375,12 @@ export function exportFridaySalesPDF(invoices: any[], payments: any[] = [], peri
         else paymentMethods = 'À Crédit (0 DH versé)';
       }
 
-      const articlesStr = (inv.items || []).map((it: any) => 
-        `${it.productName}${it.color ? ` (${it.color})` : ''} : ${it.qty} x ${fmt(it.unitPrice)}`
-      ).join(' | ');
+      // Chaque article vendu s'annonce avec ce qui le distingue — qualité, couleur, taille —
+      // et jamais avec la mention interne « various ».
+      const articlesStr = (inv.items || []).map((it: any) => {
+        const detail = precisionsLigne(it).join(' · ');
+        return `${it.productName}${detail ? ` (${detail})` : ''} : ${it.qty} x ${fmt(it.unitPrice)}`;
+      }).join(' | ');
 
       let statusStr = 'À Crédit';
       if (inv.status === 'PAID') statusStr = '✅ Réglé';
@@ -373,7 +412,7 @@ export function exportFridaySalesPDF(invoices: any[], payments: any[] = [], peri
 /**
  * Export du Bon de Transfert inter-magasins / entrepôts
  */
-export function exportTransferOrderPDF(order: any, stores: any[]) {
+export function exportTransferOrderPDF(order: any, stores: any[], categories: any[] = [], generalCategories: any[] = []) {
   const getStoreName = (id: string) => stores.find(s => s.id === id)?.name || id;
   const fromName = getStoreName(order.fromStore);
   const toName = getStoreName(order.toStore);
@@ -384,23 +423,32 @@ export function exportTransferOrderPDF(order: any, stores: any[]) {
     title: `Bon de Transfert Inter-Magasins N° BT-${(order.id || '').slice(0, 8).toUpperCase()}`,
     subtitle: `Trajet : ${fromName} ➔ ${toName} | Date : ${order.date ? new Date(order.date).toLocaleDateString('fr-FR') : new Date().toLocaleDateString('fr-FR')}`,
     columns: [
-      { header: 'N°', dataKey: 'num', width: 12 },
+      { header: 'N°', dataKey: 'num', width: 10 },
       { header: 'Désignation Produit', dataKey: 'productName' },
-      { header: 'Couleur', dataKey: 'color', width: 25 },
-      { header: 'Taille', dataKey: 'size', width: 20 },
-      { header: 'Unité', dataKey: 'unit', width: 20 },
-      { header: 'Qté Expédiée', dataKey: 'sentQty', width: 25 },
-      { header: 'Qté Reçue (Pointage)', dataKey: 'receivedQty', width: 32 },
+      { header: 'Qualité', dataKey: 'quality', width: 22 },
+      { header: 'Couleur', dataKey: 'color', width: 22 },
+      { header: 'Taille', dataKey: 'size', width: 16 },
+      { header: 'Unité', dataKey: 'unit', width: 14 },
+      { header: 'Qté Expédiée', dataKey: 'sentQty', width: 20 },
+      { header: 'Qté Reçue (Pointage)', dataKey: 'receivedQty', width: 28 },
     ],
-    data: (order.items || []).map((item: any, idx: number) => ({
-      num: String(idx + 1),
-      productName: item.productName || '—',
-      color: item.color || '—',
-      size: item.size || '—',
-      unit: item.unitOfMeasure || 'pcs',
-      sentQty: String(item.sentQty || 0),
-      receivedQty: item.receivedQty != null ? String(item.receivedQty) : '[      ]',
-    })),
+    // Le magasinier de destination contrôle le carton sur ce papier : il lui faut la qualité, la
+    // couleur et la taille de la ligne, et les caractéristiques de la famille quand la ligne les
+    // porte (elles se glissent sous la désignation, pour ne pas voler de largeur aux quantités).
+    data: (order.items || []).map((item: any, idx: number) => {
+      const specs = caracteristiques(item, categories, generalCategories);
+      const designation = item.productName || '—';
+      return {
+        num: String(idx + 1),
+        productName: specs ? `${designation}\n${specs}` : designation,
+        quality: qualiteDeLArticle(item) || '—',
+        color: valeurImprimable(item.color, '—'),
+        size: valeurImprimable(item.size, '—'),
+        unit: item.unitOfMeasure || 'pcs',
+        sentQty: String(item.sentQty || 0),
+        receivedQty: item.receivedQty != null ? String(item.receivedQty) : '[      ]',
+      };
+    }),
     summaryRows: [
       { label: 'Nombre de références transférées', value: `${(order.items || []).length} réf.` },
       { label: 'Total unités expédiées', value: `${totalSentQty} pcs` },

@@ -1,6 +1,52 @@
 import { addPdfLogoHeader } from './pdf-export';
+import { getArticleFrenchName } from './product-name-utils';
+import {
+  qualiteDeLArticle, specificationsArticle, type LigneSpecification,
+} from './specification-produit';
 
-export async function exportGlobalPackingPDF(articles: any[], generalCategories: any[]) {
+/**
+ * Packing details global : tout ce qui est en cours de production, en transit ou en douane,
+ * regroupé par famille. Document logistique, sans aucun montant.
+ *
+ * Les caractéristiques techniques sont lues dans le modèle du type de chaque article (tissu,
+ * fermeture, fil, curseur, ruban, accessoire) — voir src/lib/specification-produit.ts. Avant,
+ * seuls le tissu et la fermeture étaient traités en dur : un fil ou un accessoire s'imprimait
+ * sans la moindre caractéristique.
+ */
+
+/** Le conditionnement, dans les clés des six modèles : c'est ce que le magasinier compte. */
+const CLES_CONDITIONNEMENT = new Set([
+  'packagingPerBag', 'pcsPerBag', 'bagsPerCarton',
+  'rollsPerShrink', 'rollsPerCarton', 'pcsPerBox', 'boxPerCarton',
+]);
+
+/** Les polices standard de jsPDF sont en WinAnsi : apostrophes et guillemets courbes y passent mal. */
+function txt(v: any): string {
+  return String(v ?? '')
+    .replace(/[   ]/g, ' ')
+    .replace(/[‘’]/g, "'")
+    .replace(/[“”]/g, '"');
+}
+
+const isVarious = (v: any) => String(v || '').toLowerCase() === 'various';
+
+/** Un libellé fixe de l'article : vide s'il est absent ou s'il vaut « various ». */
+const fixe = (v: any): string => {
+  const t = String(v ?? '').trim();
+  return !t || isVarious(t) ? '' : t;
+};
+
+/** « 150CM », « 150 cm » et « 150cm » désignent la même mesure. */
+const sameMeasure = (a: any, b: any): boolean => {
+  const norm = (v: any) => String(v ?? '').toLowerCase().replace(/\s+/g, '');
+  return Boolean(norm(a)) && norm(a) === norm(b);
+};
+
+/** « GSM 180 · Largeur (cm) 150 · Pcs/bag 20 » */
+const enLigne = (lignes: LigneSpecification[]): string =>
+  lignes.map(l => `${l.label} ${l.valeur}`).join(' · ');
+
+export async function exportGlobalPackingPDF(articles: any[], generalCategories: any[], categories: any[] = []) {
   const { default: jsPDF } = await import('jspdf');
   const { default: autoTable } = await import('jspdf-autotable');
 
@@ -24,10 +70,36 @@ export async function exportGlobalPackingPDF(articles: any[], generalCategories:
   const NAVY = [28, 25, 23];
   const GOLD = [251, 191, 36];
 
+  // ── Caractéristiques techniques, dans le modèle du type de l'article ─────
+  // Une ligne de qualité porte les siennes, qui priment : c'est ce qui distingue deux qualités
+  // du même produit. La taille et la largeur déjà imprimées dans leur colonne ne sont pas répétées,
+  // et « various » — marque interne d'un article ventilé — ne s'imprime jamais.
+  const caracteristiques = (art: any, ligneQualite?: any, tailleAffichee?: any): LigneSpecification[] =>
+    specificationsArticle(art, categories, generalCategories, ligneQualite).filter(l => {
+      if (isVarious(l.valeur)) return false;
+      if (l.cle === 'size') return !sameMeasure(tailleAffichee, l.valeur);
+      if (l.cle === 'fabricWidth') return !sameMeasure(tailleAffichee, `${l.valeur}cm`);
+      return true;
+    });
+
+  const specsTexte = (art: any, ligneQualite?: any, tailleAffichee?: any) =>
+    enLigne(caracteristiques(art, ligneQualite, tailleAffichee));
+
+  /** Le seul conditionnement : à rappeler sur les lignes de couleur et de taille. */
+  const conditionnementTexte = (art: any) =>
+    enLigne(caracteristiques(art).filter(l => CLES_CONDITIONNEMENT.has(l.cle)));
+
+  /** Nom commercial français, doublé du libellé interne quand il en dit plus. */
+  const designation = (art: any): string => {
+    const frName = txt(getArticleFrenchName(art, categories, generalCategories));
+    const interne = txt(art.name || art.categoryId || '');
+    return interne && interne.toLowerCase() !== frName.toLowerCase() ? `${frName}\n${interne}` : frName;
+  };
+
   // Header
   doc.setFillColor(NAVY[0], NAVY[1], NAVY[2]);
   doc.rect(0, 0, pageW, 28, 'F');
-  
+
   await addPdfLogoHeader(doc, 8, 4, 38, 19, true);
 
   doc.setTextColor(GOLD[0], GOLD[1], GOLD[2]);
@@ -44,70 +116,77 @@ export async function exportGlobalPackingPDF(articles: any[], generalCategories:
   let startY = 35;
 
   // Sort categories alphabetically
-  const categories = Array.from(byCategory.keys()).sort((a, b) => a.localeCompare(b));
+  const categoryNames = Array.from(byCategory.keys()).sort((a, b) => a.localeCompare(b));
 
-  for (let i = 0; i < categories.length; i++) {
-    const catName = categories[i];
+  for (let i = 0; i < categoryNames.length; i++) {
+    const catName = categoryNames[i];
     const catArticles = byCategory.get(catName)!;
 
     // We need to flatten the colorBreakdown and sizeBreakdown if they exist
     const tableBody: any[] = [];
-    
+
     catArticles.forEach(art => {
       const hasQualityB = art.qualityBreakdown && art.qualityBreakdown.length > 0;
       const hasColorB = art.colorBreakdown && art.colorBreakdown.length > 0;
       const hasSizeB = art.sizeBreakdown && art.sizeBreakdown.length > 0;
 
+      const unite = art.unitOfMeasure || 'pcs';
+      const nom = designation(art);
+      // Libellés fixes de l'article : répétés sur chaque variante, pour que la ligne se lise seule.
+      const qualiteFixe = qualiteDeLArticle(art) || '';
+      const couleurFixe = fixe(art.color);
+      const tailleFixe = fixe(art.size);
+      const conditionnement = conditionnementTexte(art);
+
       if (hasQualityB) {
+        // Une ligne par qualité, avec SES caractéristiques.
         art.qualityBreakdown.forEach((qb: any) => {
-          const specsDetail = [
-            qb.gsm ? `${qb.gsm}gsm` : null,
-            qb.fabricWidth ? `${qb.fabricWidth}cm` : null,
-            qb.rollLength ? `${qb.rollLength}${qb.rollLengthUnit || 'm'}` : null,
-            qb.packagingPerBag ? `${qb.packagingPerBag}rlx/sac` : null,
-            qb.zipperType ? `Zip: ${qb.zipperType}` : null,
-            qb.slider ? `Curseur: ${qb.slider}` : null,
-            qb.pcsPerBag ? `${qb.pcsPerBag}p/bag` : null,
-            qb.bagsPerCarton ? `${qb.bagsPerCarton}b/ctn` : null,
-          ].filter(Boolean).join(' · ');
+          const taille = fixe(qb.size) || tailleFixe;
           tableBody.push([
-            art.color || '-',
-            `${(qb.quality || '-').toUpperCase()}${specsDetail ? ' (' + specsDetail + ')' : ''}`,
-            `${qb.quantity || 0} ${art.unitOfMeasure || 'pcs'}`
+            nom,
+            txt(qb.nameFR || qualiteDeLArticle(art, qb) || '-'),
+            txt(couleurFixe || '-'),
+            txt(taille || '-'),
+            txt(specsTexte(art, qb, taille) || '-'),
+            `${qb.quantity || 0} ${unite}`,
           ]);
         });
       } else if (hasColorB) {
+        // Une ligne par couleur : mêmes caractéristiques que l'article, conditionnement rappelé.
         art.colorBreakdown.forEach((cb: any) => {
+          const label = fixe(cb.colorCode) || fixe(cb.color) || couleurFixe;
+          const couleur = cb.description && cb.description !== label
+            ? `${label || '-'} — ${cb.description}` : (label || '-');
           tableBody.push([
-            cb.colorCode || art.color || '-',
-            art.size || '-',
-            `${cb.rolls || cb.quantity || 0} ${art.unitOfMeasure || 'pcs'}`
+            nom,
+            txt(qualiteFixe || '-'),
+            txt(couleur),
+            txt(tailleFixe || '-'),
+            txt(conditionnement || '-'),
+            `${cb.rolls || cb.quantity || 0} ${unite}`,
           ]);
         });
       } else if (hasSizeB) {
+        // Une ligne par taille.
         art.sizeBreakdown.forEach((sb: any) => {
+          const taille = fixe(sb.size) || '-';
           tableBody.push([
-            art.color || '-',
-            (sb.size || '-') + (sb.description ? `\n${sb.description}` : ''),
-            `${sb.quantity || 0} ${art.unitOfMeasure || 'pcs'}`
+            nom,
+            txt(qualiteFixe || '-'),
+            txt(couleurFixe || '-'),
+            txt(sb.description ? `${taille} — ${sb.description}` : taille),
+            txt(conditionnement || '-'),
+            `${sb.quantity || 0} ${unite}`,
           ]);
         });
       } else {
-        const specsDetail = [
-          art.zipperType ? `Zip: ${art.zipperType}` : null,
-          art.slider ? `Curseur: ${art.slider}` : null,
-          art.pcsPerBag ? `${art.pcsPerBag}p/bag` : null,
-          art.bagsPerCarton ? `${art.bagsPerCarton}b/ctn` : null,
-          art.gsm ? `${art.gsm}gsm` : null,
-          art.fabricWidth ? `${art.fabricWidth}cm` : null,
-          art.packagingPerBag ? `${art.packagingPerBag}rlx/sac` : null,
-        ].filter(Boolean).join(' · ');
-        const sizeOrSpecs = [art.size && art.size !== 'various' ? art.size : null, specsDetail || null].filter(Boolean).join(' — ') || art.size || '-';
-
         tableBody.push([
-          art.color || '-',
-          sizeOrSpecs,
-          `${art.quantity || 0} ${art.unitOfMeasure || 'pcs'}`
+          nom,
+          txt(qualiteFixe || '-'),
+          txt(couleurFixe || '-'),
+          txt(tailleFixe || '-'),
+          txt(specsTexte(art, undefined, tailleFixe) || '-'),
+          `${art.quantity || 0} ${unite}`,
         ]);
       }
     });
@@ -116,9 +195,9 @@ export async function exportGlobalPackingPDF(articles: any[], generalCategories:
     const sampleArt = catArticles[0];
     const genCatId = sampleArt.generalCategoryId;
     const gcObj = generalCategories?.find(g => g.id === genCatId);
-    const gcName = gcObj ? gcObj.name : 'Divers';
+    const gcName = gcObj ? (gcObj.nameFR || gcObj.name) : 'Divers';
 
-    // Before drawing a new table, check if we need to add a new page manually 
+    // Before drawing a new table, check if we need to add a new page manually
     // to avoid a category title floating alone at the bottom.
     if (startY > pageH - 40 && i > 0) {
       doc.addPage();
@@ -129,28 +208,36 @@ export async function exportGlobalPackingPDF(articles: any[], generalCategories:
     doc.setFontSize(11);
     doc.setFont('helvetica', 'bold');
     doc.setTextColor(NAVY[0], NAVY[1], NAVY[2]);
-    doc.text(`Catégorie: ${catName} (${gcName})`, 10, startY);
-    
+    doc.text(txt(`Catégorie: ${catName} (${gcName})`), 10, startY);
+
     startY += 4;
 
     autoTable(doc, {
       startY: startY,
-      head: [['Couleur', 'Taille / Specs', 'Quantité']],
+      head: [['Désignation', 'Qualité', 'Couleur', 'Taille', 'Caractéristiques', 'Quantité']],
       body: tableBody,
       theme: 'grid',
       headStyles: { fillColor: [63, 63, 70], textColor: 255, fontStyle: 'bold', fontSize: 9 },
-      styles: { fontSize: 8, cellPadding: 3, textColor: [40, 40, 40] },
+      styles: {
+        fontSize: 8, cellPadding: 2.5, textColor: [40, 40, 40],
+        overflow: 'linebreak', valign: 'middle',
+      },
+      // Les caractéristiques peuvent aller jusqu'à huit valeurs (une fermeture) : elles prennent
+      // la colonne la plus large, en 7 pt, pour tenir sur deux ou trois lignes.
       columnStyles: {
-        0: { cellWidth: 50 },
-        1: { cellWidth: 150 },
-        2: { cellWidth: 'auto', halign: 'right' }
+        0: { cellWidth: 56, fontStyle: 'bold' },
+        1: { cellWidth: 30 },
+        2: { cellWidth: 34 },
+        3: { cellWidth: 24 },
+        4: { cellWidth: 'auto', fontSize: 7 },
+        5: { cellWidth: 28, halign: 'right', fontStyle: 'bold' },
       },
       margin: { left: 10, right: 10, bottom: 15 },
       didDrawPage: (data: any) => {
         startY = data.cursor.y;
       }
     });
-    
+
     startY = (doc as any).lastAutoTable.finalY + 12;
   }
 

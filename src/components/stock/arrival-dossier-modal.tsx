@@ -3,16 +3,20 @@
 import React, { useMemo, useState } from 'react';
 import {
   Anchor, CheckCircle2, ChevronDown, Palette, Ruler, Sparkles, Search, X,
-  Package, Calendar, Ship, MapPin, Box, FileDown, Loader2,
+  Package, Calendar, Ship, MapPin, Box, FileDown, Loader2, AlertTriangle,
 } from 'lucide-react';
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
 import { getArticleFrenchName } from '@/lib/product-name-utils';
 import {
-  articleInboundVariants, articleVariantDimension, compareLocationCodes, variantKey,
-  type VariantDimension,
+  articleInboundVariants, articleVariantDimension, breakdownRowQuantity, compareLocationCodes,
+  variantKey, ventilationIgnoree, type VariantDimension,
 } from '@/lib/warehouse-locations';
+import {
+  qualiteDeLArticle, specificationsArticle, specificationsEnLigne,
+  type LigneSpecification,
+} from '@/lib/specification-produit';
 
 /**
  * Fiche d'un dossier d'arrivage pour les magasins : la même lecture que dans /gestion, mais
@@ -41,10 +45,23 @@ type BreakdownKind = 'quality' | 'color' | 'size';
 const fmtQty = (n: number) =>
   (Number(n) || 0).toLocaleString('fr-FR', { maximumFractionDigits: 3 });
 
-const isVarious = (v: any) => String(v || '').toLowerCase() === 'various';
+const texte = (v: any) => String(v ?? '').trim();
 
-/** Quantité d'une ligne de ventilation — les lignes couleur anciennes utilisent `rolls`. */
-const rowQty = (row: any) => Number(row?.quantity ?? row?.rolls) || 0;
+const isVarious = (v: any) => texte(v).toLowerCase() === 'various';
+
+/**
+ * Le premier libellé utilisable. « various » est la marque interne d'un article ventilé, pas une
+ * valeur : il ne s'affiche jamais, l'article se lit alors ligne par ligne dans sa ventilation.
+ */
+const premierLibelle = (...valeurs: any[]) =>
+  valeurs.map(texte).find(v => v && !isVarious(v)) || '';
+
+/**
+ * Quantité d'une ligne de ventilation : `quantity` pour les qualités et les tailles, `rolls` pour
+ * les couleurs. Même lecture que l'entrée en stock (breakdownRowQuantity), sinon une couleur
+ * comptée en rouleaux s'affiche à zéro et disparaît de la fiche.
+ */
+const rowQty = breakdownRowQuantity;
 
 /** « 150CM », « 150 cm » et « 150cm » désignent la même mesure. */
 function sameMeasure(a: any, b: any): boolean {
@@ -55,6 +72,22 @@ function sameMeasure(a: any, b: any): boolean {
 function articleName(a: any): string {
   return (a.nameFR || a.productName || a.name || a.categoryId || 'Article').trim();
 }
+
+/**
+ * Les caractéristiques techniques de l'article, lues dans le modèle de son type (grammage et
+ * largeur d'un tissu, longueur et curseur d'une fermeture, poids du cône d'un fil, épaisseur d'un
+ * accessoire…). On écarte celles qu'une autre puce dit déjà : la largeur est souvent portée par la
+ * taille (« 150CM »), la taille d'un curseur aussi.
+ */
+function caracteristiques(a: any, categories: any[], generalCategories: any[]): LigneSpecification[] {
+  return specificationsArticle(a, categories, generalCategories).filter(l =>
+    !sameMeasure(a?.size, l.valeur) &&
+    !sameMeasure(a?.size, `${l.valeur}cm`) &&
+    !sameMeasure(a?.quality, l.valeur));
+}
+
+/** Le libellé d'une ligne de ventilation couleur, sans jamais imprimer « various ». */
+const libelleCouleur = (r: any) => premierLibelle(r?.colorCode, r?.color, r?.description);
 
 /** Où une variante (ou l'article entier, clé '') a été rangée à l'entrée en stock du dossier. */
 type VariantPlacement = {
@@ -67,6 +100,18 @@ type VariantPlacement = {
   unplaced: number;
 };
 
+/**
+ * Ce qui est déjà entré en stock pour une référence du dossier, au total et variante par variante.
+ * C'est ce qui distingue une ligne reçue et rangée d'une ligne encore attendue.
+ */
+type EntryInfo = {
+  /** Dimension sur laquelle l'article entre en stock (qualité, couleur ou taille), ou null. */
+  dimension: VariantDimension | null;
+  total: number;
+  /** Quantité entrée par variante, indexée par variantKey ('' pour l'article entier). */
+  byKey: Record<string, number>;
+};
+
 const DIMENSION_NOUN: Record<VariantDimension, [string, string]> = {
   quality: ['qualité', 'qualités'],
   color: ['couleur', 'couleurs'],
@@ -74,6 +119,9 @@ const DIMENSION_NOUN: Record<VariantDimension, [string, string]> = {
 };
 
 const round3 = (n: number) => Math.round(n * 1000) / 1000;
+
+/** Total d'une ventilation telle qu'elle est affichée, ligne à ligne. */
+const totalLignes = (rows: any[]) => round3(rows.reduce((s, r) => s + rowQty(r), 0));
 
 /**
  * Regroupe les entrées d'un article par variante — lue dans le champ de SA dimension ventilée,
@@ -88,10 +136,12 @@ function groupPlacements(article: any, movs: any[]): VariantPlacement[] {
   if (dimension) {
     for (const line of articleInboundVariants(article)) {
       if (rows.has(line.key)) continue;
-      const sub = String((dimension === 'quality' ? line.row?.nameFR : line.row?.description) || '').trim();
+      const sub = texte(dimension === 'quality' ? line.row?.nameFR : line.row?.description);
+      // « various » n'est pas un libellé de rangement : on prend alors la description de la ligne.
+      const label = premierLibelle(line.label, sub);
       rows.set(line.key, {
-        key: line.key, label: line.label, locs: [], unplaced: 0,
-        sub: sub && sub.toLowerCase() !== line.label.toLowerCase() ? sub : undefined,
+        key: line.key, label, locs: [], unplaced: 0,
+        sub: sub && sub.toLowerCase() !== label.toLowerCase() ? sub : undefined,
       });
     }
   }
@@ -101,7 +151,7 @@ function groupPlacements(article: any, movs: any[]): VariantPlacement[] {
     const key = dimension ? variantKey({ dimension, value }) : '';
     let row = rows.get(key);
     if (!row) {
-      row = { key, label: value, locs: [], unplaced: 0 };
+      row = { key, label: premierLibelle(value), locs: [], unplaced: 0 };
       rows.set(key, row);
     }
     const qty = Number(m.quantity) || 0;
@@ -167,6 +217,33 @@ export default function ArrivalDossierModal({
     [articles]
   );
 
+  // Ce qui est déjà entré en stock, référence par référence et variante par variante : le lecteur
+  // doit voir d'un coup d'œil la ligne reçue et la ligne encore attendue.
+  const entriesByArticle = useMemo(() => {
+    const inByArticle: Record<string, any[]> = {};
+    for (const m of movements || []) {
+      if (m?.type !== 'IN' || !m.articleId) continue;
+      (inByArticle[m.articleId] ||= []).push(m);
+    }
+    const out: Record<string, EntryInfo> = {};
+    for (const a of articles || []) {
+      const dimension = articleVariantDimension(a);
+      const info: EntryInfo = { dimension, total: 0, byKey: {} };
+      for (const m of inByArticle[a.id] || []) {
+        const qty = Number(m.quantity) || 0;
+        info.total = round3(info.total + qty);
+        const key = dimension ? variantKey({ dimension, value: String(m[dimension] ?? '').trim() }) : '';
+        info.byKey[key] = round3((info.byKey[key] || 0) + qty);
+      }
+      out[a.id] = info;
+    }
+    return out;
+  }, [articles, movements]);
+
+  // Tant qu'aucune entrée n'a été écrite, le bandeau « En attente » de l'en-tête suffit : inutile
+  // de répéter l'attente sur chaque ligne.
+  const hasEntries = useMemo(() => (movements || []).some(m => m?.type === 'IN'), [movements]);
+
   // Emplacements où chaque référence a été rangée à l'entrée en stock de ce dossier, variante
   // par variante quand l'article est ventilé (qualité, couleur ou taille).
   const placementsByArticle = useMemo(() => {
@@ -191,13 +268,29 @@ export default function ArrivalDossierModal({
     return list.filter(a => {
       const haystack = [
         frName(a), articleName(a), a.categoryId, a.color, a.size, a.quality, a.specs,
+        // Les caractéristiques du type : chercher « 180 » doit retrouver le tissu en 180 g/m².
+        specificationsEnLigne(a, categories, generalCategories),
         ...(a.colorBreakdown || []).map((r: any) => `${r.colorCode || ''} ${r.description || ''} ${r.color || ''}`),
-        ...(a.sizeBreakdown || []).map((r: any) => r.size),
-        ...(a.qualityBreakdown || []).map((r: any) => `${r.quality || ''} ${r.nameFR || ''}`),
+        ...(a.sizeBreakdown || []).map((r: any) => `${r.size || ''} ${r.description || ''}`),
+        ...(a.qualityBreakdown || []).map((r: any) =>
+          `${r.quality || ''} ${r.nameFR || ''} ${specificationsEnLigne(a, categories, generalCategories, r)}`),
       ].join(' ').toLowerCase();
       return haystack.includes(q);
     });
   }, [articles, search, categories, generalCategories]);
+
+  // Le total du bas recoupe ce qui est affiché au-dessus : mêmes références, mêmes quantités,
+  // additionnées par unité (des mètres et des sacs ne s'additionnent pas).
+  const footerTotals = useMemo(() => {
+    const acc: Record<string, { qty: number; entered: number }> = {};
+    for (const a of visibleArticles) {
+      const unit = (a.unitOfMeasure || 'pcs').trim();
+      const slot = (acc[unit] ||= { qty: 0, entered: 0 });
+      slot.qty = round3(slot.qty + (Number(a.quantity) || 0));
+      slot.entered = round3(slot.entered + (entriesByArticle[a.id]?.total || 0));
+    }
+    return Object.entries(acc).sort((x, y) => y[1].qty - x[1].qty);
+  }, [visibleArticles, entriesByArticle]);
 
   if (!facture) return null;
 
@@ -302,8 +395,48 @@ export default function ArrivalDossierModal({
             const qualities = Array.isArray(a.qualityBreakdown) ? a.qualityBreakdown.filter((r: any) => rowQty(r) > 0) : [];
             const colors = Array.isArray(a.colorBreakdown) ? a.colorBreakdown.filter((r: any) => rowQty(r) > 0) : [];
             const sizes = Array.isArray(a.sizeBreakdown) ? a.sizeBreakdown.filter((r: any) => rowQty(r) > 0) : [];
-            const open_ = expanded[a.id] || null;
             const placements = placementsByArticle[a.id] || [];
+            const entry = entriesByArticle[a.id];
+            const quantite = Number(a.quantity) || 0;
+
+            // Qualité et caractéristiques : toujours par le modèle du type de l'article, pour
+            // qu'un fil, un curseur, un ruban ou un accessoire soit décrit comme un tissu l'est.
+            const specs = caracteristiques(a, categories, generalCategories);
+            const qualiteFixe = qualiteDeLArticle(a);
+            const couleurFixe = premierLibelle(a.color);
+            const tailleFixe = premierLibelle(a.size);
+
+            // La ventilation qui fait foi pour l'entrée en stock : ses lignes, et elles seules,
+            // portent un état « entré / en attente ».
+            const ventilee = entry?.dimension ?? null;
+            const keyByRow = new Map<any, string>();
+            for (const line of articleInboundVariants(a)) if (line.row) keyByRow.set(line.row, line.key);
+            const enteredOf = (r: any) => {
+              const k = keyByRow.get(r);
+              return k === undefined ? undefined : (entry?.byKey[k] ?? 0);
+            };
+
+            // Une ventilation qui annonce plus que l'article n'est pas la sienne : l'entrée en
+            // stock l'écarte et fait entrer l'article en une seule ligne. À dire, sinon le total
+            // affiché et la marchandise rangée ne se recoupent plus.
+            const ignoree = ventilationIgnoree(a);
+            const avertissement = ignoree
+              ? `Ventilation par ${DIMENSION_NOUN[ignoree.dimension][0]} écartée : ${fmtQty(ignoree.total)} ${unit} annoncés pour ${fmtQty(quantite)} — l'article entre en une seule ligne.`
+              : '';
+
+            // Le total d'une ventilation doit recouper la quantité de l'article : quand celle qui
+            // fait foi ne le fait pas, sa puce le signale sans qu'on ait à l'ouvrir.
+            const ecartSur = (kind: BreakdownKind, rows: any[]) =>
+              ventilee === kind && quantite > 0 && Math.abs(totalLignes(rows) - quantite) > 0.001;
+
+            // Une recherche qui vise une variante ouvre d'office la ventilation qui la contient.
+            const q = search.trim().toLowerCase();
+            const matchKind: BreakdownKind | null = !q ? null
+              : qualities.some((r: any) => `${r.quality || ''} ${r.nameFR || ''}`.toLowerCase().includes(q)) ? 'quality'
+              : colors.some((r: any) => `${r.colorCode || ''} ${r.color || ''} ${r.description || ''}`.toLowerCase().includes(q)) ? 'color'
+              : sizes.some((r: any) => `${r.size || ''} ${r.description || ''}`.toLowerCase().includes(q)) ? 'size'
+              : null;
+            const open_ = a.id in expanded ? expanded[a.id] : matchKind;
 
             return (
               <div key={a.id} className="rounded-2xl border border-stone-100 bg-stone-50/60 overflow-hidden">
@@ -315,46 +448,62 @@ export default function ArrivalDossierModal({
                     )}
 
                     <div className="flex flex-wrap items-center gap-1.5 mt-2">
-                      {/* Qualité */}
+                      {/* Qualité — une ventilation s'ouvre, une qualité fixe s'affiche. */}
                       {qualities.length > 0 ? (
                         <BreakdownChip
                           icon={Sparkles} label={`${qualities.length} qualité${qualities.length > 1 ? 's' : ''}`}
+                          hint={fmtQty(totalLignes(qualities))} warn={ecartSur('quality', qualities)}
                           active={open_ === 'quality'} tone="fuchsia" onClick={() => toggle(a.id, 'quality')} />
-                      ) : a.quality ? (
-                        <PlainChip tone="fuchsia">{a.quality}</PlainChip>
+                      ) : qualiteFixe ? (
+                        <PlainChip tone="fuchsia">{qualiteFixe}</PlainChip>
                       ) : null}
 
                       {/* Couleur */}
                       {colors.length > 0 ? (
                         <BreakdownChip
                           icon={Palette} label={`${colors.length} couleur${colors.length > 1 ? 's' : ''}`}
+                          hint={fmtQty(totalLignes(colors))} warn={ecartSur('color', colors)}
                           active={open_ === 'color'} tone="violet" onClick={() => toggle(a.id, 'color')} />
-                      ) : a.color && !isVarious(a.color) ? (
-                        <PlainChip tone="violet">{a.color}</PlainChip>
+                      ) : couleurFixe ? (
+                        <PlainChip tone="violet">{couleurFixe}</PlainChip>
                       ) : null}
 
                       {/* Taille */}
                       {sizes.length > 0 ? (
                         <BreakdownChip
                           icon={Ruler} label={`${sizes.length} taille${sizes.length > 1 ? 's' : ''}`}
+                          hint={fmtQty(totalLignes(sizes))} warn={ecartSur('size', sizes)}
                           active={open_ === 'size'} tone="blue" onClick={() => toggle(a.id, 'size')} />
-                      ) : a.size && !isVarious(a.size) ? (
-                        <PlainChip tone="blue">{a.size}</PlainChip>
+                      ) : tailleFixe ? (
+                        <PlainChip tone="blue">{tailleFixe}</PlainChip>
                       ) : null}
 
-                      {/* La largeur est souvent déjà portée par la taille (« 150CM ») : ne pas la répéter. */}
-                      {a.fabricWidth && sameMeasure(a.size, `${a.fabricWidth}cm`) === false
-                        ? <PlainChip tone="stone">{a.fabricWidth} cm</PlainChip> : null}
-                      {a.gsm ? <PlainChip tone="stone">{a.gsm} g/m²</PlainChip> : null}
-                      {a.zipperType ? <PlainChip tone="stone">{a.zipperType}</PlainChip> : null}
-                      {a.slider ? <PlainChip tone="stone">{a.slider}</PlainChip> : null}
+                      {/* Les caractéristiques du type : grammage et largeur d'un tissu, longueur et
+                          curseur d'une fermeture, poids du cône d'un fil, épaisseur d'un accessoire. */}
+                      {specs.map(s => (
+                        <PlainChip key={s.cle} tone="stone">
+                          <span className="font-bold text-stone-400">{s.label}</span> {s.valeur}
+                        </PlainChip>
+                      ))}
+                      {specs.length === 0 && premierLibelle(a.specs)
+                        ? <PlainChip tone="stone">{premierLibelle(a.specs)}</PlainChip> : null}
                     </div>
+
+                    {avertissement && (
+                      <p className="mt-2 flex items-start gap-1 text-[10px] font-bold text-amber-700">
+                        <AlertTriangle className="w-3 h-3 mt-px shrink-0" />
+                        <span>{avertissement}</span>
+                      </p>
+                    )}
 
                   </div>
 
                   <div className="text-right shrink-0">
                     <p className="text-lg font-black text-emerald-700 leading-none">{fmtQty(a.quantity)}</p>
                     <p className="text-[10px] font-black text-stone-400 uppercase mt-1">{unit}</p>
+                    {hasEntries && (
+                      <EntryBadge entered={entry?.total || 0} expected={quantite} unit={unit} />
+                    )}
                   </div>
                 </div>
 
@@ -373,35 +522,57 @@ export default function ArrivalDossierModal({
 
                 {open_ === 'quality' && (
                   <BreakdownTable
-                    tone="fuchsia" unit={unit}
+                    tone="fuchsia" unit={unit} search={search}
                     head={['Qualité', 'Quantité']}
-                    rows={qualities.map((r: any) => ({
-                      label: r.nameFR || r.quality || '—',
-                      sub: [r.nameFR && r.quality ? r.quality : null, r.gsm ? `${r.gsm} g/m²` : null, r.fabricWidth ? `${r.fabricWidth} cm` : null, r.size || null]
-                        .filter(Boolean).join(' · '),
-                      qty: rowQty(r),
-                    }))}
+                    expected={quantite} showEntry={hasEntries && ventilee === 'quality'}
+                    rows={qualities.map((r: any) => {
+                      // Le code de qualité (« CL-5 ») est le nom du métier ; les caractéristiques
+                      // de la ligne priment sur celles de l'article, c'est ce qui distingue
+                      // deux qualités du même produit.
+                      const code = qualiteDeLArticle(a, r);
+                      const nom = texte(r.nameFR);
+                      const detail = specificationsEnLigne(a, categories, generalCategories, r);
+                      const taille = premierLibelle(r.size);
+                      return {
+                        label: nom || code || '—',
+                        sub: [
+                          nom && code ? code : null,
+                          detail || null,
+                          taille && !detail.toLowerCase().includes(taille.toLowerCase()) ? taille : null,
+                        ].filter(Boolean).join(' · '),
+                        qty: rowQty(r),
+                        entered: enteredOf(r),
+                      };
+                    })}
                   />
                 )}
                 {open_ === 'color' && (
                   <BreakdownTable
-                    tone="violet" unit={unit}
+                    tone="violet" unit={unit} search={search}
                     head={['Couleur', 'Quantité']}
-                    rows={colors.map((r: any) => ({
-                      label: r.colorCode || r.color || '—',
-                      sub: r.description && r.description !== r.colorCode ? r.description : '',
-                      qty: rowQty(r),
-                    }))}
+                    expected={quantite} showEntry={hasEntries && ventilee === 'color'}
+                    rows={colors.map((r: any) => {
+                      const label = libelleCouleur(r);
+                      const desc = premierLibelle(r.description);
+                      return {
+                        label: label || '—',
+                        sub: desc && desc.toLowerCase() !== label.toLowerCase() ? desc : '',
+                        qty: rowQty(r),
+                        entered: enteredOf(r),
+                      };
+                    })}
                   />
                 )}
                 {open_ === 'size' && (
                   <BreakdownTable
-                    tone="blue" unit={unit}
+                    tone="blue" unit={unit} search={search}
                     head={['Taille', 'Quantité']}
+                    expected={quantite} showEntry={hasEntries && ventilee === 'size'}
                     rows={sizes.map((r: any) => ({
-                      label: r.size || '—',
-                      sub: r.description || '',
+                      label: premierLibelle(r.size) || '—',
+                      sub: premierLibelle(r.description),
                       qty: rowQty(r),
+                      entered: enteredOf(r),
                     }))}
                   />
                 )}
@@ -409,8 +580,58 @@ export default function ArrivalDossierModal({
             );
           })}
         </div>
+
+        {/* Le total du bas additionne exactement les lignes affichées au-dessus : c'est là que la
+            fiche se recoupe avec l'en-tête du dossier. */}
+        {footerTotals.length > 0 && (
+          <div className="px-5 py-3 bg-stone-900 text-white flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
+            <p className="text-[9px] font-black uppercase tracking-widest text-stone-400">
+              {search ? 'Total affiché' : 'Total du dossier'} ·{' '}
+              {visibleArticles.length}{search ? ` sur ${(articles || []).length}` : ''} référence{(search ? (articles || []).length : visibleArticles.length) > 1 ? 's' : ''}
+            </p>
+            <div className="flex flex-wrap items-center gap-1.5">
+              {footerTotals.map(([unit, t]) => (
+                <span key={unit} className="text-[11px] font-black bg-white/10 px-2.5 py-1 rounded-lg whitespace-nowrap">
+                  {fmtQty(t.qty)} {unit}
+                  {hasEntries && (
+                    <span className={`ml-1.5 font-bold ${t.entered - t.qty > -0.001 ? 'text-emerald-300' : 'text-amber-300'}`}>
+                      · {fmtQty(t.entered)} en stock
+                    </span>
+                  )}
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
       </DialogContent>
     </Dialog>
+  );
+}
+
+/**
+ * L'état d'entrée en stock d'une référence : reçue et rangée, partiellement entrée, ou encore
+ * attendue. C'est la première chose qu'un magasinier cherche sur la fiche d'un dossier.
+ */
+function EntryBadge({ entered, expected, unit }: { entered: number; expected: number; unit: string }) {
+  const base = 'mt-1.5 inline-flex items-center gap-1 text-[9px] font-black uppercase tracking-wide px-1.5 py-0.5 rounded-md border whitespace-nowrap';
+  if (entered <= 0) {
+    return (
+      <span className={`${base} bg-amber-50 text-amber-700 border-amber-200`}>
+        <Anchor className="w-2.5 h-2.5" /> En attente
+      </span>
+    );
+  }
+  if (expected <= 0 || Math.abs(entered - expected) < 0.001) {
+    return (
+      <span className={`${base} bg-emerald-50 text-emerald-700 border-emerald-200`}>
+        <CheckCircle2 className="w-2.5 h-2.5" /> Entré
+      </span>
+    );
+  }
+  return (
+    <span className={`${base} bg-amber-50 text-amber-700 border-amber-200`}>
+      <AlertTriangle className="w-2.5 h-2.5" /> {fmtQty(entered)} / {fmtQty(expected)} {unit}
+    </span>
   );
 }
 
@@ -431,8 +652,8 @@ function PlainChip({ tone, children }: { tone: Tone; children: React.ReactNode }
   );
 }
 
-function BreakdownChip({ icon: Icon, label, active, tone, onClick }: {
-  icon: any; label: string; active: boolean; tone: Tone; onClick: () => void;
+function BreakdownChip({ icon: Icon, label, hint, warn, active, tone, onClick }: {
+  icon: any; label: string; hint?: string; warn?: boolean; active: boolean; tone: Tone; onClick: () => void;
 }) {
   return (
     <button
@@ -445,17 +666,38 @@ function BreakdownChip({ icon: Icon, label, active, tone, onClick }: {
     >
       <Icon className="w-3 h-3" />
       {label}
+      {/* Le total ventilé se lit sans ouvrir : il doit recouper la quantité de l'article, et
+          passe à l'ambre quand ce n'est pas le cas. */}
+      {hint && (
+        <span
+          className={`font-bold ${warn && !active ? 'text-amber-600' : active ? 'text-white/70' : 'opacity-60'}`}
+          title={warn ? "Ce total ne recoupe pas la quantité de l'article" : undefined}
+        >
+          {warn && !active ? '≠ ' : '· '}{hint}
+        </span>
+      )}
       <ChevronDown className={`w-3 h-3 transition-transform ${active ? 'rotate-180' : ''}`} />
     </button>
   );
 }
 
-function BreakdownTable({ tone, unit, head, rows }: {
+/**
+ * Une ligne par variante, avec sa quantité, ses précisions et — quand cette ventilation est celle
+ * qui entre en stock — ce qui est déjà entré. Le pied rappelle le total et le confronte à la
+ * quantité de l'article : les deux doivent se recouper sous les yeux du lecteur.
+ */
+function BreakdownTable({ tone, unit, head, rows, expected, showEntry, search }: {
   tone: Tone; unit: string; head: [string, string];
-  rows: { label: string; sub?: string; qty: number }[];
+  rows: { label: string; sub?: string; qty: number; entered?: number }[];
+  /** Quantité de l'article, pour dire si la ventilation se recoupe. */
+  expected?: number;
+  showEntry?: boolean;
+  search?: string;
 }) {
-  const total = rows.reduce((s, r) => s + r.qty, 0);
+  const total = round3(rows.reduce((s, r) => s + r.qty, 0));
   const t = TONES[tone];
+  const q = (search || '').trim().toLowerCase();
+  const ecart = expected && expected > 0 ? round3(total - expected) : 0;
   return (
     <div className="mx-3.5 mb-3.5 rounded-xl overflow-hidden border border-stone-200 bg-white animate-in fade-in slide-in-from-top-1 duration-150">
       <div className={`grid grid-cols-[1fr_auto] ${t.head}`}>
@@ -463,24 +705,59 @@ function BreakdownTable({ tone, unit, head, rows }: {
         <div className="py-2 px-3 text-[9px] font-black uppercase tracking-widest text-right">{head[1]}</div>
       </div>
       <div className="divide-y divide-stone-100 max-h-64 overflow-y-auto">
-        {rows.map((r, i) => (
-          <div key={i} className="grid grid-cols-[1fr_auto] hover:bg-stone-50 transition-colors">
-            <div className="py-2 px-3 min-w-0">
-              <p className="text-[11px] font-black text-stone-800 uppercase truncate">{r.label}</p>
-              {r.sub && <p className="text-[10px] font-medium text-stone-400 truncate">{r.sub}</p>}
+        {rows.map((r, i) => {
+          const vise = Boolean(q) && `${r.label} ${r.sub || ''}`.toLowerCase().includes(q);
+          return (
+            <div key={i} className={`grid grid-cols-[1fr_auto] transition-colors ${vise ? 'bg-amber-50' : 'hover:bg-stone-50'}`}>
+              <div className="py-2 px-3 min-w-0">
+                <p className="text-[11px] font-black text-stone-800 uppercase truncate" title={r.label}>{r.label}</p>
+                {r.sub && <p className="text-[10px] font-medium text-stone-400 truncate" title={r.sub}>{r.sub}</p>}
+              </div>
+              <div className="py-2 px-3 text-right whitespace-nowrap self-center">
+                <p className="text-[11px] font-black text-stone-900">
+                  {fmtQty(r.qty)} <span className="text-stone-400 font-bold">{unit}</span>
+                </p>
+                {showEntry && <RowEntryState entered={r.entered} qty={r.qty} />}
+              </div>
             </div>
-            <div className="py-2 px-3 text-[11px] font-black text-stone-900 text-right whitespace-nowrap self-center">
-              {fmtQty(r.qty)} <span className="text-stone-400 font-bold">{unit}</span>
-            </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
       <div className={`grid grid-cols-[1fr_auto] text-white ${t.foot}`}>
-        <div className="py-2 px-3 text-[9px] font-black uppercase tracking-widest">Total</div>
+        <div className="py-2 px-3 text-[9px] font-black uppercase tracking-widest">
+          Total · {rows.length} ligne{rows.length > 1 ? 's' : ''}
+        </div>
         <div className="py-2 px-3 text-[11px] font-black text-right whitespace-nowrap">{fmtQty(total)} {unit}</div>
       </div>
+      {expected !== undefined && expected > 0 && (
+        Math.abs(ecart) < 0.001 ? (
+          <p className="px-3 py-1.5 border-t border-stone-100 text-[9px] font-black uppercase tracking-widest text-emerald-700 bg-emerald-50 flex items-center gap-1">
+            <CheckCircle2 className="w-3 h-3" /> Égal à la quantité de l'article
+          </p>
+        ) : (
+          <p className="px-3 py-1.5 border-t border-stone-100 text-[9px] font-black uppercase tracking-widest text-amber-700 bg-amber-50 flex items-center gap-1">
+            <AlertTriangle className="w-3 h-3" />
+            Quantité de l'article {fmtQty(expected)} {unit} · écart {fmtQty(Math.abs(ecart))} {unit}
+          </p>
+        )
+      )}
     </div>
   );
+}
+
+/** Ce qui distingue, ligne à ligne, la marchandise déjà entrée de celle qui est encore attendue. */
+function RowEntryState({ entered, qty }: { entered?: number; qty: number }) {
+  // Une ligne sans libellé n'entre jamais en stock : mieux vaut le dire que laisser un blanc.
+  if (entered === undefined) {
+    return <p className="text-[9px] font-black uppercase tracking-wide text-stone-400">Hors entrée</p>;
+  }
+  if (entered <= 0) {
+    return <p className="text-[9px] font-black uppercase tracking-wide text-amber-600">En attente</p>;
+  }
+  if (Math.abs(entered - qty) < 0.001) {
+    return <p className="text-[9px] font-black uppercase tracking-wide text-emerald-600">Entré</p>;
+  }
+  return <p className="text-[9px] font-black uppercase tracking-wide text-amber-600">{fmtQty(entered)} entré</p>;
 }
 
 function LocationChip({ code, qty, store }: { code: string; qty?: number; store?: string }) {
