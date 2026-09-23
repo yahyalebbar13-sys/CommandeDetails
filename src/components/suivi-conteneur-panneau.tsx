@@ -284,25 +284,6 @@ export default function SuiviConteneurPanneau({
         </p>
       )}
 
-      {/* La compagnie annonce autre chose que la date du dossier, mais celle-ci a
-          été corrigée à la main : on ne l'écrase pas sans l'accord de l'admin. */}
-      {suivi.dateProposee && !verrouille && (
-        <div className="flex flex-wrap items-center justify-between gap-3 px-6 py-3 bg-amber-50 border-b border-amber-100">
-          <p className="flex items-start gap-2 text-[11px] font-bold text-amber-800">
-            <CalendarClock className="w-3.5 h-3.5 mt-0.5 shrink-0" />
-            La compagnie annonce le {formatJour(suivi.dateProposee)} ; le dossier garde votre date du{' '}
-            {formatJour(facture?.arrivalDate)}.
-          </p>
-          <Button
-            onClick={() => appeler(undefined, true)}
-            disabled={enCours}
-            className="h-9 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-[10px] font-black uppercase tracking-widest px-4 shrink-0"
-          >
-            {enCours ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : 'Appliquer leur date'}
-          </Button>
-        </div>
-      )}
-
       {/* Suivi ouvert, mais ShipsGo n'a pas encore eu le temps d'interroger la
           compagnie : dire que rien n'est cassé et qu'il n'y a rien à faire. */}
       {(suivi.statut === 'NEW' || suivi.statut === 'INPROGRESS') && !suivi.erreur && (

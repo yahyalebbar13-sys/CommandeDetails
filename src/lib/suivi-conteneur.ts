@@ -74,13 +74,9 @@ export type SuiviConteneur = {
   verifieLe?: string;
   /** Notre dernière synchronisation (ISO). */
   majLe: string;
-  /**
-   * Dernière date d'arrivée que NOUS avons inscrite dans le dossier. Si la date
-   * du dossier s'en écarte, c'est qu'une main humaine est passée après nous :
-   * on cesse alors de l'écraser (cf. suivi-sync.ts).
-   */
+  /** Dernière date d'arrivée que NOUS avons inscrite dans le dossier (cf. suivi-sync.ts). */
   dateAppliquee?: string;
-  /** Date annoncée par la compagnie mais non appliquée, parce qu'elle contredit une saisie manuelle. */
+  /** Obsolète : la date de la compagnie s'applique toujours. Effacée à chaque synchronisation. */
   dateProposee?: string;
   /** Clés des changements déjà annoncés — évite de prévenir deux fois du même. */
   notifie?: string[];

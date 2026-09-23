@@ -148,25 +148,20 @@ async function main() {
     check('abonnés repris', ecrit?.suivi?.abonnes?.[0]?.email === 'client@exemple.com');
   }
 
-  console.log('\n── Une correction manuelle n’est pas écrasée ──');
+  console.log('\n── Une date retouchée à la main suit quand même la compagnie ──');
   {
     const dossier = {
       id: '26HD1004',
       arrivalDate: CORRECTION,                                                            // corrigée à la main…
-      suivi: { shipmentId: 1001, reference: 'MEDUXY123456', dateAppliquee: ETA_COMPAGNIE }, // …après notre écriture
+      suivi: { shipmentId: 1001, reference: 'MEDUXY123456', dateAppliquee: ETA_DOSSIER, dateProposee: ETA_COMPAGNIE },
     };
     const db = faireDb();
     const r = await appliquerShipment(db, UID, '26HD1004', dossier, shipmentEnMer);
     const ecrit = db.ecritures[0]?.donnees;
-    check('la date saisie reste', ecrit?.arrivalDate === undefined, `→ ${ecrit?.arrivalDate}`);
-    check('issue neutre', r.issue === 'a-jour', r.issue);
-    check('la date de la compagnie est proposée', ecrit?.suivi?.dateProposee === ETA_COMPAGNIE);
-    check('notre dernière date reste mémorisée', ecrit?.suivi?.dateAppliquee === ETA_COMPAGNIE);
-
-    const db2 = faireDb();
-    const r2 = await appliquerShipment(db2, UID, '26HD1004', dossier, shipmentEnMer, { forcerDate: true });
-    check('forçage explicite : la date est appliquée', db2.ecritures[0]?.donnees?.arrivalDate === ETA_COMPAGNIE);
-    check('issue', r2.issue === 'date-modifiee', r2.issue);
+    check('la date de la compagnie remplace la saisie', ecrit?.arrivalDate === ETA_COMPAGNIE, `→ ${ecrit?.arrivalDate}`);
+    check('issue', r.issue === 'date-modifiee', r.issue);
+    check('ancienne proposition effacée', ecrit?.suivi?.dateProposee === null, String(ecrit?.suivi?.dateProposee));
+    check('date appliquée mémorisée', ecrit?.suivi?.dateAppliquee === ETA_COMPAGNIE);
   }
 
   console.log('\n── Dossier clos : on ne touche plus à rien ──');

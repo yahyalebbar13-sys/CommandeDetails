@@ -121,17 +121,17 @@ Pour voir à quoi ressemble l'alerte sans encombrer sa boîte :
 | `arrivalDateAvantSuivi` | La date saisie à la main avant la première correction automatique |
 | `arrivalDateSource` | `shipsgo` quand la date a été corrigée automatiquement |
 
-| `suivi.dateAppliquee` | La dernière date que le suivi a inscrite — sert à reconnaître une correction humaine |
-| `suivi.dateProposee` | Date annoncée par la compagnie mais **non appliquée**, parce qu'elle contredit une saisie manuelle |
+| `suivi.dateAppliquee` | La dernière date que le suivi a inscrite |
+| `suivi.dateProposee` | Obsolète — effacée à chaque synchronisation |
 
 Trois garde-fous encadrent cette écriture :
 
 1. La date n'est **jamais** modifiée sur un dossier déjà entré en stock ni sur un
    arrivage clos depuis plus d'un mois : l'historique reste tel qu'il a été validé.
-2. Si quelqu'un corrige `arrivalDate` à la main **après** une écriture du suivi,
-   le suivi cesse de l'écraser. Il enregistre `dateProposee`, le dossier affiche
-   « la compagnie annonce le X, vous gardez le Y », et un bouton applique la leur
-   si on le souhaite.
+2. Tant que le dossier n'est pas figé, **la date suit toujours la compagnie** :
+   une date corrigée à la main est remplacée au passage suivant (webhook, cron
+   ou ouverture du dossier). Décision du 23/09/2026 — auparavant une retouche
+   manuelle bloquait la mise à jour et ne laissait qu'une « date proposée ».
 3. Un webhook en retard ou rejoué (photo plus ancienne que celle enregistrée,
    d'après `checked_at`) est ignoré : il ne peut pas faire reculer un suivi.
 

@@ -107,30 +107,21 @@ export async function appliquerShipment(
   const nouvelleDate = dateArriveeDuSuivi(suivi);
   const verrouille = dossierVerrouille(facture);
 
-  // La date du dossier ne correspond plus à celle que nous y avions mise :
-  // quelqu'un l'a corrigée à la main depuis. On ne l'écrase plus — on se
-  // contente de proposer celle de la compagnie, que le dossier affiche.
-  const notreDerniere = precedent?.dateAppliquee;
-  const mainHumaine = Boolean(notreDerniere) && ancienneDate !== notreDerniere;
-
-  const dateAChanger =
-    Boolean(nouvelleDate) &&
-    nouvelleDate !== ancienneDate &&
-    !verrouille &&
-    (!mainHumaine || opts.forcerDate === true);
+  // La date du dossier suit la compagnie, toujours : c'est ShipsGo qui fait foi
+  // tant que la marchandise n'est pas reçue. Une date retouchée à la main est
+  // remplacée au passage suivant (la première saisie reste dans
+  // arrivalDateAvantSuivi). `forcerDate` n'a donc plus rien à forcer ; il reste
+  // accepté pour ne pas casser les appels existants.
+  const dateAChanger = Boolean(nouvelleDate) && nouvelleDate !== ancienneDate && !verrouille;
 
   if (dateAChanger) {
     suivi.dateAppliquee = nouvelleDate;
-  } else if (notreDerniere) {
-    suivi.dateAppliquee = notreDerniere;
+  } else if (precedent?.dateAppliquee) {
+    suivi.dateAppliquee = precedent.dateAppliquee;
   }
-  if (!dateAChanger && nouvelleDate && nouvelleDate !== ancienneDate && !verrouille) {
-    suivi.dateProposee = nouvelleDate;
-  } else {
-    // Une fusion Firestore garderait l'ancienne proposition pour toujours :
-    // le dossier afficherait « la compagnie annonce le X » après l'avoir appliqué.
-    suivi.dateProposee = null as unknown as undefined;
-  }
+  // Plus de « date proposée » : on efface celle que d'anciennes versions ont pu
+  // laisser (une fusion Firestore la garderait sinon pour toujours).
+  suivi.dateProposee = null as unknown as undefined;
 
   // Les alertes déjà parties restent inscrites : c'est ce registre, et non
   // l'état du suivi, qui décide de ce qu'il reste à annoncer.
