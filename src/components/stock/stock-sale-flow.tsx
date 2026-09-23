@@ -17,6 +17,7 @@ import { getLocalDateString } from '@/lib/constants';
 import { cleanUndefined } from '@/lib/utils';
 import { exportSaleOrderPDF } from '@/lib/pdf-export-reports';
 import { stockItemVariant } from '@/lib/warehouse-locations';
+import { uniteDecimale, pasDeSaisie, libelleUnite } from '@/lib/unites-pole';
 import { useToast } from '@/hooks/use-toast';
 import { useConfirm } from '@/hooks/use-confirm';
 import { useOnlineStatus } from '@/hooks/use-online-status';
@@ -70,6 +71,90 @@ const venteAPerte = (item: StockItem, unitPrice: number): boolean => {
   const revient = Number(item.purchasePricePerUnit) || 0;
   return revient > 0 && unitPrice < revient;
 };
+
+// ── Quantités selon l'unité ──
+// Le TAFFETA se vend au mètre, et au mètre près ou au centimètre : 2,5 m est une vente normale.
+// Ce qui se compte à la pièce reste en entiers.
+
+/** Arrondi au millième, comme le calcul du stock : 1,2 m − 1 ne laisse pas 0,19999999999999996 m. */
+const arrondiQte = (q: number) => Math.round(q * 1000) / 1000;
+
+/** Une quantité tapée, ramenée à ce que son unité permet (2,55 m ; 2,5 pièces → 2, comme parseInt). */
+const quantiteSaisie = (brut: string, unite?: string | null): number => {
+  const q = parseFloat(String(brut).replace(',', '.'));
+  if (!Number.isFinite(q)) return 0;
+  return uniteDecimale(unite) ? Math.round(q * 100) / 100 : Math.trunc(q);
+};
+
+/** L'unité à afficher à côté d'une quantité — rien pour le « unité » par défaut. */
+const uniteCourte = (unite?: string | null): string => {
+  const u = (unite || '').trim();
+  return u && u.toLowerCase() !== 'unité' ? u : '';
+};
+
+/** « 2,5 m », « 3 rolls » — ou le nombre seul quand l'unité est le « unité » par défaut. */
+const qteAvecUnite = (q: number, unite?: string | null): string => {
+  const u = uniteCourte(unite);
+  return u ? `${arrondiQte(q)} ${u}` : String(arrondiQte(q));
+};
+
+const UNITE_AU_SINGULIER: Record<string, string> = {
+  'doz': 'douzaine', 'gross (144p)': 'grosse (144 p)', 'm': 'mètre', 'rolls': 'rouleau',
+  'kg': 'kilogramme', 'bag': 'sac', 'yds': 'yard',
+};
+
+/** « Prix de vente par mètre » pour ce qui se vend au mètre ; « à l'unité » pour ce qui se vend à la pièce. */
+const libellePrixDeVente = (unite?: string | null): string => {
+  const u = (unite || '').trim();
+  if (!u || ['unité', 'pièce', 'pièces', 'pcs'].includes(u.toLowerCase())) return "Prix de vente à l'unité";
+  return `Prix de vente par ${UNITE_AU_SINGULIER[u] || libelleUnite(u).toLowerCase()}`;
+};
+
+/**
+ * Champ de quantité : pas de 0,01 pour ce qui se vend au mètre ou au kilo, de 1 sinon. Pendant la
+ * frappe, il garde ce qui est tapé (« 0, », « 2, ») au lieu de le réécrire par la quantité du
+ * panier, ce qui effaçait la virgule à chaque touche. Une quantité bornée par le stock s'affiche
+ * aussitôt ; la vraie quantité revient en quittant le champ.
+ */
+export function ChampQuantite({ valeur, unite, onQuantite, nu, videSiZero, garderDecimales, onBlur, ...props }: {
+  valeur: number;
+  unite?: string | null;
+  onQuantite: (q: number) => void;
+  /** `<input>` brut plutôt que le composant Input (le champ géant de la fenêtre des variantes). */
+  nu?: boolean;
+  /** Case vide plutôt que « 0 » (le placeholder prend le relais). */
+  videSiZero?: boolean;
+  /**
+   * Garder les décimales quelle que soit l'unité (transferts) : le stock d'une variante peut être
+   * fractionnaire même en rouleaux (répartition au prorata), et tronquer 3,333 à 3 le bloquerait.
+   */
+  garderDecimales?: boolean;
+} & Omit<React.ComponentProps<'input'>, 'value' | 'onChange' | 'type' | 'step'>) {
+  const [brouillon, setBrouillon] = useState<string | null>(null);
+  const tape = brouillon === null ? NaN : parseFloat(brouillon.replace(',', '.'));
+  const affiche = brouillon !== null && (!(tape > 0) || tape === valeur)
+    ? brouillon
+    : (valeur || !videSiZero ? String(valeur) : '');
+  const Composant: any = nu ? 'input' : Input;
+  return (
+    <Composant
+      {...props}
+      type="number"
+      inputMode={uniteDecimale(unite) ? 'decimal' : 'numeric'}
+      step={garderDecimales && !uniteDecimale(unite) ? 'any' : pasDeSaisie(unite)}
+      value={affiche}
+      onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
+        setBrouillon(e.target.value);
+        // « 2, » en cours de frappe : le navigateur ne livre encore aucun nombre, on attend la suite.
+        if (e.target.validity?.badInput) return;
+        onQuantite(garderDecimales
+          ? arrondiQte(parseFloat(e.target.value.replace(',', '.')) || 0)
+          : quantiteSaisie(e.target.value, unite));
+      }}
+      onBlur={(e: React.FocusEvent<HTMLInputElement>) => { setBrouillon(null); onBlur?.(e); }}
+    />
+  );
+}
 
 interface CartLine { item: StockItem; qty: number; unitPrice: number; sourceStore?: string; }
 
@@ -175,7 +260,8 @@ export default function StockSaleFlow({
   const subTotal = cart.reduce((s, l) => s + l.qty * l.unitPrice, 0);
   const discountAmt = subTotal * (discount / 100);
   const total = subTotal - discountAmt;
-  const cartCount = cart.reduce((s, l) => s + l.qty, 0);
+  // Une coupe de 2,5 m est UN article : additionner les mètres aux pièces afficherait « 5,5 articles ».
+  const cartCount = cart.reduce((s, l) => s + (uniteDecimale(l.item.unitOfMeasure) ? 1 : l.qty), 0);
 
   const totalPaid = paymentStatus === 'UNPAID' ? 0 : paymentLines.reduce((s, l) => s + (parseFloat(l.amount) || 0), 0);
   const remainingBalance = Math.max(0, total - totalPaid);
@@ -423,7 +509,7 @@ export default function StockSaleFlow({
       const ex = prev.find(l => l.item.articleId === addModal.item!.articleId && l.sourceStore === finalStore);
       if (ex) {
         return prev.map(l => l.item.articleId === addModal.item!.articleId && l.sourceStore === finalStore
-          ? { ...l, qty: Math.min(l.qty + addModal.qty, itemStockLimit), unitPrice: addModal.unitPrice }
+          ? { ...l, qty: arrondiQte(Math.min(l.qty + addModal.qty, itemStockLimit)), unitPrice: addModal.unitPrice }
           : (l.item.productName === addModal.item!.productName ? { ...l, unitPrice: addModal.unitPrice } : l)
         );
       }
@@ -449,8 +535,10 @@ export default function StockSaleFlow({
         const storeStock = target.sourceStore
           ? availableQtyAtStore(target.item, target.sourceStore)
           : target.item.currentQty;
-        const maxQty = Math.max(1, storeStock);
-        const boundedQty = Math.max(1, Math.min(val, maxQty));
+        // Au mètre, une coupe de 0,5 m se vend : le plancher est le pas de saisie, pas 1.
+        const plancher = pasDeSaisie(target.item.unitOfMeasure);
+        const maxQty = Math.max(plancher, storeStock);
+        const boundedQty = arrondiQte(Math.max(plancher, Math.min(val, maxQty)));
         return prev.map(l => l.item.articleId === articleId ? { ...l, qty: boundedQty } : l);
       }
       return prev.map(l => l.item.articleId === articleId ? { ...l, [key]: val } : l);
@@ -461,10 +549,11 @@ export default function StockSaleFlow({
     setCart(prev => prev.map(l => {
       if (l.item.articleId !== articleId) return l;
       const maxQty = availableQtyAtStore(l.item, normalizeSourceStore(newStoreId));
+      const plancher = pasDeSaisie(l.item.unitOfMeasure);
       return {
         ...l,
         sourceStore: normalizeSourceStore(newStoreId),
-        qty: Math.max(1, Math.min(l.qty, Math.max(1, maxQty)))
+        qty: arrondiQte(Math.max(plancher, Math.min(l.qty, Math.max(plancher, maxQty))))
       };
     }));
   };
@@ -488,12 +577,14 @@ export default function StockSaleFlow({
       if (ex) {
         return prev.map(l =>
           l.item.articleId === item.articleId && l.sourceStore === sourceStore
-            ? { ...l, qty: Math.min(l.qty + 1, maxQty), unitPrice: price }
+            ? { ...l, qty: arrondiQte(Math.min(l.qty + 1, maxQty)), unitPrice: price }
             : (l.item.productName === item.productName ? { ...l, unitPrice: price } : l)
         );
       }
       const harmonized = prev.map(l => l.item.productName === item.productName ? { ...l, unitPrice: price } : l);
-      return [...harmonized, { item, qty: 1, unitPrice: price, sourceStore }];
+      // Au mètre, un reste de rouleau de 0,4 m part tel quel plutôt qu'un mètre qui n'existe pas.
+      const premiere = uniteDecimale(item.unitOfMeasure) && maxQty > 0 && maxQty < 1 ? arrondiQte(maxQty) : 1;
+      return [...harmonized, { item, qty: premiere, unitPrice: price, sourceStore }];
     });
   };
 
@@ -505,7 +596,7 @@ export default function StockSaleFlow({
       : (existingSameProd?.unitPrice ?? (item.sellingPrice || 0));
 
     const maxQty = sourceStore ? availableQtyAtStore(item, sourceStore) : item.currentQty;
-    const validQty = Math.max(0, Math.min(qty, maxQty));
+    const validQty = arrondiQte(Math.max(0, Math.min(qty, maxQty)));
 
     setCart(prev => {
       const ex = prev.find(l => l.item.articleId === item.articleId && l.sourceStore === sourceStore);
@@ -641,7 +732,7 @@ export default function StockSaleFlow({
             
           if (availableInSub <= 0) continue;
 
-          const take = Math.min(remainingQty, availableInSub);
+          const take = arrondiQte(Math.min(remainingQty, availableInSub));
           const realArticleId = sub._realArticleId || sub.articleId;
 
           items.push({
@@ -686,7 +777,8 @@ export default function StockSaleFlow({
             _variant: stockItemVariant(sub),
           });
 
-          remainingQty -= take;
+          // Arrondi : en mètres, un reste flottant de 1e-16 partait sinon en ligne « Dépassement stock ».
+          remainingQty = arrondiQte(remainingQty - take);
         }
 
         // If for some reason we still have remainingQty (e.g. data mismatch), add it to the last sub-item
@@ -814,9 +906,9 @@ export default function StockSaleFlow({
         if (restant <= 0) break;
         const dispo = lieu ? availableQtyAtStore(sub, lieu) : sub.currentQty;
         if (dispo <= 0) continue;
-        const pris = Math.min(restant, dispo);
+        const pris = arrondiQte(Math.min(restant, dispo));
         lignes.push(ligneDeCommande(sub, l, pris, lieu));
-        restant -= pris;
+        restant = arrondiQte(restant - pris);
       }
       if (restant > 0 && sousArticles.length > 0) {
         lignes.push(ligneDeCommande(sousArticles[sousArticles.length - 1], l, restant, lieu));
@@ -940,7 +1032,7 @@ export default function StockSaleFlow({
       <div class="info-box"><h4>Règlement</h4><p>${paymentDetailsText}</p><p class="sub">Date : ${dateStr}</p></div>
     </div>
     <table><thead><tr><th>Désignation</th><th>Variante</th><th>Qté</th><th>P.U. (MAD)</th><th>Total (MAD)</th></tr></thead>
-    <tbody>${cart.map(({ item, qty, unitPrice }) => `<tr><td>${escapeHtml(item.productName)}</td><td class="variant">${[escapeHtml(item.color), item.size ? 'T.' + escapeHtml(item.size) : ''].filter(Boolean).join(' &middot; ') || '—'}</td><td style="text-align:right">${qty}</td><td style="text-align:right">${unitPrice > 0 ? fmt$(unitPrice) : '<span class="no-price">N/D</span>'}</td><td style="text-align:right;font-weight:900">${unitPrice > 0 ? fmt$(qty * unitPrice) : '<span class="no-price">—</span>'}</td></tr>`).join('')}</tbody></table>
+    <tbody>${cart.map(({ item, qty, unitPrice }) => `<tr><td>${escapeHtml(item.productName)}</td><td class="variant">${[escapeHtml(item.color), item.size ? 'T.' + escapeHtml(item.size) : ''].filter(Boolean).join(' &middot; ') || '—'}</td><td style="text-align:right">${escapeHtml(qteAvecUnite(qty, item.unitOfMeasure))}</td><td style="text-align:right">${unitPrice > 0 ? fmt$(unitPrice) : '<span class="no-price">N/D</span>'}</td><td style="text-align:right;font-weight:900">${unitPrice > 0 ? fmt$(qty * unitPrice) : '<span class="no-price">—</span>'}</td></tr>`).join('')}</tbody></table>
     <div class="totals">
       <div class="row"><span>Sous-total</span><span>${fmt$(subTotal)}</span></div>
       ${discount > 0 ? `<div class="row" style="color:#16a34a"><span>Remise ${discount}%</span><span>-${fmt$(discountAmt)}</span></div>` : ''}
@@ -1295,12 +1387,12 @@ export default function StockSaleFlow({
                           <div className="flex-1 min-w-0">
                             <p className="text-sm font-black text-stone-900 uppercase tracking-tight truncate">{group.name}</p>
                             <p className="text-[11px] font-medium text-stone-500 mt-0.5">
-                              {group.categoryId} · {group.variants.length} variante{group.variants.length > 1 ? 's' : ''} (couleur, qualité, taille) · {group.totalQty} en stock
+                              {group.categoryId} · {group.variants.length} variante{group.variants.length > 1 ? 's' : ''} (couleur, qualité, taille) · {qteAvecUnite(group.totalQty, group.variants[0]?.unitOfMeasure)} en stock
                             </p>
                           </div>
                           {cartQtyTotal > 0 && (
                             <span className="shrink-0 text-[10px] font-black bg-emerald-100 text-emerald-700 px-2.5 py-1 rounded-lg">
-                              {cartQtyTotal} au panier
+                              {qteAvecUnite(cartQtyTotal, group.variants[0]?.unitOfMeasure)} au panier
                             </span>
                           )}
                           <ChevronRight className="w-4 h-4 text-stone-300 group-hover:text-violet-500 shrink-0 transition-colors" />
@@ -1339,7 +1431,7 @@ export default function StockSaleFlow({
                         <div key={item.articleId} className="px-4 py-3 flex items-center gap-3 hover:bg-stone-50/50 transition-colors">
                           <div className="flex-1 min-w-0">
                             <p className="text-[10px] font-black text-stone-900 uppercase truncate">{item.productName}</p>
-                            <p className="text-[10px] font-black text-violet-600">{qty} × {fmt$(unitPrice)}</p>
+                            <p className="text-[10px] font-black text-violet-600">{qteAvecUnite(qty, item.unitOfMeasure)} × {fmt$(unitPrice)}</p>
                           </div>
                           <div className="text-right shrink-0">
                             <p className="text-xs font-black text-stone-900">{fmt$(qty * unitPrice)}</p>
@@ -1493,7 +1585,7 @@ export default function StockSaleFlow({
                         }
                         return lieux.map(({ s, q }) => (
                           <option key={s.id} value={s.id}>
-                            {s.name} — {q} en stock
+                            {s.name} — {qteAvecUnite(q, item.unitOfMeasure)} en stock
                           </option>
                         ));
                       })()}
@@ -1503,21 +1595,39 @@ export default function StockSaleFlow({
                   <Champ
                     label="Quantité vendue"
                     obligatoire
-                    indice={`${availableStock} disponibles ici`}
-                    aide="Le bouton + s'arrête au stock du lieu choisi. Pour aller plus loin, transférez d'abord la marchandise."
+                    htmlFor={`quantite-${item.articleId}`}
+                    indice={`${qteAvecUnite(availableStock, item.unitOfMeasure)} disponibles ici`}
+                    aide={uniteDecimale(item.unitOfMeasure)
+                      ? "Se vend au centième près : tapez la longueur (2,5 par exemple). La saisie s'arrête au stock du lieu choisi."
+                      : "Le bouton + s'arrête au stock du lieu choisi. Pour aller plus loin, transférez d'abord la marchandise."}
                   >
                     <div className="h-11 inline-flex items-center gap-1 bg-stone-50 rounded-xl p-1 border border-stone-200">
                       <button onClick={() => qty > 1 && updateCart(item.articleId, 'qty', qty - 1)}
-                        title="Enlever une unité"
+                        title={uniteDecimale(item.unitOfMeasure) ? `Enlever 1 ${item.unitOfMeasure}` : 'Enlever une unité'}
                         className="w-8 h-8 rounded-lg bg-white border border-stone-200 text-stone-600 flex items-center justify-center hover:bg-stone-100 transition-colors shadow-sm">
                         <Minus className="w-3.5 h-3.5" />
                       </button>
-                      <span className="w-12 text-center text-sm font-black text-stone-900 tabular-nums">{qty}</span>
+                      {/* La quantité se tape aussi : au mètre, les boutons ne font que des mètres entiers. */}
+                      <ChampQuantite
+                        nu
+                        id={`quantite-${item.articleId}`}
+                        valeur={qty}
+                        unite={item.unitOfMeasure}
+                        min={pasDeSaisie(item.unitOfMeasure)}
+                        max={availableStock}
+                        onQuantite={q => { if (q > 0) updateCart(item.articleId, 'qty', q); }}
+                        className="w-16 h-8 text-center text-sm font-black text-stone-900 tabular-nums bg-transparent rounded-lg outline-none focus:bg-white focus:ring-1 focus:ring-violet-400 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                      />
+                      {uniteCourte(item.unitOfMeasure) && (
+                        <span className="text-[11px] font-bold text-stone-500 pr-1">{uniteCourte(item.unitOfMeasure)}</span>
+                      )}
                       <button
                         disabled={qty >= availableStock}
                         onClick={() => qty < availableStock && updateCart(item.articleId, 'qty', qty + 1)}
                         className={`w-8 h-8 rounded-lg bg-white border border-stone-200 text-stone-600 flex items-center justify-center transition-colors shadow-sm ${qty >= availableStock ? 'opacity-40 cursor-not-allowed' : 'hover:bg-stone-100'}`}
-                        title={qty >= availableStock ? `Tout le stock de ce lieu est déjà au panier : ${availableStock}` : 'Ajouter une unité'}
+                        title={qty >= availableStock
+                          ? `Tout le stock de ce lieu est déjà au panier : ${qteAvecUnite(availableStock, item.unitOfMeasure)}`
+                          : (uniteDecimale(item.unitOfMeasure) ? `Ajouter 1 ${item.unitOfMeasure}` : 'Ajouter une unité')}
                       >
                         <Plus className="w-3.5 h-3.5" />
                       </button>
@@ -1525,7 +1635,7 @@ export default function StockSaleFlow({
                   </Champ>
 
                   <Champ
-                    label="Prix de vente à l'unité"
+                    label={libellePrixDeVente(item.unitOfMeasure)}
                     obligatoire
                     htmlFor={`prix-${item.articleId}`}
                     indice={unitPrice > 0 ? `${fmt$(qty * unitPrice)} MAD la ligne` : undefined}
@@ -2087,7 +2197,7 @@ export default function StockSaleFlow({
                 {cart.slice(0, 4).map(({ item, qty, unitPrice, sourceStore }) => (
                   <LigneResume
                     key={item.articleId}
-                    libelle={`${qty} × ${item.productName} ${item.color || ''} ${item.size ? 'T. ' + item.size : ''} — depuis ${stores?.find(s => s.id === sourceStore)?.name || sourceStore || selectedStoreId}`}
+                    libelle={`${qteAvecUnite(qty, item.unitOfMeasure)} × ${item.productName} ${item.color || ''} ${item.size ? 'T. ' + item.size : ''} — depuis ${stores?.find(s => s.id === sourceStore)?.name || sourceStore || selectedStoreId}`}
                     valeur={`${fmt$(qty * unitPrice)} MAD`}
                   />
                 ))}
@@ -2194,7 +2304,7 @@ export default function StockSaleFlow({
           <div className="bg-gradient-to-r from-[#3D2E17] to-[#2A2014] p-5 text-white">
             <DialogTitle className="text-base font-black uppercase tracking-tight">{addModal.item?.productName}</DialogTitle>
             <p className="text-[11px] font-medium text-[#C9B89A] mt-1">
-              {[addModal.item?.color, addModal.item?.size].filter(Boolean).join(' · ')} · {addModal.item?.currentQty} {addModal.item?.unitOfMeasure} en stock, tous lieux confondus
+              {[addModal.item?.color, addModal.item?.size].filter(Boolean).join(' · ')} · {arrondiQte(addModal.item?.currentQty || 0)} {addModal.item?.unitOfMeasure} en stock, tous lieux confondus
             </p>
           </div>
           <div className="p-5 space-y-4 bg-white">
@@ -2213,7 +2323,7 @@ export default function StockSaleFlow({
                 >
                   <option value="" disabled>Choisir un lieu…</option>
                   {Object.entries(addModal.item.qtyByStore).map(([sId, q]) => (q as number) > 0 && (
-                    <option key={sId} value={sId}>{sId.replace('_', ' ')} — {q} en stock</option>
+                    <option key={sId} value={sId}>{sId.replace('_', ' ')} — {qteAvecUnite(q as number, addModal.item?.unitOfMeasure)} en stock</option>
                   ))}
                 </select>
               </Champ>
@@ -2222,18 +2332,22 @@ export default function StockSaleFlow({
               label="Quantité"
               obligatoire
               htmlFor="ajout-quantite"
-              indice={`${(addModal.sourceStore && addModal.item ? availableQtyAtStore(addModal.item, addModal.sourceStore) : addModal.item?.currentQty) ?? 0} disponible(s)`}
-              aide="La saisie s'arrête au stock du lieu choisi."
+              indice={`${qteAvecUnite((addModal.sourceStore && addModal.item ? availableQtyAtStore(addModal.item, addModal.sourceStore) : addModal.item?.currentQty) ?? 0, addModal.item?.unitOfMeasure)} disponible(s)`}
+              aide={uniteDecimale(addModal.item?.unitOfMeasure)
+                ? "Se vend au centième près (2,5 par exemple). La saisie s'arrête au stock du lieu choisi."
+                : "La saisie s'arrête au stock du lieu choisi."}
             >
-              <Input id="ajout-quantite" type="number" min={1} max={addModal.sourceStore && addModal.item ? availableQtyAtStore(addModal.item, addModal.sourceStore) : addModal.item?.currentQty} value={addModal.qty}
-                onChange={e => setAddModal(m => {
+              <ChampQuantite id="ajout-quantite" valeur={addModal.qty} unite={addModal.item?.unitOfMeasure}
+                min={pasDeSaisie(addModal.item?.unitOfMeasure)}
+                max={addModal.sourceStore && addModal.item ? availableQtyAtStore(addModal.item, addModal.sourceStore) : addModal.item?.currentQty}
+                onQuantite={q => setAddModal(m => {
                   const maxStock = (m.sourceStore && m.item ? availableQtyAtStore(m.item, m.sourceStore) : m.item?.currentQty) || 999;
-                  return { ...m, qty: Math.min(Number(e.target.value), maxStock) };
+                  return { ...m, qty: arrondiQte(Math.min(q, maxStock)) };
                 })}
                 className={`${CLASSE_CHAMP} text-lg`} autoFocus />
             </Champ>
             <Champ
-              label="Prix de vente à l'unité"
+              label={libellePrixDeVente(addModal.item?.unitOfMeasure)}
               obligatoire
               htmlFor="ajout-prix"
               aide="Ce prix sera repris sur toutes les couleurs de ce produit déjà au panier."
@@ -2257,7 +2371,7 @@ export default function StockSaleFlow({
                 onClick={addToCart}
                 raisonDesactive={
                   addModal.qty <= 0
-                    ? 'Indiquez une quantité d\'au moins 1.'
+                    ? (uniteDecimale(addModal.item?.unitOfMeasure) ? 'Indiquez une quantité.' : 'Indiquez une quantité d\'au moins 1.')
                     : (!!addModal.item?.qtyByStore && !addModal.sourceStore)
                       ? "Choisissez le lieu d'où sort la marchandise."
                       : null
@@ -2283,7 +2397,7 @@ export default function StockSaleFlow({
               <p className="text-[11px] font-medium text-stone-500 mt-1">{variantModal.categoryId}</p>
             </div>
             <div className="bg-stone-100 text-stone-600 px-3 py-1.5 rounded-xl text-xs font-bold shrink-0">
-              {variantModal.variants.reduce((s, v) => s + v.currentQty, 0)} en stock
+              {qteAvecUnite(variantModal.variants.reduce((s, v) => s + v.currentQty, 0), variantModal.variants[0]?.unitOfMeasure)} en stock
             </div>
           </div>
 
@@ -2323,7 +2437,7 @@ export default function StockSaleFlow({
                               : 'bg-stone-100 text-stone-700 hover:bg-stone-200'
                           }`}>
                           {size}
-                          <span className={`ml-1.5 text-[10px] font-bold ${activeOption?.value === size ? 'text-stone-400' : 'text-stone-400'}`}>({sizeQty})</span>
+                          <span className={`ml-1.5 text-[10px] font-bold ${activeOption?.value === size ? 'text-stone-400' : 'text-stone-400'}`}>({arrondiQte(sizeQty)})</span>
                         </button>
                       );
                     })}
@@ -2341,16 +2455,18 @@ export default function StockSaleFlow({
               )}
               <h3 className="text-2xl font-black text-stone-900 uppercase">{activeVariant.color || activeVariant.productName}</h3>
               <p className="text-sm font-bold text-stone-500 mt-1 mb-6">
-                {activeVariant.size ? `Taille ${activeVariant.size} · ` : ''}{activeVariant.quality ? `${activeVariant.quality} · ` : ''}{activeVariant.currentQty} en stock
+                {activeVariant.size ? `Taille ${activeVariant.size} · ` : ''}{activeVariant.quality ? `${activeVariant.quality} · ` : ''}{qteAvecUnite(activeVariant.currentQty, activeVariant.unitOfMeasure)} en stock
               </p>
 
               <div className="w-full max-w-sm">
                 <Champ
-                  label="Quantité à vendre"
+                  label={uniteCourte(activeVariant.unitOfMeasure) ? `Quantité à vendre (${uniteCourte(activeVariant.unitOfMeasure)})` : 'Quantité à vendre'}
                   obligatoire
                   htmlFor="variante-quantite"
-                  indice={`${activeVariant.currentQty} en stock`}
-                  aide="La saisie s'arrête au stock de cette variante. À 0, la ligne disparaît du panier."
+                  indice={`${qteAvecUnite(activeVariant.currentQty, activeVariant.unitOfMeasure)} en stock`}
+                  aide={uniteDecimale(activeVariant.unitOfMeasure)
+                    ? "Se vend au centième près (2,5 par exemple). La saisie s'arrête au stock de cette variante. À 0, la ligne disparaît du panier."
+                    : "La saisie s'arrête au stock de cette variante. À 0, la ligne disparaît du panier."}
                 >
                   <div className="flex items-center justify-center gap-4 pt-1">
                     <button
@@ -2359,15 +2475,17 @@ export default function StockSaleFlow({
                       className="w-16 h-16 rounded-2xl bg-white hover:bg-stone-100 border border-stone-200 text-stone-700 flex items-center justify-center text-2xl font-black shadow-sm transition-colors">
                       <Minus className="w-6 h-6" />
                     </button>
-                    <input
+                    <ChampQuantite
+                      nu
+                      videSiZero
                       id="variante-quantite"
-                      type="number"
                       min="0"
                       max={activeVariant.currentQty}
-                      value={cart.find(l => l.item.articleId === activeVariant.articleId)?.qty || ''}
+                      valeur={cart.find(l => l.item.articleId === activeVariant.articleId)?.qty || 0}
+                      unite={activeVariant.unitOfMeasure}
                       placeholder="0"
                       autoFocus
-                      onChange={e => setVariantQtyInCart(activeVariant, parseInt(e.target.value) || 0, activeVariant.sellingPrice)}
+                      onQuantite={q => setVariantQtyInCart(activeVariant, q, activeVariant.sellingPrice)}
                       className="w-32 h-20 text-center text-4xl font-black rounded-3xl border-2 border-stone-200 focus:border-stone-900 focus:outline-none shadow-sm"
                     />
                     <button
@@ -2432,12 +2550,12 @@ export default function StockSaleFlow({
                               <span className={`text-xs font-black px-2 py-1 rounded-md ${
                                 isEmpty ? 'bg-red-100 text-red-700' : 'bg-stone-100 text-stone-700'
                               }`}>
-                                {isEmpty ? '0' : v.currentQty}
+                                {isEmpty ? '0' : qteAvecUnite(v.currentQty, v.unitOfMeasure)}
                               </span>
                             </td>
                             <td className="px-4 py-3 text-right">
                               {inCartLine ? (
-                                <span className="text-sm font-black text-emerald-600 bg-emerald-100 px-3 py-1 rounded-lg">{inCartLine.qty} sél.</span>
+                                <span className="text-sm font-black text-emerald-600 bg-emerald-100 px-3 py-1 rounded-lg">{qteAvecUnite(inCartLine.qty, v.unitOfMeasure)} sél.</span>
                               ) : (
                                 <span className="text-xs font-black text-stone-400 group-hover:text-violet-600 uppercase flex items-center justify-end gap-1">
                                   Choisir <ChevronRight className="w-3 h-3" />
@@ -2455,7 +2573,11 @@ export default function StockSaleFlow({
           
           <div className="p-4 bg-stone-50 border-t border-stone-100 flex items-center justify-between gap-3">
             <p className="text-xs font-bold text-stone-500">
-              {cart.filter(l => variantModal.variants.some(v => v.articleId === l.item.articleId)).reduce((s, l) => s + l.qty, 0)} article(s) de ce produit au panier
+              {(() => {
+                const qte = cart.filter(l => variantModal.variants.some(v => v.articleId === l.item.articleId)).reduce((s, l) => s + l.qty, 0);
+                const unite = variantModal.variants[0]?.unitOfMeasure;
+                return uniteDecimale(unite) ? `${qteAvecUnite(qte, unite)} de ce produit au panier` : `${qte} article(s) de ce produit au panier`;
+              })()}
             </p>
             <Button onClick={() => setVariantModal({ open: false, productName: '', variants: [], categoryId: '' })}
               className="bg-stone-900 hover:bg-stone-800 text-white font-black uppercase text-xs h-11 px-8 rounded-xl shadow-md shrink-0">

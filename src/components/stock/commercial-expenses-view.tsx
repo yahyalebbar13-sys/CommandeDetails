@@ -5,7 +5,7 @@ import {
   Receipt, Fuel, Utensils, Car, ParkingCircle, Package, MoreHorizontal,
   Plus, Search, Filter, Calendar, Download, Trash2, CheckCircle2, 
   Clock, AlertCircle, Camera, Check, X, ShieldAlert, Sparkles, Building2, User,
-  ShoppingBag, ArrowDownRight, Tag, Layers, Settings2, Palette, Maximize, Ruler, DollarSign, MapPin
+  ShoppingBag, ArrowDownRight, Tag, Layers, Settings2, Palette, Maximize, Ruler, DollarSign, MapPin, Lock
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -24,6 +24,7 @@ import { type StorageLocation, compareLocationCodes } from '@/lib/warehouse-loca
 import { isFabricLineOrCategory, isZipperLineOrCategory, isThreadLineOrCategory, isSliderLineOrCategory } from '@/lib/constants';
 import ColorBreakdownInput, { ColorBreakdownRow } from '@/components/color-breakdown-input';
 import QualityBreakdownInput, { QualityBreakdownRow } from '@/components/quality-breakdown-input';
+import { libelleUnite, uniteImposee } from '@/lib/unites-pole';
 
 interface CommercialExpensesViewProps {
   expenses: CommercialExpense[];
@@ -261,6 +262,13 @@ export default function CommercialExpensesView({
     return (generalCategories || []).find((gc: any) => gc.id === genCatId);
   }, [selectedGenCatId, selectedSubCat, generalCategories]);
 
+  // Unité d'achat imposée par la famille (le pôle, cf. lib/unites-pole.ts) : posée d'office et
+  // verrouillée. L'unité proposée d'après le nom du produit ne vaut que sans unité imposée.
+  const uniteAchatImposee = uniteImposee(selectedGenCat, 'achat');
+  useEffect(() => {
+    if (uniteAchatImposee) setNewUnitOfMeasure(uniteAchatImposee);
+  }, [uniteAchatImposee]);
+
   const fabricQualities = useMemo(() => {
     return [
       ...(Array.isArray(selectedSubCat?.fabricQualities) ? selectedSubCat.fabricQualities : []),
@@ -324,10 +332,12 @@ export default function CommercialExpensesView({
   const handleSelectSubCategory = (catName: string) => {
     setSelectedCategoryName(catName);
     
-    // Unité par défaut
+    // Unité par défaut : celle imposée par la famille, sinon d'après le nom du produit
     const upper = catName.toUpperCase();
     const isFab = upper.includes('FABRIC') || upper.includes('TISSU') || upper.includes('POPELINE') || upper.includes('INTERLINING');
-    if (isFab) {
+    if (uniteAchatImposee) {
+      setNewUnitOfMeasure(uniteAchatImposee);
+    } else if (isFab) {
       setNewUnitOfMeasure('rolls');
     } else {
       setNewUnitOfMeasure('pièces');
@@ -493,6 +503,14 @@ export default function CommercialExpensesView({
 
     if (isMarchandise && !finalArticleName) {
       toast({ variant: 'destructive', title: 'Produit requis', description: "Choisissez la famille puis la référence du catalogue à l'étape 2." });
+      return;
+    }
+
+    // Défensif : l'unité imposée par la famille est posée d'office et verrouillée ; si elle
+    // diffère quand même, on la remet et on laisse relire la quantité avant de renvoyer.
+    if (isMarchandise && uniteAchatImposee && newUnitOfMeasure !== uniteAchatImposee) {
+      setNewUnitOfMeasure(uniteAchatImposee);
+      toast({ variant: 'destructive', title: 'Unité imposée par la famille', description: `Cette famille s'achète en ${libelleUnite(uniteAchatImposee)} : l'unité a été corrigée, vérifiez la quantité puis validez à nouveau.` });
       return;
     }
 
@@ -1661,10 +1679,15 @@ export default function CommercialExpensesView({
 
                   <Champ
                     label="Unité de comptage"
-                    aide="C'est dans cette unité que la réserve comptera la marchandise."
+                    aide={uniteAchatImposee ? (
+                      <span className="inline-flex items-start gap-1">
+                        <Lock className="w-3 h-3 mt-0.5 shrink-0" />
+                        <span>Imposée par le pôle {selectedGenCat?.nameFR || selectedGenCat?.name} : la réserve comptera la marchandise dans cette unité.</span>
+                      </span>
+                    ) : "C'est dans cette unité que la réserve comptera la marchandise."}
                   >
-                    <Select value={newUnitOfMeasure} onValueChange={setNewUnitOfMeasure}>
-                      <SelectTrigger className={`${CLASSE_CHAMP} bg-white`}>
+                    <Select value={newUnitOfMeasure} onValueChange={setNewUnitOfMeasure} disabled={Boolean(uniteAchatImposee)}>
+                      <SelectTrigger className={`${CLASSE_CHAMP} ${uniteAchatImposee ? 'bg-stone-100' : 'bg-white'}`}>
                         <SelectValue>{UNIT_MAP_FR[newUnitOfMeasure] || newUnitOfMeasure}</SelectValue>
                       </SelectTrigger>
                       <SelectContent>

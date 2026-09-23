@@ -6,7 +6,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Sparkles, Loader2, Layers, Package, Save, Palette, Ruler, ClipboardList, Maximize, Settings2, MousePointer2, Scissors, UserCircle2, Copy, Clock, ImagePlus, X as XIcon } from 'lucide-react';
+import { Sparkles, Loader2, Layers, Package, Save, Palette, Ruler, ClipboardList, Maximize, Settings2, MousePointer2, Scissors, UserCircle2, Copy, Clock, ImagePlus, X as XIcon, Lock } from 'lucide-react';
 import { suggestArticleSpecifications } from '@/ai/flows/suggest-article-specifications-flow';
 import { useUser, useFirestore, useCollection, useMemoFirebase } from '@/firebase';
 import { doc, collection, serverTimestamp, setDoc } from 'firebase/firestore';
@@ -28,8 +28,9 @@ import QualityBreakdownInput, { QualityBreakdownRow } from './quality-breakdown-
 import DesignPicker from './design-picker';
 import { findLastOrderPrice } from '@/lib/order-utils';
 import { isFabricLineOrCategory, isZipperLineOrCategory, isThreadLineOrCategory, isSliderLineOrCategory, isTapeLineOrCategory, isAccessoryLineOrCategory } from '@/lib/constants';
+import { UNITES, pasDeSaisie, poleDeLArticle, uniteImposee } from '@/lib/unites-pole';
 
-const UNITS = ["pièces", "doz", "gross (144p)", "m", "rolls", "kg", "bag", "yds"];
+const UNITS: readonly string[] = UNITES;
 const COLORS = ["white", "black", "raw black", "raw white", "various", "various x black", "various x white", "nickel", "various x black x white", "silver", "gold", "black x white", "beige", "black nickel", "transparent"];
 const ZIPPER_TYPES = ["O/E", "C/E"];
 const SLIDER_TYPES = ["A/L", "P/L", "N/L", "SEMI A/L"];
@@ -580,6 +581,20 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
     allArticles
   ]);
 
+  // ── Unité d'achat imposée par le pôle (cf. lib/unites-pole.ts) ──
+  // Le pôle de la catégorie d'abord, sinon celui choisi. L'unité enregistrée n'est pas réécrite à
+  // l'ouverture : un écart est signalé, et l'unité imposée ne s'écrit qu'à l'enregistrement (rien
+  // n'est converti, les quantités sont déjà dans la bonne unité).
+  const poleUnite = useMemo(
+    () => poleDeLArticle({ categoryId: formData?.categoryId, generalCategoryId: selectedGenCatId || formData?.generalCategoryId }, subCategories, generalCategories),
+    [formData?.categoryId, formData?.generalCategoryId, selectedGenCatId, subCategories, generalCategories]
+  );
+  const uniteAchatImposee = uniteImposee(poleUnite, 'achat');
+  const uniteSaisie: string | undefined = uniteAchatImposee || formData?.unitOfMeasure;
+  const uniteEnregistree = String(article?.unitOfMeasure || '').trim();
+  const ecartUnite = Boolean(uniteAchatImposee && uniteEnregistree && uniteEnregistree !== uniteAchatImposee);
+  const uniteImposeeAEcrire = uniteAchatImposee ? { unitOfMeasure: uniteAchatImposee } : {};
+
   const handleSuggestSpecs = async () => {
     if (!formData?.categoryId) return;
     setIsSuggesting(true);
@@ -645,6 +660,8 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
       weightPerPiece: (rawFormData.weightPerPiece !== '' && rawFormData.weightPerPiece != null) ? (isNaN(Number(rawFormData.weightPerPiece)) ? String(rawFormData.weightPerPiece).trim() : Number(rawFormData.weightPerPiece)) : null,
       pcsPerBox: (rawFormData.pcsPerBox !== '' && rawFormData.pcsPerBox != null) ? (isNaN(Number(rawFormData.pcsPerBox)) ? String(rawFormData.pcsPerBox).trim() : Number(rawFormData.pcsPerBox)) : null,
       boxPerCarton: (rawFormData.boxPerCarton !== '' && rawFormData.boxPerCarton != null) ? (isNaN(Number(rawFormData.boxPerCarton)) ? String(rawFormData.boxPerCarton).trim() : Number(rawFormData.boxPerCarton)) : null,
+      // L'unité imposée par le pôle remplace l'unité enregistrée, ici seulement (à l'enregistrement).
+      ...uniteImposeeAEcrire,
     };
     
     let isSplit = false;
@@ -833,7 +850,7 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
           oldStatus: effectiveOld,
           newStatus: effectiveNew,
           quantity: formData.quantity,
-          unitOfMeasure: formData.unitOfMeasure,
+          unitOfMeasure: uniteSaisie,
           specs: formData.specs,
           color: formData.color,
           size: formData.size,
@@ -879,6 +896,7 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
 
     const duplicateData = {
       ...formData,
+      ...uniteImposeeAEcrire,
       id: newId,
       name: formData.categoryId,
       generalCategoryId: selectedGenCatId,
@@ -937,8 +955,10 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
 
       const newId = crypto.randomUUID();
       const newRef = doc(firestore, 'users', user.uid, 'articles', newId);
+      // Les deux morceaux gardent la même unité : celle imposée par le pôle s'il en impose une.
       setDocumentNonBlocking(newRef, {
         ...formData,
+        ...uniteImposeeAEcrire,
         id: newId,
         name: formData.categoryId,
         generalCategoryId: selectedGenCatId,
@@ -954,6 +974,7 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
 
       const originalRef = doc(firestore, 'users', user.uid, 'articles', article.id);
       updateDocumentNonBlocking(originalRef, {
+        ...uniteImposeeAEcrire,
         quantity: remainTotal,
         color: remainRows.length === 1 ? remainRows[0].colorCode : 'various',
         colorBreakdown: remainRows.length > 1 ? remainRows : null,
@@ -977,6 +998,7 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
       const newRef = doc(firestore, 'users', user.uid, 'articles', newId);
       setDocumentNonBlocking(newRef, {
         ...formData,
+        ...uniteImposeeAEcrire,
         id: newId,
         name: formData.categoryId,
         generalCategoryId: selectedGenCatId,
@@ -991,7 +1013,7 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
 
       // Original rduit
       const originalRef = doc(firestore, 'users', user.uid, 'articles', article.id);
-      updateDocumentNonBlocking(originalRef, { quantity: origQty - qty });
+      updateDocumentNonBlocking(originalRef, { ...uniteImposeeAEcrire, quantity: origQty - qty });
 
       toast({ title: ' Fractionn !', description: `${qty} units dplaces vers un nouvel article en TRANSIT.` });
     }
@@ -1127,7 +1149,7 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
                     </div>
                     <div className="flex flex-wrap gap-1.5 pt-1">
                       <span className="px-2 py-1 rounded-lg bg-fuchsia-100 text-fuchsia-700 text-[10px] font-black">
-                        {qualityBreakdown.length} qualités sélectionnées ({qualityBreakdown.reduce((s, r) => s + (Number(r.quantity) || 0), 0).toLocaleString()} {formData.unitOfMeasure || 'pcs'})
+                        {qualityBreakdown.length} qualités sélectionnées ({qualityBreakdown.reduce((s, r) => s + (Number(r.quantity) || 0), 0).toLocaleString()} {uniteSaisie || 'pcs'})
                       </span>
                     </div>
                   </div>
@@ -1308,7 +1330,7 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
                     </div>
                     <div className="flex flex-wrap gap-1.5 pt-1">
                       <span className="px-2 py-1 rounded-lg bg-fuchsia-100 text-fuchsia-700 text-[10px] font-black">
-                        {qualityBreakdown.length} qualités sélectionnées ({qualityBreakdown.reduce((s, r) => s + (Number(r.quantity) || 0), 0).toLocaleString()} {formData.unitOfMeasure || 'rolls'})
+                        {qualityBreakdown.length} qualités sélectionnées ({qualityBreakdown.reduce((s, r) => s + (Number(r.quantity) || 0), 0).toLocaleString()} {uniteSaisie || 'rolls'})
                       </span>
                     </div>
                   </div>
@@ -1421,7 +1443,7 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
                     </div>
                     <div className="flex flex-wrap gap-1.5 pt-1">
                       <span className="px-2 py-1 rounded-lg bg-fuchsia-100 text-fuchsia-700 text-[10px] font-black">
-                        {qualityBreakdown.length} qualités sélectionnées ({qualityBreakdown.reduce((s, r) => s + (Number(r.quantity) || 0), 0).toLocaleString()} {formData.unitOfMeasure || 'pcs'})
+                        {qualityBreakdown.length} qualités sélectionnées ({qualityBreakdown.reduce((s, r) => s + (Number(r.quantity) || 0), 0).toLocaleString()} {uniteSaisie || 'pcs'})
                       </span>
                     </div>
                   </div>
@@ -1570,7 +1592,7 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
                     </div>
                     <div className="flex flex-wrap gap-1.5 pt-1">
                       <span className="px-2 py-1 rounded-lg bg-fuchsia-100 text-fuchsia-700 text-[10px] font-black">
-                        {qualityBreakdown.length} qualités sélectionnées ({qualityBreakdown.reduce((s, r) => s + (Number(r.quantity) || 0), 0).toLocaleString()} {formData.unitOfMeasure || 'pcs'})
+                        {qualityBreakdown.length} qualités sélectionnées ({qualityBreakdown.reduce((s, r) => s + (Number(r.quantity) || 0), 0).toLocaleString()} {uniteSaisie || 'pcs'})
                       </span>
                     </div>
                   </div>
@@ -1727,7 +1749,7 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
                     </div>
                     <div className="flex flex-wrap gap-1.5 pt-1">
                       <span className="px-2 py-1 rounded-lg bg-fuchsia-100 text-fuchsia-700 text-[10px] font-black">
-                        {qualityBreakdown.length} qualités sélectionnées ({qualityBreakdown.reduce((s, r) => s + (Number(r.quantity) || 0), 0).toLocaleString()} {formData.unitOfMeasure || 'rolls'})
+                        {qualityBreakdown.length} qualités sélectionnées ({qualityBreakdown.reduce((s, r) => s + (Number(r.quantity) || 0), 0).toLocaleString()} {uniteSaisie || 'rolls'})
                       </span>
                     </div>
                   </div>
@@ -1876,7 +1898,7 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
                     </div>
                     <div className="flex flex-wrap gap-1.5 pt-1">
                       <span className="px-2 py-1 rounded-lg bg-fuchsia-100 text-fuchsia-700 text-[10px] font-black">
-                        {qualityBreakdown.length} qualités sélectionnées ({qualityBreakdown.reduce((s, r) => s + (Number(r.quantity) || 0), 0).toLocaleString()} {formData.unitOfMeasure || 'pièces'})
+                        {qualityBreakdown.length} qualités sélectionnées ({qualityBreakdown.reduce((s, r) => s + (Number(r.quantity) || 0), 0).toLocaleString()} {uniteSaisie || 'pièces'})
                       </span>
                     </div>
                   </div>
@@ -2100,18 +2122,31 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
             <div className="space-y-1.5">
               <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest flex items-center gap-1">
                 <Ruler className="w-3 h-3" /> Unit
+                {uniteAchatImposee && <Lock className="w-3 h-3 text-stone-400 ml-auto" />}
               </Label>
               <Select
-                value={formData.unitOfMeasure}
+                value={uniteSaisie}
                 onValueChange={v => setFormData((p: any) => ({ ...p, unitOfMeasure: v }))}
+                disabled={Boolean(uniteAchatImposee)}
               >
-                <SelectTrigger className="h-12 border-stone-200 bg-white font-bold rounded-xl">
+                <SelectTrigger className={`h-12 font-bold rounded-xl ${uniteAchatImposee ? 'border-stone-300 bg-stone-100' : 'border-stone-200 bg-white'}`}>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
                   {UNITS.map(u => <SelectItem key={u} value={u} className="font-bold uppercase">{u}</SelectItem>)}
                 </SelectContent>
               </Select>
+              {uniteAchatImposee && (
+                <p className="text-[9px] font-bold text-stone-500 flex items-center gap-1 leading-tight">
+                  <Lock className="w-2.5 h-2.5 shrink-0" /> Imposée par le pôle {poleUnite?.name}
+                </p>
+              )}
+              {ecartUnite && (
+                <p className="text-[10px] font-bold text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-2 py-1.5 leading-snug">
+                  Unité enregistrée {uniteEnregistree} ≠ unité imposée {uniteAchatImposee} : elle sera remplacée à
+                  l'enregistrement, sans conversion de la quantité.
+                </p>
+              )}
             </div>
 
             <div className="grid grid-cols-2 gap-4 md:col-span-2">
@@ -2119,12 +2154,13 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
                 <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest">Quantit</Label>
                 {((qualityBreakdown && qualityBreakdown.length > 0) || (colorBreakdown && colorBreakdown.length > 0) || (sizeBreakdown && sizeBreakdown.length > 0)) ? (
                   <div className="h-12 border border-violet-200 bg-violet-50 rounded-xl flex items-center px-3 justify-between">
-                    <span className="text-[10px] font-black text-violet-700">{(formData.quantity || 0).toLocaleString()} {formData.unitOfMeasure}</span>
+                    <span className="text-[10px] font-black text-violet-700">{(formData.quantity || 0).toLocaleString()} {uniteSaisie}</span>
                     <span className="text-[9px] font-bold text-violet-400 uppercase">calcul auto</span>
                   </div>
                 ) : (
                   <Input
                     type="number"
+                    step={pasDeSaisie(uniteSaisie)}
                     required
                     value={formData.quantity || 0}
                     onChange={e => setFormData((prev: any) => ({ ...prev, quantity: parseFloat(e.target.value) || 0 }))}
@@ -2243,7 +2279,7 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
                 <QualityBreakdownInput
                   value={qualityBreakdown}
                   onChange={handleQualityBreakdownChange}
-                  unit={formData?.unitOfMeasure}
+                  unit={uniteSaisie}
                   availableQualities={isFabric ? fabricQualities : isZipper ? zipperQualities : isThread ? threadQualities : isSlider ? sliderQualities : isTape ? tapeQualities : isAccessory ? accessoryQualities : []}
                   isFabric={isFabric}
                   isZipper={isZipper}
@@ -2256,20 +2292,20 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
                   categoryId={(subCategories || []).find((sc: any) => sc.name === formData?.categoryId)?.id}
                   value={colorBreakdown}
                   onChange={handleColorBreakdownChange}
-                  unit={formData.unitOfMeasure}
+                  unit={uniteSaisie}
                 />
                 {isDesignCategory && formData.categoryId && (
                   <DesignBreakdownInput
                     categoryId={(subCategories || []).find((sc: any) => sc.name === formData?.categoryId)?.id}
                     value={designBreakdown}
                     onChange={handleDesignBreakdownChange}
-                    unit={formData.unitOfMeasure}
+                    unit={uniteSaisie}
                   />
                 )}
                 <SizeBreakdownInput
                   value={sizeBreakdown}
                   onChange={handleSizeBreakdownChange}
-                  unit={formData.unitOfMeasure}
+                  unit={uniteSaisie}
                   availableSizes={availableSizes}
                 />
               </div>
@@ -2432,6 +2468,7 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
                           <span className="text-[10px] font-black uppercase w-20 truncate text-stone-700">{row.colorCode}</span>
                           <Input
                             type="number"
+                            step={pasDeSaisie(uniteSaisie)}
                             min={0}
                             max={rowMax}
                             value={val}
@@ -2444,7 +2481,7 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
                             placeholder="0"
                             className="h-9 border-orange-200 bg-white font-bold rounded-lg flex-1 text-right text-[11px]"
                           />
-                          <span className="text-[9px] text-stone-400 font-bold w-16 text-right">/ {rowMax} {formData.unitOfMeasure}</span>
+                          <span className="text-[9px] text-stone-400 font-bold w-16 text-right">/ {rowMax} {uniteSaisie}</span>
                         </div>
                       );
                     })}
@@ -2458,11 +2495,11 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
                       <div className="grid grid-cols-2 gap-2 mt-1">
                         <div className="bg-blue-50 border border-blue-200 rounded-xl p-3">
                           <p className="text-[8px] font-black text-blue-500 uppercase tracking-widest mb-1"> Nouvel article  Transit</p>
-                          <p className="text-[12px] font-black text-blue-800">{transitQty} {formData.unitOfMeasure}</p>
+                          <p className="text-[12px] font-black text-blue-800">{transitQty} {uniteSaisie}</p>
                         </div>
                         <div className="bg-amber-50 border border-amber-200 rounded-xl p-3">
                           <p className="text-[8px] font-black text-amber-500 uppercase tracking-widest mb-1"> Article original  Production</p>
-                          <p className="text-[12px] font-black text-amber-800">{remainQty} {formData.unitOfMeasure}</p>
+                          <p className="text-[12px] font-black text-amber-800">{remainQty} {uniteSaisie}</p>
                         </div>
                       </div>
                     );
@@ -2474,6 +2511,7 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
                   <div className="flex items-center gap-2">
                     <Input
                       type="number"
+                      step={pasDeSaisie(uniteSaisie)}
                       min={1}
                       max={(Number(formData.quantity) || 1) - 1}
                       value={splitQty || ''}
@@ -2481,18 +2519,18 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
                       placeholder="Ex: 500"
                       className="h-11 border-orange-200 bg-white font-bold rounded-xl flex-1"
                     />
-                    <span className="text-[10px] font-bold text-orange-600">{formData.unitOfMeasure}</span>
+                    <span className="text-[10px] font-bold text-orange-600">{uniteSaisie}</span>
                   </div>
                   {splitQty > 0 && Number(formData.quantity) > splitQty && (
                     <div className="grid grid-cols-2 gap-2 mt-1">
                       <div className="bg-blue-50 border border-blue-200 rounded-xl p-3">
                         <p className="text-[8px] font-black text-blue-500 uppercase tracking-widest mb-1"> Nouvel article  Transit</p>
-                        <p className="text-[11px] font-black text-blue-800">{splitQty} {formData.unitOfMeasure}</p>
+                        <p className="text-[11px] font-black text-blue-800">{splitQty} {uniteSaisie}</p>
                         <p className="text-[9px] text-blue-500 font-bold uppercase">{formData.color || ''}</p>
                       </div>
                       <div className="bg-amber-50 border border-amber-200 rounded-xl p-3">
                         <p className="text-[8px] font-black text-amber-500 uppercase tracking-widest mb-1"> Article original  Production</p>
-                        <p className="text-[11px] font-black text-amber-800">{Number(formData.quantity) - splitQty} {formData.unitOfMeasure}</p>
+                        <p className="text-[11px] font-black text-amber-800">{Number(formData.quantity) - splitQty} {uniteSaisie}</p>
                         <p className="text-[9px] text-amber-500 font-bold uppercase">{formData.color || ''}</p>
                       </div>
                     </div>

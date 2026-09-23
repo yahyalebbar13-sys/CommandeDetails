@@ -6,19 +6,23 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
   Layers, Plus, Trash2, ArrowRight, FolderSearch, PlusCircle,
-  Truck, DollarSign, TrendingUp, Package, Search, BarChart3, ChevronRight,
-  ArrowRightLeft, Pencil, Sparkles, AlertTriangle
+  Truck, DollarSign, TrendingUp, Package, Search, BarChart3,
+  ArrowRightLeft, Pencil, Sparkles, AlertTriangle, Lock, SlidersHorizontal
 } from 'lucide-react';
 import { useUser, useFirestore, setDocumentNonBlocking, deleteDocumentNonBlocking, updateDocumentNonBlocking } from '@/firebase';
-import { doc } from 'firebase/firestore';
+import { deleteField, doc } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { GeneralCategory, Category } from '@/lib/types';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
-import { isAccessoryLine, isFabricLine, isZipperLine, isThreadLine, isSliderLine, isTapeLine, ACCESSORY_KEYWORDS } from '@/lib/constants';
+import { isAccessoryLine, isFabricLine, isZipperLine, isThreadLine, isTapeLine } from '@/lib/constants';
 import { QUALITIES_FIELD_BY_SPEC, SPEC_BADGES, countQualities, detectSpecType } from '@/lib/quality-schema';
+import { useLignesLogistiques } from '@/hooks/use-lignes-logistiques';
+import { LIBELLE_SPEC, cleLigne, couleurDeLigne, type LigneLogistique, type SpecType } from '@/lib/lignes-logistiques';
+import { libelleUnite } from '@/lib/unites-pole';
+import { BadgeSpec, ChampsUnitesPole, ChoixLigne, ChoixSpec, PastilleLigne, estNouvelleLigne } from '@/components/pole-ligne-unites';
 
 interface GeneralCategoriesViewProps {
   articles: any[];
@@ -28,18 +32,7 @@ interface GeneralCategoriesViewProps {
   onManageQualities?: (specType: string, poleId: string) => void;
 }
 
-const LINE_COLORS: Record<string, string> = {
-  'Fabric':          '#8B5CF6',
-  'Slider et puller':'#3B82F6',
-  'Zipper':          '#F59E0B',
-  'Thread':          '#0D9488',
-  'Ruban':           '#EC4899',
-  'Bouton':          '#10B981',
-  'Accessoire':      '#E11D48',
-  'Accessoires':     '#E11D48',
-  'Reste':           '#6B7280',
-};
-
+// Couleurs des cartes de pôle (les couleurs de LIGNE viennent de lib/lignes-logistiques.ts).
 const UI_COLORS = ['#CC8626', '#1E293B', '#3B82F6', '#10B981', '#6366F1', '#F43F5E', '#8B5CF6', '#EC4899', '#0D9488'];
 
 const GROUPS_ORDER = [
@@ -53,10 +46,16 @@ const GROUPS_ORDER = [
   { title: 'Reste',            keywords: ['rope','tack pin','hook and loop','divers','opp bag'], isFallback: true },
 ];
 
+type ElementGroupe = { gc: GeneralCategory; stats: any };
+type Groupe = { title: string; keywords: string[]; isFallback?: boolean; items: ElementGroupe[] };
+type UnitesPole = { uniteAchat?: string; uniteVente?: string };
+
 export default function GeneralCategoriesView({ articles = [], generalCategories, subCategories, onSelectGeneralCategory, onManageQualities }: GeneralCategoriesViewProps) {
   const { user } = useUser();
   const firestore = useFirestore();
   const { toast } = useToast();
+  // Les lignes portent les spécifications qualités : un pôle reçoit celles de sa ligne.
+  const { lignes, specPourLigne, trouverLigne, definirLigne } = useLignesLogistiques(generalCategories);
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isSubModalOpen, setIsSubModalOpen] = useState(false);
@@ -65,7 +64,10 @@ export default function GeneralCategoriesView({ articles = [], generalCategories
   const [newCatName, setNewCatName] = useState('');
   const [newCatNameFR, setNewCatNameFR] = useState('');
   const [newCatLine, setNewCatLine] = useState('');
-  const [newCatSpecType, setNewCatSpecType] = useState<'fabric' | 'zipper' | 'thread' | 'slider' | 'tape' | 'accessory' | 'none'>('none');
+  // Spécifications demandées seulement quand la ligne tapée est nouvelle.
+  const [newCatLineSpec, setNewCatLineSpec] = useState<SpecType | null>(null);
+  const [newCatUnites, setNewCatUnites] = useState<UnitesPole>({});
+  const [creatingPole, setCreatingPole] = useState(false);
   const [newSubName, setNewSubName] = useState('');
   const [newSubNameFR, setNewSubNameFR] = useState('');
   const [newSubHsCode, setNewSubHsCode] = useState('');
@@ -81,7 +83,12 @@ export default function GeneralCategoriesView({ articles = [], generalCategories
   const [editPoleName, setEditPoleName] = useState('');
   const [editPoleNameFR, setEditPoleNameFR] = useState('');
   const [editPoleLine, setEditPoleLine] = useState('');
-  const [editPoleSpecType, setEditPoleSpecType] = useState<'fabric' | 'zipper' | 'thread' | 'slider' | 'tape' | 'accessory' | 'none'>('fabric');
+  const [editPoleLineSpec, setEditPoleLineSpec] = useState<SpecType | null>(null);
+  const [editPoleUnites, setEditPoleUnites] = useState<UnitesPole>({});
+  const [savingPole, setSavingPole] = useState(false);
+  // Dialogue « Spécifications de la ligne », et ligne en cours d'enregistrement.
+  const [ligneEnEdition, setLigneEnEdition] = useState<{ nom: string; spec: SpecType } | null>(null);
+  const [ligneEnCours, setLigneEnCours] = useState<string | null>(null);
 
   const now = new Date();
 
@@ -165,8 +172,8 @@ export default function GeneralCategoriesView({ articles = [], generalCategories
   }, [groupStats, generalCategories, subCategories]);
 
   const organizedCategories = useMemo(() => {
-    const result = GROUPS_ORDER.map(g => ({ ...g, items: [] as { gc: GeneralCategory; stats: any }[] }));
-    const customGroupsMap = new Map<string, any>();
+    const result: Groupe[] = GROUPS_ORDER.map(g => ({ ...g, items: [] as ElementGroupe[] }));
+    const customGroupsMap = new Map<string, Groupe>();
 
     const lowerSearch = searchTerm.toLowerCase();
 
@@ -191,10 +198,12 @@ export default function GeneralCategoriesView({ articles = [], generalCategories
           group.items.push({ gc, stats: groupStats[gc.id] }); 
           matched = true; 
         } else {
-          if (!customGroupsMap.has(explicitLine)) {
-            customGroupsMap.set(explicitLine, { title: explicitLine, keywords: [], items: [] });
+          // « Élastiques » et « ÉLASTIQUES » sont la même ligne : un seul groupe.
+          const cle = cleLigne(explicitLine);
+          if (!customGroupsMap.has(cle)) {
+            customGroupsMap.set(cle, { title: trouverLigne(explicitLine)?.nom ?? explicitLine, keywords: [], items: [] });
           }
-          customGroupsMap.get(explicitLine).items.push({ gc, stats: groupStats[gc.id] });
+          customGroupsMap.get(cle)!.items.push({ gc, stats: groupStats[gc.id] });
           matched = true;
         }
       }
@@ -217,7 +226,7 @@ export default function GeneralCategoriesView({ articles = [], generalCategories
     const allGroups = [...result, ...Array.from(customGroupsMap.values())];
     const filtered = allGroups.filter(g => g.items.length > 0);
     filtered.forEach(g => {
-      g.items.sort((a: any, b: any) => {
+      g.items.sort((a, b) => {
         const aMissing = a.stats?.hasSpecModel && !a.stats?.qualitiesConfigured ? 1 : 0;
         const bMissing = b.stats?.hasSpecModel && !b.stats?.qualitiesConfigured ? 1 : 0;
         if (aMissing !== bMissing) return bMissing - aMissing;
@@ -230,55 +239,85 @@ export default function GeneralCategoriesView({ articles = [], generalCategories
       return bTotal - aTotal;
     });
     return filtered;
-  }, [generalCategories, groupStats, searchTerm]);
+  }, [generalCategories, groupStats, searchTerm, trouverLigne]);
 
-  // Dynamically compute all available lines for the modal
-  const availableLines = useMemo(() => {
-    const lines = new Set(Object.keys(LINE_COLORS));
-    generalCategories.forEach(gc => {
-      if ((gc as any).line) lines.add((gc as any).line);
+  // Lignes réellement présentes dans un groupe affiché. Le regroupement ci-dessus
+  // rapproche parfois plusieurs lignes (« Accessoire » et « Bouton » tombent sous
+  // « Accessoires ») : chacune garde ses propres spécifications, on les montre toutes.
+  const lignesDuGroupe = (group: Groupe): LigneLogistique[] => {
+    const vues = new Map<string, LigneLogistique>();
+    group.items.forEach(({ gc }) => {
+      const l = trouverLigne(gc.line);
+      if (l) vues.set(cleLigne(l.nom), l);
     });
-    return Array.from(lines);
-  }, [generalCategories]);
+    return Array.from(vues.values());
+  };
+
+  /** Redéfinit les spécifications d'une ligne et les recopie sur tous ses pôles. */
+  const appliquerSpecLigne = async (nom: string, spec: SpecType): Promise<boolean> => {
+    setLigneEnCours(nom);
+    try {
+      const n = await definirLigne(nom, spec);
+      toast({
+        title: `Ligne ${nom} : ${n} pôle(s) mis à jour`,
+        description: `Spécifications qualités : ${LIBELLE_SPEC[spec].emoji} ${LIBELLE_SPEC[spec].label}`,
+      });
+      return true;
+    } catch (err: any) {
+      toast({ variant: 'destructive', title: 'Ligne non enregistrée', description: err?.message });
+      return false;
+    } finally {
+      setLigneEnCours(null);
+    }
+  };
 
   // Max value for relative bar width
   const maxValue = useMemo(() => {
     return Math.max(...Object.values(groupStats).map((s: any) => s.totalValue || 0), 1);
   }, [groupStats]);
 
-  const handleAddGeneralCategory = () => {
-    if (!user || !firestore || !newCatName.trim() || !newCatLine) return;
-    const id = crypto.randomUUID();
-    const docRef = doc(firestore, 'users', user.uid, 'generalCategories', id);
-    const data: any = { id, name: newCatName.trim().toUpperCase() };
-    if (newCatNameFR.trim()) data.nameFR = newCatNameFR.trim().toUpperCase();
-    if (newCatLine) data.line = newCatLine;
-
-    let finalSpec = newCatSpecType;
-    const nameLower = newCatName.toLowerCase();
-    if (finalSpec === 'none') {
-      if (isSliderLine(newCatLine) || nameLower.includes('slider') || nameLower.includes('puller') || nameLower.includes('curseur')) {
-        finalSpec = 'slider';
-      } else if (isZipperLine(newCatLine) || nameLower.includes('zipper')) {
-        finalSpec = 'zipper';
-      } else if (isFabricLine(newCatLine) || nameLower.includes('fabric') || nameLower.includes('popeline')) {
-        finalSpec = 'fabric';
-      } else if (isThreadLine(newCatLine) || nameLower.includes('thread') || nameLower.includes('fil')) {
-        finalSpec = 'thread';
-      } else if (isTapeLine(newCatLine) || nameLower.includes('tape') || nameLower.includes('ruban') || nameLower.includes('sangle')) {
-        finalSpec = 'tape';
-      } else if (isAccessoryLine(newCatLine) || ACCESSORY_KEYWORDS.some(kw => nameLower.includes(kw))) {
-        finalSpec = 'accessory';
+  /**
+   * Ligne retenue pour un pôle, et les spécifications qu'elle lui donne. Une
+   * ligne NOUVELLE est d'abord enregistrée avec ses spécifications (obligatoires) ;
+   * une ligne connue garde son écriture (« zipper » tapé rejoint « Zipper »).
+   * Renvoie null si les spécifications d'une nouvelle ligne manquent.
+   */
+  const resoudreLigne = async (saisie: string, specNouvelle: SpecType | null): Promise<{ ligne: string; specType: SpecType } | null> => {
+    const nom = saisie.trim();
+    if (estNouvelleLigne(lignes, nom)) {
+      if (!specNouvelle) {
+        toast({ variant: 'destructive', title: 'Spécifications requises', description: `Choisissez les Spécifications Qualités de la nouvelle ligne « ${nom} ».` });
+        return null;
       }
-    } else if (isAccessoryLine(newCatLine) && finalSpec === 'fabric') {
-      // Fix historical default
-      finalSpec = 'accessory';
+      await definirLigne(nom, specNouvelle);
+      return { ligne: nom, specType: specNouvelle };
     }
-    data.specType = finalSpec;
+    const ligne = trouverLigne(nom)?.nom ?? nom;
+    return { ligne, specType: specPourLigne(ligne) };
+  };
 
-    setDocumentNonBlocking(docRef, data, { merge: true });
-    toast({ title: 'Pôle logistique créé' });
-    setNewCatName(''); setNewCatNameFR(''); setNewCatLine(''); setNewCatSpecType('none'); setIsModalOpen(false);
+  const handleAddGeneralCategory = async () => {
+    if (!user || !firestore || !newCatName.trim() || !newCatLine.trim() || creatingPole) return;
+    setCreatingPole(true);
+    try {
+      const resolue = await resoudreLigne(newCatLine, newCatLineSpec);
+      if (!resolue) return;
+      const id = crypto.randomUUID();
+      const docRef = doc(firestore, 'users', user.uid, 'generalCategories', id);
+      // Pas de choix de spécifications ici : le pôle reçoit celles de sa ligne.
+      const data: Partial<GeneralCategory> = { id, name: newCatName.trim().toUpperCase(), line: resolue.ligne, specType: resolue.specType };
+      if (newCatNameFR.trim()) data.nameFR = newCatNameFR.trim().toUpperCase();
+      if (newCatUnites.uniteAchat) data.uniteAchat = newCatUnites.uniteAchat;
+      if (newCatUnites.uniteVente) data.uniteVente = newCatUnites.uniteVente;
+
+      setDocumentNonBlocking(docRef, data, { merge: true });
+      toast({ title: 'Pôle logistique créé', description: `${data.name} · ligne ${resolue.ligne} · ${LIBELLE_SPEC[resolue.specType].emoji} ${LIBELLE_SPEC[resolue.specType].label}` });
+      setNewCatName(''); setNewCatNameFR(''); setNewCatLine(''); setNewCatLineSpec(null); setNewCatUnites({}); setIsModalOpen(false);
+    } catch (err: any) {
+      toast({ variant: 'destructive', title: 'Pôle non créé', description: err?.message });
+    } finally {
+      setCreatingPole(false);
+    }
   };
 
   const handleAddSubCategory = () => {
@@ -311,44 +350,58 @@ export default function GeneralCategoriesView({ articles = [], generalCategories
     setIsSubModalOpen(true);
   };
 
-  const handleSavePole = () => {
-    if (!user || !firestore || !editingPole) return;
-    const oldName = editingPole.name;
-    const newName = (editPoleName.trim() || oldName).toUpperCase();
-    const nameFR = editPoleNameFR.trim() ? editPoleNameFR.trim().toUpperCase() : null;
-    const docRef = doc(firestore, 'users', user.uid, 'generalCategories', editingPole.id);
-    const updateData: any = { name: newName, nameFR };
-    if (editPoleLine) updateData.line = editPoleLine;
+  const ouvrirEditionPole = (gc: GeneralCategory) => {
+    setEditingPole(gc);
+    setEditPoleName(gc.name || '');
+    setEditPoleNameFR(gc.nameFR || '');
+    setEditPoleLine(trouverLigne(gc.line)?.nom ?? gc.line ?? '');
+    setEditPoleLineSpec(null);
+    setEditPoleUnites({ uniteAchat: gc.uniteAchat || undefined, uniteVente: gc.uniteVente || undefined });
+  };
 
-    let finalSpec = editPoleSpecType;
-    const nameLower = newName.toLowerCase();
-    if (finalSpec === 'none') {
-      if (isSliderLine(editPoleLine) || nameLower.includes('slider') || nameLower.includes('puller') || nameLower.includes('curseur')) {
-        finalSpec = 'slider';
-      } else if (isZipperLine(editPoleLine) || nameLower.includes('zipper')) {
-        finalSpec = 'zipper';
-      } else if (isFabricLine(editPoleLine) || nameLower.includes('fabric') || nameLower.includes('popeline')) {
-        finalSpec = 'fabric';
-      } else if (isThreadLine(editPoleLine) || nameLower.includes('thread') || nameLower.includes('fil')) {
-        finalSpec = 'thread';
-      } else if (isTapeLine(editPoleLine) || nameLower.includes('tape') || nameLower.includes('ruban') || nameLower.includes('sangle')) {
-        finalSpec = 'tape';
-      } else if (isAccessoryLine(editPoleLine) || ACCESSORY_KEYWORDS.some(kw => nameLower.includes(kw))) {
-        finalSpec = 'accessory';
-      }
-    } else if (isAccessoryLine(editPoleLine) && finalSpec === 'fabric') {
-      // Fix historical default
-      finalSpec = 'accessory';
-    }
-    updateData.specType = finalSpec;
-
-    updateDocumentNonBlocking(docRef, updateData);
-    toast({ title: '✅ Pôle enregistré', description: `${newName}${nameFR ? ` · FR: ${nameFR}` : ''}` });
+  const fermerEditionPole = () => {
     setEditingPole(null);
     setEditPoleName('');
     setEditPoleNameFR('');
     setEditPoleLine('');
+    setEditPoleLineSpec(null);
+    setEditPoleUnites({});
   };
+
+  const handleSavePole = async () => {
+    if (!user || !firestore || !editingPole || savingPole) return;
+    if (!editPoleLine.trim()) {
+      toast({ variant: 'destructive', title: 'Ligne requise', description: 'Un pôle reçoit ses spécifications qualités de sa ligne : choisissez-en une.' });
+      return;
+    }
+    const oldName = editingPole.name;
+    const newName = (editPoleName.trim() || oldName).toUpperCase();
+    const nameFR = editPoleNameFR.trim() ? editPoleNameFR.trim().toUpperCase() : null;
+    const docRef = doc(firestore, 'users', user.uid, 'generalCategories', editingPole.id);
+    setSavingPole(true);
+    try {
+      const resolue = await resoudreLigne(editPoleLine, editPoleLineSpec);
+      if (!resolue) return;
+      const updateData: any = {
+        name: newName,
+        nameFR,
+        line: resolue.ligne,
+        specType: resolue.specType,
+        // Unité vidée = redevient libre (Firestore refuse `undefined`).
+        uniteAchat: editPoleUnites.uniteAchat || deleteField(),
+        uniteVente: editPoleUnites.uniteVente || deleteField(),
+      };
+      updateDocumentNonBlocking(docRef, updateData);
+      toast({ title: '✅ Pôle enregistré', description: `${newName}${nameFR ? ` · FR: ${nameFR}` : ''} · ligne ${resolue.ligne}` });
+      fermerEditionPole();
+    } catch (err: any) {
+      toast({ variant: 'destructive', title: 'Pôle non enregistré', description: err?.message });
+    } finally {
+      setSavingPole(false);
+    }
+  };
+
+  const poleCibleFamille = generalCategories.find(g => g.id === targetGenCatId);
 
   return (
     <div className="space-y-8 fade-in">
@@ -420,23 +473,74 @@ export default function GeneralCategoriesView({ articles = [], generalCategories
           </div>
         ) : (
           organizedCategories.map((group, groupIdx) => {
-            const lineColor = LINE_COLORS[group.title] || UI_COLORS[group.title.length % UI_COLORS.length];
+            const lineColor = couleurDeLigne(group.title);
             const groupTotal = group.items.reduce((s, { stats }) => s + (stats?.totalValue || 0), 0);
+            const lignesGroupe = lignesDuGroupe(group);
+            const polesSansLigne = group.items.filter(({ gc }) => !trouverLigne(gc.line)).length;
 
             return (
               <div key={groupIdx} className="space-y-4">
                 {/* Section header */}
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="w-1.5 h-6 rounded-full" style={{ backgroundColor: lineColor }} />
-                    <h3 className="text-lg font-black text-stone-950 uppercase tracking-tighter">{group.title}</h3>
-                    <span className="text-[8px] font-black text-stone-900 bg-stone-200 px-2 py-0.5 rounded-full uppercase">
-                      {group.items.length} pôles
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="w-1.5 h-6 rounded-full" style={{ backgroundColor: lineColor }} />
+                      <h3 className="text-lg font-black text-stone-950 uppercase tracking-tighter">{group.title}</h3>
+                      <span className="text-[8px] font-black text-stone-900 bg-stone-200 px-2 py-0.5 rounded-full uppercase">
+                        {group.items.length} pôles
+                      </span>
+                    </div>
+                    <span className="text-[10px] font-black text-stone-500 uppercase">
+                      {groupTotal.toLocaleString('en-US', { maximumFractionDigits: 0 })} $
                     </span>
                   </div>
-                  <span className="text-[10px] font-black text-stone-500 uppercase">
-                    {groupTotal.toLocaleString('en-US', { maximumFractionDigits: 0 })} $
-                  </span>
+
+                  {/* Spécifications portées par la (ou les) ligne(s) du groupe */}
+                  {(lignesGroupe.length > 0 || polesSansLigne > 0) && (
+                    <div className="flex flex-col gap-1.5 pl-4">
+                      {lignesGroupe.map(l => {
+                        const enCours = ligneEnCours === l.nom;
+                        const seule = lignesGroupe.length === 1 && cleLigne(l.nom) === cleLigne(group.title);
+                        return (
+                          <div key={l.nom} className="flex flex-wrap items-center gap-2">
+                            {!seule && (
+                              <span className="inline-flex items-center gap-1.5 text-[9px] font-black uppercase tracking-widest text-stone-600">
+                                <PastilleLigne nom={l.nom} /> Ligne {l.nom}
+                              </span>
+                            )}
+                            <BadgeSpec specType={l.specType} suffixe={l.source === 'enregistree' ? undefined : 'à confirmer'} />
+                            <button
+                              type="button"
+                              disabled={enCours}
+                              onClick={() => setLigneEnEdition({ nom: l.nom, spec: l.specType })}
+                              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full border border-stone-200 bg-white text-[9px] font-black uppercase tracking-widest text-stone-600 hover:border-stone-400 hover:text-stone-900 transition-colors disabled:opacity-40"
+                            >
+                              <SlidersHorizontal className="w-2.5 h-2.5" /> Spécifications de la ligne
+                            </button>
+                            {l.polesAHarmoniser.length > 0 && (
+                              <span className="inline-flex items-center gap-1.5 pl-2 pr-1 py-0.5 rounded-full bg-amber-100 border border-amber-300 text-[9px] font-black uppercase tracking-widest text-amber-800">
+                                <AlertTriangle className="w-2.5 h-2.5" /> {l.polesAHarmoniser.length} pôle(s) à harmoniser
+                                <button
+                                  type="button"
+                                  disabled={enCours}
+                                  onClick={() => appliquerSpecLigne(l.nom, l.specType)}
+                                  className="px-2 py-0.5 rounded-full bg-amber-600 hover:bg-amber-700 text-white text-[8px] font-black uppercase tracking-widest transition-colors disabled:opacity-40"
+                                  title={`Donner ${LIBELLE_SPEC[l.specType].label} à tous les pôles de la ligne ${l.nom}`}
+                                >
+                                  Appliquer à toute la ligne
+                                </button>
+                              </span>
+                            )}
+                          </div>
+                        );
+                      })}
+                      {polesSansLigne > 0 && (
+                        <span className="self-start inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-stone-100 border border-stone-200 text-[9px] font-black uppercase tracking-widest text-stone-500">
+                          <ArrowRightLeft className="w-2.5 h-2.5" /> {polesSansLigne} pôle(s) sans ligne : « Changer de ligne » pour leur donner des spécifications
+                        </span>
+                      )}
+                    </div>
+                  )}
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
@@ -482,21 +586,7 @@ export default function GeneralCategoriesView({ articles = [], generalCategories
                                 title="Modifier le pôle"
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  setEditingPole(gc);
-                                  setEditPoleName(gc.name || '');
-                                  setEditPoleNameFR(gc.nameFR || '');
-                                  setEditPoleLine((gc as any).line || '');
-                                  const poleLine = (gc as any).line || '';
-                                  const poleSpec = (gc as any).specType;
-                                  const autoSpec = (isAccessoryLine(poleLine) && poleSpec === 'fabric') ? 'accessory' : (poleSpec || (
-                                    isSliderLine(poleLine) ? 'slider' :
-                                    isAccessoryLine(poleLine) || ACCESSORY_KEYWORDS.some(kw => (gc.name || '').toLowerCase().includes(kw)) ? 'accessory' :
-                                    isTapeLine(poleLine) ? 'tape' :
-                                    isFabricLine(poleLine) ? 'fabric' :
-                                    isZipperLine(poleLine) ? 'zipper' :
-                                    isThreadLine(poleLine) ? 'thread' : 'none'
-                                  ));
-                                  setEditPoleSpecType(autoSpec);
+                                  ouvrirEditionPole(gc);
                                 }}
                               >
                                 <Pencil className="w-3 h-3" />
@@ -621,7 +711,7 @@ export default function GeneralCategoriesView({ articles = [], generalCategories
 
       {/* ── Modal: Nouveau Pôle ── */}
       <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
-        <DialogContent className="max-w-sm max-h-[85vh] sm:max-h-[90vh] flex flex-col gap-0 rounded-[1.5rem] p-0 border-none overflow-hidden shadow-2xl">
+        <DialogContent className="max-w-lg max-h-[85vh] sm:max-h-[90vh] flex flex-col gap-0 rounded-[1.5rem] p-0 border-none overflow-hidden shadow-2xl">
           <div className="bg-stone-900 p-5 sm:p-6 text-white shrink-0">
             <DialogTitle className="text-lg font-black uppercase tracking-tight">Initialiser un Pôle</DialogTitle>
             <p className="text-stone-400 text-[9px] font-bold uppercase tracking-widest mt-1">Architecture logistique haut niveau</p>
@@ -634,23 +724,24 @@ export default function GeneralCategoriesView({ articles = [], generalCategories
                 onChange={e => {
                   const val = e.target.value;
                   setNewCatName(val);
+                  // Le nom peut pré-choisir une LIGNE existante, jamais des spécifications :
+                  // celles-ci suivent la ligne.
+                  if (newCatLine) return;
                   const lower = val.toLowerCase();
+                  let suggeree: string | undefined;
                   if (lower.includes('slider') || lower.includes('puller') || lower.includes('curseur')) {
-                    setNewCatSpecType('slider');
-                    if (!newCatLine) setNewCatLine('Slider & Puller');
+                    suggeree = trouverLigne('Slider & Puller')?.nom ?? 'Slider et puller';
                   } else if (lower.includes('zipper') || lower.includes('fermeture') || lower.includes('plastic') || lower.includes('zip') || lower.includes('resine')) {
-                    setNewCatSpecType('zipper');
-                    if (!newCatLine) setNewCatLine('Zipper');
+                    suggeree = 'Zipper';
                   } else if (lower.includes('fabric') || lower.includes('popeline') || lower.includes('tissu') || lower.includes('interlining')) {
-                    setNewCatSpecType('fabric');
-                    if (!newCatLine) setNewCatLine('Fabric');
+                    suggeree = 'Fabric';
                   } else if (lower.includes('thread') || lower.includes('fil') || lower.includes('coudre') || lower.includes('cone') || lower.includes('cône') || lower.includes('yarn')) {
-                    setNewCatSpecType('thread');
-                    if (!newCatLine) setNewCatLine('Thread');
+                    suggeree = 'Thread';
                   } else if (lower.includes('accessoire') || lower.includes('accessory') || lower.includes('boucle') || lower.includes('buckle') || lower.includes('rivet')) {
-                    setNewCatSpecType('accessory');
-                    if (!newCatLine) setNewCatLine('Accessoire');
+                    suggeree = 'Accessoire';
                   }
+                  const ligne = suggeree ? trouverLigne(suggeree) : undefined;
+                  if (ligne) setNewCatLine(ligne.nom);
                 }}
                 placeholder="EX: TEXTILES, ZIPPER, FIL, SLIDER..."
                 className="h-12 uppercase font-black border-stone-200 rounded-xl focus:ring-stone-900 text-base"
@@ -670,151 +761,35 @@ export default function GeneralCategoriesView({ articles = [], generalCategories
               />
             </div>
             <div className="space-y-1.5">
-              <label className="text-[9px] font-black text-stone-400 uppercase tracking-widest">Ligne logistique</label>
-              <div className="grid grid-cols-1 gap-2">
-                {availableLines.map((line) => {
-                  const color = LINE_COLORS[line] || UI_COLORS[line.length % UI_COLORS.length];
-                  return (
-                    <button
-                      key={line}
-                      type="button"
-                      onClick={() => {
-                        setNewCatLine(line);
-                        const l = line.toLowerCase();
-                        if (l.includes('slider') || l.includes('puller') || l.includes('curseur')) setNewCatSpecType('slider');
-                        else if (l === 'fabric' || l.includes('fabric') || l.includes('tissu')) setNewCatSpecType('fabric');
-                        else if (l === 'zipper' || l.includes('zipper') || l.includes('fermeture')) setNewCatSpecType('zipper');
-                        else if (l === 'thread' || l.includes('thread') || l.includes('fil')) setNewCatSpecType('thread');
-                        else if (l === 'accessoire' || l.includes('accessoire') || l.includes('accessory')) setNewCatSpecType('accessory');
-                        else setNewCatSpecType('none');
-                      }}
-                      className={`flex items-center gap-3 px-4 py-3 rounded-xl border-2 transition-all text-left ${newCatLine === line ? 'border-stone-900 bg-stone-50' : 'border-stone-100 hover:border-stone-200'}`}
-                    >
-                      <div className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: color }} />
-                      <span className="text-[10px] font-black uppercase text-stone-700">{line}</span>
-                      {newCatLine === line && <ChevronRight className="w-3 h-3 text-stone-900 ml-auto" />}
-                    </button>
-                  );
-                })}
-              </div>
-              <div className="pt-2">
-                <label className="text-[9px] font-black text-stone-400 uppercase tracking-widest mb-1 block">Créer une ligne personnalisée</label>
-                <Input 
-                  placeholder="EX: TEXTILES, ACCESSOIRES..."
-                  value={!availableLines.includes(newCatLine) ? newCatLine : ''}
-                  onChange={e => {
-                    const v = e.target.value;
-                    setNewCatLine(v);
-                    const l = v.toLowerCase();
-                    if (l.includes('slider') || l.includes('puller') || l.includes('curseur')) setNewCatSpecType('slider');
-                    else if (l.includes('fabric') || l.includes('tissu')) setNewCatSpecType('fabric');
-                    else if (l.includes('zipper') || l.includes('fermeture')) setNewCatSpecType('zipper');
-                    else if (l.includes('thread') || l.includes('fil')) setNewCatSpecType('thread');
-                    else if (l.includes('accessoire') || l.includes('accessory')) setNewCatSpecType('accessory');
-                  }}
-                  className="h-10 uppercase font-bold border-stone-200 rounded-xl focus:ring-stone-900 text-xs"
-                />
-              </div>
-
-              {/* ── Choix explicite du modèle de spécifications ── */}
-              <div className="pt-3 border-t border-stone-100 space-y-1.5">
-                <label className="text-[9px] font-black text-stone-600 uppercase tracking-widest block">
-                  Spécifications Qualités à donner
-                </label>
-                <div className="grid grid-cols-2 sm:grid-cols-7 gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setNewCatSpecType('fabric')}
-                    className={`p-2.5 rounded-xl border-2 text-center transition-all ${
-                      newCatSpecType === 'fabric'
-                        ? 'border-violet-600 bg-violet-50 text-violet-900 font-black shadow-sm'
-                        : 'border-stone-100 hover:border-stone-200 text-stone-500 font-bold bg-white'
-                    }`}
-                  >
-                    <span className="text-[10px] block uppercase font-black">🧵 Fabric</span>
-                    <span className="text-[7.5px] text-stone-400 block font-bold leading-tight mt-0.5">GSM, Largeur...</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setNewCatSpecType('zipper')}
-                    className={`p-2.5 rounded-xl border-2 text-center transition-all ${
-                      newCatSpecType === 'zipper'
-                        ? 'border-amber-500 bg-amber-50 text-amber-900 font-black shadow-sm'
-                        : 'border-stone-100 hover:border-stone-200 text-stone-500 font-bold bg-white'
-                    }`}
-                  >
-                    <span className="text-[10px] block uppercase font-black">⚡ Zipper</span>
-                    <span className="text-[7.5px] text-stone-400 block font-bold leading-tight mt-0.5">Curseur, Taille...</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setNewCatSpecType('thread')}
-                    className={`p-2.5 rounded-xl border-2 text-center transition-all ${
-                      newCatSpecType === 'thread'
-                        ? 'border-teal-600 bg-teal-50 text-teal-900 font-black shadow-sm'
-                        : 'border-stone-100 hover:border-stone-200 text-stone-500 font-bold bg-white'
-                    }`}
-                  >
-                    <span className="text-[10px] block uppercase font-black">🪡 Thread</span>
-                    <span className="text-[7.5px] text-stone-400 block font-bold leading-tight mt-0.5">Cône, Fil, Lg...</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setNewCatSpecType('slider')}
-                    className={`p-2.5 rounded-xl border-2 text-center transition-all ${
-                      newCatSpecType === 'slider'
-                        ? 'border-blue-600 bg-blue-50 text-blue-900 font-black shadow-sm'
-                        : 'border-stone-100 hover:border-stone-200 text-stone-500 font-bold bg-white'
-                    }`}
-                  >
-                    <span className="text-[10px] block uppercase font-black">🎛️ Slider</span>
-                    <span className="text-[7.5px] text-stone-400 block font-bold leading-tight mt-0.5">Design, Pcs/ctn</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setNewCatSpecType('tape')}
-                    className={`p-2.5 rounded-xl border-2 text-center transition-all ${
-                      newCatSpecType === 'tape'
-                        ? 'border-indigo-600 bg-indigo-50 text-indigo-900 font-black shadow-sm'
-                        : 'border-stone-100 hover:border-stone-200 text-stone-500 font-bold bg-white'
-                    }`}
-                  >
-                    <span className="text-[10px] block uppercase font-black">🎗️ Ruban</span>
-                    <span className="text-[7.5px] text-stone-400 block font-bold leading-tight mt-0.5">Largeur, Poids/m</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setNewCatSpecType('accessory')}
-                    className={`p-2.5 rounded-xl border-2 text-center transition-all ${
-                      newCatSpecType === 'accessory'
-                        ? 'border-rose-600 bg-rose-50 text-rose-900 font-black shadow-sm'
-                        : 'border-stone-100 hover:border-stone-200 text-stone-500 font-bold bg-white'
-                    }`}
-                  >
-                    <span className="text-[10px] block uppercase font-black">🧷 Accessoire</span>
-                    <span className="text-[7.5px] text-stone-400 block font-bold leading-tight mt-0.5">Taille, Poids/pc...</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setNewCatSpecType('none')}
-                    className={`p-2.5 rounded-xl border-2 text-center transition-all ${
-                      newCatSpecType === 'none'
-                        ? 'border-stone-800 bg-stone-100 text-stone-900 font-black shadow-sm'
-                        : 'border-stone-100 hover:border-stone-200 text-stone-500 font-bold bg-white'
-                    }`}
-                  >
-                    <span className="text-[10px] block uppercase font-black">📦 Standard</span>
-                    <span className="text-[7.5px] text-stone-400 block font-bold leading-tight mt-0.5">Sans spé fixes</span>
-                  </button>
-                </div>
-              </div>
+              <label className="text-[9px] font-black text-stone-400 uppercase tracking-widest">
+                Ligne logistique <span className="text-red-600">*</span>
+              </label>
+              {/* Les spécifications qualités ne se choisissent pas ici : elles sont
+                  celles de la ligne. Seule une nouvelle ligne demande les siennes. */}
+              <ChoixLigne
+                lignes={lignes}
+                valeur={newCatLine}
+                onChange={setNewCatLine}
+                specNouvelleLigne={newCatLineSpec}
+                onSpecNouvelleLigne={setNewCatLineSpec}
+              />
+            </div>
+            <div className="pt-3 border-t border-stone-100 space-y-1.5">
+              <label className="text-[9px] font-black text-stone-600 uppercase tracking-widest flex items-center gap-1">
+                Unités du pôle <span className="text-stone-400 font-normal lowercase">(optionnel)</span>
+              </label>
+              <ChampsUnitesPole
+                uniteAchat={newCatUnites.uniteAchat}
+                uniteVente={newCatUnites.uniteVente}
+                onChange={setNewCatUnites}
+              />
             </div>
           </div>
           <DialogFooter className="p-4 sm:p-6 bg-stone-50 gap-2 sm:gap-3 shrink-0 border-t border-stone-100 flex-row">
             <Button variant="ghost" onClick={() => setIsModalOpen(false)} className="h-10 font-black uppercase text-[9px] tracking-widest flex-1">Annuler</Button>
             <Button
               onClick={handleAddGeneralCategory}
-              disabled={!newCatName.trim() || !newCatLine}
+              disabled={!newCatName.trim() || !newCatLine.trim() || (estNouvelleLigne(lignes, newCatLine) && !newCatLineSpec) || creatingPole}
               className="h-10 bg-stone-900 text-white font-black uppercase text-[9px] tracking-widest rounded-xl flex-[1.5] shadow-lg shadow-stone-200 disabled:opacity-40"
             >
               Créer
@@ -833,6 +808,30 @@ export default function GeneralCategoriesView({ articles = [], generalCategories
             </p>
           </div>
           <div className="p-5 sm:p-6 space-y-4 flex-1 min-h-0 overflow-y-auto overscroll-contain" style={{ WebkitOverflowScrolling: 'touch', touchAction: 'pan-y' }}>
+            {/* Une famille ne choisit rien : ligne, spécifications et unités viennent de son pôle. */}
+            {poleCibleFamille && (() => {
+              const ligne = trouverLigne(poleCibleFamille.line);
+              const spec = poleCibleFamille.specType ?? specPourLigne(poleCibleFamille.line);
+              const { uniteAchat, uniteVente } = poleCibleFamille;
+              return (
+                <div className="p-3 rounded-xl border border-stone-200 bg-stone-50 space-y-1.5">
+                  <p className="text-[9px] font-black text-stone-400 uppercase tracking-widest flex items-center gap-1">
+                    <Lock className="w-3 h-3" /> Hérité du pôle
+                  </p>
+                  <p className="flex flex-wrap items-center gap-2 text-[10px] font-bold text-stone-600">
+                    <span className="inline-flex items-center gap-1.5 uppercase">
+                      {ligne ? <><PastilleLigne nom={ligne.nom} /> Ligne {ligne.nom}</> : 'Pôle sans ligne'}
+                    </span>
+                    <BadgeSpec specType={spec} suffixe="héritées du pôle" />
+                  </p>
+                  {(uniteAchat || uniteVente) && (
+                    <p className="text-[10px] font-bold text-stone-600">
+                      Unités : achat {uniteAchat ? libelleUnite(uniteAchat) : 'libre'} · vente {uniteVente ? libelleUnite(uniteVente) : 'libre'}
+                    </p>
+                  )}
+                </div>
+              );
+            })()}
             <div className="space-y-1.5">
               <label className="text-[9px] font-black text-stone-400 uppercase tracking-widest">Nom de la famille produit (Code / Nom technique)</label>
               <Input
@@ -923,11 +922,30 @@ export default function GeneralCategoriesView({ articles = [], generalCategories
                   <SelectValue placeholder="Choisir une ligne..." />
                 </SelectTrigger>
                 <SelectContent>
-                  {availableLines.map(line => (
-                    <SelectItem key={line} value={line} className="font-bold uppercase">{line}</SelectItem>
+                  {lignes.map(l => (
+                    <SelectItem key={l.nom} value={l.nom} className="font-bold uppercase">
+                      {l.nom} · {LIBELLE_SPEC[l.specType].emoji} {LIBELLE_SPEC[l.specType].label}
+                    </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
+              {moveTargetLine && movingPole && (() => {
+                const spec = specPourLigne(moveTargetLine);
+                const avant = movingPole.specType || 'none';
+                return (
+                  <div className="space-y-1 pt-1">
+                    <p className="flex flex-wrap items-center gap-2 text-[10px] font-bold text-stone-500">
+                      <Lock className="w-3 h-3" /> Spécifications qualités :
+                      <BadgeSpec specType={spec} suffixe={`données par la ligne ${moveTargetLine}`} />
+                    </p>
+                    {avant !== spec && (
+                      <p className="text-[10px] font-bold text-amber-700">
+                        Le pôle passera de {LIBELLE_SPEC[avant]?.label ?? avant} à {LIBELLE_SPEC[spec].label}.
+                      </p>
+                    )}
+                  </div>
+                );
+              })()}
             </div>
             <div className="flex gap-2 pt-2">
               <Button variant="ghost" className="flex-1 h-10 font-black text-[9px] uppercase tracking-widest" onClick={() => { setMovingPole(null); setMoveTargetLine(''); }}>Annuler</Button>
@@ -937,8 +955,11 @@ export default function GeneralCategoriesView({ articles = [], generalCategories
                 onClick={() => {
                   if (!user || !firestore || !movingPole || !moveTargetLine) return;
                   const docRef = doc(firestore, 'users', user.uid, 'generalCategories', movingPole.id);
-                  updateDocumentNonBlocking(docRef, { line: moveTargetLine });
-                  toast({ title: '✅ Ligne modifiée', description: `${movingPole.name} → ${moveTargetLine}` });
+                  // Changer de ligne, c'est aussi prendre les spécifications de la nouvelle.
+                  const ligne = trouverLigne(moveTargetLine)?.nom ?? moveTargetLine;
+                  const specType = specPourLigne(ligne);
+                  updateDocumentNonBlocking(docRef, { line: ligne, specType });
+                  toast({ title: '✅ Ligne modifiée', description: `${movingPole.name} → ${ligne} · ${LIBELLE_SPEC[specType].emoji} ${LIBELLE_SPEC[specType].label}` });
                   setMovingPole(null);
                   setMoveTargetLine('');
                 }}
@@ -951,13 +972,13 @@ export default function GeneralCategoriesView({ articles = [], generalCategories
       </Dialog>
 
       {/* ── Modal modifier pôle ── */}
-      <Dialog open={!!editingPole} onOpenChange={open => { if (!open) { setEditingPole(null); setEditPoleName(''); setEditPoleNameFR(''); } }}>
-        <DialogContent className="sm:max-w-sm rounded-3xl border-none shadow-2xl p-0 overflow-hidden">
+      <Dialog open={!!editingPole} onOpenChange={open => { if (!open) fermerEditionPole(); }}>
+        <DialogContent className="sm:max-w-lg max-h-[85vh] sm:max-h-[90vh] flex flex-col gap-0 rounded-3xl border-none shadow-2xl p-0 overflow-hidden">
           <div className="bg-stone-900 p-5 text-white shrink-0">
             <DialogTitle className="text-base font-black uppercase tracking-tight">Modifier le Pôle</DialogTitle>
             <p className="text-stone-400 text-[10px] font-bold uppercase tracking-widest mt-1">Vous pouvez inclure des chiffres (ex: PÔLE 1, ZIPPER #5...)</p>
           </div>
-          <div className="p-5 space-y-4">
+          <div className="p-5 space-y-4 flex-1 min-h-0 overflow-y-auto overscroll-contain" style={{ WebkitOverflowScrolling: 'touch', touchAction: 'pan-y' }}>
             <div className="space-y-1.5">
               <Label className="text-[10px] font-black text-stone-600 uppercase tracking-widest">Nom / Titre du Pôle (Gestion)</Label>
               <Input
@@ -982,128 +1003,81 @@ export default function GeneralCategoriesView({ articles = [], generalCategories
             </div>
 
             <div className="space-y-1.5">
-              <Label className="text-[10px] font-black text-stone-600 uppercase tracking-widest">Ligne Logistique</Label>
-              <Select value={editPoleLine} onValueChange={(val) => {
-                setEditPoleLine(val);
-                const l = val.toLowerCase();
-                if (l.includes('slider') || l.includes('puller') || l.includes('curseur')) setEditPoleSpecType('slider');
-                else if (l === 'fabric' || l.includes('fabric') || l.includes('tissu')) setEditPoleSpecType('fabric');
-                else if (l === 'zipper' || l.includes('zipper') || l.includes('fermeture')) setEditPoleSpecType('zipper');
-                else if (l === 'thread' || l.includes('thread') || l.includes('fil')) setEditPoleSpecType('thread');
-                else if (l === 'tape' || l.includes('tape') || l.includes('ruban') || l.includes('sangle') || l.includes('ribbon')) setEditPoleSpecType('tape');
-                else if (l === 'accessoire' || l.includes('accessoire') || l.includes('accessory')) setEditPoleSpecType('accessory');
-                else setEditPoleSpecType('none');
-              }}>
-                <SelectTrigger className="h-11 border-stone-200 bg-white font-bold rounded-xl text-xs uppercase">
-                  <SelectValue placeholder="Choisir une ligne..." />
-                </SelectTrigger>
-                <SelectContent>
-                  {availableLines.map(line => (
-                    <SelectItem key={line} value={line} className="font-bold uppercase text-xs">{line}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Label className="text-[10px] font-black text-stone-600 uppercase tracking-widest">
+                Ligne Logistique <span className="text-red-600">*</span>
+              </Label>
+              {/* Spécifications en lecture seule : ce sont celles de la ligne choisie. */}
+              <ChoixLigne
+                lignes={lignes}
+                valeur={editPoleLine}
+                onChange={setEditPoleLine}
+                specNouvelleLigne={editPoleLineSpec}
+                onSpecNouvelleLigne={setEditPoleLineSpec}
+              />
+              {editingPole && editPoleLine.trim() && (() => {
+                const avant = editingPole.specType || 'none';
+                const apres = estNouvelleLigne(lignes, editPoleLine) ? editPoleLineSpec : specPourLigne(editPoleLine);
+                if (!apres || apres === avant) return null;
+                return (
+                  <p className="text-[10px] font-bold text-amber-700">
+                    Le pôle passera de {LIBELLE_SPEC[avant]?.label ?? avant} à {LIBELLE_SPEC[apres].label}.
+                  </p>
+                );
+              })()}
             </div>
 
-            <div className="space-y-1.5 pt-1">
-              <Label className="text-[10px] font-black text-stone-600 uppercase tracking-widest">Modèle Spécifications Qualités</Label>
-              <div className="grid grid-cols-2 sm:grid-cols-7 gap-2">
-                <button
-                  type="button"
-                  onClick={() => setEditPoleSpecType('fabric')}
-                  className={`p-2 rounded-xl border-2 text-center transition-all ${
-                    editPoleSpecType === 'fabric'
-                      ? 'border-violet-600 bg-violet-50 text-violet-900 font-black'
-                      : 'border-stone-100 hover:border-stone-200 text-stone-500 font-bold bg-white'
-                  }`}
-                >
-                  <span className="text-[9px] block uppercase font-black">🧵 Fabric</span>
-                  <span className="text-[7px] text-stone-400 block">GSM, Largeur</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setEditPoleSpecType('zipper')}
-                  className={`p-2 rounded-xl border-2 text-center transition-all ${
-                    editPoleSpecType === 'zipper'
-                      ? 'border-amber-500 bg-amber-50 text-amber-900 font-black'
-                      : 'border-stone-100 hover:border-stone-200 text-stone-500 font-bold bg-white'
-                  }`}
-                >
-                  <span className="text-[9px] block uppercase font-black">⚡ Zipper</span>
-                  <span className="text-[7px] text-stone-400 block">Curseur, Taille</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setEditPoleSpecType('thread')}
-                  className={`p-2 rounded-xl border-2 text-center transition-all ${
-                    editPoleSpecType === 'thread'
-                      ? 'border-teal-600 bg-teal-50 text-teal-900 font-black'
-                      : 'border-stone-100 hover:border-stone-200 text-stone-500 font-bold bg-white'
-                  }`}
-                >
-                  <span className="text-[9px] block uppercase font-black">🪡 Thread</span>
-                  <span className="text-[7px] text-stone-400 block">Cône, Fil, Lg</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setEditPoleSpecType('slider')}
-                  className={`p-2 rounded-xl border-2 text-center transition-all ${
-                    editPoleSpecType === 'slider'
-                      ? 'border-blue-600 bg-blue-50 text-blue-900 font-black'
-                      : 'border-stone-100 hover:border-stone-200 text-stone-500 font-bold bg-white'
-                  }`}
-                >
-                  <span className="text-[9px] block uppercase font-black">🎛️ Slider</span>
-                  <span className="text-[7px] text-stone-400 block">Design, Ctn</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setEditPoleSpecType('tape')}
-                  className={`p-2 rounded-xl border-2 text-center transition-all ${
-                    editPoleSpecType === 'tape'
-                      ? 'border-indigo-600 bg-indigo-50 text-indigo-900 font-black'
-                      : 'border-stone-100 hover:border-stone-200 text-stone-500 font-bold bg-white'
-                  }`}
-                >
-                  <span className="text-[9px] block uppercase font-black">🎗️ Ruban</span>
-                  <span className="text-[7px] text-stone-400 block">Largeur, Poids/m</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setEditPoleSpecType('accessory')}
-                  className={`p-2 rounded-xl border-2 text-center transition-all ${
-                    editPoleSpecType === 'accessory'
-                      ? 'border-rose-600 bg-rose-50 text-rose-900 font-black'
-                      : 'border-stone-100 hover:border-stone-200 text-stone-500 font-bold bg-white'
-                  }`}
-                >
-                  <span className="text-[9px] block uppercase font-black">🧷 Accessoire</span>
-                  <span className="text-[7px] text-stone-400 block">Taille, Poids/pc</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setEditPoleSpecType('none')}
-                  className={`p-2 rounded-xl border-2 text-center transition-all ${
-                    editPoleSpecType === 'none'
-                      ? 'border-stone-800 bg-stone-100 text-stone-900 font-black'
-                      : 'border-stone-100 hover:border-stone-200 text-stone-500 font-bold bg-white'
-                  }`}
-                >
-                  <span className="text-[9px] block uppercase font-black">📦 Standard</span>
-                  <span className="text-[7px] text-stone-400 block">Sans spé</span>
-                </button>
-              </div>
+            <div className="pt-3 border-t border-stone-100 space-y-1.5">
+              <Label className="text-[10px] font-black text-stone-600 uppercase tracking-widest">Unités du pôle</Label>
+              <ChampsUnitesPole
+                uniteAchat={editPoleUnites.uniteAchat}
+                uniteVente={editPoleUnites.uniteVente}
+                onChange={setEditPoleUnites}
+              />
             </div>
+          </div>
+          <div className="flex gap-2 p-4 sm:p-5 bg-stone-50 shrink-0 border-t border-stone-100">
+            <Button variant="ghost" className="flex-1 h-10 font-black text-[9px] uppercase tracking-widest" onClick={fermerEditionPole}>Annuler</Button>
+            <Button
+              className="flex-[1.5] h-10 bg-stone-900 hover:bg-stone-800 text-white font-black text-[9px] uppercase tracking-widest rounded-xl shadow-lg disabled:opacity-40"
+              disabled={!editPoleLine.trim() || (estNouvelleLigne(lignes, editPoleLine) && !editPoleLineSpec) || savingPole}
+              onClick={handleSavePole}
+            >
+              Enregistrer
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
-            <div className="flex gap-2 pt-2">
-              <Button variant="ghost" className="flex-1 h-10 font-black text-[9px] uppercase tracking-widest" onClick={() => { setEditingPole(null); setEditPoleName(''); setEditPoleNameFR(''); setEditPoleLine(''); }}>Annuler</Button>
-              <Button
-                className="flex-[1.5] h-10 bg-stone-900 hover:bg-stone-800 text-white font-black text-[9px] uppercase tracking-widest rounded-xl shadow-lg"
-                onClick={handleSavePole}
-              >
-                Enregistrer
-              </Button>
-            </div>
+      {/* ── Modal spécifications d'une ligne ── */}
+      <Dialog open={!!ligneEnEdition} onOpenChange={open => { if (!open) setLigneEnEdition(null); }}>
+        <DialogContent className="sm:max-w-lg max-h-[85vh] sm:max-h-[90vh] flex flex-col gap-0 rounded-3xl border-none shadow-2xl p-0 overflow-hidden">
+          <div className="bg-stone-900 p-5 text-white shrink-0">
+            <DialogTitle className="text-base font-black uppercase tracking-tight">Spécifications de la ligne</DialogTitle>
+            <p className="text-stone-400 text-[10px] font-bold uppercase tracking-widest mt-1">{ligneEnEdition?.nom}</p>
+          </div>
+          <div className="p-5 space-y-4 flex-1 min-h-0 overflow-y-auto overscroll-contain" style={{ WebkitOverflowScrolling: 'touch', touchAction: 'pan-y' }}>
+            <p className="text-[10px] font-medium text-stone-500 leading-relaxed">
+              Les Spécifications Qualités à donner valent pour toute la ligne : ses{' '}
+              {trouverLigne(ligneEnEdition?.nom)?.poles.length ?? 0} pôle(s) et leurs catégories les reçoivent,
+              ainsi que tout pôle qui rejoint la ligne.
+            </p>
+            <ChoixSpec
+              valeur={ligneEnEdition?.spec}
+              onChange={s => setLigneEnEdition(prev => (prev ? { ...prev, spec: s } : prev))}
+            />
+          </div>
+          <div className="flex gap-2 p-4 sm:p-5 bg-stone-50 shrink-0 border-t border-stone-100">
+            <Button variant="ghost" className="flex-1 h-10 font-black text-[9px] uppercase tracking-widest" onClick={() => setLigneEnEdition(null)}>Annuler</Button>
+            <Button
+              className="flex-[1.5] h-10 bg-stone-900 hover:bg-stone-800 text-white font-black text-[9px] uppercase tracking-widest rounded-xl shadow-lg disabled:opacity-40"
+              disabled={!ligneEnEdition || ligneEnCours === ligneEnEdition.nom}
+              onClick={async () => {
+                if (!ligneEnEdition) return;
+                if (await appliquerSpecLigne(ligneEnEdition.nom, ligneEnEdition.spec)) setLigneEnEdition(null);
+              }}
+            >
+              Appliquer à toute la ligne
+            </Button>
           </div>
         </DialogContent>
       </Dialog>

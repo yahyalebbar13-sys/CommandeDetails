@@ -1,7 +1,7 @@
 
 "use client";
 
-import React, { useState, useMemo, useCallback } from 'react';
+import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -18,7 +18,7 @@ import {
 import {
   Layers, Package, Save, Palette, Ruler, ClipboardList,
   Maximize, Settings2, MousePointer2, Scissors, UserCircle2,
-  AlertCircle, DollarSign, Building2, Star, ChevronRight, Mail, Clock
+  AlertCircle, DollarSign, Building2, Star, ChevronRight, Mail, Clock, Lock
 } from 'lucide-react';
 import { Switch } from '@/components/ui/switch';
 import ColorBreakdownInput, { ColorBreakdownRow } from './color-breakdown-input';
@@ -30,8 +30,9 @@ import { findLastOrderPrice } from '@/lib/order-utils';
 import { getArticleFrenchName } from '@/lib/product-name-utils';
 import { PriceVisibilityProvider } from '@/lib/price-visibility';
 import { isFabricLineOrCategory, isZipperLineOrCategory, isThreadLineOrCategory, isSliderLineOrCategory, isTapeLineOrCategory, isAccessoryLineOrCategory } from '@/lib/constants';
+import { UNITES, libelleUnite, poleDeLArticle, uniteImposee } from '@/lib/unites-pole';
 
-const UNITS = ["pièces", "doz", "gross (144p)", "m", "rolls", "kg", "bag", "yds"];
+const UNITS: readonly string[] = UNITES;
 const COLORS = ["white", "black", "raw black", "raw white", "various", "various x black", "various x white", "nickel", "various x black x white", "silver", "gold", "black x white", "beige", "black nickel", "transparent"];
 /**
  * Lignes réellement saisies d'une ventilation. Une grille tout juste ouverte arrive avec une ligne
@@ -485,6 +486,20 @@ export function AddOrderForm({
       .filter((q, idx, arr) => arr.findIndex(x => (x.label && x.label === q.label) || (x.size === q.size && x.thickness === q.thickness && x.weightPerPiece === q.weightPerPiece)) === idx);
   }, [formData.categoryId, selectedGenCatId, subCategories, generalCategories]);
 
+  // ── Unité d'achat imposée par le pôle (cf. lib/unites-pole.ts) ──
+  // Le pôle de la catégorie d'abord, sinon le pôle choisi. Une unité fixée remplace le choix libre,
+  // en commande comme en inventaire ou en demande magasin : posée d'office, puis verrouillée.
+  const poleUnite = useMemo(
+    () => poleDeLArticle({ categoryId: formData.categoryId, generalCategoryId: selectedGenCatId }, subCategories, generalCategories),
+    [formData.categoryId, selectedGenCatId, subCategories, generalCategories]
+  );
+  const uniteAchatImposee = uniteImposee(poleUnite, 'achat');
+  const nomPoleUnite = poleUnite ? (useFrenchLabels && poleUnite.nameFR ? poleUnite.nameFR : poleUnite.name) : '';
+  useEffect(() => {
+    if (!uniteAchatImposee) return;
+    setFormData((p: any) => p.unitOfMeasure === uniteAchatImposee ? p : { ...p, unitOfMeasure: uniteAchatImposee });
+  }, [uniteAchatImposee]);
+
   // Validation
   const errors = useMemo(() => {
     const e: Record<string, string> = {};
@@ -539,6 +554,18 @@ export function AddOrderForm({
       else setDocumentNonBlocking(ref, data, { merge: true });
     };
     if (!user || !firestore || !isValid) return;
+
+    // Défensif : l'unité imposée est posée d'office et verrouillée. Si elle diffère quand même
+    // (pôle chargé entre-temps), on la remet et on laisse relire la quantité avant de renvoyer.
+    if (uniteAchatImposee && formData.unitOfMeasure !== uniteAchatImposee) {
+      setFormData((p: any) => ({ ...p, unitOfMeasure: uniteAchatImposee }));
+      toast({
+        variant: 'destructive',
+        title: 'Unité imposée par le pôle',
+        description: `Le pôle ${nomPoleUnite} s'achète en ${libelleUnite(uniteAchatImposee)} : l'unité a été corrigée, vérifiez la quantité puis validez à nouveau.`,
+      });
+      return;
+    }
 
     const selectedSubCat = (subCategories || []).find((sc: any) => sc.name === formData.categoryId);
     const finalPrice = (formData.purchasePricePerUnit !== '' && Number(formData.purchasePricePerUnit) > 0)
@@ -1901,18 +1928,27 @@ export function AddOrderForm({
           {/* Unité + Quantité + Prix (prix masqué pour une demande magasin) */}
           <div className={`grid ${isStoreRequest ? 'grid-cols-2' : 'grid-cols-3'} gap-3`}>
             <div className="space-y-1.5">
-              <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest">Unité</Label>
+              <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest flex items-center gap-1">
+                Unité
+                {uniteAchatImposee && <Lock className="w-3 h-3 text-stone-400 ml-auto" />}
+              </Label>
               <Select
                 value={formData.unitOfMeasure}
                 onValueChange={v => setFormData((p: any) => ({ ...p, unitOfMeasure: v }))}
+                disabled={Boolean(uniteAchatImposee)}
               >
-                <SelectTrigger className="h-11 border-stone-200 bg-white font-bold rounded-xl">
+                <SelectTrigger className={`h-11 font-bold rounded-xl ${uniteAchatImposee ? 'border-stone-300 bg-stone-100' : 'border-stone-200 bg-white'}`}>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
                   {UNITS.map(u => <SelectItem key={u} value={u} className="font-bold uppercase">{u}</SelectItem>)}
                 </SelectContent>
               </Select>
+              {uniteAchatImposee && (
+                <p className="text-[9px] font-bold text-stone-500 flex items-center gap-1 leading-tight">
+                  <Lock className="w-2.5 h-2.5 shrink-0" /> Imposée par le pôle {nomPoleUnite}
+                </p>
+              )}
             </div>
 
             <div className="space-y-1.5">

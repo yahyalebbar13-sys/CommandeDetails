@@ -18,6 +18,8 @@ import {
 import {
   SectionFormulaire, Champ, Encadre, LigneResume, Recapitulatif, BoutonValider, CLASSE_CHAMP,
 } from './ui-formulaire';
+import { uniteDecimale, pasDeSaisie } from '@/lib/unites-pole';
+import { ChampQuantite } from './stock-sale-flow';
 
 interface TransferOrdersViewProps {
   transferOrders: TransferOrder[];
@@ -45,6 +47,34 @@ function transferItemVariant(item: TransferOrderItem, stockItems: StockItem[]): 
   if (fromStock) return fromStock;
   const m = /__(quality|color|size)__(.+)$/.exec(String(item.articleId || ''));
   return m ? { dimension: m[1] as VariantDimension, value: m[2] } : null;
+}
+
+// ── Quantités selon l'unité ──
+// Un bon de TAFFETA se compte en mètres, et au centimètre : 12,5 m se transfère. Ce qui se compte à
+// la pièce reste en entiers.
+
+/** Arrondi au millième, comme le calcul du stock : 2,3 − 2,2 ne laisse pas 0,09999999999999964. */
+const arrondiQte = (q: number) => Math.round(q * 1000) / 1000;
+
+/** L'unité d'une ligne, à afficher — rien pour le « unité » par défaut. */
+function uniteCourte(unite?: string | null): string {
+  const u = (unite || '').trim();
+  return u && u.toLowerCase() !== 'unité' ? u : '';
+}
+
+/** « 12,5 m », ou le nombre seul. */
+function qteAvecUnite(q: number, unite?: string | null): string {
+  const u = uniteCourte(unite);
+  return u ? `${arrondiQte(q)} ${u}` : String(arrondiQte(q));
+}
+
+/**
+ * L'unité commune à toutes les lignes d'un bon, s'il n'en a qu'une (un bon de TAFFETA : m). Sinon
+ * rien : additionner des mètres et des pièces ne donne pas un total qu'on puisse nommer.
+ */
+function uniteCommune(lignes: { unitOfMeasure?: string }[]): string {
+  const unites = new Set(lignes.map(l => uniteCourte(l.unitOfMeasure)));
+  return unites.size === 1 ? [...unites][0] : '';
 }
 
 export default function TransferOrdersView({ transferOrders, stockItems, stores, movements = [], userRole, activeStore, adminUid, categories = [], generalCategories = [] }: TransferOrdersViewProps) {
@@ -143,11 +173,11 @@ export default function TransferOrdersView({ transferOrders, stockItems, stores,
       if (item.sentQty <= 0) {
         return toast({ variant: 'destructive', title: 'Quantité invalide', description: `Veuillez spécifier une quantité valide pour ${item.productName}.` });
       }
-      if (item.sentQty > available) {
+      if (item.sentQty > arrondiQte(available)) {
         return toast({
           variant: 'destructive',
           title: 'Stock insuffisant',
-          description: `Quantité demandée (${item.sentQty}) supérieure au stock disponible (${available}) à ${getStoreLabel(fromStore)} pour ${item.productName}.`
+          description: `Quantité demandée (${qteAvecUnite(item.sentQty, item.unitOfMeasure)}) supérieure au stock disponible (${qteAvecUnite(available, item.unitOfMeasure)}) à ${getStoreLabel(fromStore)} pour ${item.productName}.`
         });
       }
     }
@@ -236,7 +266,7 @@ export default function TransferOrdersView({ transferOrders, stockItems, stores,
         userEmail: user?.email || '',
         entityType: 'transfer',
         entityId: docRef.id,
-        description: `Transfert confirmé ${getStoreLabel(fromStore)} → ${getStoreLabel(toStore)} · ${selectedItems.length} référence(s), ${selectedItems.reduce((s, i) => s + i.sentQty, 0)} unité(s)`,
+        description: `Transfert confirmé ${getStoreLabel(fromStore)} → ${getStoreLabel(toStore)} · ${selectedItems.length} référence(s), ${arrondiQte(selectedItems.reduce((s, i) => s + i.sentQty, 0))} ${uniteCommune(selectedItems) || 'unité(s)'}`,
         metadata: { fromStore, toStore, itemCount: selectedItems.length },
       });
 
@@ -273,7 +303,9 @@ export default function TransferOrdersView({ transferOrders, stockItems, stores,
 
       for (const item of updatedItems) {
         if (item.receivedQty < 0 || item.receivedQty > item.sentQty * 1.1) {
-          toast({ variant: 'destructive', title: 'Erreur', description: `La quantité reçue pour ${item.productName} doit être entre 0 et ${Math.floor(item.sentQty * 1.1)}.` });
+          // Au mètre, le plafond garde ses décimales : 10 % de plus que 2,5 m font 2,75 m, pas 2.
+          const plafond = uniteDecimale(item.unitOfMeasure) ? arrondiQte(item.sentQty * 1.1) : Math.floor(item.sentQty * 1.1);
+          toast({ variant: 'destructive', title: 'Erreur', description: `La quantité reçue pour ${item.productName} doit être entre 0 et ${qteAvecUnite(plafond, item.unitOfMeasure)}.` });
           return;
         }
       }
@@ -326,7 +358,7 @@ export default function TransferOrdersView({ transferOrders, stockItems, stores,
         }
 
         // Handle discrepancies (Losses)
-        const discrepancy = item.sentQty - (item.receivedQty || 0);
+        const discrepancy = arrondiQte(item.sentQty - (item.receivedQty || 0));
         if (discrepancy > 0) {
           // La perte est constatée à l'arrivée : elle sort de l'emplacement de destination
           // où la réception vient d'être créditée, résolu automatiquement en FIFO.
@@ -362,7 +394,9 @@ export default function TransferOrdersView({ transferOrders, stockItems, stores,
         userEmail: user?.email || '',
         entityType: 'transfer',
         entityId: order.id,
-        description: `Réception transfert ${getStoreLabel(order.fromStore)} → ${getStoreLabel(order.toStore)} · ${updatedItems.reduce((s, i) => s + (i.receivedQty || 0), 0)} unité(s) reçue(s)`,
+        description: `Réception transfert ${getStoreLabel(order.fromStore)} → ${getStoreLabel(order.toStore)} · ${uniteCommune(updatedItems)
+          ? `reçu : ${arrondiQte(updatedItems.reduce((s, i) => s + (i.receivedQty || 0), 0))} ${uniteCommune(updatedItems)}`
+          : `${updatedItems.reduce((s, i) => s + (i.receivedQty || 0), 0)} unité(s) reçue(s)`}`,
         metadata: { fromStore: order.fromStore, toStore: order.toStore },
       });
 
@@ -465,7 +499,11 @@ export default function TransferOrdersView({ transferOrders, stockItems, stores,
                 </td>
                 <td className="px-6 py-4">
                   <div className="text-xs font-bold text-stone-700">{order.items.length} référence(s)</div>
-                  <div className="text-[11px] font-medium text-stone-400">{order.items.reduce((acc, i) => acc + i.sentQty, 0)} unité(s) envoyée(s)</div>
+                  <div className="text-[11px] font-medium text-stone-400">
+                    {uniteCommune(order.items)
+                      ? `Envoyé : ${arrondiQte(order.items.reduce((acc, i) => acc + i.sentQty, 0))} ${uniteCommune(order.items)}`
+                      : `${order.items.reduce((acc, i) => acc + i.sentQty, 0)} unité(s) envoyée(s)`}
+                  </div>
                 </td>
                 <td className="px-6 py-4">
                   {order.status === 'PENDING' ? (
@@ -641,7 +679,7 @@ export default function TransferOrdersView({ transferOrders, stockItems, stores,
                               <p className="text-[11px] font-medium text-stone-400 truncate">{[item.quality, item.color, item.size].filter(Boolean).join(' · ') || 'Référence sans déclinaison'}</p>
                             </div>
                             <span className={`text-[11px] font-black px-2 py-1 rounded-md shrink-0 ${availInSrc > 0 ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-700'}`}>
-                              {availInSrc > 0 ? `${availInSrc} au départ` : 'Rien au départ'}
+                              {availInSrc > 0 ? `${qteAvecUnite(availInSrc, item.unitOfMeasure)} au départ` : 'Rien au départ'}
                             </span>
                           </button>
                         );
@@ -675,8 +713,8 @@ export default function TransferOrdersView({ transferOrders, stockItems, stores,
                         ? `Plus rien à ${getStoreLabel(fromStore) || 'ce lieu'} : retirez la ligne ou changez le lieu de départ.`
                         : item.sentQty <= 0
                           ? 'Indiquez la quantité : une ligne à zéro empêche l\'émission du bon.'
-                          : item.sentQty > availInSrc
-                            ? `Au-delà de ce qui reste au départ (${availInSrc}).`
+                          : item.sentQty > arrondiQte(availInSrc)
+                            ? `Au-delà de ce qui reste au départ (${qteAvecUnite(availInSrc, item.unitOfMeasure)}).`
                             : null;
 
                       return (
@@ -686,23 +724,28 @@ export default function TransferOrdersView({ transferOrders, stockItems, stores,
                               {item.productName} {[item.quality ? `[${item.quality}]` : '', item.color, item.size].filter(Boolean).join(' · ')}
                             </p>
                             <p className="text-[11px] font-medium text-stone-500 mt-0.5">
-                              Reste à {getStoreLabel(fromStore) || 'ce lieu'} : <strong className="text-emerald-700">{availInSrc}</strong>
+                              Reste à {getStoreLabel(fromStore) || 'ce lieu'} : <strong className="text-emerald-700">{qteAvecUnite(availInSrc, item.unitOfMeasure)}</strong>
                             </p>
                           </td>
                           <td className="px-4 py-3">
-                            <Input
-                              type="number"
-                              min={1}
-                              max={availInSrc}
-                              value={item.sentQty}
-                              aria-label={`Quantité envoyée pour ${item.productName}`}
-                              onChange={e => {
-                                const val = parseFloat(e.target.value) || 0;
-                                const bounded = Math.max(0, Math.min(val, availInSrc));
-                                setSelectedItems(prev => prev.map((p, i) => i === idx ? { ...p, sentQty: bounded } : p));
-                              }}
-                              className={`${CLASSE_CHAMP} text-center`}
-                            />
+                            <div className="flex items-center gap-1.5">
+                              <ChampQuantite
+                                garderDecimales
+                                min={pasDeSaisie(item.unitOfMeasure)}
+                                max={availInSrc}
+                                valeur={item.sentQty}
+                                unite={item.unitOfMeasure}
+                                aria-label={`Quantité envoyée pour ${item.productName}`}
+                                onQuantite={val => {
+                                  const bounded = arrondiQte(Math.max(0, Math.min(val, availInSrc)));
+                                  setSelectedItems(prev => prev.map((p, i) => i === idx ? { ...p, sentQty: bounded } : p));
+                                }}
+                                className={`${CLASSE_CHAMP} text-center`}
+                              />
+                              {uniteCourte(item.unitOfMeasure) && (
+                                <span className="shrink-0 text-[11px] font-bold text-stone-500">{uniteCourte(item.unitOfMeasure)}</span>
+                              )}
+                            </div>
                             {erreurLigne && (
                               <p className="text-[11px] font-bold text-rose-600 leading-snug flex items-start gap-1 mt-1.5">
                                 <AlertTriangle className="w-3 h-3 mt-0.5 shrink-0" /> {erreurLigne}
@@ -741,7 +784,9 @@ export default function TransferOrdersView({ transferOrders, stockItems, stores,
               <LigneResume libelle="Part du magasin principal" valeur={getStoreLabel(fromStore)} />
               <LigneResume libelle="Arrive à" valeur={getStoreLabel(toStore) || '—'} />
               <LigneResume libelle="Références au bon" valeur={selectedItems.length} />
-              <LigneResume libelle="Unités qui quittent le lieu de départ" valeur={totalUnitesEnvoyees} fort />
+              {uniteCommune(selectedItems)
+                ? <LigneResume libelle="Quantité qui quitte le lieu de départ" valeur={`${arrondiQte(totalUnitesEnvoyees)} ${uniteCommune(selectedItems)}`} fort />
+                : <LigneResume libelle="Unités qui quittent le lieu de départ" valeur={totalUnitesEnvoyees} fort />}
             </Recapitulatif>
 
             <BoutonValider
@@ -818,7 +863,7 @@ export default function TransferOrdersView({ transferOrders, stockItems, stores,
                 <tbody>
                   {bonRecu?.items.map(item => {
                     const compte = receivedItems[item.articleId] ?? item.sentQty;
-                    const manque = item.sentQty - compte;
+                    const manque = arrondiQte(item.sentQty - compte);
                     return (
                       <tr key={item.articleId} className="border-b border-stone-100 last:border-0 align-top">
                         <td className="px-4 py-3">
@@ -829,23 +874,28 @@ export default function TransferOrdersView({ transferOrders, stockItems, stores,
                             </p>
                           )}
                         </td>
-                        <td className="px-4 py-3 text-[13px] font-black text-blue-600 tabular-nums">{item.sentQty}</td>
+                        <td className="px-4 py-3 text-[13px] font-black text-blue-600 tabular-nums">{qteAvecUnite(item.sentQty, item.unitOfMeasure)}</td>
                         <td className="px-4 py-3">
-                          <Input
-                            type="number"
-                            min={0}
-                            max={item.sentQty}
-                            value={receivedItems[item.articleId] ?? ''}
-                            aria-label={`Quantité comptée à l'arrivée pour ${item.productName}`}
-                            onChange={e => {
-                              const val = parseFloat(e.target.value) || 0;
-                              setReceivedItems(prev => ({ ...prev, [item.articleId]: val }));
-                            }}
-                            className={`${CLASSE_CHAMP} text-center border-emerald-200 focus-visible:ring-emerald-500`}
-                          />
+                          <div className="flex items-center gap-1.5">
+                            <ChampQuantite
+                              garderDecimales
+                              min={0}
+                              max={item.sentQty}
+                              valeur={compte}
+                              unite={item.unitOfMeasure}
+                              aria-label={`Quantité comptée à l'arrivée pour ${item.productName}`}
+                              onQuantite={val => setReceivedItems(prev => ({ ...prev, [item.articleId]: val }))}
+                              className={`${CLASSE_CHAMP} text-center border-emerald-200 focus-visible:ring-emerald-500`}
+                            />
+                            {uniteCourte(item.unitOfMeasure) && (
+                              <span className="shrink-0 text-[11px] font-bold text-stone-500">{uniteCourte(item.unitOfMeasure)}</span>
+                            )}
+                          </div>
                           {manque > 0 && (
                             <p className="text-[11px] font-bold text-rose-600 leading-snug flex items-start gap-1 mt-1.5">
-                              <AlertTriangle className="w-3 h-3 mt-0.5 shrink-0" /> {manque} manquant(s) : enregistré(s) en perte.
+                              <AlertTriangle className="w-3 h-3 mt-0.5 shrink-0" /> {uniteDecimale(item.unitOfMeasure)
+                                ? `${qteAvecUnite(manque, item.unitOfMeasure)} manquants : enregistrés en perte.`
+                                : `${manque} manquant(s) : enregistré(s) en perte.`}
                             </p>
                           )}
                         </td>
@@ -858,11 +908,20 @@ export default function TransferOrdersView({ transferOrders, stockItems, stores,
 
             <Recapitulatif titre="À relire avant de valider">
               <LigneResume libelle="Parti de" valeur={bonRecu ? getStoreLabel(bonRecu.fromStore) : '—'} />
-              <LigneResume libelle="Unités envoyées" valeur={totalEnvoyeBon} />
-              <LigneResume libelle="Unités comptées à l'arrivée" valeur={totalCompteBon} fort ton="positif" />
+              {bonRecu && uniteCommune(bonRecu.items) ? (
+                <>
+                  <LigneResume libelle="Quantité envoyée" valeur={`${arrondiQte(totalEnvoyeBon)} ${uniteCommune(bonRecu.items)}`} />
+                  <LigneResume libelle="Quantité comptée à l'arrivée" valeur={`${arrondiQte(totalCompteBon)} ${uniteCommune(bonRecu.items)}`} fort ton="positif" />
+                </>
+              ) : (
+                <>
+                  <LigneResume libelle="Unités envoyées" valeur={totalEnvoyeBon} />
+                  <LigneResume libelle="Unités comptées à l'arrivée" valeur={totalCompteBon} fort ton="positif" />
+                </>
+              )}
               <LigneResume
                 libelle="Écart enregistré en perte"
-                valeur={ecartBon}
+                valeur={bonRecu && uniteCommune(bonRecu.items) ? `${arrondiQte(ecartBon)} ${uniteCommune(bonRecu.items)}` : ecartBon}
                 ton={ecartBon > 0 ? 'alerte' : 'neutre'}
               />
             </Recapitulatif>

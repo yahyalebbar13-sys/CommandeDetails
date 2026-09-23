@@ -16,7 +16,7 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue, SelectGroup, SelectLabel
 } from '@/components/ui/select';
 import {
-  ClipboardList, Plus, Edit2, Trash2, ArrowRight, FileDown, Layers, Loader2, Save, Package, Box, History
+  ClipboardList, Plus, Edit2, Trash2, ArrowRight, FileDown, Layers, Loader2, Save, Package, Box, History, Lock
 } from 'lucide-react';
 import { Switch } from '@/components/ui/switch';
 import { useUser, useFirestore, useCollection, useMemoFirebase, deleteDocumentNonBlocking, setDocumentNonBlocking } from '@/firebase';
@@ -27,6 +27,7 @@ import ColorBreakdownInput, { ColorBreakdownRow } from './color-breakdown-input'
 import SizeBreakdownInput, { SizeBreakdownRow } from './size-breakdown-input';
 import BaseOrderHistoryModal from './base-order-history-modal';
 import { Palette, Maximize } from 'lucide-react';
+import { pasDeSaisie, uniteImposee } from '@/lib/unites-pole';
 
 interface BaseOrdersViewProps {
   articles: any[];
@@ -123,6 +124,17 @@ export default function BaseOrdersView({ articles, factures, subCategories, gene
     }]);
   };
 
+  // ── Unité d'achat imposée par le pôle d'une ligne (cf. lib/unites-pole.ts) ──
+  // Même résolution qu'à la génération : le pôle de la catégorie (par son nom), sinon celui noté
+  // sur la ligne. Une unité fixée remplace la saisie libre, au modèle comme à la génération.
+  const poleDeLigne = (item: any) => {
+    const sc = (subCategories || []).find((c: any) => c.name?.trim() === item?.categoryId?.trim());
+    const poleId = sc ? sc.generalCategoryId : item?.generalCategoryId;
+    return poleId ? (generalCategories || []).find((g: any) => g.id === poleId) : undefined;
+  };
+  const uniteAchatDeLigne = (item: any): string | undefined => uniteImposee(poleDeLigne(item), 'achat');
+  const uniteDeLigne = (item: any): string | undefined => uniteAchatDeLigne(item) || item?.unitOfMeasure;
+
   const updateItem = (index: number, field: string, value: any) => {
     setItems(prevItems => {
       const newItems = [...prevItems];
@@ -154,7 +166,11 @@ export default function BaseOrdersView({ articles, factures, subCategories, gene
         description: description.trim(),
         cbm: Number(baseCbm) || 0,
         isFullContainer: baseIsFullContainer,
-        items,
+        // Les lignes dont le pôle impose son unité l'enregistrent (un ancien modèle se corrige ici).
+        items: items.map(it => {
+          const u = uniteAchatDeLigne(it);
+          return u && it.unitOfMeasure !== u ? { ...it, unitOfMeasure: u } : it;
+        }),
         updatedAt: serverTimestamp(),
         ...(editingOrder ? {} : { createdAt: serverTimestamp() })
       };
@@ -202,7 +218,7 @@ export default function BaseOrdersView({ articles, factures, subCategories, gene
           name: item.name || item.categoryId || '',
           categoryId: item.categoryId || '',
           generalCategoryId: generalCatId,
-          unitOfMeasure: item.unitOfMeasure || 'pièces',
+          unitOfMeasure: uniteAchatDeLigne(item) || item.unitOfMeasure || 'pièces',
           color: item.color || '',
           size: item.size || '',
           purchasePricePerUnit: Number(item.purchasePricePerUnit) || 0,
@@ -305,7 +321,7 @@ export default function BaseOrdersView({ articles, factures, subCategories, gene
                       <span className="font-bold text-stone-700 truncate">{item.categoryId || 'Sans cat.'}</span>
                       <div className="flex items-center gap-2 shrink-0">
                         <span className="font-medium text-stone-500">{item.color}</span>
-                        <span className="font-black text-stone-900 bg-white px-2 py-0.5 rounded border border-stone-200">{item.quantity} {item.unitOfMeasure}</span>
+                        <span className="font-black text-stone-900 bg-white px-2 py-0.5 rounded border border-stone-200">{item.quantity} {uniteDeLigne(item)}</span>
                       </div>
                     </div>
                   ))}
@@ -425,7 +441,11 @@ export default function BaseOrdersView({ articles, factures, subCategories, gene
                       items.map((item, idx) => (
                         <TableRow key={item.id || idx}>
                           <TableCell className="p-2">
-                            <Select value={item.categoryId} onValueChange={(v) => updateItem(idx, 'categoryId', v)}>
+                            <Select value={item.categoryId} onValueChange={(v) => {
+                              updateItem(idx, 'categoryId', v);
+                              const u = uniteAchatDeLigne({ categoryId: v });
+                              if (u) updateItem(idx, 'unitOfMeasure', u);
+                            }}>
                               <SelectTrigger className="h-8 text-xs font-bold border-0 bg-stone-50 focus:ring-0">
                                 <SelectValue placeholder="Catégorie" />
                               </SelectTrigger>
@@ -480,10 +500,21 @@ export default function BaseOrdersView({ articles, factures, subCategories, gene
                             </div>
                           </TableCell>
                           <TableCell className="p-2">
-                            <Input type="number" value={item.quantity} onChange={(e) => updateItem(idx, 'quantity', e.target.value)} className="h-8 text-xs border-0 bg-stone-50 focus-visible:ring-0" placeholder="Qté" />
+                            <Input type="number" step={pasDeSaisie(uniteDeLigne(item))} value={item.quantity} onChange={(e) => updateItem(idx, 'quantity', e.target.value)} className="h-8 text-xs border-0 bg-stone-50 focus-visible:ring-0" placeholder="Qté" />
                           </TableCell>
                           <TableCell className="p-2">
-                            <Input value={item.unitOfMeasure} onChange={(e) => updateItem(idx, 'unitOfMeasure', e.target.value)} className="h-8 text-xs border-0 bg-stone-50 focus-visible:ring-0" placeholder="Unité" />
+                            {uniteAchatDeLigne(item) ? (
+                              <div title={`Imposée par le pôle ${poleDeLigne(item)?.name || ''}`}>
+                                <div className="h-8 flex items-center gap-1.5 px-3 rounded-md bg-stone-100 text-xs font-bold text-stone-700">
+                                  <Lock className="w-3 h-3 text-stone-400 shrink-0" /> {uniteAchatDeLigne(item)}
+                                </div>
+                                <p className="text-[8px] font-bold text-stone-400 uppercase tracking-widest mt-0.5 truncate">
+                                  Imposée par le pôle {poleDeLigne(item)?.name}
+                                </p>
+                              </div>
+                            ) : (
+                              <Input value={item.unitOfMeasure} onChange={(e) => updateItem(idx, 'unitOfMeasure', e.target.value)} className="h-8 text-xs border-0 bg-stone-50 focus-visible:ring-0" placeholder="Unité" />
+                            )}
                           </TableCell>
                           <TableCell className="p-2">
                             <Input type="number" step="0.01" value={item.purchasePricePerUnit} onChange={(e) => updateItem(idx, 'purchasePricePerUnit', e.target.value)} className="h-8 text-xs border-0 bg-stone-50 focus-visible:ring-0" placeholder="Prix" />
@@ -597,7 +628,13 @@ export default function BaseOrdersView({ articles, factures, subCategories, gene
                           </div>
                         </TableCell>
                         <TableCell className="text-center font-bold text-xs">{art.quantity || 0}</TableCell>
-                        <TableCell className="text-xs text-stone-500">{art.unitOfMeasure}</TableCell>
+                        <TableCell className="text-xs text-stone-500">
+                          {uniteAchatDeLigne(art) ? (
+                            <span className="inline-flex items-center gap-1" title={`Imposée par le pôle ${poleDeLigne(art)?.name || ''}`}>
+                              <Lock className="w-3 h-3 text-stone-400" /> {uniteAchatDeLigne(art)}
+                            </span>
+                          ) : art.unitOfMeasure}
+                        </TableCell>
                         <TableCell className="p-2 w-28">
                           <Input 
                             type="number" 
@@ -680,7 +717,7 @@ export default function BaseOrdersView({ articles, factures, subCategories, gene
                         handleUpdate('color', 'various');
                       }
                     }}
-                    unit={currentItem.unitOfMeasure || 'pièces'}
+                    unit={uniteDeLigne(currentItem) || 'pièces'}
                   />
                 </div>
 
@@ -694,7 +731,7 @@ export default function BaseOrdersView({ articles, factures, subCategories, gene
                         handleUpdate('size', 'various');
                       }
                     }}
-                    unit={currentItem.unitOfMeasure || 'pièces'}
+                    unit={uniteDeLigne(currentItem) || 'pièces'}
                     availableSizes={(subCategories || []).find((sc: any) => sc.name === currentItem.categoryId)?.availableSizes || []}
                   />
                 </div>

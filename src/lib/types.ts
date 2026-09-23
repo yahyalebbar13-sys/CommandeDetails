@@ -22,7 +22,15 @@ export type GeneralCategory = {
   name: string;
   nameFR?: string;
   line?: string;
+  /**
+   * Copie des spécifications de la LIGNE (cf. lib/lignes-logistiques.ts) : un
+   * pôle ne les choisit pas, il les reçoit de sa ligne.
+   */
   specType?: 'fabric' | 'zipper' | 'thread' | 'slider' | 'tape' | 'accessory' | 'none';
+  /** Unité imposée à l'achat (commandes, achat au marché). Absente = libre. Cf. lib/unites-pole.ts. */
+  uniteAchat?: string;
+  /** Unité imposée à la vente et aux opérations de stock. Absente = libre. */
+  uniteVente?: string;
   fabricQualities?: { label: string; nameFR?: string; gsm?: number | string; fabricWidth?: number; rollLength?: number; rollLengthUnit?: string; packagingPerBag?: number }[];
   zipperQualities?: {
     label: string;

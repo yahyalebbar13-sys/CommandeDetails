@@ -12,6 +12,7 @@ import { getApp } from 'firebase/app';
 import { useToast } from '@/hooks/use-toast';
 import { GeneralCategory, Category } from '@/lib/types';
 import { QUALITY_SCHEMA, QUALITIES_FIELD_BY_SPEC, SPEC_BADGES, detectSpecType } from '@/lib/quality-schema';
+import { useLignesLogistiques } from '@/hooks/use-lignes-logistiques';
 
 interface QualitiesManagerViewProps {
   generalCategories: GeneralCategory[];
@@ -26,6 +27,7 @@ export default function QualitiesManagerView({ generalCategories = [], subCatego
   const { user } = useUser();
   const firestore = useFirestore();
   const { toast } = useToast();
+  const { specPourLigne } = useLignesLogistiques(generalCategories);
 
   // Compte, par type, le nombre de FAMILLES éditables (l'unité réelle de qualités),
   // rattachées à un pôle dont le type (explicite ou déduit via ligne/nom) correspond.
@@ -169,10 +171,13 @@ export default function QualitiesManagerView({ generalCategories = [], subCatego
     try {
       const famRef = doc(firestore, 'users', user.uid, 'categories', fam.id);
       await updateDoc(famRef, { [fieldsKey]: cleanRows });
-      // Fige le specType détecté (ligne/nom) sur le pôle parent si jamais choisi explicitement,
-      // pour que les lectures futures (badges Groupes, cet onglet) n'aient plus besoin de deviner.
-      if (!(gc as any).specType || (gc as any).specType === 'none') {
-        updateDoc(doc(firestore, 'users', user.uid, 'generalCategories', gc.id), { specType: activeSpecType }).catch(() => {});
+      // Pôle parent sans spécifications : on y fige celles de SA LIGNE (c'est la ligne qui
+      // décide, pas l'onglet ouvert), pour que les lectures futures n'aient plus à deviner.
+      if (!gc.specType || gc.specType === 'none') {
+        const specLigne = specPourLigne(gc.line);
+        if (specLigne !== (gc.specType || 'none')) {
+          updateDoc(doc(firestore, 'users', user.uid, 'generalCategories', gc.id), { specType: specLigne }).catch(() => {});
+        }
       }
       toast({ title: '✅ Qualités enregistrées', description: `Famille ${fam.name}` });
       setEdits(prev => { const n = { ...prev }; delete n[fam.id]; return n; });
@@ -233,7 +238,7 @@ export default function QualitiesManagerView({ generalCategories = [], subCatego
               Aucun pôle n'utilise ce modèle de spécification
             </p>
             <p className="text-stone-200 text-xs mt-2">
-              Va dans Groupes → Modifier le Pôle pour l'assigner à un pôle.
+              Va dans Groupes → Spécifications de la ligne : tous les pôles de la ligne le reçoivent.
             </p>
           </div>
         ) : (

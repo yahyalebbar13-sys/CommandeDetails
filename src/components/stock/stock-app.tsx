@@ -60,6 +60,7 @@ import {
   stockItemVariant, articleVariantDimension, lignesEntreeManquantes, normalizeVariantValue,
   breakdownRowQuantity, libelleFixe,
 } from '@/lib/warehouse-locations';
+import { uniteImposee, uniteDeStock, poleDeLArticle } from '@/lib/unites-pole';
 import TreasuryDashboard from './treasury-dashboard';
 import BankReconciliationView from './bank-reconciliation-view';
 import AuditLogView from './audit-log-view';
@@ -278,6 +279,10 @@ export function computeStockItems(
     const catNameFR = cat?.nameFR;
     const genCat = generalCategories.find(g => g.id === cat?.generalCategoryId || g.id === a.generalCategoryId);
     const poleNameFR = genCat?.nameFR;
+    // Unité du stock : celle que le pôle impose (TAFFETA FABRIC : m) l'emporte sur celle notée
+    // sur l'article. Vente, transferts, inventaire et mouvements la recopient depuis ici.
+    // Le pôle se lit par la catégorie d'abord (elle a pu changer de pôle depuis la commande).
+    const uniteStock = uniteDeStock(poleDeLArticle(a, categories, generalCategories)) || a.unitOfMeasure || 'unité';
     const baseCategoryName = (cat?.name || a.categoryId || a.name || '').trim();
 
     // Matcher la qualité dans la catégorie si configurée
@@ -460,7 +465,7 @@ export function computeStockItems(
           sliderWeightG:       row.sliderWeightG ?? a.sliderWeightG,
           pcsPerBag:           row.pcsPerBag ?? a.pcsPerBag,
           bagsPerCarton:       row.bagsPerCarton ?? a.bagsPerCarton,
-          unitOfMeasure:       a.unitOfMeasure || 'unité',
+          unitOfMeasure:       uniteStock,
           purchasePricePerUnit: price,
           hasTTCCost,
           sellingPrice:        sellPrice,
@@ -550,7 +555,7 @@ export function computeStockItems(
           sliderWeightG:       a.sliderWeightG,
           pcsPerBag:           a.pcsPerBag,
           bagsPerCarton:       a.bagsPerCarton,
-          unitOfMeasure:       a.unitOfMeasure || 'unité',
+          unitOfMeasure:       uniteStock,
           purchasePricePerUnit: price,
           hasTTCCost,
           sellingPrice:        sellPrice,
@@ -638,7 +643,7 @@ export function computeStockItems(
           sliderWeightG:       a.sliderWeightG,
           pcsPerBag:           a.pcsPerBag,
           bagsPerCarton:       a.bagsPerCarton,
-          unitOfMeasure:       a.unitOfMeasure || 'unité',
+          unitOfMeasure:       uniteStock,
           purchasePricePerUnit: price,
           hasTTCCost,
           sellingPrice:        sellPrice,
@@ -709,7 +714,7 @@ export function computeStockItems(
       sliderWeightG:       a.sliderWeightG,
       pcsPerBag:           a.pcsPerBag,
       bagsPerCarton:       a.bagsPerCarton,
-      unitOfMeasure:       a.unitOfMeasure || 'unité',
+      unitOfMeasure:       uniteStock,
       purchasePricePerUnit: price,
       hasTTCCost,
       sellingPrice:        sellPrice,
@@ -1289,7 +1294,9 @@ export default function StockApp() {
         color:                v.dimension === 'color' ? v.label : (libelleFixe(l.article.color) || null),
         size:                 v.dimension === 'size' ? v.label : (libelleFixe(l.article.size) || null),
         quality:              v.dimension === 'quality' ? v.label : (libelleFixe(l.article.quality) || null),
-        unitOfMeasure:        l.article.unitOfMeasure || 'unité',
+        // Unité du pôle quand il en impose une (TAFFETA FABRIC : m), comme le stock réel.
+        unitOfMeasure:        uniteDeStock(poleDeLArticle(l.article, categories, generalCategories))
+                              || l.article.unitOfMeasure || 'unité',
         type:                 'IN' as const,
         reason:               'INVENTAIRE' as const,
         storeId:              l.lieu === 'MAGASIN' ? magasin : entrepot,
@@ -1337,6 +1344,13 @@ export default function StockApp() {
     if (!user || !firestore) return;
     try {
       const effectiveUid = adminUid || user.uid;
+      // Filet de sécurité : un pôle à unité fixée (TAFFETA FABRIC : m) impose la sienne à tout
+      // mouvement, quel que soit l'écran qui l'a saisi.
+      const articleDuMouvement = articles.find((a: any) => a.id === movement.articleId);
+      const uniteDuPole = uniteDeStock(poleDeLArticle(
+        articleDuMouvement || { categoryId: movement.categoryId }, categories, generalCategories,
+      ));
+      if (uniteDuPole) movement = { ...movement, unitOfMeasure: uniteDuPole };
       await addStockMovement(firestore, effectiveUid, movement);
       const auditAction = movement.type === 'IN' ? 'STOCK_IN' : movement.type === 'OUT' ? 'STOCK_OUT' : 'STOCK_ADJUSTMENT';
       logAudit(firestore, effectiveUid, {
@@ -1360,7 +1374,7 @@ export default function StockApp() {
         description: e?.message || "Impossible d'enregistrer le mouvement.",
       });
     }
-  }, [user, firestore, toast, adminUid]);
+  }, [user, firestore, toast, adminUid, articles, categories, generalCategories]);
 
   // ── Backup JSON ──────────────────────────────────────────────────────────
   const handleBackup = useCallback(() => {
@@ -2083,6 +2097,16 @@ export default function StockApp() {
     let movementId: string | undefined = undefined;
     let createdArticleId: string | undefined = undefined;
 
+    // Unité d'achat : celle du pôle quand il en impose une (TAFFETA FABRIC : m), quelle que soit
+    // l'unité restée dans le formulaire. L'article, son entrée en stock et la dépense la portent.
+    const poleAchat = poleDeLArticle(
+      { categoryId: exp.categoryId, generalCategoryId: exp.generalCategoryId },
+      categories, generalCategories,
+    );
+    const uniteAchatImposee = uniteImposee(poleAchat, 'achat');
+    const uniteAchat = uniteAchatImposee || exp.unitOfMeasure || 'pcs';
+    if (uniteAchatImposee) exp = { ...exp, unitOfMeasure: uniteAchatImposee };
+
     // Si c'est un achat marchandise du marché et que la case "Ajouter au stock" est cochée
     if (exp.category === 'ACHAT_MARCHANDISE' && exp.addToStock && exp.articleName && exp.quantity && exp.quantity > 0) {
       const targetStore = exp.storeId || (stores.find(s => s.type === 'WAREHOUSE')?.id || stores[0]?.id || 'CHRIFA');
@@ -2107,7 +2131,7 @@ export default function StockApp() {
         gsm: exp.gsm ? Number(exp.gsm) : null,
         fabricWidth: exp.fabricWidth ? Number(exp.fabricWidth) : null,
         rollLength: exp.rollLength ? Number(exp.rollLength) : null,
-        unitOfMeasure: exp.unitOfMeasure || 'pcs',
+        unitOfMeasure: uniteAchat,
         purchasePricePerUnit: unitPrice,
         stockEntryDate: exp.date || new Date().toISOString().split('T')[0],
         supplierId: exp.supplierName || 'Marché local',
@@ -2131,7 +2155,7 @@ export default function StockApp() {
         color: exp.color || null,
         size: exp.size || null,
         quantity: Number(exp.quantity),
-        unitOfMeasure: exp.unitOfMeasure || 'pcs',
+        unitOfMeasure: uniteAchat,
         purchasePricePerUnit: unitPrice,
         storeId: targetStore,
         // Emplacement choisi dans le formulaire de dépense ; à défaut, celui où l'article se
@@ -2172,7 +2196,7 @@ export default function StockApp() {
       const targetStoreName = targetStoreObj?.name || targetStore;
       toast({
         title: `Marchandise entrée à ${targetStoreName} !`,
-        description: `${exp.quantity} ${exp.unitOfMeasure || 'pcs'} de "${exp.articleName}" ajoutés au stock (${targetStoreName}) et dépense enregistrée.`,
+        description: `${exp.quantity} ${uniteAchat} de "${exp.articleName}" ajoutés au stock (${targetStoreName}) et dépense enregistrée.`,
       });
     } else {
       toast({
@@ -2180,7 +2204,7 @@ export default function StockApp() {
         description: `${(Number(exp.amount) || 0).toLocaleString('fr-MA', { minimumFractionDigits: 2 })} MAD`,
       });
     }
-  }, [user, firestore, adminUid, effectiveSaleStoreId, stores, toast]);
+  }, [user, firestore, adminUid, effectiveSaleStoreId, stores, categories, generalCategories, toast]);
 
   const handleUpdateExpenseStatus = useCallback(async (id: string, status: 'PENDING' | 'APPROVED' | 'REIMBURSED') => {
     if (!user || !firestore) return;

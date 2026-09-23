@@ -66,7 +66,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { doc, collection, getDocs, updateDoc, deleteDoc } from 'firebase/firestore';
+import { doc, collection, getDocs, updateDoc, deleteDoc, deleteField } from 'firebase/firestore';
 import { getStorage, ref as storageRef, uploadBytesResumable, getDownloadURL, deleteObject } from 'firebase/storage';
 import { getApp } from 'firebase/app';
 import { useToast } from '@/hooks/use-toast';
@@ -82,12 +82,14 @@ import {
   isFabricLine,
   isZipperLine,
   isThreadLine,
-  isSliderLine,
   isTapeLine,
-  ACCESSORY_KEYWORDS
 } from '@/lib/constants';
 import { computeReorderAlert, formatReorderBadge } from '@/lib/reorder-utils';
 import type { OrderScheduleSeason } from '@/lib/reorder-utils';
+import { useLignesLogistiques } from '@/hooks/use-lignes-logistiques';
+import { LIBELLE_SPEC, type SpecType } from '@/lib/lignes-logistiques';
+import { libelleUnite } from '@/lib/unites-pole';
+import { ChoixLigne, ChampsUnitesPole, PastilleLigne, estNouvelleLigne } from './pole-ligne-unites';
 
 interface CategoriesViewProps {
   articles: any[];
@@ -336,7 +338,36 @@ export default function CategoriesView({
   const [renameGenCatName, setRenameGenCatName] = useState('');
   const [renameGenCatNameFR, setRenameGenCatNameFR] = useState('');
   const [renameGenCatLine, setRenameGenCatLine] = useState('');
-  const [renameGenCatSpecType, setRenameGenCatSpecType] = useState<'fabric' | 'zipper' | 'thread' | 'slider' | 'tape' | 'accessory' | 'none'>('fabric');
+  // Spécifications d'une NOUVELLE ligne tapée dans le formulaire (obligatoires) ;
+  // une ligne existante impose les siennes, on ne les choisit pas ici.
+  const [renameGenCatSpecNouvelleLigne, setRenameGenCatSpecNouvelleLigne] = useState<SpecType | null>(null);
+  const [renameGenCatUnites, setRenameGenCatUnites] = useState<{ uniteAchat?: string; uniteVente?: string }>({});
+  const [isSavingGenCat, setIsSavingGenCat] = useState(false);
+  const {
+    lignes: lignesLogistiques,
+    specPourLigne,
+    trouverLigne: trouverLigneLogistique,
+    definirLigne,
+  } = useLignesLogistiques(generalCategories);
+
+  // Ouvre « Modifier le Pôle » : la ligne et les unités du pôle, rien de deviné.
+  const ouvrirEditionPole = (pole: any) => {
+    setEditingGeneralCategory(pole);
+    setRenameGenCatName(pole.name || '');
+    setRenameGenCatNameFR(pole.nameFR || '');
+    setRenameGenCatLine(pole.line || '');
+    setRenameGenCatSpecNouvelleLigne(null);
+    setRenameGenCatUnites({ uniteAchat: pole.uniteAchat || undefined, uniteVente: pole.uniteVente || undefined });
+  };
+  const fermerEditionPole = () => {
+    setEditingGeneralCategory(null);
+    setRenameGenCatName('');
+    setRenameGenCatNameFR('');
+    setRenameGenCatLine('');
+    setRenameGenCatSpecNouvelleLigne(null);
+    setRenameGenCatUnites({});
+  };
+  const renameGenCatLigneIncomplete = estNouvelleLigne(lignesLogistiques, renameGenCatLine) && !renameGenCatSpecNouvelleLigne;
 
   const handleSaveRenameSubCat = () => {
     if (!user || !firestore || !editingSubCategory) return;
@@ -366,46 +397,51 @@ export default function CategoriesView({
     setRenameSubCatNameFR('');
   };
 
-  const handleSaveRenameGenCat = () => {
-    if (!user || !firestore || !editingGeneralCategory) return;
+  const handleSaveRenameGenCat = async () => {
+    if (!user || !firestore || !editingGeneralCategory || isSavingGenCat) return;
     const oldName = editingGeneralCategory.name;
     const newName = (renameGenCatName.trim() || oldName).toUpperCase();
     const newNameFR = renameGenCatNameFR.trim() ? renameGenCatNameFR.trim().toUpperCase() : null;
     const docRef = doc(firestore, 'users', user.uid, 'generalCategories', editingGeneralCategory.id);
     const updatePayload: any = { name: newName, nameFR: newNameFR };
-    if (renameGenCatLine) updatePayload.line = renameGenCatLine;
 
-    let finalSpec = renameGenCatSpecType;
-    const nameLower = newName.toLowerCase();
-    if (finalSpec === 'none') {
-      if (isSliderLine(renameGenCatLine) || nameLower.includes('slider') || nameLower.includes('puller') || nameLower.includes('curseur')) {
-        finalSpec = 'slider';
-      } else if (isZipperLine(renameGenCatLine) || nameLower.includes('zipper')) {
-        finalSpec = 'zipper';
-      } else if (isFabricLine(renameGenCatLine) || nameLower.includes('fabric') || nameLower.includes('popeline')) {
-        finalSpec = 'fabric';
-      } else if (isThreadLine(renameGenCatLine) || nameLower.includes('thread') || nameLower.includes('fil')) {
-        finalSpec = 'thread';
-      } else if (isTapeLine(renameGenCatLine) || nameLower.includes('tape') || nameLower.includes('ruban') || nameLower.includes('sangle')) {
-        finalSpec = 'tape';
-      } else if (isAccessoryLine(renameGenCatLine) || ACCESSORY_KEYWORDS.some(kw => nameLower.includes(kw))) {
-        finalSpec = 'accessory';
-      }
-    } else if (isAccessoryLine(renameGenCatLine) && finalSpec === 'fabric') {
-      finalSpec = 'accessory';
+    // Les spécifications viennent de la ligne, jamais du nom du pôle. Une
+    // nouvelle ligne est d'abord enregistrée avec les siennes (obligatoires).
+    // Sans ligne, on ne touche ni à la ligne ni aux spécifications.
+    const ligne = renameGenCatLine.trim();
+    const nouvelleLigne = estNouvelleLigne(lignesLogistiques, ligne);
+    if (nouvelleLigne && !renameGenCatSpecNouvelleLigne) {
+      toast({ variant: 'destructive', title: 'Spécifications manquantes', description: `Choisissez les spécifications qualités de la nouvelle ligne « ${ligne.toUpperCase()} ».` });
+      return;
     }
-    updatePayload.specType = finalSpec;
 
-    updateDocumentNonBlocking(docRef, updatePayload);
-
-    toast({ 
-      title: '✅ Pôle enregistré', 
-      description: `${newName}${newNameFR ? ` · FR: ${newNameFR}` : ''}` 
+    // Unités du pôle : une unité vidée est retirée du document (jamais `undefined`).
+    (['uniteAchat', 'uniteVente'] as const).forEach(champ => {
+      if (renameGenCatUnites[champ]) updatePayload[champ] = renameGenCatUnites[champ];
+      else if (editingGeneralCategory[champ]) updatePayload[champ] = deleteField();
     });
-    setEditingGeneralCategory(null);
-    setRenameGenCatName('');
-    setRenameGenCatNameFR('');
-    setRenameGenCatLine('');
+
+    setIsSavingGenCat(true);
+    try {
+      if (ligne) {
+        if (nouvelleLigne) await definirLigne(ligne, renameGenCatSpecNouvelleLigne!);
+        updatePayload.line = trouverLigneLogistique(ligne)?.nom ?? ligne;
+        updatePayload.specType = nouvelleLigne ? renameGenCatSpecNouvelleLigne : specPourLigne(ligne);
+      }
+      updateDocumentNonBlocking(docRef, updatePayload);
+    } catch (err: any) {
+      console.error('Enregistrement du pôle :', err);
+      toast({ variant: 'destructive', title: "Pôle non enregistré", description: err?.message || 'La ligne n\'a pas pu être créée.' });
+      return;
+    } finally {
+      setIsSavingGenCat(false);
+    }
+
+    toast({
+      title: '✅ Pôle enregistré',
+      description: `${newName}${newNameFR ? ` · FR: ${newNameFR}` : ''}${updatePayload.line ? ` · ${updatePayload.line} (${LIBELLE_SPEC[updatePayload.specType as SpecType]?.label})` : ''}`
+    });
+    fermerEditionPole();
   };
   
   useEffect(() => {
@@ -1372,9 +1408,9 @@ export default function CategoriesView({
 
       if (applyToAllAccessoryPoles && cleanAccessoryQualities.length > 0) {
         const allLinePoles = generalCategories.filter(g => isAccessoryLineOrCategory(g.name, g));
+        // Seulement les qualités : les spécifications d'un pôle viennent de sa ligne.
         for (const p of allLinePoles) {
           updateDoc(doc(firestore, 'users', user.uid, 'generalCategories', p.id), {
-            specType: 'accessory',
             accessoryQualities: cleanAccessoryQualities
           }).catch(console.error);
         }
@@ -1414,10 +1450,9 @@ export default function CategoriesView({
     const cleanQualities = poleAccessoryQualitiesForm.filter(q => Boolean(q.label || q.size || q.thickness || q.weightPerPiece || q.pcsPerBox || q.boxPerCarton));
     setIsSavingPoleQualities(true);
     try {
-      // 1. Update this pole
+      // 1. Update this pole (qualités seulement : ses spécifications viennent de sa ligne)
       const poleRef = doc(firestore, 'users', user.uid, 'generalCategories', editingPoleQualities.id);
       await updateDoc(poleRef, {
-        specType: 'accessory',
         accessoryQualities: cleanQualities
       });
 
@@ -1436,7 +1471,6 @@ export default function CategoriesView({
         const allLinePoles = generalCategories.filter(g => isAccessoryLineOrCategory(g.name, g));
         for (const p of allLinePoles) {
           await updateDoc(doc(firestore, 'users', user.uid, 'generalCategories', p.id), {
-            specType: 'accessory',
             accessoryQualities: cleanQualities
           });
         }
@@ -4979,22 +5013,7 @@ export default function CategoriesView({
                   className="h-7 w-7 text-stone-400 hover:text-stone-900 hover:bg-stone-100 rounded-lg transition-colors"
                   title="Modifier le pôle"
                   onClick={() => {
-                    if (parent) {
-                      setEditingGeneralCategory(parent);
-                      setRenameGenCatName(parent.name || '');
-                      setRenameGenCatNameFR(parent.nameFR || '');
-                      setRenameGenCatLine(parent.line || '');
-                      const autoSpec = (
-                        isAccessoryLine(parent.line) ? 'accessory' :
-                        isFabricLine(parent.line) ? 'fabric' :
-                        isZipperLine(parent.line) ? 'zipper' :
-                        isThreadLine(parent.line) ? 'thread' :
-                        (parent.line || '').toLowerCase().includes('slider') || (parent.line || '').toLowerCase().includes('puller') || (parent.line || '').toLowerCase().includes('curseur') ? 'slider' :
-                        isTapeLine(parent.line) ? 'tape' :
-                        (parent as any).specType || 'none'
-                      );
-                      setRenameGenCatSpecType(autoSpec);
-                    }
+                    if (parent) ouvrirEditionPole(parent);
                   }}
                 >
                   <Pencil className="w-3.5 h-3.5" />
@@ -5018,8 +5037,9 @@ export default function CategoriesView({
               </div>
               <div className="flex items-center gap-2 mt-1.5 flex-wrap">
                 {parent?.line && (
-                  <span className="text-[8px] font-black uppercase px-2 py-0.5 rounded-full bg-stone-100 text-stone-700 border border-stone-200">
-                    Ligne : {parent.line}
+                  <span className="text-[8px] font-black uppercase px-2 py-0.5 rounded-full bg-stone-100 text-stone-700 border border-stone-200 flex items-center gap-1">
+                    <PastilleLigne nom={parent.line} /> Ligne : {parent.line}
+                    <span className="text-stone-400">· {LIBELLE_SPEC[specPourLigne(parent.line)].emoji} {LIBELLE_SPEC[specPourLigne(parent.line)].label}</span>
                   </span>
                 )}
                 {isAccessoryLineOrCategory(parent?.name, parent) && (
@@ -5053,6 +5073,12 @@ export default function CategoriesView({
                   </span>
                 )}
               </div>
+              {(parent?.uniteAchat || parent?.uniteVente) && (
+                <p className="text-[9px] font-bold text-stone-500 mt-1">
+                  Unités fixées : achat <span className="font-black text-stone-800">{parent.uniteAchat ? libelleUnite(parent.uniteAchat) : 'libre'}</span>
+                  {' · '}vente <span className="font-black text-stone-800">{parent.uniteVente ? libelleUnite(parent.uniteVente) : 'libre'}</span>
+                </p>
+              )}
             </div>
           </div>
           <div className="relative w-full md:w-64">
@@ -5466,7 +5492,7 @@ export default function CategoriesView({
       </Dialog>
 
       {/* ── Modal modifier le pôle ── */}
-      <Dialog open={!!editingGeneralCategory} onOpenChange={open => { if (!open) { setEditingGeneralCategory(null); setRenameGenCatName(''); setRenameGenCatNameFR(''); setRenameGenCatLine(''); } }}>
+      <Dialog open={!!editingGeneralCategory} onOpenChange={open => { if (!open) fermerEditionPole(); }}>
         <DialogContent className="sm:max-w-md rounded-3xl border-none shadow-2xl p-0 overflow-hidden">
           <div className="bg-stone-900 p-5 text-white shrink-0">
             <DialogTitle className="text-base font-black uppercase tracking-tight">Modifier le Pôle</DialogTitle>
@@ -5496,78 +5522,36 @@ export default function CategoriesView({
               <p className="text-[9px] text-stone-400 font-medium">Les chiffres sont totalement acceptés dans les deux titres.</p>
             </div>
 
-            {/* Ligne Logistique */}
+            {/* Ligne Logistique : elle donne les spécifications qualités du pôle */}
             <div className="space-y-1.5">
               <Label className="text-[10px] font-black text-stone-600 uppercase tracking-widest">Ligne Logistique</Label>
-              <div className="grid grid-cols-3 gap-1.5">
-                {[
-                  { value: 'Accessoires', label: '🧷 Accessoires' },
-                  { value: 'Fabric', label: '🧵 Fabric' },
-                  { value: 'Zipper', label: '⚡ Zipper' },
-                  { value: 'Thread', label: '🪡 Thread' },
-                  { value: 'Slider', label: '🎛️ Slider' },
-                  { value: 'Ruban', label: '🎀 Ruban' },
-                ].map(item => (
-                  <button
-                    key={item.value}
-                    type="button"
-                    onClick={() => {
-                      setRenameGenCatLine(item.value);
-                      if (item.value === 'Accessoires') setRenameGenCatSpecType('accessory');
-                      else if (item.value === 'Fabric') setRenameGenCatSpecType('fabric');
-                      else if (item.value === 'Zipper') setRenameGenCatSpecType('zipper');
-                      else if (item.value === 'Thread') setRenameGenCatSpecType('thread');
-                      else if (item.value === 'Slider') setRenameGenCatSpecType('slider');
-                      else if (item.value === 'Ruban') setRenameGenCatSpecType('tape');
-                    }}
-                    className={`h-9 px-2 text-[10px] font-black rounded-xl border transition-all text-center truncate ${
-                      (renameGenCatLine || '').toLowerCase() === item.value.toLowerCase() || (item.value === 'Accessoires' && isAccessoryLine(renameGenCatLine))
-                        ? 'bg-stone-900 text-white border-stone-900 shadow-sm'
-                        : 'bg-stone-50 hover:bg-stone-100 text-stone-700 border-stone-200'
-                    }`}
-                  >
-                    {item.label}
-                  </button>
-                ))}
-              </div>
+              <ChoixLigne
+                lignes={lignesLogistiques}
+                valeur={renameGenCatLine}
+                onChange={setRenameGenCatLine}
+                specNouvelleLigne={renameGenCatSpecNouvelleLigne}
+                onSpecNouvelleLigne={setRenameGenCatSpecNouvelleLigne}
+              />
             </div>
 
-            {/* Modèle Spécifications Qualités */}
+            {/* Unités du pôle (achat / vente) */}
             <div className="space-y-1.5">
-              <Label className="text-[10px] font-black text-stone-600 uppercase tracking-widest">Modèle Spécifications Qualités</Label>
-              <div className="grid grid-cols-3 gap-1.5">
-                {[
-                  { value: 'accessory', label: '🧷 Accessoire' },
-                  { value: 'fabric', label: '🧵 Tissu' },
-                  { value: 'zipper', label: '⚡ Fermeture' },
-                  { value: 'thread', label: '🪡 Fil' },
-                  { value: 'slider', label: '🎛️ Curseur' },
-                  { value: 'tape', label: '🎀 Ruban' },
-                  { value: 'none', label: 'Standard' },
-                ].map(item => (
-                  <button
-                    key={item.value}
-                    type="button"
-                    onClick={() => setRenameGenCatSpecType(item.value as any)}
-                    className={`h-8 px-2 text-[9px] font-black rounded-xl border transition-all text-center truncate ${
-                      renameGenCatSpecType === item.value
-                        ? 'bg-rose-600 text-white border-rose-600 shadow-sm'
-                        : 'bg-stone-50 hover:bg-stone-100 text-stone-700 border-stone-200'
-                    }`}
-                  >
-                    {item.label}
-                  </button>
-                ))}
-              </div>
+              <Label className="text-[10px] font-black text-stone-600 uppercase tracking-widest">Unités du Pôle</Label>
+              <ChampsUnitesPole
+                uniteAchat={renameGenCatUnites.uniteAchat}
+                uniteVente={renameGenCatUnites.uniteVente}
+                onChange={setRenameGenCatUnites}
+              />
             </div>
 
             <div className="flex gap-2 pt-2">
-              <Button variant="ghost" className="flex-1 h-10 font-black text-[9px] uppercase tracking-widest" onClick={() => { setEditingGeneralCategory(null); setRenameGenCatName(''); setRenameGenCatNameFR(''); setRenameGenCatLine(''); }}>Annuler</Button>
+              <Button variant="ghost" className="flex-1 h-10 font-black text-[9px] uppercase tracking-widest" onClick={fermerEditionPole}>Annuler</Button>
               <Button
                 className="flex-[1.5] h-10 bg-stone-900 hover:bg-stone-800 text-white font-black text-[9px] uppercase tracking-widest rounded-xl shadow-lg"
+                disabled={isSavingGenCat || renameGenCatLigneIncomplete}
                 onClick={handleSaveRenameGenCat}
               >
-                Enregistrer
+                {isSavingGenCat ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : 'Enregistrer'}
               </Button>
             </div>
           </div>
@@ -5875,11 +5859,21 @@ export default function CategoriesView({
                   <SelectValue placeholder="Choisir une ligne..." />
                 </SelectTrigger>
                 <SelectContent>
-                  {["Fabric", "Slider et puller", "Zipper", "Bouton", "Reste"].map(pole => (
-                    <SelectItem key={pole} value={pole} className="font-bold uppercase">{pole}</SelectItem>
+                  {lignesLogistiques.map(l => (
+                    <SelectItem key={l.nom} value={l.nom} className="font-bold uppercase">
+                      <span className="flex items-center gap-2">
+                        <PastilleLigne nom={l.nom} /> {l.nom}
+                        <span className="text-[10px] normal-case text-stone-400">{LIBELLE_SPEC[l.specType].emoji} {LIBELLE_SPEC[l.specType].label}</span>
+                      </span>
+                    </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
+              {moveTargetId && (
+                <p className="text-[10px] font-bold text-stone-500">
+                  Le pôle prendra les spécifications qualités de la ligne : {LIBELLE_SPEC[specPourLigne(moveTargetId)].emoji} {LIBELLE_SPEC[specPourLigne(moveTargetId)].label}
+                </p>
+              )}
             </div>
             <div className="flex gap-2 pt-2">
               <Button variant="ghost" className="flex-1 h-10 font-black text-[9px] uppercase tracking-widest" onClick={() => { setMovingGeneralCategory(null); setMoveTargetId(''); }}>Annuler</Button>
@@ -5889,7 +5883,8 @@ export default function CategoriesView({
                 onClick={() => {
                   if (!user || !firestore || !movingGeneralCategory || !moveTargetId) return;
                   const docRef = doc(firestore, 'users', user.uid, 'generalCategories', movingGeneralCategory.id);
-                  updateDocumentNonBlocking(docRef, { line: moveTargetId });
+                  // Changer de ligne, c'est aussi prendre ses spécifications.
+                  updateDocumentNonBlocking(docRef, { line: moveTargetId, specType: specPourLigne(moveTargetId) });
                   toast({ title: '✅ Ligne modifiée', description: `${movingGeneralCategory.name} → ${moveTargetId}` });
                   setMovingGeneralCategory(null);
                   setMoveTargetId('');
@@ -5977,21 +5972,7 @@ export default function CategoriesView({
                           onClick={(e) => {
                             e.stopPropagation();
                             const catObj = generalCategories.find(gc => gc.id === id);
-                            if (catObj) {
-                              setEditingGeneralCategory(catObj);
-                              setRenameGenCatName(catObj.name || '');
-                              setRenameGenCatNameFR(catObj.nameFR || '');
-                              setRenameGenCatLine(catObj.line || '');
-                              const autoSpec = (catObj as any).specType || (
-                                (catObj.line || '').toLowerCase().includes('slider') || (catObj.line || '').toLowerCase().includes('puller') || (catObj.line || '').toLowerCase().includes('curseur') ? 'slider' :
-                                (catObj.line || '').toLowerCase().includes('accessoire') || (catObj.line || '').toLowerCase().includes('accessory') || (catObj.line || '').toLowerCase().includes('bouton') ? 'accessory' :
-                                (catObj.line || '').toLowerCase().includes('ruban') || (catObj.line || '').toLowerCase().includes('tape') || (catObj.line || '').toLowerCase().includes('sangle') || (catObj.line || '').toLowerCase().includes('ribbon') ? 'tape' :
-                                catObj.line?.toLowerCase() === 'fabric' ? 'fabric' :
-                                catObj.line?.toLowerCase() === 'zipper' ? 'zipper' :
-                                catObj.line?.toLowerCase() === 'thread' ? 'thread' : 'none'
-                              );
-                              setRenameGenCatSpecType(autoSpec);
-                            }
+                            if (catObj) ouvrirEditionPole(catObj);
                           }}
                         >
                           <Pencil className="w-3.5 h-3.5" />
@@ -6019,13 +6000,13 @@ export default function CategoriesView({
       </div>
 
       {/* ── Modal modifier le pôle ── */}
-      <Dialog open={!!editingGeneralCategory} onOpenChange={open => { if (!open) { setEditingGeneralCategory(null); setRenameGenCatName(''); setRenameGenCatNameFR(''); setRenameGenCatLine(''); } }}>
-        <DialogContent className="sm:max-w-sm rounded-3xl border-none shadow-2xl p-0 overflow-hidden">
+      <Dialog open={!!editingGeneralCategory} onOpenChange={open => { if (!open) fermerEditionPole(); }}>
+        <DialogContent className="sm:max-w-md rounded-3xl border-none shadow-2xl p-0 overflow-hidden">
           <div className="bg-stone-900 p-5 text-white shrink-0">
             <DialogTitle className="text-base font-black uppercase tracking-tight">Modifier le Pôle</DialogTitle>
             <p className="text-stone-400 text-[10px] font-bold uppercase tracking-widest mt-1">Vous pouvez inclure des chiffres (ex: PÔLE 1, ZIPPER #5...)</p>
           </div>
-          <div className="p-5 space-y-4">
+          <div className="p-5 space-y-4 max-h-[80vh] overflow-y-auto">
             <div className="space-y-1.5">
               <Label className="text-[10px] font-black text-stone-600 uppercase tracking-widest">Nom / Titre du Pôle (Gestion)</Label>
               <Input
@@ -6049,127 +6030,36 @@ export default function CategoriesView({
               <p className="text-[9px] text-stone-400 font-medium">Les chiffres sont totalement acceptés dans les deux titres.</p>
             </div>
 
+            {/* Ligne Logistique : elle donne les spécifications qualités du pôle */}
             <div className="space-y-1.5">
               <Label className="text-[10px] font-black text-stone-600 uppercase tracking-widest">Ligne Logistique</Label>
-              <Select value={renameGenCatLine} onValueChange={(val) => {
-                setRenameGenCatLine(val);
-                const l = val.toLowerCase();
-                if (l.includes('slider') || l.includes('puller') || l.includes('curseur')) setRenameGenCatSpecType('slider');
-                else if (l.includes('accessoire') || l.includes('accessory') || l.includes('bouton')) setRenameGenCatSpecType('accessory');
-                else if (l.includes('ruban') || l.includes('tape') || l.includes('sangle') || l.includes('ribbon')) setRenameGenCatSpecType('tape');
-                else if (l === 'fabric' || l.includes('fabric') || l.includes('tissu')) setRenameGenCatSpecType('fabric');
-                else if (l === 'zipper' || l.includes('zipper') || l.includes('fermeture')) setRenameGenCatSpecType('zipper');
-                else if (l === 'thread' || l.includes('thread') || l.includes('fil')) setRenameGenCatSpecType('thread');
-                else setRenameGenCatSpecType('none');
-              }}>
-                <SelectTrigger className="h-11 border-stone-200 bg-white font-bold rounded-xl text-xs uppercase">
-                  <SelectValue placeholder="Choisir une ligne..." />
-                </SelectTrigger>
-                <SelectContent>
-                  {['Fabric', 'Slider et puller', 'Zipper', 'Thread', 'Ruban', 'Accessoires', 'Bouton', 'Reste'].map(line => (
-                    <SelectItem key={line} value={line} className="font-bold uppercase text-xs">{line}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <ChoixLigne
+                lignes={lignesLogistiques}
+                valeur={renameGenCatLine}
+                onChange={setRenameGenCatLine}
+                specNouvelleLigne={renameGenCatSpecNouvelleLigne}
+                onSpecNouvelleLigne={setRenameGenCatSpecNouvelleLigne}
+              />
             </div>
 
+            {/* Unités du pôle (achat / vente) */}
             <div className="space-y-1.5 pt-1">
-              <Label className="text-[10px] font-black text-stone-600 uppercase tracking-widest">Modèle Spécifications Qualités</Label>
-              <div className="grid grid-cols-2 sm:grid-cols-7 gap-2">
-                <button
-                  type="button"
-                  onClick={() => setRenameGenCatSpecType('fabric')}
-                  className={`p-2 rounded-xl border-2 text-center transition-all ${
-                    renameGenCatSpecType === 'fabric'
-                      ? 'border-violet-600 bg-violet-50 text-violet-900 font-black'
-                      : 'border-stone-100 hover:border-stone-200 text-stone-500 font-bold bg-white'
-                  }`}
-                >
-                  <span className="text-[9px] block uppercase font-black">🧵 Fabric</span>
-                  <span className="text-[7px] text-stone-400 block">GSM, Largeur</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setRenameGenCatSpecType('zipper')}
-                  className={`p-2 rounded-xl border-2 text-center transition-all ${
-                    renameGenCatSpecType === 'zipper'
-                      ? 'border-amber-500 bg-amber-50 text-amber-900 font-black'
-                      : 'border-stone-100 hover:border-stone-200 text-stone-500 font-bold bg-white'
-                  }`}
-                >
-                  <span className="text-[9px] block uppercase font-black">⚡ Zipper</span>
-                  <span className="text-[7px] text-stone-400 block">Curseur, Taille</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setRenameGenCatSpecType('thread')}
-                  className={`p-2 rounded-xl border-2 text-center transition-all ${
-                    renameGenCatSpecType === 'thread'
-                      ? 'border-teal-600 bg-teal-50 text-teal-900 font-black'
-                      : 'border-stone-100 hover:border-stone-200 text-stone-500 font-bold bg-white'
-                  }`}
-                >
-                  <span className="text-[9px] block uppercase font-black">🪡 Thread</span>
-                  <span className="text-[7px] text-stone-400 block">Cône, Fil, Lg</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setRenameGenCatSpecType('slider')}
-                  className={`p-2 rounded-xl border-2 text-center transition-all ${
-                    renameGenCatSpecType === 'slider'
-                      ? 'border-blue-600 bg-blue-50 text-blue-900 font-black'
-                      : 'border-stone-100 hover:border-stone-200 text-stone-500 font-bold bg-white'
-                  }`}
-                >
-                  <span className="text-[9px] block uppercase font-black">🎛️ Slider</span>
-                  <span className="text-[7px] text-stone-400 block">Design, Ctn</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setRenameGenCatSpecType('tape')}
-                  className={`p-2 rounded-xl border-2 text-center transition-all ${
-                    renameGenCatSpecType === 'tape'
-                      ? 'border-indigo-600 bg-indigo-50 text-indigo-900 font-black'
-                      : 'border-stone-100 hover:border-stone-200 text-stone-500 font-bold bg-white'
-                  }`}
-                >
-                  <span className="text-[9px] block uppercase font-black">🎗️ Ruban</span>
-                  <span className="text-[7px] text-stone-400 block">Larg, Poids/m</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setRenameGenCatSpecType('accessory')}
-                  className={`p-2 rounded-xl border-2 text-center transition-all ${
-                    renameGenCatSpecType === 'accessory'
-                      ? 'border-rose-600 bg-rose-50 text-rose-900 font-black'
-                      : 'border-stone-100 hover:border-stone-200 text-stone-500 font-bold bg-white'
-                  }`}
-                >
-                  <span className="text-[9px] block uppercase font-black">🧷 Accessoire</span>
-                  <span className="text-[7px] text-stone-400 block">Taille, Poids</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setRenameGenCatSpecType('none')}
-                  className={`p-2 rounded-xl border-2 text-center transition-all ${
-                    renameGenCatSpecType === 'none'
-                      ? 'border-stone-800 bg-stone-100 text-stone-900 font-black'
-                      : 'border-stone-100 hover:border-stone-200 text-stone-500 font-bold bg-white'
-                  }`}
-                >
-                  <span className="text-[9px] block uppercase font-black">📦 Standard</span>
-                  <span className="text-[7px] text-stone-400 block">Sans spé</span>
-                </button>
-              </div>
+              <Label className="text-[10px] font-black text-stone-600 uppercase tracking-widest">Unités du Pôle</Label>
+              <ChampsUnitesPole
+                uniteAchat={renameGenCatUnites.uniteAchat}
+                uniteVente={renameGenCatUnites.uniteVente}
+                onChange={setRenameGenCatUnites}
+              />
             </div>
 
             <div className="flex gap-2 pt-2">
-              <Button variant="ghost" className="flex-1 h-10 font-black text-[9px] uppercase tracking-widest" onClick={() => { setEditingGeneralCategory(null); setRenameGenCatName(''); setRenameGenCatNameFR(''); setRenameGenCatLine(''); }}>Annuler</Button>
+              <Button variant="ghost" className="flex-1 h-10 font-black text-[9px] uppercase tracking-widest" onClick={fermerEditionPole}>Annuler</Button>
               <Button
                 className="flex-[1.5] h-10 bg-stone-900 hover:bg-stone-800 text-white font-black text-[9px] uppercase tracking-widest rounded-xl shadow-lg"
+                disabled={isSavingGenCat || renameGenCatLigneIncomplete}
                 onClick={handleSaveRenameGenCat}
               >
-                Enregistrer
+                {isSavingGenCat ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : 'Enregistrer'}
               </Button>
             </div>
           </div>
