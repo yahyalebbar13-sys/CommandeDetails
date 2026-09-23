@@ -1216,6 +1216,13 @@ export default function StockApp() {
 
   // Les noms de lieux tels qu'ils apparaîtront dans le devoir imprimé : la recrue doit lire
   // « Derb Omar », pas « DERB_OMAR ».
+  // Déjà chargé ? La réponse est dans les mouvements, pas dans l'état de la fenêtre : le patron
+  // imprime le devoir des jours après l'avoir chargé, et recharger doublerait tout le stock.
+  const formationEnBase = useMemo(
+    () => allMovements.some((m: any) => String(m?.notes || '').includes('STOCK DE FORMATION')),
+    [allMovements],
+  );
+
   const lieuxFormation = useMemo(() => {
     const principal = stores.find((st: any) => st.isMain) || stores.find((st: any) => st.id === 'CHRIFA');
     const reserve = stores.find((st: any) => st.type === 'WAREHOUSE');
@@ -3564,12 +3571,18 @@ export default function StockApp() {
           )}
 
           <div className="mt-4 space-y-2">
-            {formationCharge ? (
+            {(formationCharge || formationEnBase) ? (
               <>
-                <Encadre ton="astuce" titre="Stock chargé">
+                <Encadre ton="astuce" titre={formationCharge ? 'Stock chargé' : 'Stock de formation déjà en place'}>
                   Le devoir et son corrigé sont écrits avec les <span className="font-black">vrais noms</span> de ces
                   produits et leurs variantes : imprimez-les (la fenêtre d'impression du navigateur fait le PDF).
                   Le corrigé contient les réponses — ne le donnez pas avant la correction.
+                  {!formationCharge && (
+                    <span className="block mt-1">
+                      Les quantités sont déjà en stock : <span className="font-black">ne rechargez pas</span>, cela les
+                      doublerait et fausserait le corrigé. Pour repartir de zéro, passez par « Reset Stock (0) ».
+                    </span>
+                  )}
                 </Encadre>
                 <div className="grid grid-cols-2 gap-2.5">
                   <Button
