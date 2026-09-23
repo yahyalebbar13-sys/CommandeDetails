@@ -20,6 +20,9 @@ import { useUser, useFirestore } from '@/firebase';
 import { doc, collection, getDocs, writeBatch } from 'firebase/firestore';
 import { isArrivalOlderThanOneMonth } from '@/lib/status-utils';
 
+/** Le dossier tel qu'il est enregistré, pour les règles du suivi (cf. `statutEnBase`). */
+const telQuEnregistre = (f: any) => (f && 'statutEnBase' in f ? { ...f, status: f.statutEnBase } : f);
+
 export const isFactureInStock = (f: any) => {
   return Boolean(
     f?.status === 'STOCK' ||
@@ -90,7 +93,7 @@ import { useToast } from '@/hooks/use-toast';
 import DossierChecklistModal from './dossier-checklist-modal';
 import SuiviConteneurPanneau from './suivi-conteneur-panneau';
 import { getStatusInfo } from '@/lib/status-utils';
-import { LIBELLE_STATUT, dossierAOuvrir, type SuiviConteneur } from '@/lib/suivi-conteneur';
+import { LIBELLE_STATUT, dossierAOuvrir, dossierVerrouille, type SuiviConteneur } from '@/lib/suivi-conteneur';
 import { authedFetch } from '@/lib/authed-fetch';
 
 interface FacturesViewProps {
@@ -244,7 +247,9 @@ export default function FacturesView({
       const isIncomplete = fArticles.some(o => !Number(o.netWeight) || !Number(o.cubicMeasurement));
       const isOldArrival = isArrivalOlderThanOneMonth(f.arrivalDate);
       const effectiveStatus = (f.status === 'STOCK' || f.stockEntryDate || isOldArrival) ? 'STOCK' : (f.status || 'SHIPPED');
-      return { ...f, itemsCount, itemsVal, cbm, netWeight, freight, efficiency, realFactureValue, isIncomplete, status: effectiveStatus };
+      // `statutEnBase` garde le statut enregistré : le suivi du conteneur en a
+      // besoin, le statut d'affichage passant à STOCK dès un mois écoulé.
+      return { ...f, itemsCount, itemsVal, cbm, netWeight, freight, efficiency, realFactureValue, isIncomplete, status: effectiveStatus, statutEnBase: f.status };
     }).sort((a, b) => new Date(b.arrivalDate || '1900-01-01').getTime() - new Date(a.arrivalDate || '1900-01-01').getTime());
 
     return { declaredFactures: aggregated, orphanedFactureIds: orphaned };
@@ -258,7 +263,8 @@ export default function FacturesView({
   // ── Arrivages qui pourraient être suivis et ne le sont pas ─────────────────
   const [lotEnCours, setLotEnCours] = useState(false);
   const [confirmationLot, setConfirmationLot] = useState(false);
-  const aSuivre = useMemo(() => declaredFactures.filter(dossierAOuvrir), [declaredFactures]);
+  const aSuivre = useMemo(() => declaredFactures.filter(f => dossierAOuvrir(telQuEnregistre(f))), [declaredFactures]);
+  const factureEnregistree = useMemo(() => telQuEnregistre(selectedFacture), [selectedFacture]);
 
   const activerSuiviEnLot = async () => {
     // Deux temps : le premier clic annonce la dépense, le second l'engage.
@@ -725,8 +731,8 @@ export default function FacturesView({
             l'état du panneau précédent — jusqu'à ouvrir un suivi payant sur le mauvais dossier. */}
         <SuiviConteneurPanneau
           key={selectedFacture.id}
-          facture={selectedFacture}
-          verrouille={isFactureInStock(selectedFacture)}
+          facture={factureEnregistree}
+          verrouille={dossierVerrouille(factureEnregistree)}
         />
 
         <div className="flex justify-end gap-3">
@@ -1130,10 +1136,11 @@ export default function FacturesView({
                 <Badge variant="outline" className="text-[9px] font-black uppercase tracking-widest border-stone-200 px-3 py-1">
                   {f.arrivalDate}
                 </Badge>
-                {/* Position du conteneur chez la compagnie, quand le suivi est ouvert */}
+                {/* Position du conteneur chez la compagnie, quand le suivi est ouvert —
+                    jamais sur un conteneur arrivé ou entré en stock : il n'a plus de suivi. */}
                 {(() => {
                   const suivi: SuiviConteneur | undefined = f.suivi;
-                  const etat = suivi?.shipmentId ? LIBELLE_STATUT[suivi.statut] : null;
+                  const etat = suivi?.shipmentId && !dossierVerrouille(telQuEnregistre(f)) ? LIBELLE_STATUT[suivi.statut] : null;
                   if (!etat) return null;
                   return (
                     <span

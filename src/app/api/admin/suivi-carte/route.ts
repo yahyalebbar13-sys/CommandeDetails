@@ -8,6 +8,7 @@ import { getFirestore } from 'firebase-admin/firestore';
 import { verifyAdmin } from '@/lib/require-admin';
 import { lireGeojson, suiviConfigure } from '@/lib/shipsgo';
 import { preparerCarte } from '@/lib/suivi-carte';
+import { dossierVerrouille } from '@/lib/suivi-sync';
 
 function getFirebaseAdminApp() {
   if (!getApps().length) {
@@ -40,6 +41,10 @@ export async function GET(req: Request) {
     const snap = await db.doc(`users/${check.uid}/factures/${factureId}`).get();
     if (!snap.exists) return NextResponse.json({ error: 'Dossier introuvable' }, { status: 404 });
 
+    // Dossier réceptionné : pas de suivi, donc pas de carte.
+    if (dossierVerrouille(snap.data())) {
+      return NextResponse.json({ error: 'Dossier déjà entré en stock : le suivi est terminé' }, { status: 409 });
+    }
     const shipmentId = Number(snap.data()?.suivi?.shipmentId);
     if (!shipmentId) return NextResponse.json({ error: 'Aucun suivi ouvert pour ce dossier' }, { status: 400 });
 

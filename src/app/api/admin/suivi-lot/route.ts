@@ -13,7 +13,7 @@ import { getFirestore } from 'firebase-admin/firestore';
 import { verifyAdmin } from '@/lib/require-admin';
 import { synchroniserDossier } from '@/lib/suivi-sync';
 import { suiviConfigure } from '@/lib/shipsgo';
-import { dossierAOuvrir, referenceDepuisDossier } from '@/lib/suivi-conteneur';
+import { dossierAOuvrir, dossierEntreEnStock, referenceDepuisDossier } from '@/lib/suivi-conteneur';
 
 /** Garde-fou : au-delà, c'est une erreur de manipulation, pas une intention. */
 const MAX_PAR_APPEL = 25;
@@ -74,7 +74,8 @@ export async function POST(req: Request) {
           dossier: factureId,
           raison: facture?.suivi?.shipmentId ? 'déjà suivi'
             : !referenceDepuisDossier(facture) ? 'aucun n° de BL exploitable'
-            : 'dossier clos',
+            : dossierEntreEnStock(facture) ? 'déjà entré en stock'
+            : 'déjà arrivé',
         });
         continue;
       }
@@ -102,6 +103,7 @@ export async function POST(req: Request) {
         }
       }
       else if (r.issue === 'verrouille') ignores.push({ dossier: factureId, raison: 'dossier clos' });
+      else if (r.issue === 'deja-arrive') ignores.push({ dossier: factureId, raison: 'déjà arrivé' });
       else ouverts.push({ dossier: factureId, reference: r.suivi?.reference || '', statut: r.suivi?.statut });
     }
 

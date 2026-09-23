@@ -8,13 +8,16 @@
 //   • `arrivalDate`  — la date de déchargement au port, d'où découle déjà le
 //                      statut affiché partout (cf. lib/status-utils.ts)
 //
-// Ce qu'on n'écrit jamais : la date d'un dossier déjà entré en stock ou clos
-// depuis plus d'un mois. Une fois la marchandise reçue, le voyage ne raconte
-// plus rien d'utile et corriger la date fausserait l'historique.
+// Ce qu'on n'écrit jamais : quoi que ce soit dans un dossier fermé au suivi —
+// entré en stock, ou conteneur arrivé (cf. dossierVerrouille) : ni suivi, ni
+// date, ni alerte. Le suivi ne concerne que les arrivages attendus ; il est né
+// en septembre 2026, les anciens conteneurs n'en ont pas et n'en auront pas.
 
 import { ErreurShipsGo, lireSuivi, ouvrirSuivi, type CodeErreurShipsGo } from './shipsgo';
 import {
   dateArriveeDuSuivi,
+  dossierArrive,
+  dossierVerrouille,
   instantDe,
   normaliserReference,
   referenceValide,
@@ -25,7 +28,6 @@ import {
   typeReference,
   type SuiviConteneur,
 } from './suivi-conteneur';
-import { isArrivalOlderThanOneMonth } from './status-utils';
 import { changementsNotables } from './suivi-changements';
 import { notifierChangements } from './notifier-suivi';
 
@@ -35,6 +37,7 @@ export type IssueSynchro =
   | 'suivi-ouvert'     // premier appel : le suivi vient d'être créé (1 crédit)
   | 'sans-reference'   // aucun numéro de conteneur / BL à suivre
   | 'verrouille'       // dossier déjà en stock : on ne touche à rien
+  | 'deja-arrive'      // conteneur déjà arrivé : pas de suivi à ouvrir
   | 'erreur';
 
 export type ResultatSynchro = {
@@ -50,21 +53,9 @@ export type ResultatSynchro = {
   codeErreur?: CodeErreurShipsGo;
 };
 
-/**
- * Le dossier est-il figé ? (marchandise reçue, ou arrivage clos d'office)
- *
- * La clôture d'office après un mois suppose que la date d'arrivée est juste.
- * Tant que la compagnie dit le conteneur en route, on ne s'y fie pas : sinon
- * une date erronée figerait le dossier, et la vraie arrivée ne pourrait plus
- * jamais y être inscrite. Seule l'entrée en stock, saisie par un humain, ferme
- * vraiment un dossier.
- */
-export function dossierVerrouille(facture: any): boolean {
-  if (facture?.stockEntryDate) return true;
-  const statut = facture?.suivi?.statut;
-  if (statut && statut !== 'DISCHARGED' && statut !== 'UNTRACKED') return false;
-  return isArrivalOlderThanOneMonth(facture?.arrivalDate);
-}
+// La règle de fermeture vit dans suivi-conteneur.ts : le navigateur (panneau,
+// liste des arrivages) et le serveur doivent décider exactement pareil.
+export { dossierVerrouille };
 
 /**
  * Écrit dans le dossier ce qu'un shipment ShipsGo raconte. Partagé par la
@@ -79,6 +70,11 @@ export async function appliquerShipment(
   shipment: any,
   opts: { reference?: string; forcerDate?: boolean } = {},
 ): Promise<ResultatSynchro> {
+  // Dossier réceptionné : le suivi n'a plus rien à y faire. Ni écriture, ni
+  // alerte — un webhook tardif ne doit pas annoncer aux clients un conteneur
+  // déjà vidé dans l'entrepôt.
+  if (dossierVerrouille(facture)) return { factureId, issue: 'verrouille' };
+
   const reference = opts.reference;
   const precedent: SuiviConteneur | undefined = facture?.suivi || undefined;
   const numero = shipment?.container_number || shipment?.booking_number || reference || '';
@@ -105,14 +101,13 @@ export async function appliquerShipment(
 
   const ancienneDate: string | undefined = facture?.arrivalDate || undefined;
   const nouvelleDate = dateArriveeDuSuivi(suivi);
-  const verrouille = dossierVerrouille(facture);
 
   // La date du dossier suit la compagnie, toujours : c'est ShipsGo qui fait foi
   // tant que la marchandise n'est pas reçue. Une date retouchée à la main est
   // remplacée au passage suivant (la première saisie reste dans
   // arrivalDateAvantSuivi). `forcerDate` n'a donc plus rien à forcer ; il reste
   // accepté pour ne pas casser les appels existants.
-  const dateAChanger = Boolean(nouvelleDate) && nouvelleDate !== ancienneDate && !verrouille;
+  const dateAChanger = Boolean(nouvelleDate) && nouvelleDate !== ancienneDate;
 
   if (dateAChanger) {
     suivi.dateAppliquee = nouvelleDate;
@@ -163,7 +158,7 @@ export async function appliquerShipment(
 
   return {
     factureId,
-    issue: dateAChanger ? 'date-modifiee' : verrouille ? 'verrouille' : 'a-jour',
+    issue: dateAChanger ? 'date-modifiee' : 'a-jour',
     suivi,
     nouvelleDate: dateAChanger ? nouvelleDate : undefined,
     ancienneDate: dateAChanger ? ancienneDate : undefined,
@@ -187,12 +182,8 @@ export async function synchroniserDossier(
 ): Promise<ResultatSynchro> {
   const suiviActuel: SuiviConteneur | undefined = facture?.suivi || undefined;
 
-  // Ouverture déclenchée toute seule (enregistrement d'un arrivage, rattrapage
-  // en lot) : on ne dépense un crédit que là où il apprendra quelque chose. Un
-  // clic explicite dans le dossier, lui, reste souverain.
-  if (opts.auto && !suiviActuel?.shipmentId && dossierVerrouille(facture)) {
-    return { factureId, issue: 'verrouille' };
-  }
+  // Dossier réceptionné : aucun appel à ShipsGo, qu'on le demande ou non.
+  if (dossierVerrouille(facture)) return { factureId, issue: 'verrouille' };
 
   const referenceDemandee = opts.reference ? normaliserReference(opts.reference) : '';
   if (referenceDemandee && !referenceValide(referenceDemandee)) {
@@ -215,6 +206,15 @@ export async function synchroniserDossier(
   try {
     if (!shipmentId) {
       if (!opts.autoriserOuverture) return { factureId, issue: 'sans-reference' };
+      // Un suivi ne s'ouvre que sur un arrivage attendu — clic compris. Un
+      // conteneur déjà arrivé n'a plus rien à annoncer ; le crédit serait perdu.
+      if (dossierArrive(facture)) {
+        return {
+          factureId,
+          issue: 'deja-arrive',
+          message: 'Ce conteneur est déjà arrivé : le suivi ne concerne que les arrivages attendus.',
+        };
+      }
       const ouvert = await ouvrirSuivi({
         reference,
         // ShipsGo impose 5 caractères minimum et s'en sert pour le dédoublonnage.

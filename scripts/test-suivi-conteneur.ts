@@ -5,7 +5,10 @@
 import {
   dateArriveeDuSuivi,
   derniereEtape,
+  aujourdHui,
   dossierAOuvrir,
+  dossierArrive,
+  dossierVerrouille,
   dossierASynchroniser,
   instantDe,
   jourDe,
@@ -263,6 +266,50 @@ check('marchandise en stock → inutile',
 check('arrivage clos depuis plus d’un mois → inutile',
   !dossierAOuvrir({ noBL: 'MEDUKV285573', arrivalDate: demain(-45) }));
 check('sans BL → rien à ouvrir', !dossierAOuvrir({ noBL: '', arrivalDate: demain(12) }));
+check('statut STOCK sans date d’entrée (ancien dossier) → inutile',
+  !dossierAOuvrir({ noBL: 'MEDUKV285573', status: 'STOCK' }));
+check('statut STOCK même avec une date future → inutile',
+  !dossierAOuvrir({ noBL: 'MEDUKV285573', arrivalDate: demain(12), status: 'STOCK' }));
+
+console.log('\n── Conteneur déjà arrivé ? ──');
+check('date future → pas arrivé', !dossierArrive({ arrivalDate: demain(5) }));
+check('sans date → pas arrivé', !dossierArrive({}));
+check('date passée → arrivé', dossierArrive({ arrivalDate: demain(-1) }));
+check('entré en stock → arrivé, même avec une date future',
+  dossierArrive({ arrivalDate: demain(5), stockEntryDate: demain(-1) }));
+check('suivi ouvert, conteneur encore en mer malgré la date dépassée → pas arrivé',
+  !dossierArrive({ arrivalDate: demain(-3), suivi: { shipmentId: 1, statut: 'SAILING' } }));
+check('suivi ouvert mais entré en stock → arrivé',
+  dossierArrive({ arrivalDate: demain(-3), stockEntryDate: demain(-1), suivi: { shipmentId: 1, statut: 'SAILING' } }));
+check('conteneur déchargé, date passée → arrivé',
+  dossierArrive({ arrivalDate: demain(-3), suivi: { shipmentId: 1, statut: 'DISCHARGED' } }));
+// NEW / INPROGRESS : ShipsGo attend la compagnie, rien ne dit le conteneur en mer.
+check('suivi en attente (INPROGRESS), date passée → arrivé',
+  dossierArrive({ arrivalDate: demain(-3), suivi: { shipmentId: 1, statut: 'INPROGRESS' } }));
+check('suivi tout neuf (NEW), date passée → arrivé',
+  dossierArrive({ arrivalDate: demain(-3), suivi: { shipmentId: 1, statut: 'NEW' } }));
+check('ancien dossier au statut STOCK → arrivé', dossierArrive({ status: 'STOCK' }));
+
+console.log('\n── Dossier fermé au suivi ? ──');
+check('attendu → ouvert', !dossierVerrouille({ arrivalDate: demain(5) }));
+check('sans date → ouvert', !dossierVerrouille({}));
+check('date passée, sans suivi → fermé', dossierVerrouille({ arrivalDate: demain(-1) }));
+check('déchargé aujourd’hui → encore ouvert (le jour même)',
+  !dossierVerrouille({ arrivalDate: demain(0), suivi: { shipmentId: 1, statut: 'DISCHARGED' } }));
+check('déchargé hier → fermé',
+  dossierVerrouille({ arrivalDate: demain(-1), suivi: { shipmentId: 1, statut: 'DISCHARGED' } }));
+check('en mer malgré une date dépassée de deux mois → ouvert',
+  !dossierVerrouille({ arrivalDate: demain(-60), suivi: { shipmentId: 1, statut: 'SAILING' } }));
+check('en mer mais entré en stock → fermé',
+  dossierVerrouille({ arrivalDate: demain(5), stockEntryDate: demain(-1), suivi: { shipmentId: 1, statut: 'SAILING' } }));
+check('statut STOCK → fermé', dossierVerrouille({ arrivalDate: demain(5), status: 'STOCK' }));
+check('numéro inconnu, date passée → fermé',
+  dossierVerrouille({ arrivalDate: demain(-2), suivi: { shipmentId: 1, statut: 'UNTRACKED' } }));
+check('en attente de la compagnie depuis 3 jours → encore ouvert (délai de grâce)',
+  !dossierVerrouille({ arrivalDate: demain(-3), suivi: { shipmentId: 1, statut: 'INPROGRESS' } }));
+check('en attente depuis 10 jours → fermé',
+  dossierVerrouille({ arrivalDate: demain(-10), suivi: { shipmentId: 1, statut: 'INPROGRESS' } }));
+check('aujourd’hui au format yyyy-mm-dd', /^\d{4}-\d{2}-\d{2}$/.test(aujourdHui()));
 check('BL trop court → rien à ouvrir', !dossierAOuvrir({ noBL: 'AB1', arrivalDate: demain(12) }));
 
 console.log('\n── Dossiers à resynchroniser ──');

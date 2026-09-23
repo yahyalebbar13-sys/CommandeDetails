@@ -8,18 +8,22 @@
 //
 // Ouvrir un suivi coûte un crédit ShipsGo — le bouton le dit, et l'action reste
 // volontaire. Relire est gratuit.
+//
+// Le suivi ne concerne que les arrivages attendus : un dossier entré en stock
+// n'affiche rien, et un conteneur déjà arrivé sans suivi ne propose pas d'en
+// ouvrir un.
 
 import React, { useEffect, useRef, useState } from 'react';
 import {
   Ship, Anchor, MapPin, RefreshCw, Loader2, AlertTriangle, CheckCircle2,
-  CalendarClock, ExternalLink, Container, Radar, Lock, Mail, X, Send,
+  CalendarClock, ExternalLink, Container, Radar, Mail, X, Send,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
 import { authedFetch } from '@/lib/authed-fetch';
 import {
-  LIBELLE_STATUT, derniereEtape, instantDe, prochaineEtape, type SuiviConteneur,
+  LIBELLE_STATUT, derniereEtape, dossierArrive, instantDe, prochaineEtape, type SuiviConteneur,
 } from '@/lib/suivi-conteneur';
 import type { Carte } from '@/lib/suivi-carte';
 import SuiviCarte from './suivi-carte';
@@ -68,7 +72,7 @@ export default function SuiviConteneurPanneau({
   verrouille = false,
 }: {
   facture: any;
-  /** Dossier déjà entré en stock : on regarde sans plus rien mettre à jour. */
+  /** Dossier fermé au suivi (entré en stock, conteneur arrivé — cf. dossierVerrouille) : le panneau disparaît. */
   verrouille?: boolean;
 }) {
   const { toast } = useToast();
@@ -86,7 +90,7 @@ export default function SuiviConteneurPanneau({
   // mouvement du suivi (`majLe`). Lecture gratuite chez ShipsGo.
   const shipmentId = suivi?.shipmentId;
   const majLe = suivi?.majLe;
-  const tracable = Boolean(shipmentId) && suivi?.statut !== 'UNTRACKED';
+  const tracable = !verrouille && Boolean(shipmentId) && suivi?.statut !== 'UNTRACKED';
   useEffect(() => {
     if (!tracable) { setCarte(null); return; }
     let vivant = true;
@@ -162,6 +166,11 @@ export default function SuiviConteneurPanneau({
           title: '📅 Date d’arrivée mise à jour',
           description: `${formatJour(data.ancienneDate)} → ${formatJour(data.nouvelleDate)} d’après la compagnie.`,
         });
+      } else if (data.issue === 'deja-arrive' || data.issue === 'verrouille') {
+        toast({
+          title: 'Pas de suivi pour ce dossier',
+          description: data.message || 'Le conteneur est déjà arrivé : le suivi ne concerne que les arrivages attendus.',
+        });
       } else if (data.issue === 'suivi-ouvert') {
         toast({ title: '🚢 Suivi activé', description: 'Le conteneur sera relu automatiquement chaque nuit.' });
       } else {
@@ -183,9 +192,16 @@ export default function SuiviConteneurPanneau({
   const abonnes = suivi?.abonnes || [];
   const etapesVisibles = toutesEtapes ? etapes : etapes.slice(-4);
 
+  // Conteneur arrivé ou marchandise reçue : le suivi n'existe plus pour ce dossier.
+  if (verrouille) return null;
+
+  // Un NOUVEAU suivi (premier, ou autre numéro) ne s'ouvre que sur un arrivage
+  // attendu — le serveur refuse de toute façon (issue « deja-arrive »).
+  const ouvrable = !dossierArrive(facture);
+
   // ── Pas encore de suivi : proposer de l'ouvrir ──────────────────────────────
-  if (!suivi?.shipmentId || changementNumero) {
-    if (verrouille) return null;
+  if (!suivi?.shipmentId || (changementNumero && ouvrable)) {
+    if (!ouvrable) return null;
     return (
       <div className="bg-white rounded-3xl border border-stone-200 shadow-sm p-6 space-y-4">
         <div className="flex items-center gap-2">
@@ -260,21 +276,15 @@ export default function SuiviConteneurPanneau({
               <MapPin className="w-3.5 h-3.5" /> Carte <ExternalLink className="w-2.5 h-2.5 opacity-60" />
             </a>
           )}
-          {verrouille ? (
-            <span className="inline-flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest text-stone-400">
-              <Lock className="w-3.5 h-3.5" /> Dossier clos
-            </span>
-          ) : (
-            <Button
-              onClick={() => appeler()}
-              disabled={enCours}
-              variant="ghost"
-              className="h-9 rounded-xl text-[10px] font-black uppercase tracking-widest gap-2 text-stone-600 hover:text-stone-900"
-            >
-              {enCours ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
-              Actualiser
-            </Button>
-          )}
+          <Button
+            onClick={() => appeler()}
+            disabled={enCours}
+            variant="ghost"
+            className="h-9 rounded-xl text-[10px] font-black uppercase tracking-widest gap-2 text-stone-600 hover:text-stone-900"
+          >
+            {enCours ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
+            Actualiser
+          </Button>
         </div>
       </div>
 
@@ -300,12 +310,19 @@ export default function SuiviConteneurPanneau({
             ou une faute de frappe : reprenez le numéro écrit sur le <strong>connaissement de la compagnie</strong> ou
             sur le conteneur lui-même.
           </p>
-          <Button
-            onClick={() => setChangementNumero(true)}
-            className="h-10 rounded-xl bg-stone-900 hover:bg-stone-800 text-white text-[10px] font-black uppercase tracking-widest px-5"
-          >
-            Corriger le numéro
-          </Button>
+          {ouvrable ? (
+            <Button
+              onClick={() => setChangementNumero(true)}
+              className="h-10 rounded-xl bg-stone-900 hover:bg-stone-800 text-white text-[10px] font-black uppercase tracking-widest px-5"
+            >
+              Corriger le numéro
+            </Button>
+          ) : (
+            <p className="text-[11px] font-bold text-stone-500 leading-relaxed">
+              La date d'arrivée est passée : plus de nouveau suivi. Si le conteneur est encore en mer, corrigez
+              d'abord la date d'arrivée du dossier.
+            </p>
+          )}
         </div>
       ) : (
         <div className="p-6 space-y-6">
@@ -452,7 +469,7 @@ export default function SuiviConteneurPanneau({
                 {facture?.arrivalDateAvantSuivi ? ` (saisie d'origine : ${formatJour(facture.arrivalDateAvantSuivi)})` : ''}
               </p>
             )}
-            {!verrouille && (
+            {ouvrable && (
               <button
                 onClick={() => setChangementNumero(true)}
                 className="text-[10px] font-black uppercase tracking-widest text-stone-400 hover:text-stone-900 pt-3"

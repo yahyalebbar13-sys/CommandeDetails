@@ -165,10 +165,106 @@ export function referenceDepuisDossier(facture: {
   return bl && referenceValide(bl) ? bl : undefined;
 }
 
-/** Date du jour en yyyy-mm-dd, dans le fuseau de celui qui regarde. */
-function aujourdHui(): string {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+/**
+ * Date du jour en yyyy-mm-dd, à Casablanca. Un fuseau fixe : le serveur tourne
+ * en UTC, le navigateur à l'heure marocaine, et tous deux doivent être d'accord
+ * sur « la date d'arrivée est-elle passée ? » — autour de minuit surtout.
+ */
+export function aujourdHui(): string {
+  try {
+    // en-CA formate en yyyy-mm-dd.
+    return new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'Africa/Casablanca', year: 'numeric', month: '2-digit', day: '2-digit',
+    }).format(new Date());
+  } catch {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  }
+}
+
+/** yyyy-mm-dd décalé de N jours (négatif = passé). */
+function decalerJour(iso: string, jours: number): string {
+  const d = new Date(`${iso}T12:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + jours);
+  return d.toISOString().slice(0, 10);
+}
+
+/**
+ * Statuts où la compagnie a vraiment vu le conteneur en chemin. NEW et
+ * INPROGRESS n'en font pas partie : ils disent seulement que ShipsGo attend
+ * encore la compagnie — rien sur le voyage.
+ */
+const STATUTS_EN_ROUTE = new Set<string>(['BOOKED', 'LOADED', 'SAILING', 'ARRIVED']);
+
+/** Le suivi ouvert dit-il le conteneur encore en chemin ? */
+export function suiviDitEnRoute(suivi?: { shipmentId?: number; statut?: string } | null): boolean {
+  return Boolean(suivi?.shipmentId) && STATUTS_EN_ROUTE.has(suivi?.statut || '');
+}
+
+/**
+ * Délai laissé à la compagnie pour répondre à un suivi tout juste ouvert
+ * (NEW / INPROGRESS) quand la date d'arrivée du dossier est déjà passée — le
+ * cas d'un dossier créé avec la date du jour par défaut. Au-delà, on referme.
+ */
+const JOURS_ATTENTE_COMPAGNIE = 7;
+
+/**
+ * La marchandise est-elle déjà en stock ? Un dossier réceptionné n'a plus de
+ * suivi du tout : ni affiché, ni relu, ni mis à jour, ni annoncé aux clients.
+ * `status: 'STOCK'` compte aussi : des dossiers anciens le portent sans date
+ * d'entrée en stock.
+ */
+export function dossierEntreEnStock(facture: {
+  stockEntryDate?: string | null;
+  status?: string | null;
+} | null | undefined): boolean {
+  return Boolean(facture?.stockEntryDate) || facture?.status === 'STOCK';
+}
+
+type DossierDate = {
+  stockEntryDate?: string | null;
+  status?: string | null;
+  arrivalDate?: string | null;
+  suivi?: { shipmentId?: number; statut?: string } | null;
+};
+
+/**
+ * Le conteneur est-il déjà arrivé ? Le suivi ne concerne que les arrivages
+ * attendus : entré en stock, ou date d'arrivée passée, c'est trop tard pour en
+ * OUVRIR un (cf. dossierAOuvrir, synchroniserDossier).
+ *
+ * Exception : un suivi déjà ouvert où la compagnie dit le conteneur en chemin.
+ * Un retard fait dépasser la date annoncée sans que rien ne soit arrivé, et
+ * c'est justement la compagnie qui donnera la nouvelle date.
+ *
+ * `status` doit être celui ENREGISTRÉ dans le dossier, pas le statut d'affichage
+ * que la liste des arrivages recalcule (« STOCK » dès un mois écoulé).
+ */
+export function dossierArrive(facture: DossierDate | null | undefined): boolean {
+  if (dossierEntreEnStock(facture)) return true;
+  if (suiviDitEnRoute(facture?.suivi)) return false;
+  const eta = (facture?.arrivalDate || '').slice(0, 10);
+  return Boolean(eta) && eta < aujourdHui();
+}
+
+/**
+ * Le dossier est-il fermé au suivi ? Alors plus rien : ni panneau, ni pastille,
+ * ni relecture, ni écriture, ni alerte — un conteneur arrivé n'a plus de suivi.
+ * C'est la même règle que dossierArrive, avec un seul délai de grâce : un suivi
+ * qui attend encore la première réponse de la compagnie (NEW / INPROGRESS) reste
+ * ouvert quelques jours, le temps de savoir où est vraiment le conteneur.
+ *
+ * Même remarque sur `status` que pour dossierArrive.
+ */
+export function dossierVerrouille(facture: DossierDate | null | undefined): boolean {
+  if (!dossierArrive(facture)) return false;
+  if (dossierEntreEnStock(facture)) return true;
+  const statut = facture?.suivi?.shipmentId ? facture.suivi.statut : undefined;
+  if (statut === 'NEW' || statut === 'INPROGRESS') {
+    const eta = (facture?.arrivalDate || '').slice(0, 10);
+    return eta < decalerJour(aujourdHui(), -JOURS_ATTENTE_COMPAGNIE);
+  }
+  return true;
 }
 
 /**
@@ -184,14 +280,13 @@ function aujourdHui(): string {
 export function dossierAOuvrir(facture: {
   noBL?: string | null;
   stockEntryDate?: string | null;
+  status?: string | null;
   arrivalDate?: string | null;
-  suivi?: { shipmentId?: number; reference?: string } | null;
+  suivi?: { shipmentId?: number; reference?: string; statut?: string } | null;
 }): boolean {
   if (facture?.suivi?.shipmentId) return false;
-  if (facture?.stockEntryDate) return false;
   if (!referenceDepuisDossier(facture)) return false;
-  const eta = (facture?.arrivalDate || '').slice(0, 10);
-  return !eta || eta >= aujourdHui();
+  return !dossierArrive(facture);
 }
 
 // ─── Compagnie maritime ───────────────────────────────────────────────────────
@@ -441,8 +536,9 @@ export function prochaineEtape(suivi?: SuiviConteneur | null): EtapeSuivi | unde
 export function dossierASynchroniser(facture: {
   suivi?: SuiviConteneur | null;
   stockEntryDate?: string | null;
+  status?: string | null;
 }): boolean {
   if (!facture?.suivi?.shipmentId) return false;
-  if (facture.stockEntryDate) return false;
+  if (dossierEntreEnStock(facture)) return false;
   return !suiviTermine(facture.suivi);
 }

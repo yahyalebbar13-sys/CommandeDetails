@@ -70,6 +70,20 @@ compagnie publie un événement, et la tâche de nuit rattrape le reste. On arr�
 d'interroger un conteneur dès qu'il est déchargé ou que la marchandise est
 entrée en stock.
 
+**Le suivi ne concerne que les arrivages attendus** (règle du 23/09/2026, cf.
+`dossierArrive()` et `dossierEntreEnStock()` dans `src/lib/suivi-conteneur.ts`) :
+
+- un suivi ne s'ouvre que si la date d'arrivée n'est pas encore passée (ou
+  absente) — automatiquement, en lot comme d'un clic : le serveur refuse avec
+  l'issue `deja-arrive` ;
+- un dossier **entré en stock** (`stockEntryDate`, ou `status: 'STOCK'` sur les
+  anciens dossiers) n'a plus de suivi du tout : ni panneau, ni pastille dans la
+  liste, ni relecture, ni carte, ni abonné, et un webhook tardif n'y écrit rien
+  et n'envoie aucune alerte (issue `verrouille`).
+
+Le suivi est né en septembre 2026 : les anciens conteneurs n'en ont pas, et n'en
+auront pas.
+
 Le panneau affiche aussi :
 
 - **La route du navire**, dessinée en SVG à partir du GeoJSON ShipsGo (trait
@@ -126,8 +140,9 @@ Pour voir à quoi ressemble l'alerte sans encombrer sa boîte :
 
 Trois garde-fous encadrent cette écriture :
 
-1. La date n'est **jamais** modifiée sur un dossier déjà entré en stock ni sur un
-   arrivage clos depuis plus d'un mois : l'historique reste tel qu'il a été validé.
+1. **Rien** n'est écrit dans un dossier déjà entré en stock ni dans un arrivage
+   clos depuis plus d'un mois — ni date, ni suivi, ni alerte : l'historique reste
+   tel qu'il a été validé.
 2. Tant que le dossier n'est pas figé, **la date suit toujours la compagnie** :
    une date corrigée à la main est remplacée au passage suivant (webhook, cron
    ou ouverture du dossier). Décision du 23/09/2026 — auparavant une retouche

@@ -14,7 +14,7 @@ import { FileText, Calendar, Truck, Save, AlertTriangle, Hash, Ship, DollarSign,
 import { computeEffectiveStatus } from '@/lib/status-utils';
 import { sendStatusNotification } from '@/lib/send-status-notification';
 import { authedFetch } from '@/lib/authed-fetch';
-import { normaliserReference, referenceValide } from '@/lib/suivi-conteneur';
+import { aujourdHui, normaliserReference, referenceValide } from '@/lib/suivi-conteneur';
 
 interface AddFactureModalProps {
   open: boolean;
@@ -63,7 +63,8 @@ export default function AddFactureModal({ open, onOpenChange, editFacture, assoc
       setFormData({
         id: editFacture.id || '',
         noBL: editFacture.noBL || '',
-        arrivalDate: editFacture.arrivalDate || new Date().toISOString().split('T')[0],
+        // Date du jour à Casablanca : la même que celle qui décide si le conteneur est arrivé.
+        arrivalDate: editFacture.arrivalDate || aujourdHui(),
         stockEntryDate: editFacture.stockEntryDate || '',
         shippingDate: editFacture.shippingDate || '',
         shippingLine: editFacture.shippingLine || '',
@@ -84,7 +85,7 @@ export default function AddFactureModal({ open, onOpenChange, editFacture, assoc
       setFormData({
         id: '',
         noBL: '',
-        arrivalDate: new Date().toISOString().split('T')[0],
+        arrivalDate: aujourdHui(),
         stockEntryDate: '',
         shippingDate: '',
         shippingLine: '',
@@ -191,8 +192,9 @@ export default function AddFactureModal({ open, onOpenChange, editFacture, assoc
     const blActuel = normaliserReference(factureData.noBL || '');
     const dejaSuivi = Boolean(capturedEditFacture?.suivi?.shipmentId);
     const blChange = Boolean(blActuel) && blActuel !== normaliserReference(blPrecedent);
-    // Le serveur écarte lui-même les dossiers clos : la décision de dépenser un
-    // crédit tient à un seul endroit.
+    // Le serveur écarte lui-même les dossiers en stock ou déjà arrivés (réponse
+    // « verrouille » / « deja-arrive », sans toast) : la décision de dépenser un
+    // crédit tient à un seul endroit, qui lit le dossier tel qu'il est enregistré.
     if (blActuel && referenceValide(blActuel) && (blChange || !dejaSuivi)) {
       ouvrirSuiviEnFond(factureId, blActuel);
     }

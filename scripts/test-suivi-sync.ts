@@ -10,7 +10,7 @@
 // de 30 jours est considéré clos (cf. status-utils.ts), donc des dates figées en
 // dur verrouilleraient tous les cas au bout d'un mois.
 
-import { appliquerShipment } from '../src/lib/suivi-sync';
+import { appliquerShipment, synchroniserDossier } from '../src/lib/suivi-sync';
 
 let pass = 0;
 let fail = 0;
@@ -164,16 +164,49 @@ async function main() {
     check('date appliquée mémorisée', ecrit?.suivi?.dateAppliquee === ETA_COMPAGNIE);
   }
 
-  console.log('\n── Dossier clos : on ne touche plus à rien ──');
+  console.log('\n── Dossier entré en stock : plus aucun suivi ──');
   {
+    // Un webhook qui arrive après la réception ne doit rien écrire ni annoncer.
     const db = faireDb();
     const r = await appliquerShipment(db, UID, '26HD1004',
-      { id: '26HD1004', arrivalDate: ETA_DOSSIER, stockEntryDate: jour(-2) }, shipmentEnMer);
-    const ecrit = db.ecritures[0]?.donnees;
-    check('date inchangée', ecrit?.arrivalDate === undefined);
-    check('aucune date proposée non plus', !ecrit?.suivi?.dateProposee, String(ecrit?.suivi?.dateProposee));
+      { id: '26HD1004', arrivalDate: ETA_DOSSIER, stockEntryDate: jour(-2),
+        suivi: { shipmentId: 1001, reference: 'MEDUXY123456', statut: 'SAILING' } }, shipmentEnMer);
     check('issue', r.issue === 'verrouille', r.issue);
-    check('le suivi est quand même enregistré', ecrit?.suivi?.statut === 'SAILING');
+    check('rien n’est écrit dans le dossier', db.ecritures.length === 0, `→ ${db.ecritures.length} écriture(s)`);
+
+    // Anciens dossiers : `status: 'STOCK'` sans date d'entrée en stock.
+    const db2 = faireDb();
+    const r2 = await appliquerShipment(db2, UID, '26HD1004',
+      { id: '26HD1004', arrivalDate: ETA_DOSSIER, status: 'STOCK' }, shipmentEnMer);
+    check('statut STOCK sans date : verrouillé aussi', r2.issue === 'verrouille', r2.issue);
+    check('rien n’est écrit non plus', db2.ecritures.length === 0);
+  }
+
+  console.log('\n── On n’ouvre jamais de suivi sur un ancien conteneur ──');
+  {
+    // Aucun appel réseau ne doit partir : sans jeton ShipsGo, un appel échouerait
+    // en « erreur » — l'issue prouve donc qu'on s'est arrêté avant.
+    const base = { id: '26HD1004', noBL: 'MEDUKV285573' };
+    const cas: [string, any, string][] = [
+      ['entré en stock', { ...base, arrivalDate: jour(-5), stockEntryDate: jour(-2) }, 'verrouille'],
+      ['statut STOCK', { ...base, status: 'STOCK' }, 'verrouille'],
+      ['date d’arrivée passée', { ...base, arrivalDate: jour(-3) }, 'verrouille'],
+      ['arrivé il y a plus d’un mois', { ...base, arrivalDate: jour(-60) }, 'verrouille'],
+      // Suivi encore sans réponse de la compagnie : le dossier reste ouvert quelques
+      // jours (délai de grâce), mais un AUTRE numéro ne s'ouvre pas pour autant.
+      ['autre numéro sur un suivi en attente, date passée',
+        { ...base, arrivalDate: jour(-3), suivi: { shipmentId: 7, reference: 'MSCU1234565', statut: 'INPROGRESS' } },
+        'deja-arrive'],
+    ];
+    for (const [libelle, dossier, attendu] of cas) {
+      const db = faireDb();
+      // Clic explicite (autoriserOuverture) ET référence saisie : même là, non.
+      const r = await synchroniserDossier(db, UID, '26HD1004', dossier, {
+        reference: 'MEDUKV285573', autoriserOuverture: true,
+      });
+      check(`${libelle} → ${attendu}`, r.issue === attendu, r.issue);
+      check(`${libelle} → rien d’écrit`, db.ecritures.length === 0);
+    }
   }
 
   console.log('\n── Arrivage vieux de plus d’un mois : figé aussi ──');

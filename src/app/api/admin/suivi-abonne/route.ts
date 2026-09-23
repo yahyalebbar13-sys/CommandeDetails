@@ -11,7 +11,7 @@ import { getApps, initializeApp, cert } from 'firebase-admin/app';
 import { getFirestore } from 'firebase-admin/firestore';
 import { verifyAdmin } from '@/lib/require-admin';
 import { ajouterAbonne, lireSuivi, retirerAbonne, suiviConfigure } from '@/lib/shipsgo';
-import { appliquerShipment } from '@/lib/suivi-sync';
+import { appliquerShipment, dossierVerrouille } from '@/lib/suivi-sync';
 
 function getFirebaseAdminApp() {
   if (!getApps().length) {
@@ -65,6 +65,10 @@ export async function POST(req: Request) {
     if (!snap.exists) return NextResponse.json({ error: 'Dossier introuvable' }, { status: 404 });
 
     const facture = snap.data();
+    // Marchandise reçue : plus de suivi, donc plus personne à prévenir.
+    if (dossierVerrouille(facture)) {
+      return NextResponse.json({ error: 'Dossier déjà entré en stock : le suivi est terminé' }, { status: 409 });
+    }
     const shipmentId = Number(facture?.suivi?.shipmentId);
     if (!shipmentId) return NextResponse.json({ error: 'Aucun suivi ouvert pour ce dossier' }, { status: 400 });
 
