@@ -142,6 +142,85 @@ check('marquée comme réelle', decharge.dateDechargementReelle === true);
 check('date du dossier = déchargement réel', dateArriveeDuSuivi(decharge) === '2026-03-26');
 check('suivi terminé', suiviTermine(decharge));
 
+console.log('\n── Date du dossier = arrivée annoncée au port final ──');
+// La compagnie a repoussé l'arrivée dans ses étapes, pas (encore) dans l'ETA de
+// la route : le dossier doit afficher ce que montre « Attendu : Arrivée au port ».
+const escale = (event: string, st: string, lieu: string, d: string) => ({
+  event, status: st, location: { name: lieu }, vessel: { name: 'MSC ANNA' }, voyage: '612N', timestamp: `${d}T09:00:00+01:00`,
+});
+const repousse = resumerShipment({
+  ...enMer,
+  containers: [{
+    number: 'MSCU1234567', status: 'SAILING',
+    movements: [
+      ...enMer.containers[0].movements.filter(m => m.status === 'ACT'),
+      escale('ARRV', 'EST', 'TANGER MED', '2026-03-25'),
+      escale('DISC', 'EST', 'TANGER MED', '2026-03-25'),
+      escale('ARRV', 'EST', 'CASABLANCA', '2026-04-02'),
+      escale('DISC', 'EST', 'CASABLANCA', '2026-04-03'),
+    ],
+  }],
+});
+check('arrivée annoncée au port final retenue', repousse.dateDechargement === '2026-04-02', `→ ${repousse.dateDechargement}`);
+check('l’escale de Tanger n’est pas l’arrivée', repousse.dateDechargement !== '2026-03-25');
+check('toujours une annonce', repousse.dateDechargementReelle === false);
+check('prochaine étape = escale, avec son lieu', prochaineEtape(repousse)?.lieu === 'TANGER MED');
+
+const aQuai = resumerShipment({
+  ...enMer,
+  status: 'ARRIVED',
+  containers: [{
+    number: 'MSCU1234567', status: 'ARRIVED',
+    movements: [
+      ...enMer.containers[0].movements.filter(m => m.status === 'ACT'),
+      escale('ARRV', 'ACT', 'CASABLANCA', '2026-03-27'),
+      escale('DISC', 'EST', 'CASABLANCA', '2026-03-29'),
+    ],
+  }],
+});
+check('navire arrivé : date réelle d’arrivée', aQuai.dateDechargement === '2026-03-27', `→ ${aQuai.dateDechargement}`);
+check('marquée comme réelle', aQuai.dateDechargementReelle === true);
+
+// L'escale laissée « prévue » par la compagnie après être passée n'est plus annoncée.
+const escalePerimee = resumerShipment({
+  ...enMer,
+  containers: [{
+    number: 'MSCU1234567', status: 'SAILING',
+    movements: [
+      ...enMer.containers[0].movements.filter(m => m.status === 'ACT'),
+      escale('ARRV', 'EST', 'TANGER MED', '2026-03-15'),
+      escale('LOAD', 'ACT', 'TANGER MED', '2026-03-18'),
+      escale('ARRV', 'EST', 'CASABLANCA', '2026-03-24'),
+    ],
+  }],
+});
+check('prévision périmée ignorée : prochaine = Casablanca', prochaineEtape(escalePerimee)?.lieu === 'CASABLANCA',
+  `→ ${prochaineEtape(escalePerimee)?.lieu} ${prochaineEtape(escalePerimee)?.date}`);
+check('et c’est bien la date du dossier', dateArriveeDuSuivi(escalePerimee) === prochaineEtape(escalePerimee)?.date);
+
+console.log('\n── BL éclaté sur deux navires ──');
+const deuxNavires = (a: [string, string], b: [string, string]) => resumerShipment({
+  ...enMer,
+  containers: [
+    { number: 'MSCU1234567', movements: [escale('ARRV', a[0], 'CASABLANCA', a[1])] },
+    { number: 'TGHU9876543', movements: [escale('ARRV', b[0], 'CASABLANCA', b[1])] },
+  ],
+});
+const annonces = deuxNavires(['EST', '2026-04-02'], ['EST', '2026-04-09']);
+check('le dossier suit le dernier conteneur', annonces.dateDechargement === '2026-04-09', `→ ${annonces.dateDechargement}`);
+const premierArrive = deuxNavires(['ACT', '2026-04-02'], ['EST', '2026-04-09']);
+check('premier navire arrivé : la date ne recule pas', premierArrive.dateDechargement === '2026-04-09', `→ ${premierArrive.dateDechargement}`);
+check('et le BL n’est pas encore arrivé pour de vrai', premierArrive.dateDechargementReelle === false);
+const tousArrives = deuxNavires(['ACT', '2026-04-02'], ['ACT', '2026-04-10']);
+check('tous arrivés : date réelle du dernier', tousArrives.dateDechargement === '2026-04-10' && tousArrives.dateDechargementReelle === true,
+  `→ ${tousArrives.dateDechargement} ${tousArrives.dateDechargementReelle}`);
+
+const sansEtapeFinale = resumerShipment({
+  ...enMer,
+  containers: [{ number: 'MSCU1234567', status: 'SAILING', movements: enMer.containers[0].movements.filter(m => m.status === 'ACT') }],
+});
+check('sans étape au port final : ETA de la route', sansEtapeFinale.dateDechargement === '2026-03-28', `→ ${sansEtapeFinale.dateDechargement}`);
+
 console.log('\n── Numéro non reconnu ──');
 const inconnu = resumerShipment({
   id: 42, booking_number: '26HD1004', container_number: null, container_count: 0,

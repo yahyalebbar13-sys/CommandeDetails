@@ -238,10 +238,12 @@ export async function synchroniserDossier(
     };
   } catch (e: any) {
     const message = e instanceof ErreurShipsGo ? e.message : `Suivi impossible : ${e?.message || e}`;
-    // L'échec se voit dans le dossier sans effacer ce qu'on savait déjà.
+    // L'échec se voit dans le dossier sans effacer ce qu'on savait déjà. On
+    // n'écrit QUE l'erreur : recopier `suiviActuel`, lu parfois des secondes
+    // plus tôt, écraserait ce qu'un webhook vient d'y mettre.
     if (suiviActuel?.shipmentId) {
       await db.doc(`users/${adminUid}/factures/${factureId}`)
-        .set(sansIndefinis({ suivi: { ...suiviActuel, erreur: message, majLe: new Date().toISOString() } }), { merge: true })
+        .set({ suivi: { erreur: message, majLe: new Date().toISOString() } }, { merge: true })
         .catch(() => { /* l'erreur d'origine prime sur celle-ci */ });
     }
     return { factureId, issue: 'erreur', message, suivi: suiviActuel, codeErreur: e instanceof ErreurShipsGo ? e.code : undefined };
@@ -256,20 +258,32 @@ export async function synchroniserDossier(
 export async function synchroniserDossiersEnCours(
   db: any,
   adminUid: string,
+  opts: { fraicheurMs?: number } = {},
 ): Promise<{ resultats: ResultatSynchro[]; examines: number }> {
+  const maintenant = Date.now();
   const snap = await db.collection(`users/${adminUid}/factures`).get();
 
-  const aFaire: { id: string; data: any }[] = [];
-  snap.forEach((d: any) => {
-    const data = d.data();
-    if (!data?.suivi?.shipmentId) return;          // suivi jamais ouvert
-    if (dossierVerrouille(data)) return;           // marchandise déjà reçue
-    if (suiviTermine(data.suivi)) return;          // conteneur déchargé : terminé
-    aFaire.push({ id: d.id, data });
-  });
+  const aRelire = (data: any, maintenant: number): boolean => {
+    if (!data?.suivi?.shipmentId) return false;          // suivi jamais ouvert
+    if (dossierVerrouille(data)) return false;           // arrivé, ou marchandise reçue
+    if (suiviTermine(data.suivi)) return false;          // conteneur déchargé : terminé
+    // Relu à l'instant (webhook, dossier ouvert) : rien de neuf à attendre.
+    const relu = instantDe(data.suivi.majLe);
+    if (opts.fraicheurMs && relu !== undefined && maintenant - relu < opts.fraicheurMs) return false;
+    return true;
+  };
+
+  const aFaire: string[] = [];
+  snap.forEach((d: any) => { if (aRelire(d.data(), maintenant)) aFaire.push(d.id); });
 
   const resultats: ResultatSynchro[] = [];
-  for (const { id, data } of aFaire) {
+  for (const id of aFaire) {
+    // Chaque dossier est relu juste avant d'être traité : pendant que la boucle
+    // attend ShipsGo, le panneau ou un webhook a pu le mettre à jour — travailler
+    // sur la photo du début renverrait les mêmes alertes et reculerait le suivi.
+    const frais = await db.doc(`users/${adminUid}/factures/${id}`).get();
+    const data = frais.exists ? frais.data() : null;
+    if (!data || !aRelire(data, Date.now())) continue;
     resultats.push(await synchroniserDossier(db, adminUid, id, data));
   }
   return { resultats, examines: aFaire.length };

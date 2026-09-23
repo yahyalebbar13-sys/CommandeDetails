@@ -23,7 +23,7 @@ import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
 import { authedFetch } from '@/lib/authed-fetch';
 import {
-  LIBELLE_STATUT, derniereEtape, dossierArrive, instantDe, prochaineEtape, type SuiviConteneur,
+  LIBELLE_STATUT, auPortFinal, derniereEtape, dossierArrive, instantDe, prochaineEtape, type SuiviConteneur,
 } from '@/lib/suivi-conteneur';
 import type { Carte } from '@/lib/suivi-carte';
 import SuiviCarte from './suivi-carte';
@@ -113,7 +113,7 @@ export default function SuiviConteneurPanneau({
   useEffect(() => {
     if (!tracable || verrouille || dejaRafraichi.current) return;
     const age = Date.now() - (instantDe(suivi?.majLe) ?? 0);
-    if (age < 30 * 60 * 1000) return;   // relu il y a moins d'une demi-heure
+    if (age < 5 * 60 * 1000) return;    // relu il y a moins de cinq minutes
     dejaRafraichi.current = true;
     authedFetch('/api/admin/suivi-conteneur', {
       method: 'POST',
@@ -369,9 +369,18 @@ export default function SuiviConteneurPanneau({
                 <CheckCircle2 className="w-3 h-3" />{derniere.libelle} · {formatJour(derniere.date)}
               </span>
             )}
-            {prochaine && (
+            {/* L'arrivée attendue est EXACTEMENT la date du dossier (même calcul,
+                cf. resumerShipment) : jamais deux chiffres différents à l'écran. */}
+            {!suivi.dateDechargementReelle && suivi.dateDechargement && (
               <span className={`${puce} bg-amber-50 text-amber-700 border-amber-200`}>
-                <CalendarClock className="w-3 h-3" />Attendu : {prochaine.libelle} · {formatJour(prochaine.date)}
+                <CalendarClock className="w-3 h-3" />Attendu : Arrivée
+                {suivi.portDechargement ? ` · ${suivi.portDechargement}` : ''} · {formatJour(suivi.dateDechargement)}
+              </span>
+            )}
+            {/* Avant, une escale (Tanger, Algésiras…) : dite comme telle, avec son lieu. */}
+            {prochaine && !auPortFinal(prochaine, suivi) && (
+              <span className={`${puce} bg-white text-stone-500 border-stone-200`}>
+                Prochaine escale : {prochaine.libelle}{prochaine.lieu ? ` · ${prochaine.lieu}` : ''} · {formatJour(prochaine.date)}
               </span>
             )}
             {suivi.navire && (

@@ -53,7 +53,11 @@ export type SuiviConteneur = {
   /** yyyy-mm-dd */
   dateChargement?: string;
   portDechargement?: string;
-  /** yyyy-mm-dd — date réelle si le conteneur est déchargé, sinon l'ETA annoncée. */
+  /**
+   * yyyy-mm-dd — arrivée au port final : réelle si le navire y est arrivé (ou le
+   * conteneur déchargé), sinon la dernière date annoncée. Le nom est historique :
+   * c'est la date d'arrivée du dossier (cf. resumerShipment).
+   */
   dateDechargement?: string;
   /** true quand dateDechargement est un fait, false quand c'est une prévision. */
   dateDechargementReelle: boolean;
@@ -426,22 +430,24 @@ export function resumerShipment(shipment: ShipmentBrut, maintenant = new Date())
   // Un Master BL porte plusieurs conteneurs qui voyagent ensemble : leurs
   // mouvements sont identiques et feraient une frise en double, en triple…
   // On les fusionne sur (événement, date, lieu).
+  const etapesDu = (c: any): EtapeSuivi[] =>
+    (Array.isArray(c?.movements) ? c.movements : [])
+      .filter((m: any) => m?.event && m?.timestamp && LIBELLE_EVENEMENT[m.event as CodeEvenement])
+      .map((m: any): EtapeSuivi => ({
+        code: m.event,
+        libelle: LIBELLE_EVENEMENT[m.event as CodeEvenement],
+        reel: m.status === 'ACT',
+        date: jourDe(m.timestamp) || '',
+        lieu: m.location?.name || undefined,
+        pays: m.location?.country?.name || undefined,
+        navire: m.vessel?.name || undefined,
+        voyage: m.voyage || undefined,
+      }))
+      .filter((e: EtapeSuivi) => Boolean(e.date));
   const vues = new Set<string>();
   const etapes: EtapeSuivi[] = conteneurs
-    .flatMap((c: any) => (Array.isArray(c?.movements) ? c.movements : []))
-    .filter((m: any) => m?.event && m?.timestamp && LIBELLE_EVENEMENT[m.event as CodeEvenement])
-    .map((m: any): EtapeSuivi => ({
-      code: m.event,
-      libelle: LIBELLE_EVENEMENT[m.event as CodeEvenement],
-      reel: m.status === 'ACT',
-      date: jourDe(m.timestamp) || '',
-      lieu: m.location?.name || undefined,
-      pays: m.location?.country?.name || undefined,
-      navire: m.vessel?.name || undefined,
-      voyage: m.voyage || undefined,
-    }))
+    .flatMap(etapesDu)
     .filter(e => {
-      if (!e.date) return false;
       const cle = `${e.code}|${e.date}|${e.lieu || ''}|${e.reel}`;
       if (vues.has(cle)) return false;
       vues.add(cle);
@@ -469,11 +475,37 @@ export function resumerShipment(shipment: ShipmentBrut, maintenant = new Date())
   // On ne retient donc un déchargement comme définitif que s'il a lieu au port
   // de destination. Dans le doute — libellés de ports qui ne se ressemblent
   // pas — on garde la date annoncée, quitte à la corriger plus tard.
-  const dechargementsReels = [...etapes].reverse().filter(e => e.code === 'DISC' && e.reel);
-  const dateReelle = dechargementsReels.find(e => memeLieu(e.lieu, portFinal))?.date
-    // Sans escale annoncée, un déchargement réel ne peut être que celui d'arrivée.
-    ?? (route && Number(route.ts_count) === 0 ? dechargementsReels[0]?.date : undefined);
-  const eta = jourDe(dechargement?.date_of_discharge);
+  //
+  // La date d'arrivée du dossier est celle de l'ARRIVÉE AU PORT FINAL, lue dans
+  // les étapes de la compagnie — celles de la frise — et affichée telle quelle
+  // dans la pastille « Attendu : Arrivée » : un seul chiffre partout, qui bouge
+  // à chaque nouvelle annonce. Pour chaque conteneur : arrivée réelle du navire,
+  // sinon déchargement réel, sinon la dernière arrivée annoncée, sinon le
+  // dernier déchargement annoncé. Le dossier suit le conteneur qui arrive le
+  // plus tard, et n'est « arrivé pour de vrai » que quand tous le sont : un BL
+  // éclaté sur deux navires n'est pas livré quand le premier accoste.
+  const auPortArrivee = (e: EtapeSuivi) => memeLieu(e.lieu, portFinal);
+  // Sans escale annoncée, un déchargement réel ne peut être que celui d'arrivée.
+  const sansEscale = Boolean(route) && Number(route?.ts_count) === 0;
+  const arriveeDuConteneur = (siennes: EtapeSuivi[]): { date: string; reelle: boolean } | undefined => {
+    const recentes = [...siennes].sort((a, b) => b.date.localeCompare(a.date));
+    const reelle =
+      recentes.find(e => e.code === 'ARRV' && e.reel && auPortArrivee(e))
+      ?? recentes.find(e => e.code === 'DISC' && e.reel && (auPortArrivee(e) || sansEscale));
+    if (reelle) return { date: reelle.date, reelle: true };
+    const annoncee = (code: CodeEvenement) =>
+      siennes.filter(e => e.code === code && !e.reel && auPortArrivee(e)).map(e => e.date).sort().pop();
+    const date = annoncee('ARRV') ?? annoncee('DISC');
+    return date ? { date, reelle: false } : undefined;
+  };
+  const avecEtapes = conteneurs.map(etapesDu).filter(l => l.length > 0);
+  const arrivees = avecEtapes.map(arriveeDuConteneur);
+  const connues = arrivees.filter((a): a is { date: string; reelle: boolean } => Boolean(a));
+  const derniere = connues.map(a => a.date).sort().pop();
+  // Un conteneur sans étape au port final n'y est pas encore arrivé pour autant.
+  const toutesReelles = connues.length > 0 && connues.length === arrivees.length && connues.every(a => a.reelle);
+  const dateReelle = toutesReelles ? derniere : undefined;
+  const eta = derniere ?? jourDe(dechargement?.date_of_discharge);
 
   const reference = shipment?.container_number || shipment?.booking_number || '';
 
@@ -508,9 +540,10 @@ export function resumerShipment(shipment: ShipmentBrut, maintenant = new Date())
 
 // ─── Ce qu'on en fait dans le dossier ─────────────────────────────────────────
 /**
- * Date d'arrivée à inscrire dans le dossier : le déchargement au port de
- * destination — réel s'il a eu lieu, annoncé sinon. C'est la date dont dépend
- * déjà le statut affiché (cf. status-utils.ts), d'où le dédouanement enchaîne.
+ * Date d'arrivée à inscrire dans le dossier : l'arrivée au port de destination
+ * — réelle si elle a eu lieu, la dernière annoncée sinon. C'est la date dont
+ * dépend déjà le statut affiché (cf. status-utils.ts), d'où le dédouanement
+ * enchaîne.
  */
 export function dateArriveeDuSuivi(suivi?: SuiviConteneur | null): string | undefined {
   if (!suivi || suivi.statut === 'UNTRACKED') return undefined;
@@ -523,9 +556,19 @@ export function derniereEtape(suivi?: SuiviConteneur | null): EtapeSuivi | undef
   return [...suivi.etapes].reverse().find(e => e.reel);
 }
 
-/** Prochaine étape attendue (la plus proche des étapes prévues). */
+/**
+ * Prochaine étape attendue (la plus proche des étapes prévues). Une prévision
+ * antérieure à la dernière étape franchie est périmée — la compagnie laisse
+ * parfois l'escale « prévue » après l'avoir passée : on ne l'annonce pas.
+ */
 export function prochaineEtape(suivi?: SuiviConteneur | null): EtapeSuivi | undefined {
-  return suivi?.etapes?.find(e => !e.reel);
+  const franchie = derniereEtape(suivi)?.date || '';
+  return suivi?.etapes?.find(e => !e.reel && e.date >= franchie);
+}
+
+/** L'étape est-elle au port final (Casablanca), et non une escale ? */
+export function auPortFinal(etape: EtapeSuivi | undefined, suivi?: SuiviConteneur | null): boolean {
+  return Boolean(etape) && memeLieu(etape?.lieu, suivi?.portDechargement);
 }
 
 /**

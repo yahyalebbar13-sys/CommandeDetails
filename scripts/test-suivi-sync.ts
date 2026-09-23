@@ -10,7 +10,7 @@
 // de 30 jours est considéré clos (cf. status-utils.ts), donc des dates figées en
 // dur verrouilleraient tous les cas au bout d'un mois.
 
-import { appliquerShipment, synchroniserDossier } from '../src/lib/suivi-sync';
+import { appliquerShipment, synchroniserDossier, synchroniserDossiersEnCours } from '../src/lib/suivi-sync';
 
 let pass = 0;
 let fail = 0;
@@ -180,6 +180,17 @@ async function main() {
       { id: '26HD1004', arrivalDate: ETA_DOSSIER, status: 'STOCK' }, shipmentEnMer);
     check('statut STOCK sans date : verrouillé aussi', r2.issue === 'verrouille', r2.issue);
     check('rien n’est écrit non plus', db2.ecritures.length === 0);
+  }
+
+  console.log('\n── Relecture à la demande : un dossier relu à l’instant est sauté ──');
+  {
+    const docs = [
+      { id: 'FRAIS', data: () => ({ arrivalDate: jour(10), suivi: { shipmentId: 1, statut: 'SAILING', majLe: new Date().toISOString() } }) },
+      { id: 'STOCK', data: () => ({ arrivalDate: jour(10), stockEntryDate: jour(-1), suivi: { shipmentId: 2, statut: 'SAILING', majLe: '2026-01-01T00:00:00Z' } }) },
+    ];
+    const db = { collection: () => ({ get: async () => ({ forEach: (f: any) => docs.forEach(f) }) }) };
+    const r = await synchroniserDossiersEnCours(db, UID, { fraicheurMs: 10 * 60 * 1000 });
+    check('relu il y a une seconde → sauté, en stock → sauté', r.examines === 0, `→ ${r.examines}`);
   }
 
   console.log('\n── On n’ouvre jamais de suivi sur un ancien conteneur ──');

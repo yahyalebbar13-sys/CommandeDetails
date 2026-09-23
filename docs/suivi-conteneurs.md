@@ -65,8 +65,16 @@ Dans un dossier d'arrivage, le panneau **Suivi du conteneur** demande un numéro
 des compagnies : si elle est saisie, ShipsGo répond `UNTRACKED` et le panneau
 propose de corriger le numéro.
 
-Ensuite, plus rien à faire : le webhook met le dossier à jour dès que la
-compagnie publie un événement, et la tâche de nuit rattrape le reste. On arrête
+Ensuite, plus rien à faire : la date d'arrivée du dossier suit chaque nouvelle
+annonce de la compagnie. Quatre déclencheurs, tous gratuits :
+
+- le **webhook** ShipsGo, dès que la compagnie publie un événement (à condition
+  que l'URL `https://www.lebtex.ma/api/webhooks/shipsgo` soit enregistrée dans
+  le tableau de bord ShipsGo) ;
+- l'**ouverture de la liste des arrivages** relit tous les conteneurs en route
+  (`/api/admin/suivi-actualiser`, dossiers relus il y a moins de 10 min sautés) ;
+- l'**ouverture d'un dossier** le relit s'il date de plus de 5 min ;
+- la **tâche de 6 h** rattrape le reste. On arrête
 d'interroger un conteneur dès qu'il est déchargé ou que la marchandise est
 entrée en stock.
 
@@ -131,7 +139,7 @@ Pour voir à quoi ressemble l'alerte sans encombrer sa boîte :
 | Champ | Contenu |
 | --- | --- |
 | `suivi` | État complet du voyage (cf. `src/lib/suivi-conteneur.ts`) |
-| `arrivalDate` | Date de déchargement au port — réelle si elle a eu lieu, annoncée sinon |
+| `arrivalDate` | Arrivée au port final, lue dans les étapes de la compagnie (la même que « Attendu : Arrivée au port ») : arrivée réelle du navire, sinon déchargement réel, sinon dernière arrivée annoncée, sinon ETA de la route |
 | `arrivalDateAvantSuivi` | La date saisie à la main avant la première correction automatique |
 | `arrivalDateSource` | `shipsgo` quand la date a été corrigée automatiquement |
 
