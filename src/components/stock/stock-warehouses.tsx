@@ -146,27 +146,25 @@ export default function StockWarehouses({
   // Utiliser les articles complets (globaux) pour que chaque entrepôt affiche ses vraies pièces et stats
   const itemsForStats = (allStockItems && allStockItems.length > 0) ? allStockItems : stockItems;
 
+  // Un entrepôt se décrit par ses quantités : le prix de revient n'apparaît nulle part ici.
   const getWarehouseStats = (warehouseId: string) => {
     let refs = 0;
     let qty = 0;
-    let val = 0;
 
     itemsForStats.forEach(i => {
       const storeQty = i.qtyByStore?.[warehouseId] || 0;
       if (storeQty > 0) {
         refs++;
         qty += storeQty;
-        val += storeQty * (i.purchasePricePerUnit || 0);
       }
     });
-    return { refs, qty, val };
+    return { refs, qty };
   };
 
   // Stats globales pour tous les entrepôts combinés
   const totalWarehouseStats = useMemo(() => {
     let refsSet = new Set<string>();
     let totalQty = 0;
-    let totalVal = 0;
 
     warehouses.forEach(w => {
       itemsForStats.forEach(i => {
@@ -174,7 +172,6 @@ export default function StockWarehouses({
         if (q > 0) {
           refsSet.add(i.articleId);
           totalQty += q;
-          totalVal += q * (i.purchasePricePerUnit || 0);
         }
       });
     });
@@ -182,7 +179,6 @@ export default function StockWarehouses({
     return {
       refs: refsSet.size,
       qty: totalQty,
-      val: totalVal
     };
   }, [warehouses, itemsForStats]);
 
@@ -216,12 +212,10 @@ export default function StockWarehouses({
             <p className="text-[11px] font-black uppercase tracking-widest text-stone-300">Total Pièces</p>
             <p className="text-xl font-black text-blue-400">{fmt(totalWarehouseStats.qty)}</p>
           </div>
-          {userRole === 'ADMIN' && (
-            <div className="bg-emerald-500/20 backdrop-blur-md px-4 py-3 rounded-2xl text-center border border-emerald-500/30">
-              <p className="text-[11px] font-black uppercase tracking-widest text-emerald-300">Valeur Globale</p>
-              <p className="text-xl font-black text-emerald-400">{fmt(totalWarehouseStats.val)} <span className="text-[10px]">MAD</span></p>
-            </div>
-          )}
+          <div className="bg-white/10 backdrop-blur-md px-4 py-3 rounded-2xl text-center border border-white/10">
+            <p className="text-[11px] font-black uppercase tracking-widest text-stone-300">Articles Référencés</p>
+            <p className="text-xl font-black text-white">{fmt(totalWarehouseStats.refs)}</p>
+          </div>
 
           {canManage && (
             <Button
@@ -311,8 +305,8 @@ export default function StockWarehouses({
                   </div>
                 </div>
 
-                {/* Indicateurs clés */}
-                <div className="p-6 space-y-4 flex-1">
+                {/* Indicateurs clés — quantités seulement */}
+                <div className="p-6 flex-1">
                   <div className="grid grid-cols-2 gap-4">
                     <div className="bg-stone-50 rounded-2xl p-4 border border-stone-100">
                       <div className="flex items-center gap-1.5 text-stone-400 mb-1">
@@ -330,19 +324,6 @@ export default function StockWarehouses({
                       <p className="text-xl font-black text-blue-700">{fmt(stats.qty)}</p>
                     </div>
                   </div>
-
-                  {/* VISIBILITÉ STRICTE DE LA VALEUR MARCHANDISE : ADMIN UNIQUEMENT */}
-                  {userRole === 'ADMIN' && (
-                    <div className="bg-emerald-50 rounded-2xl p-4 border border-emerald-100 flex items-center justify-between">
-                      <div>
-                        <p className="text-[11px] font-black uppercase tracking-widest text-emerald-600">Valeur Marchandise</p>
-                        <p className="text-lg font-black text-emerald-700">{fmt(stats.val)} MAD</p>
-                      </div>
-                      <span className="text-[11px] font-black bg-emerald-200 text-emerald-800 px-2 py-0.5 rounded uppercase">
-                        Admin
-                      </span>
-                    </div>
-                  )}
                 </div>
 
                 {/* Les 3 accès autorisés pour un entrepôt : Inventaire, Mouvements, Inventaire aveugle */}

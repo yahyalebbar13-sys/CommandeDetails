@@ -1157,6 +1157,8 @@ export default function StockApp() {
 
   const alertCount = stockItems.filter(i => i.minThreshold != null && i.currentQty <= i.minThreshold).length;
   const openInvoices = invoices.filter(i => i.status === 'UNPAID' || i.status === 'PARTIAL').length;
+  // Commandes préparées qui attendent le client : ni facturées, ni annulées.
+  const commandesEnAttente = orders.filter(o => o.status === 'DRAFT' || o.status === 'CONFIRMED').length;
 
   // Filtres & statistiques des arrivages
   const [arrivalFilter, setArrivalFilter] = useState<'ENTERED_10D' | 'PENDING' | 'ALL'>('ENTERED_10D');
@@ -1488,10 +1490,61 @@ export default function StockApp() {
     });
     const orderRef = doc(firestore, 'users', effectiveUid, 'saleOrders', order.id);
     batch.update(orderRef, { status: 'INVOICED' });
+
+    // La marchandise sort MAINTENANT. Une commande préparée ne bouge pas le stock — c'est ce qui
+    // permet de la monter avant l'arrivée du client — donc c'est sa facturation qui doit écrire
+    // les sorties. Sans cela le client était facturé et la marchandise restait en rayon.
+    const lieuVente = order.storeId || ((activeStore === 'ALL' || activeStore === 'ALL_MAIN') ? mainStoreId : activeStore);
+    const enCours: any[] = [...allMovements];
+    for (const ligne of (order.items || []) as any[]) {
+      const quantite = Number(ligne.qty) || 0;
+      if (!ligne.articleId || quantite <= 0) continue;
+      const base = cleanUndefined({
+        articleId:     ligne.articleId,
+        categoryId:    ligne.categoryId || null,
+        productName:   ligne.nameFR || ligne.productName,
+        nameFR:        ligne.nameFR || null,
+        color:         ligne.color || null,
+        size:          ligne.size || null,
+        quality:       ligne.quality || null,
+        unitOfMeasure: ligne.unitOfMeasure || 'unité',
+        type:          'OUT' as const,
+        reason:        'VENTE' as const,
+        storeId:       lieuVente,
+        date:          getLocalDateString(),
+        notes:         `Commande ${order.id} facturée${order.clientName ? ` · ${order.clientName}` : ''}`,
+        createdAt:     serverTimestamp(),
+      });
+      // Même règle qu'à la caisse : les racks se vident en FIFO, et seulement ceux de la variante
+      // vendue. `_variant` n'est qu'une aide de calcul, splitOutboundLines ne l'écrit pas.
+      const variante = ligne.quality ? { dimension: 'quality' as const, value: ligne.quality }
+        : ligne.color ? { dimension: 'color' as const, value: ligne.color }
+        : ligne.size ? { dimension: 'size' as const, value: ligne.size }
+        : null;
+      const lignesSortie = splitOutboundLines(enCours, lieuVente, ligne.articleId, quantite, base, variante);
+      for (const sortie of lignesSortie) {
+        batch.set(doc(collection(firestore, 'users', effectiveUid, 'stockMovements')), sortie);
+      }
+      enCours.push(...lignesSortie);
+    }
+
     await batch.commit();
-    toast({ title: 'Facture créée', description: `BC converti en facture` });
+    logAudit(firestore, effectiveUid, {
+      action: 'INVOICE_CREATED',
+      userId: user.uid,
+      userEmail: user.email || '',
+      entityType: 'invoice',
+      entityId: invRef.id,
+      description: `Commande ${order.id} facturée${order.clientName ? ` à ${order.clientName}` : ''} · `
+        + `${(order.items || []).length} ligne(s) · ${(Number(order.totalAfterDiscount) || 0).toLocaleString('fr-MA', { minimumFractionDigits: 2 })} MAD`,
+      metadata: { orderId: order.id, storeId: lieuVente },
+    });
+    toast({
+      title: 'Commande facturée',
+      description: 'La facture est créée et la marchandise est sortie du stock.',
+    });
     setActiveView('invoices');
-  }, [user, firestore, toast, activeStore, adminUid, stores]);
+  }, [user, firestore, toast, activeStore, adminUid, stores, allMovements]);
 
   // ── Factures ──────────────────────────────────────────────────────────────
   const handleCreateInvoice = useCallback(async (
@@ -2185,7 +2238,8 @@ export default function StockApp() {
 
     { id: 'sale',      label: 'Caisse',         category: 'commerce', icon: ShoppingCart,   color: 'violet', pointOfSaleOnly: true },
     { id: 'clients',   label: 'Clients',       category: 'commerce', icon: Users,           pointOfSaleOnly: true },
-    { id: 'invoices',  label: 'Bons de Commande', category: 'commerce', icon: FileText,        badge: openInvoices, pointOfSaleOnly: true },
+    { id: 'orders',    label: 'Commandes préparées', category: 'commerce', icon: ClipboardList, badge: commandesEnAttente || undefined, pointOfSaleOnly: true },
+    { id: 'invoices',  label: 'Factures',       category: 'commerce', icon: FileText,        badge: openInvoices, pointOfSaleOnly: true },
     { id: 'cheques-impayes', label: 'Chèques / Impayés', category: 'commerce', icon: CreditCard, badge: rejectedChequesCount > 0 ? rejectedChequesCount : undefined, color: 'rose', pointOfSaleOnly: true },
     { id: 'expenses',  label: 'Frais & Dépenses', category: 'commerce', icon: Receipt,        color: 'amber', pointOfSaleOnly: true },
 
@@ -2580,6 +2634,15 @@ export default function StockApp() {
                 onAddExpense={handleAddExpense}
                 onUpdateExpenseStatus={handleUpdateExpenseStatus}
                 onDeleteExpense={handleDeleteExpense}
+              />
+            )}
+            {activeView === 'orders' && (
+              <StockOrders
+                orders={orders}
+                clients={clients}
+                onUpdateStatus={handleUpdateOrderStatus}
+                onConvertToInvoice={handleConvertToInvoice}
+                onNavigate={setActiveView}
               />
             )}
             {activeView === 'invoices' && (
@@ -3457,7 +3520,6 @@ export default function StockApp() {
                     <th className="px-3 py-2 text-[10px] font-black uppercase tracking-widest text-stone-500">Famille</th>
                     <th className="px-3 py-2 text-[10px] font-black uppercase tracking-widest text-stone-500">Lieu</th>
                     <th className="px-3 py-2 text-[10px] font-black uppercase tracking-widest text-stone-500 text-right">Quantité</th>
-                    <th className="px-3 py-2 text-[10px] font-black uppercase tracking-widest text-stone-500 text-right">Valeur</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-stone-100">
@@ -3483,9 +3545,6 @@ export default function StockApp() {
                       <td className="px-3 py-2 text-[12px] font-black text-stone-900 text-right tabular-nums">
                         {l.quantite.toLocaleString('fr-MA')}
                       </td>
-                      <td className="px-3 py-2 text-[12px] font-bold text-stone-500 text-right tabular-nums">
-                        {l.valeur > 0 ? l.valeur.toLocaleString('fr-MA', { minimumFractionDigits: 2 }) : '—'}
-                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -3496,9 +3555,6 @@ export default function StockApp() {
                     </td>
                     <td className="px-3 py-2 text-[12px] font-black text-stone-900 text-right tabular-nums">
                       {lignesFormation.reduce((somme, l) => somme + l.quantite, 0).toLocaleString('fr-MA')}
-                    </td>
-                    <td className="px-3 py-2 text-[12px] font-black text-stone-900 text-right tabular-nums">
-                      {lignesFormation.reduce((somme, l) => somme + l.valeur, 0).toLocaleString('fr-MA', { minimumFractionDigits: 2 })}
                     </td>
                   </tr>
                 </tfoot>

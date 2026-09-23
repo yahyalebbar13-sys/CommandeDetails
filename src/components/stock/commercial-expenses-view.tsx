@@ -20,7 +20,6 @@ import {
 import { useToast } from '@/hooks/use-toast';
 import type { CommercialExpense, ExpenseCategory, StoreLocation, Store } from '@/lib/types';
 import { exportReportPDF } from '@/lib/pdf-export-reports';
-import { findLastOrderPrice } from '@/lib/order-utils';
 import { type StorageLocation, compareLocationCodes } from '@/lib/warehouse-locations';
 import { isFabricLineOrCategory, isZipperLineOrCategory, isThreadLineOrCategory, isSliderLineOrCategory } from '@/lib/constants';
 import ColorBreakdownInput, { ColorBreakdownRow } from '@/components/color-breakdown-input';
@@ -143,10 +142,8 @@ export default function CommercialExpensesView({
   const [selectedBagsPerCarton, setSelectedBagsPerCarton] = useState<string>('');
   const [selectedSliderWeightG, setSelectedSliderWeightG] = useState<string>('');
   const [selectedDesignImageUrl, setSelectedDesignImageUrl] = useState<string>('');
-  const [isManualArticle, setIsManualArticle] = useState(false);
   const [colorBreakdown, setColorBreakdown] = useState<ColorBreakdownRow[] | null>(null);
   const [qualityBreakdown, setQualityBreakdown] = useState<QualityBreakdownRow[] | null>(null);
-  const [newArticleName, setNewArticleName] = useState('');
   const [newQuantity, setNewQuantity] = useState('');
   const [newUnitPrice, setNewUnitPrice] = useState('');
   const [newUnitOfMeasure, setNewUnitOfMeasure] = useState('pcs');
@@ -296,36 +293,8 @@ export default function CommercialExpensesView({
     return Array.isArray(selectedSubCat?.availableSizes) && selectedSubCat.availableSizes.length > 0 ? selectedSubCat.availableSizes : [];
   }, [selectedSubCat]);
 
-  // Fournisseurs connus issus des commandes passées
-  const knownSuppliers = useMemo(() => {
-    const set = new Set<string>();
-    (articles || []).forEach((a: any) => { if (a.supplierId) set.add(a.supplierId); });
-    return Array.from(set).sort();
-  }, [articles]);
-
-  // Détection du dernier prix d'achat enregistré dans le système
-  const lastOrderInfo = useMemo(() => {
-    if (!selectedCategoryName) return null;
-    return findLastOrderPrice(
-      {
-        categoryId: selectedCategoryName,
-        name: selectedCategoryName,
-        size: selectedSize,
-        color: selectedColor,
-        specs: selectedSpecs,
-        zipperType: selectedZipperType,
-        slider: selectedSlider,
-        sliderType: selectedSliderType,
-        gsm: selectedGsm,
-        fabricWidth: selectedFabricWidth,
-      },
-      articles || []
-    );
-  }, [selectedCategoryName, selectedSize, selectedColor, selectedSpecs, selectedZipperType, selectedSlider, selectedSliderType, selectedGsm, selectedFabricWidth, articles]);
-
   // Nom complet reconstitué de l'article pour le stock et l'affichage (avec libellés en français)
   const computedArticleName = useMemo(() => {
-    if (isManualArticle) return newArticleName.trim();
     if (!selectedCategoryName) return '';
     const baseName = selectedSubCat?.nameFR || selectedCategoryName;
     const parts: string[] = [baseName];
@@ -349,7 +318,7 @@ export default function CommercialExpensesView({
       parts.push(colorFr.toUpperCase());
     }
     return parts.join(' · ');
-  }, [isManualArticle, newArticleName, selectedCategoryName, selectedSubCat, isFabric, isZipper, isThread, selectedGsm, selectedFabricWidth, selectedSize, selectedZipperType, selectedSlider, selectedConeWeightG, selectedThreadWeightG, selectedLengthPerPiece, selectedLengthUnit, selectedSpecs, selectedColor]);
+  }, [selectedCategoryName, selectedSubCat, isFabric, isZipper, isThread, selectedGsm, selectedFabricWidth, selectedSize, selectedZipperType, selectedSlider, selectedConeWeightG, selectedThreadWeightG, selectedLengthPerPiece, selectedLengthUnit, selectedSpecs, selectedColor]);
 
   // Handler de sélection d'une sous-catégorie
   const handleSelectSubCategory = (catName: string) => {
@@ -364,17 +333,11 @@ export default function CommercialExpensesView({
       setNewUnitOfMeasure('pièces');
     }
 
-    // Dernier prix commandé si disponible
-    const last = findLastOrderPrice({ categoryId: catName, name: catName }, articles || []);
-    if (last?.price) {
-      setNewUnitPrice(String(last.price));
-      if (newQuantity && Number(newQuantity) > 0) {
-        setNewAmount((Number(newQuantity) * last.price).toFixed(2));
-      }
-    }
-    if (last?.supplierId && !newSupplierName) {
-      setNewSupplierName(last.supplierId);
-    }
+    // Le prix ne se pré-remplit pas depuis les commandes d'import : ce serait afficher un prix
+    // de revient dans /stock, et un achat au marché se paie au prix du jour, pas à celui de la
+    // dernière commande partie de Chine.
+    // Le fournisseur n'est volontairement pas repris des commandes d'import : un achat au marché
+    // se fait chez un grossiste de Casablanca, jamais chez l'usine qui fournit les conteneurs.
   };
 
   // Helper GroupedCategorySelect avec libellés et noms en français
@@ -501,7 +464,6 @@ export default function CommercialExpensesView({
     setNewAmount('');
     setNewDescription('');
     setNewReceiptUrl('');
-    setNewArticleName('');
     setNewQuantity('');
     setNewUnitPrice('');
     setNewSupplierName('');
@@ -518,7 +480,6 @@ export default function CommercialExpensesView({
     setSelectedGsm('');
     setSelectedFabricWidth('');
     setSelectedRollLength('');
-    setIsManualArticle(false);
     setColorBreakdown(null);
     setQualityBreakdown(null);
   };
@@ -526,12 +487,12 @@ export default function CommercialExpensesView({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const isMarchandise = newCategory === 'ACHAT_MARCHANDISE';
-    const finalArticleName = isManualArticle
-      ? newArticleName.trim()
-      : (computedArticleName || selectedCategoryName || newArticleName.trim());
+    // La marchandise vient toujours du catalogue : la désignation est reconstituée à partir de la
+    // référence choisie, jamais écrite à la main.
+    const finalArticleName = computedArticleName || selectedCategoryName;
 
     if (isMarchandise && !finalArticleName) {
-      toast({ variant: 'destructive', title: 'Produit requis', description: 'Veuillez sélectionner le pôle et type de produit ou indiquer la marchandise.' });
+      toast({ variant: 'destructive', title: 'Produit requis', description: "Choisissez la famille puis la référence du catalogue à l'étape 2." });
       return;
     }
 
@@ -718,9 +679,7 @@ export default function CommercialExpensesView({
   const estAchatMarchandise = newCategory === 'ACHAT_MARCHANDISE';
 
   // Le nom qui partira en stock, reconstitué à l'identique de ce que calcule l'enregistrement.
-  const apercuMarchandise = isManualArticle
-    ? newArticleName.trim()
-    : (computedArticleName || selectedCategoryName || newArticleName.trim());
+  const apercuMarchandise = computedArticleName || selectedCategoryName;
 
   const nomEntrepotChoisi = warehouseOptions.find(w => w.id === newWarehouseId)?.name || 'la réserve choisie';
 
@@ -756,7 +715,7 @@ export default function CommercialExpensesView({
   const raisonBoutonDesactive =
     !newDate ? 'Indiquer la date de la dépense (étape 1).'
     : !newAmount ? 'Indiquer le montant payé (étape 1).'
-    : estAchatMarchandise && !apercuMarchandise ? 'Choisir la marchandise achetée (étape 2).'
+    : estAchatMarchandise && !apercuMarchandise ? 'Choisir la référence du catalogue achetée (étape 2).'
     : estAchatMarchandise && !newQuantity ? 'Indiquer la quantité achetée (étape 2).'
     : estAchatMarchandise && !newUnitPrice ? "Indiquer le prix d'une unité (étape 2)."
     : !estAchatMarchandise && !newDescription.trim() ? 'Indiquer le motif de la dépense (étape 1).'
@@ -1232,465 +1191,421 @@ export default function CommercialExpensesView({
               <SectionFormulaire
                 numero={2}
                 titre="Quelle marchandise ?"
-                aide="Cette description devient la fiche produit et la ligne d'entrée en stock : elle doit être reconnaissable par quelqu'un qui n'était pas au marché."
+                aide="La référence retenue au catalogue devient la ligne d'entrée en stock : elle doit être reconnaissable par quelqu'un qui n'était pas au marché."
               >
-                <Champ
-                  label="Origine de la référence"
-                  aide="« Catalogue Lebtex » reprend une référence qui existe déjà. « Saisie libre » en crée une nouvelle : ne l'employer que si la référence n'existe vraiment pas."
-                >
-                  <div className="inline-flex items-center gap-1.5 rounded-xl border border-stone-200 bg-stone-100 p-1">
-                    <button
-                      type="button"
-                      onClick={() => setIsManualArticle(false)}
-                      className={`px-3 h-9 rounded-lg text-xs transition-all ${
-                        !isManualArticle
-                          ? 'bg-indigo-600 text-white font-black shadow-sm'
-                          : 'text-stone-600 font-bold hover:bg-white'
-                      }`}
-                    >
-                      Catalogue Lebtex
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setIsManualArticle(true)}
-                      className={`px-3 h-9 rounded-lg text-xs transition-all ${
-                        isManualArticle
-                          ? 'bg-indigo-600 text-white font-black shadow-sm'
-                          : 'text-stone-600 font-bold hover:bg-white'
-                      }`}
-                    >
-                      Saisie libre
-                    </button>
-                  </div>
-                </Champ>
+                <Encadre titre="La marchandise se choisit dans le catalogue">
+                  La désignation se compose toute seule à partir de la référence retenue : c'est ce qui évite
+                  d'avoir le même article écrit de trois façons en réserve. Si la référence n'existe pas encore
+                  au catalogue, il faut la faire créer avant d'enregistrer l'achat.
+                </Encadre>
 
-                {!isManualArticle ? (
-                  <>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-                      {/* Famille (catégorie générale) */}
-                      <Champ
-                        label="Famille de produit"
-                        obligatoire
-                        aide="Tant qu'elle n'est pas choisie, la liste des produits reste vide."
-                      >
-                        <Select
-                          value={selectedGenCatId}
-                          onValueChange={id => {
-                            setSelectedGenCatId(id);
-                            setSelectedCategoryName('');
-                          }}
-                        >
-                          <SelectTrigger className={`${CLASSE_CHAMP} bg-white`}>
-                            <SelectValue placeholder="Choisir la famille…">
-                              {(() => {
-                                const gc = (generalCategories || []).find((g: any) => g.id === selectedGenCatId);
-                                return gc ? (gc.nameFR || gc.name) : undefined;
-                              })()}
-                            </SelectValue>
-                          </SelectTrigger>
-                          <SelectContent className="max-h-72">
-                            {(() => {
-                              const sorted = [...(generalCategories || [])].sort((a: any, b: any) => {
-                                const nameA = a.nameFR || a.name || '';
-                                const nameB = b.nameFR || b.name || '';
-                                return nameA.localeCompare(nameB, 'fr');
-                              });
-                              const grouped: Record<string, any[]> = {};
-                              sorted.forEach((gc: any) => {
-                                const displayName = gc.nameFR || gc.name || '?';
-                                const letter = displayName[0].toUpperCase();
-                                if (!grouped[letter]) grouped[letter] = [];
-                                grouped[letter].push({ ...gc, displayName });
-                              });
-                              return Object.entries(grouped).map(([letter, items]) => (
-                                <SelectGroup key={letter}>
-                                  <SelectLabel className="text-[11px] text-stone-400 font-black uppercase tracking-widest bg-stone-50 py-1">{letter}</SelectLabel>
-                                  {items.map((gc: any) => (
-                                    <SelectItem key={gc.id} value={gc.id} className="font-bold pl-6 text-xs">{gc.displayName}</SelectItem>
-                                  ))}
-                                </SelectGroup>
-                              ));
-                            })()}
-                          </SelectContent>
-                        </Select>
-                      </Champ>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                  {/* Famille (catégorie générale) */}
+                  <Champ
+                    label="Famille de produit"
+                    obligatoire
+                    aide="Tant qu'elle n'est pas choisie, la liste des produits reste vide."
+                  >
+                    <Select
+                      value={selectedGenCatId}
+                      onValueChange={id => {
+                        setSelectedGenCatId(id);
+                        setSelectedCategoryName('');
+                      }}
+                    >
+                      <SelectTrigger className={`${CLASSE_CHAMP} bg-white`}>
+                        <SelectValue placeholder="Choisir la famille…">
+                          {(() => {
+                            const gc = (generalCategories || []).find((g: any) => g.id === selectedGenCatId);
+                            return gc ? (gc.nameFR || gc.name) : undefined;
+                          })()}
+                        </SelectValue>
+                      </SelectTrigger>
+                      <SelectContent className="max-h-72">
+                        {(() => {
+                          const sorted = [...(generalCategories || [])].sort((a: any, b: any) => {
+                            const nameA = a.nameFR || a.name || '';
+                            const nameB = b.nameFR || b.name || '';
+                            return nameA.localeCompare(nameB, 'fr');
+                          });
+                          const grouped: Record<string, any[]> = {};
+                          sorted.forEach((gc: any) => {
+                            const displayName = gc.nameFR || gc.name || '?';
+                            const letter = displayName[0].toUpperCase();
+                            if (!grouped[letter]) grouped[letter] = [];
+                            grouped[letter].push({ ...gc, displayName });
+                          });
+                          return Object.entries(grouped).map(([letter, items]) => (
+                            <SelectGroup key={letter}>
+                              <SelectLabel className="text-[11px] text-stone-400 font-black uppercase tracking-widest bg-stone-50 py-1">{letter}</SelectLabel>
+                              {items.map((gc: any) => (
+                                <SelectItem key={gc.id} value={gc.id} className="font-bold pl-6 text-xs">{gc.displayName}</SelectItem>
+                              ))}
+                            </SelectGroup>
+                          ));
+                        })()}
+                      </SelectContent>
+                    </Select>
+                  </Champ>
 
-                      {/* Produit (sous-catégorie) */}
-                      <Champ
-                        label="Produit"
-                        obligatoire
-                        aide="Le produit choisi décide des caractéristiques demandées en dessous, de l'unité de comptage, et rappelle le dernier prix payé."
-                      >
-                        <Select
-                          disabled={!selectedGenCatId}
-                          value={selectedCategoryName}
-                          onValueChange={handleSelectSubCategory}
-                        >
-                          <SelectTrigger className={`${CLASSE_CHAMP} bg-white ${!selectedGenCatId ? 'opacity-50' : ''}`}>
-                            <SelectValue placeholder={selectedGenCatId ? 'Choisir le produit…' : "Choisir la famille d'abord"}>
-                              {selectedSubCat ? (selectedSubCat.nameFR || selectedSubCat.name) : undefined}
-                            </SelectValue>
-                          </SelectTrigger>
-                          <SelectContent className="max-h-72">
-                            <GroupedCategorySelect />
-                          </SelectContent>
-                        </Select>
-                      </Champ>
+                  {/* Produit (sous-catégorie) */}
+                  <Champ
+                    label="Produit"
+                    obligatoire
+                    aide="Le produit choisi décide des caractéristiques demandées en dessous, de l'unité de comptage, et rappelle le dernier prix payé."
+                  >
+                    <Select
+                      disabled={!selectedGenCatId}
+                      value={selectedCategoryName}
+                      onValueChange={handleSelectSubCategory}
+                    >
+                      <SelectTrigger className={`${CLASSE_CHAMP} bg-white ${!selectedGenCatId ? 'opacity-50' : ''}`}>
+                        <SelectValue placeholder={selectedGenCatId ? 'Choisir le produit…' : "Choisir la famille d'abord"}>
+                          {selectedSubCat ? (selectedSubCat.nameFR || selectedSubCat.name) : undefined}
+                        </SelectValue>
+                      </SelectTrigger>
+                      <SelectContent className="max-h-72">
+                        <GroupedCategorySelect />
+                      </SelectContent>
+                    </Select>
+                  </Champ>
+                </div>
+
+                {/* Caractéristiques du produit */}
+                {selectedCategoryName && (
+                  <div className="space-y-3.5 rounded-2xl border border-indigo-200 bg-indigo-50/60 p-3.5">
+                    <div>
+                      <p className="text-[13px] font-bold text-stone-900 leading-tight">Caractéristiques du produit</p>
+                      <p className="text-[11px] font-medium text-stone-500 leading-snug mt-0.5">
+                        Elles composent la désignation : deux articles qui ne diffèrent que par la couleur
+                        restent deux produits séparés en stock.
+                      </p>
                     </div>
 
-                    {/* Caractéristiques du produit */}
-                    {selectedCategoryName && (
-                      <div className="space-y-3.5 rounded-2xl border border-indigo-200 bg-indigo-50/60 p-3.5">
-                        <div>
-                          <p className="text-[13px] font-bold text-stone-900 leading-tight">Caractéristiques du produit</p>
-                          <p className="text-[11px] font-medium text-stone-500 leading-snug mt-0.5">
-                            Elles composent la désignation : deux articles qui ne diffèrent que par la couleur
-                            restent deux produits séparés en stock.
-                          </p>
+                    {isFabric ? (
+                      /* CAS TISSU */
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                        <Champ
+                          label={<span className="inline-flex items-center gap-1.5"><Maximize className="w-3.5 h-3.5 text-indigo-600" /> Qualité du tissu</span>}
+                          aide="La qualité choisie remplit d'un coup le grammage, la laize et la longueur du rouleau."
+                        >
+                          {fabricQualities.length > 0 ? (
+                            <Select onValueChange={v => {
+                              const q = fabricQualities[Number(v)];
+                              if (q) {
+                                setSelectedGsm(q.gsm ? String(q.gsm) : '');
+                                setSelectedFabricWidth(q.fabricWidth ? String(q.fabricWidth) : '');
+                                setSelectedRollLength(q.rollLength ? String(q.rollLength) : '');
+                                setSelectedRollLengthUnit(q.rollLengthUnit || 'm');
+                                setSelectedPackagingPerBag(q.packagingPerBag ? String(q.packagingPerBag) : '');
+                              }
+                            }}>
+                              <SelectTrigger className={`${CLASSE_CHAMP} bg-white`}>
+                                <SelectValue placeholder="Choisir une qualité…" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {fabricQualities.map((q: any, i: number) => (
+                                  <SelectItem key={i} value={String(i)} className="font-bold text-xs">{q.nameFR || q.label}</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          ) : (
+                            <div className="grid grid-cols-2 gap-2">
+                              <Input
+                                type="number"
+                                placeholder="Grammage, ex. 120"
+                                value={selectedGsm}
+                                onChange={e => setSelectedGsm(e.target.value)}
+                                className={`${CLASSE_CHAMP} bg-white`}
+                              />
+                              <Input
+                                type="number"
+                                placeholder="Laize en cm, ex. 150"
+                                value={selectedFabricWidth}
+                                onChange={e => setSelectedFabricWidth(e.target.value)}
+                                className={`${CLASSE_CHAMP} bg-white`}
+                              />
+                            </div>
+                          )}
+                        </Champ>
+
+                        <Champ
+                          label={<span className="inline-flex items-center gap-1.5"><Palette className="w-3.5 h-3.5 text-indigo-600" /> Couleur</span>}
+                          aide="Choisir « Divers » quand le lot mélange plusieurs couleurs sans les compter séparément."
+                        >
+                          <Select value={selectedColor} onValueChange={setSelectedColor}>
+                            <SelectTrigger className={`${CLASSE_CHAMP} bg-white`}>
+                              <SelectValue>{COLOR_MAP_FR[selectedColor] || selectedColor}</SelectValue>
+                            </SelectTrigger>
+                            <SelectContent className="max-h-60">
+                              {COLORS.map(c => (
+                                <SelectItem key={c} value={c} className="font-bold text-xs">{COLOR_MAP_FR[c] || c}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </Champ>
+                      </div>
+                    ) : isZipper ? (
+                      /* CAS FERMETURE À GLISSIÈRE */
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                        <Champ
+                          label={<span className="inline-flex items-center gap-1.5"><Ruler className="w-3.5 h-3.5 text-indigo-600" /> Longueur de la fermeture</span>}
+                          aide="Une qualité choisie remplit d'un coup la longueur, le type et le curseur."
+                        >
+                          {zipperQualities.length > 0 ? (
+                            <Select onValueChange={v => {
+                              const q = zipperQualities[Number(v)];
+                              if (q) {
+                                setSelectedSize(q.length || '');
+                                setSelectedZipperType(q.zipperType || '');
+                                setSelectedSlider(q.slider || '');
+                                setSelectedSliderType(q.sliderType || '');
+                              }
+                            }}>
+                              <SelectTrigger className={`${CLASSE_CHAMP} bg-white`}>
+                                <SelectValue placeholder="Choisir une qualité…" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {zipperQualities.map((q: any, i: number) => (
+                                  <SelectItem key={i} value={String(i)} className="font-bold text-xs">{q.nameFR || q.label}</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          ) : (
+                            <Input
+                              placeholder="Ex. 20 cm, 50 cm, chaîne continue"
+                              value={selectedSize}
+                              onChange={e => setSelectedSize(e.target.value)}
+                              className={`${CLASSE_CHAMP} bg-white`}
+                            />
+                          )}
+                        </Champ>
+
+                        <Champ
+                          label={<span className="inline-flex items-center gap-1.5"><Palette className="w-3.5 h-3.5 text-indigo-600" /> Couleur</span>}
+                          aide="Choisir « Divers » quand le lot mélange plusieurs couleurs sans les compter séparément."
+                        >
+                          <Select value={selectedColor} onValueChange={setSelectedColor}>
+                            <SelectTrigger className={`${CLASSE_CHAMP} bg-white`}>
+                              <SelectValue>{COLOR_MAP_FR[selectedColor] || selectedColor}</SelectValue>
+                            </SelectTrigger>
+                            <SelectContent className="max-h-60">
+                              {COLORS.map(c => (
+                                <SelectItem key={c} value={c} className="font-bold text-xs">{COLOR_MAP_FR[c] || c}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </Champ>
+                      </div>
+                    ) : isThread ? (
+                      /* CAS FIL À COUDRE */
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                        <Champ
+                          label="Qualité du fil"
+                          aide="Elle fixe le poids du cône, le poids du fil et la longueur par pièce, qui servent à compter le stock."
+                        >
+                          {threadQualities.length > 0 ? (
+                            <Select onValueChange={v => {
+                              const q = threadQualities[Number(v)];
+                              if (q) {
+                                setSelectedConeWeightG(q.coneWeightG ? String(q.coneWeightG) : '');
+                                setSelectedThreadWeightG(q.threadWeightG ? String(q.threadWeightG) : '');
+                                setSelectedLengthPerPiece(q.lengthPerPiece ? String(q.lengthPerPiece) : '');
+                                setSelectedLengthUnit(q.lengthUnit || 'm');
+                                setSelectedPcsPerBag(q.pcsPerBag ? String(q.pcsPerBag) : '');
+                                setSelectedBagsPerCarton(q.bagsPerCarton ? String(q.bagsPerCarton) : '');
+                              }
+                            }}>
+                              <SelectTrigger className={`${CLASSE_CHAMP} bg-white`}>
+                                <SelectValue placeholder="Choisir une qualité…" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {threadQualities.map((q: any, i: number) => (
+                                  <SelectItem key={i} value={String(i)} className="font-bold text-xs">{q.nameFR || q.label}</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          ) : (
+                            <div className="grid grid-cols-2 gap-2">
+                              <Input
+                                placeholder="Poids du cône, ex. 10 g"
+                                value={selectedConeWeightG}
+                                onChange={e => setSelectedConeWeightG(e.target.value)}
+                                className={`${CLASSE_CHAMP} bg-white`}
+                              />
+                              <Input
+                                placeholder="Poids du fil, ex. 100 g"
+                                value={selectedThreadWeightG}
+                                onChange={e => setSelectedThreadWeightG(e.target.value)}
+                                className={`${CLASSE_CHAMP} bg-white`}
+                              />
+                            </div>
+                          )}
+                        </Champ>
+
+                        <Champ
+                          label={<span className="inline-flex items-center gap-1.5"><Palette className="w-3.5 h-3.5 text-teal-600" /> Couleur</span>}
+                          aide="Choisir « Divers » quand le lot mélange plusieurs couleurs sans les compter séparément."
+                        >
+                          <Select value={selectedColor} onValueChange={setSelectedColor}>
+                            <SelectTrigger className={`${CLASSE_CHAMP} bg-white`}>
+                              <SelectValue>{COLOR_MAP_FR[selectedColor] || selectedColor}</SelectValue>
+                            </SelectTrigger>
+                            <SelectContent className="max-h-60">
+                              {COLORS.map(c => (
+                                <SelectItem key={c} value={c} className="font-bold text-xs">{COLOR_MAP_FR[c] || c}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </Champ>
+                      </div>
+                    ) : isSlider ? (
+                      /* CAS CURSEUR */
+                      <div className="space-y-3.5">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                          <Champ
+                            label="Modèle du curseur"
+                            aide="Le modèle remplit la taille, le poids et le conditionnement, et rattache la photo du curseur."
+                          >
+                            {sliderQualities.length > 0 ? (
+                              <Select onValueChange={v => {
+                                const q = sliderQualities[Number(v)];
+                                if (q) {
+                                  setSelectedSize(q.size || '');
+                                  setSelectedSliderWeightG(q.sliderWeightG ? String(q.sliderWeightG) : '');
+                                  setSelectedPcsPerBag(q.pcsPerBag ? String(q.pcsPerBag) : '');
+                                  setSelectedBagsPerCarton(q.bagsPerCarton ? String(q.bagsPerCarton) : '');
+                                  setSelectedDesignImageUrl(q.imageUrl || '');
+                                }
+                              }}>
+                                <SelectTrigger className={`${CLASSE_CHAMP} bg-white`}>
+                                  <SelectValue placeholder="Choisir un modèle…" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {sliderQualities.map((q: any, i: number) => (
+                                    <SelectItem key={i} value={String(i)} className="font-bold text-xs">
+                                      <div className="flex items-center gap-2">
+                                        {q.imageUrl && <img src={q.imageUrl} alt="" className="w-4 h-4 rounded object-cover" />}
+                                        <span>{q.nameFR || q.label}</span>
+                                        {q.size && <span className="text-orange-600 font-bold">({q.size})</span>}
+                                      </div>
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            ) : (
+                              <div className="grid grid-cols-2 gap-2">
+                                <Input
+                                  placeholder="Taille, ex. #3"
+                                  value={selectedSize}
+                                  onChange={e => setSelectedSize(e.target.value)}
+                                  className={`${CLASSE_CHAMP} bg-white`}
+                                />
+                                <Input
+                                  placeholder="Poids, ex. 2,5 g"
+                                  value={selectedSliderWeightG}
+                                  onChange={e => setSelectedSliderWeightG(e.target.value)}
+                                  className={`${CLASSE_CHAMP} bg-white`}
+                                />
+                              </div>
+                            )}
+                          </Champ>
+
+                          <Champ
+                            label={<span className="inline-flex items-center gap-1.5"><Palette className="w-3.5 h-3.5 text-orange-600" /> Couleur</span>}
+                            aide="Choisir « Divers » quand le lot mélange plusieurs couleurs sans les compter séparément."
+                          >
+                            <Select value={selectedColor} onValueChange={setSelectedColor}>
+                              <SelectTrigger className={`${CLASSE_CHAMP} bg-white`}>
+                                <SelectValue>{COLOR_MAP_FR[selectedColor] || selectedColor}</SelectValue>
+                              </SelectTrigger>
+                              <SelectContent className="max-h-60">
+                                {COLORS.map(c => (
+                                  <SelectItem key={c} value={c} className="font-bold text-xs">{COLOR_MAP_FR[c] || c}</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </Champ>
                         </div>
 
-                        {isFabric ? (
-                          /* CAS TISSU */
-                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-                            <Champ
-                              label={<span className="inline-flex items-center gap-1.5"><Maximize className="w-3.5 h-3.5 text-indigo-600" /> Qualité du tissu</span>}
-                              aide="La qualité choisie remplit d'un coup le grammage, la laize et la longueur du rouleau."
-                            >
-                              {fabricQualities.length > 0 ? (
-                                <Select onValueChange={v => {
-                                  const q = fabricQualities[Number(v)];
-                                  if (q) {
-                                    setSelectedGsm(q.gsm ? String(q.gsm) : '');
-                                    setSelectedFabricWidth(q.fabricWidth ? String(q.fabricWidth) : '');
-                                    setSelectedRollLength(q.rollLength ? String(q.rollLength) : '');
-                                    setSelectedRollLengthUnit(q.rollLengthUnit || 'm');
-                                    setSelectedPackagingPerBag(q.packagingPerBag ? String(q.packagingPerBag) : '');
-                                  }
-                                }}>
-                                  <SelectTrigger className={`${CLASSE_CHAMP} bg-white`}>
-                                    <SelectValue placeholder="Choisir une qualité…" />
-                                  </SelectTrigger>
-                                  <SelectContent>
-                                    {fabricQualities.map((q: any, i: number) => (
-                                      <SelectItem key={i} value={String(i)} className="font-bold text-xs">{q.nameFR || q.label}</SelectItem>
-                                    ))}
-                                  </SelectContent>
-                                </Select>
-                              ) : (
-                                <div className="grid grid-cols-2 gap-2">
-                                  <Input
-                                    type="number"
-                                    placeholder="Grammage, ex. 120"
-                                    value={selectedGsm}
-                                    onChange={e => setSelectedGsm(e.target.value)}
-                                    className={`${CLASSE_CHAMP} bg-white`}
-                                  />
-                                  <Input
-                                    type="number"
-                                    placeholder="Laize en cm, ex. 150"
-                                    value={selectedFabricWidth}
-                                    onChange={e => setSelectedFabricWidth(e.target.value)}
-                                    className={`${CLASSE_CHAMP} bg-white`}
-                                  />
-                                </div>
-                              )}
-                            </Champ>
-
-                            <Champ
-                              label={<span className="inline-flex items-center gap-1.5"><Palette className="w-3.5 h-3.5 text-indigo-600" /> Couleur</span>}
-                              aide="Choisir « Divers » quand le lot mélange plusieurs couleurs sans les compter séparément."
-                            >
-                              <Select value={selectedColor} onValueChange={setSelectedColor}>
-                                <SelectTrigger className={`${CLASSE_CHAMP} bg-white`}>
-                                  <SelectValue>{COLOR_MAP_FR[selectedColor] || selectedColor}</SelectValue>
-                                </SelectTrigger>
-                                <SelectContent className="max-h-60">
-                                  {COLORS.map(c => (
-                                    <SelectItem key={c} value={c} className="font-bold text-xs">{COLOR_MAP_FR[c] || c}</SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
-                            </Champ>
+                        {/* Aperçu du modèle retenu */}
+                        <div className="flex items-center gap-3">
+                          {selectedDesignImageUrl && (
+                            <img src={selectedDesignImageUrl} alt="" className="w-10 h-10 rounded-lg object-cover border border-orange-200 shrink-0" />
+                          )}
+                          <div className="flex flex-wrap gap-1.5">
+                            {selectedSize && <span className="px-2 py-0.5 rounded bg-orange-100 text-orange-800 text-[11px] font-bold">{selectedSize}</span>}
+                            {selectedSliderWeightG && <span className="px-2 py-0.5 rounded bg-amber-100 text-amber-800 text-[11px] font-bold">{selectedSliderWeightG} g par pièce</span>}
+                            {selectedPcsPerBag && <span className="px-2 py-0.5 rounded bg-cyan-100 text-cyan-800 text-[11px] font-bold">{selectedPcsPerBag} pièces par sachet</span>}
+                            {selectedBagsPerCarton && <span className="px-2 py-0.5 rounded bg-indigo-100 text-indigo-700 text-[11px] font-bold">{selectedBagsPerCarton} sachets par carton</span>}
                           </div>
-                        ) : isZipper ? (
-                          /* CAS FERMETURE À GLISSIÈRE */
-                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-                            <Champ
-                              label={<span className="inline-flex items-center gap-1.5"><Ruler className="w-3.5 h-3.5 text-indigo-600" /> Longueur de la fermeture</span>}
-                              aide="Une qualité choisie remplit d'un coup la longueur, le type et le curseur."
-                            >
-                              {zipperQualities.length > 0 ? (
-                                <Select onValueChange={v => {
-                                  const q = zipperQualities[Number(v)];
-                                  if (q) {
-                                    setSelectedSize(q.length || '');
-                                    setSelectedZipperType(q.zipperType || '');
-                                    setSelectedSlider(q.slider || '');
-                                    setSelectedSliderType(q.sliderType || '');
-                                  }
-                                }}>
-                                  <SelectTrigger className={`${CLASSE_CHAMP} bg-white`}>
-                                    <SelectValue placeholder="Choisir une qualité…" />
-                                  </SelectTrigger>
-                                  <SelectContent>
-                                    {zipperQualities.map((q: any, i: number) => (
-                                      <SelectItem key={i} value={String(i)} className="font-bold text-xs">{q.nameFR || q.label}</SelectItem>
-                                    ))}
-                                  </SelectContent>
-                                </Select>
-                              ) : (
-                                <Input
-                                  placeholder="Ex. 20 cm, 50 cm, chaîne continue"
-                                  value={selectedSize}
-                                  onChange={e => setSelectedSize(e.target.value)}
-                                  className={`${CLASSE_CHAMP} bg-white`}
-                                />
-                              )}
-                            </Champ>
+                        </div>
+                      </div>
+                    ) : (
+                      /* CAS GÉNÉRAL */
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                        <Champ
+                          label="Taille"
+                          aide="Elle entre dans la désignation : sans elle, deux tailles du même article se confondent en stock."
+                        >
+                          {availableSizes.length > 0 ? (
+                            <Select value={selectedSize} onValueChange={setSelectedSize}>
+                              <SelectTrigger className={`${CLASSE_CHAMP} bg-white`}>
+                                <SelectValue placeholder="Choisir…" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {availableSizes.map((s: string) => (
+                                  <SelectItem key={s} value={s} className="font-bold text-xs">{s}</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          ) : (
+                            <Input
+                              placeholder="Ex. 14L, 18L, 20 mm"
+                              value={selectedSize}
+                              onChange={e => setSelectedSize(e.target.value)}
+                              className={`${CLASSE_CHAMP} bg-white`}
+                            />
+                          )}
+                        </Champ>
 
-                            <Champ
-                              label={<span className="inline-flex items-center gap-1.5"><Palette className="w-3.5 h-3.5 text-indigo-600" /> Couleur</span>}
-                              aide="Choisir « Divers » quand le lot mélange plusieurs couleurs sans les compter séparément."
-                            >
-                              <Select value={selectedColor} onValueChange={setSelectedColor}>
-                                <SelectTrigger className={`${CLASSE_CHAMP} bg-white`}>
-                                  <SelectValue>{COLOR_MAP_FR[selectedColor] || selectedColor}</SelectValue>
-                                </SelectTrigger>
-                                <SelectContent className="max-h-60">
-                                  {COLORS.map(c => (
-                                    <SelectItem key={c} value={c} className="font-bold text-xs">{COLOR_MAP_FR[c] || c}</SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
-                            </Champ>
-                          </div>
-                        ) : isThread ? (
-                          /* CAS FIL À COUDRE */
-                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-                            <Champ
-                              label="Qualité du fil"
-                              aide="Elle fixe le poids du cône, le poids du fil et la longueur par pièce, qui servent à compter le stock."
-                            >
-                              {threadQualities.length > 0 ? (
-                                <Select onValueChange={v => {
-                                  const q = threadQualities[Number(v)];
-                                  if (q) {
-                                    setSelectedConeWeightG(q.coneWeightG ? String(q.coneWeightG) : '');
-                                    setSelectedThreadWeightG(q.threadWeightG ? String(q.threadWeightG) : '');
-                                    setSelectedLengthPerPiece(q.lengthPerPiece ? String(q.lengthPerPiece) : '');
-                                    setSelectedLengthUnit(q.lengthUnit || 'm');
-                                    setSelectedPcsPerBag(q.pcsPerBag ? String(q.pcsPerBag) : '');
-                                    setSelectedBagsPerCarton(q.bagsPerCarton ? String(q.bagsPerCarton) : '');
-                                  }
-                                }}>
-                                  <SelectTrigger className={`${CLASSE_CHAMP} bg-white`}>
-                                    <SelectValue placeholder="Choisir une qualité…" />
-                                  </SelectTrigger>
-                                  <SelectContent>
-                                    {threadQualities.map((q: any, i: number) => (
-                                      <SelectItem key={i} value={String(i)} className="font-bold text-xs">{q.nameFR || q.label}</SelectItem>
-                                    ))}
-                                  </SelectContent>
-                                </Select>
-                              ) : (
-                                <div className="grid grid-cols-2 gap-2">
-                                  <Input
-                                    placeholder="Poids du cône, ex. 10 g"
-                                    value={selectedConeWeightG}
-                                    onChange={e => setSelectedConeWeightG(e.target.value)}
-                                    className={`${CLASSE_CHAMP} bg-white`}
-                                  />
-                                  <Input
-                                    placeholder="Poids du fil, ex. 100 g"
-                                    value={selectedThreadWeightG}
-                                    onChange={e => setSelectedThreadWeightG(e.target.value)}
-                                    className={`${CLASSE_CHAMP} bg-white`}
-                                  />
-                                </div>
-                              )}
-                            </Champ>
-
-                            <Champ
-                              label={<span className="inline-flex items-center gap-1.5"><Palette className="w-3.5 h-3.5 text-teal-600" /> Couleur</span>}
-                              aide="Choisir « Divers » quand le lot mélange plusieurs couleurs sans les compter séparément."
-                            >
-                              <Select value={selectedColor} onValueChange={setSelectedColor}>
-                                <SelectTrigger className={`${CLASSE_CHAMP} bg-white`}>
-                                  <SelectValue>{COLOR_MAP_FR[selectedColor] || selectedColor}</SelectValue>
-                                </SelectTrigger>
-                                <SelectContent className="max-h-60">
-                                  {COLORS.map(c => (
-                                    <SelectItem key={c} value={c} className="font-bold text-xs">{COLOR_MAP_FR[c] || c}</SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
-                            </Champ>
-                          </div>
-                        ) : isSlider ? (
-                          /* CAS CURSEUR */
-                          <div className="space-y-3.5">
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-                              <Champ
-                                label="Modèle du curseur"
-                                aide="Le modèle remplit la taille, le poids et le conditionnement, et rattache la photo du curseur."
-                              >
-                                {sliderQualities.length > 0 ? (
-                                  <Select onValueChange={v => {
-                                    const q = sliderQualities[Number(v)];
-                                    if (q) {
-                                      setSelectedSize(q.size || '');
-                                      setSelectedSliderWeightG(q.sliderWeightG ? String(q.sliderWeightG) : '');
-                                      setSelectedPcsPerBag(q.pcsPerBag ? String(q.pcsPerBag) : '');
-                                      setSelectedBagsPerCarton(q.bagsPerCarton ? String(q.bagsPerCarton) : '');
-                                      setSelectedDesignImageUrl(q.imageUrl || '');
-                                    }
-                                  }}>
-                                    <SelectTrigger className={`${CLASSE_CHAMP} bg-white`}>
-                                      <SelectValue placeholder="Choisir un modèle…" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                      {sliderQualities.map((q: any, i: number) => (
-                                        <SelectItem key={i} value={String(i)} className="font-bold text-xs">
-                                          <div className="flex items-center gap-2">
-                                            {q.imageUrl && <img src={q.imageUrl} alt="" className="w-4 h-4 rounded object-cover" />}
-                                            <span>{q.nameFR || q.label}</span>
-                                            {q.size && <span className="text-orange-600 font-bold">({q.size})</span>}
-                                          </div>
-                                        </SelectItem>
-                                      ))}
-                                    </SelectContent>
-                                  </Select>
-                                ) : (
-                                  <div className="grid grid-cols-2 gap-2">
-                                    <Input
-                                      placeholder="Taille, ex. #3"
-                                      value={selectedSize}
-                                      onChange={e => setSelectedSize(e.target.value)}
-                                      className={`${CLASSE_CHAMP} bg-white`}
-                                    />
-                                    <Input
-                                      placeholder="Poids, ex. 2,5 g"
-                                      value={selectedSliderWeightG}
-                                      onChange={e => setSelectedSliderWeightG(e.target.value)}
-                                      className={`${CLASSE_CHAMP} bg-white`}
-                                    />
-                                  </div>
-                                )}
-                              </Champ>
-
-                              <Champ
-                                label={<span className="inline-flex items-center gap-1.5"><Palette className="w-3.5 h-3.5 text-orange-600" /> Couleur</span>}
-                                aide="Choisir « Divers » quand le lot mélange plusieurs couleurs sans les compter séparément."
-                              >
-                                <Select value={selectedColor} onValueChange={setSelectedColor}>
-                                  <SelectTrigger className={`${CLASSE_CHAMP} bg-white`}>
-                                    <SelectValue>{COLOR_MAP_FR[selectedColor] || selectedColor}</SelectValue>
-                                  </SelectTrigger>
-                                  <SelectContent className="max-h-60">
-                                    {COLORS.map(c => (
-                                      <SelectItem key={c} value={c} className="font-bold text-xs">{COLOR_MAP_FR[c] || c}</SelectItem>
-                                    ))}
-                                  </SelectContent>
-                                </Select>
-                              </Champ>
-                            </div>
-
-                            {/* Aperçu du modèle retenu */}
-                            <div className="flex items-center gap-3">
-                              {selectedDesignImageUrl && (
-                                <img src={selectedDesignImageUrl} alt="" className="w-10 h-10 rounded-lg object-cover border border-orange-200 shrink-0" />
-                              )}
-                              <div className="flex flex-wrap gap-1.5">
-                                {selectedSize && <span className="px-2 py-0.5 rounded bg-orange-100 text-orange-800 text-[11px] font-bold">{selectedSize}</span>}
-                                {selectedSliderWeightG && <span className="px-2 py-0.5 rounded bg-amber-100 text-amber-800 text-[11px] font-bold">{selectedSliderWeightG} g par pièce</span>}
-                                {selectedPcsPerBag && <span className="px-2 py-0.5 rounded bg-cyan-100 text-cyan-800 text-[11px] font-bold">{selectedPcsPerBag} pièces par sachet</span>}
-                                {selectedBagsPerCarton && <span className="px-2 py-0.5 rounded bg-indigo-100 text-indigo-700 text-[11px] font-bold">{selectedBagsPerCarton} sachets par carton</span>}
-                              </div>
-                            </div>
-                          </div>
-                        ) : (
-                          /* CAS GÉNÉRAL */
-                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-                            <Champ
-                              label="Taille"
-                              aide="Elle entre dans la désignation : sans elle, deux tailles du même article se confondent en stock."
-                            >
-                              {availableSizes.length > 0 ? (
-                                <Select value={selectedSize} onValueChange={setSelectedSize}>
-                                  <SelectTrigger className={`${CLASSE_CHAMP} bg-white`}>
-                                    <SelectValue placeholder="Choisir…" />
-                                  </SelectTrigger>
-                                  <SelectContent>
-                                    {availableSizes.map((s: string) => (
-                                      <SelectItem key={s} value={s} className="font-bold text-xs">{s}</SelectItem>
-                                    ))}
-                                  </SelectContent>
-                                </Select>
-                              ) : (
-                                <Input
-                                  placeholder="Ex. 14L, 18L, 20 mm"
-                                  value={selectedSize}
-                                  onChange={e => setSelectedSize(e.target.value)}
-                                  className={`${CLASSE_CHAMP} bg-white`}
-                                />
-                              )}
-                            </Champ>
-
-                            <Champ
-                              label={<span className="inline-flex items-center gap-1.5"><Palette className="w-3.5 h-3.5 text-indigo-600" /> Couleur</span>}
-                              aide="Choisir « Divers » quand le lot mélange plusieurs couleurs sans les compter séparément."
-                            >
-                              <Select value={selectedColor} onValueChange={setSelectedColor}>
-                                <SelectTrigger className={`${CLASSE_CHAMP} bg-white`}>
-                                  <SelectValue>{COLOR_MAP_FR[selectedColor] || selectedColor}</SelectValue>
-                                </SelectTrigger>
-                                <SelectContent className="max-h-60">
-                                  {COLORS.map(c => (
-                                    <SelectItem key={c} value={c} className="font-bold text-xs">{COLOR_MAP_FR[c] || c}</SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
-                            </Champ>
-                          </div>
-                        )}
-
-                        {/* Désignation reconstituée */}
-                        {computedArticleName && (
-                          <div className="rounded-xl border border-indigo-200 bg-white p-3 flex items-start gap-2.5">
-                            <Sparkles className="w-4 h-4 text-indigo-600 shrink-0 mt-0.5" />
-                            <div className="min-w-0">
-                              <p className="text-[11px] font-medium text-stone-500 leading-snug">
-                                Nom sous lequel la marchandise apparaîtra en stock
-                              </p>
-                              <p className="text-[13px] font-black text-indigo-950 leading-tight mt-0.5 break-words">
-                                {computedArticleName}
-                              </p>
-                            </div>
-                          </div>
-                        )}
+                        <Champ
+                          label={<span className="inline-flex items-center gap-1.5"><Palette className="w-3.5 h-3.5 text-indigo-600" /> Couleur</span>}
+                          aide="Choisir « Divers » quand le lot mélange plusieurs couleurs sans les compter séparément."
+                        >
+                          <Select value={selectedColor} onValueChange={setSelectedColor}>
+                            <SelectTrigger className={`${CLASSE_CHAMP} bg-white`}>
+                              <SelectValue>{COLOR_MAP_FR[selectedColor] || selectedColor}</SelectValue>
+                            </SelectTrigger>
+                            <SelectContent className="max-h-60">
+                              {COLORS.map(c => (
+                                <SelectItem key={c} value={c} className="font-bold text-xs">{COLOR_MAP_FR[c] || c}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </Champ>
                       </div>
                     )}
-                  </>
-                ) : (
-                  /* Saisie libre : une nouvelle référence sera créée */
-                  <Champ
-                    label="Désignation de la marchandise"
-                    obligatoire
-                    htmlFor="marchandise-libre"
-                    aide="Écrire le nom tel qu'il devra se lire en réserve : matière, taille, couleur. Une référence sera créée sous ce nom."
-                  >
-                    <Input
-                      id="marchandise-libre"
-                      placeholder="Ex. Tissu doublure sergé écru 150 cm"
-                      value={newArticleName}
-                      onChange={e => setNewArticleName(e.target.value)}
-                      className={`${CLASSE_CHAMP} bg-white`}
-                    />
-                  </Champ>
+
+                    {/* Désignation reconstituée */}
+                    {computedArticleName && (
+                      <div className="rounded-xl border border-indigo-200 bg-white p-3 flex items-start gap-2.5">
+                        <Sparkles className="w-4 h-4 text-indigo-600 shrink-0 mt-0.5" />
+                        <div className="min-w-0">
+                          <p className="text-[11px] font-medium text-stone-500 leading-snug">
+                            Nom sous lequel la marchandise apparaîtra en stock
+                          </p>
+                          <p className="text-[13px] font-black text-indigo-950 leading-tight mt-0.5 break-words">
+                            {computedArticleName}
+                          </p>
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 )}
 
                 {/* Plusieurs lots dans le même achat */}
-                {!isManualArticle && selectedCategoryName && (
+                {selectedCategoryName && (
                   <Champ
                     label="Plusieurs qualités ou plusieurs couleurs dans le même achat"
                     aide="Détailler ici pour garder chaque lot séparé : une dépense sera enregistrée par ligne, et la quantité totale se reporte plus bas."
@@ -1788,39 +1703,18 @@ export default function CommercialExpensesView({
                   </p>
                 )}
 
-                {/* Suggestion du dernier prix payé */}
-                {lastOrderInfo?.price && (
-                  <div className="flex items-center justify-between gap-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] font-medium text-amber-900">
-                    <span>
-                      Dernier prix payé pour ce produit :{' '}
-                      <strong>{lastOrderInfo.price} MAD / {lastOrderInfo.unitOfMeasure || 'unité'}</strong>
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => handlePriceChange(String(lastOrderInfo.price))}
-                      className="shrink-0 text-[11px] font-black underline hover:text-amber-950"
-                    >
-                      Reprendre ce prix
-                    </button>
-                  </div>
-                )}
-
                 <Champ
-                  label="Vendeur ou grossiste"
+                  label="Fournisseur / marché"
                   htmlFor="marchandise-vendeur"
-                  aide="Facultatif. Le nom reste sur la ligne de dépense et permet de retrouver plus tard chez qui la marchandise a été prise."
+                  aide="Facultatif : le grossiste ou le marché chez qui la marchandise a été prise. Le nom reste sur la ligne de dépense et sert à retrouver l'adresse le jour où il faut racheter la même chose. Rien à voir avec les fournisseurs d'import : ceux-là ne vendent pas au marché."
                 >
                   <Input
                     id="marchandise-vendeur"
-                    list="known-suppliers-list"
                     placeholder="Ex. Grossiste Derb Omar"
                     value={newSupplierName}
                     onChange={e => setNewSupplierName(e.target.value)}
                     className={`${CLASSE_CHAMP} bg-white`}
                   />
-                  <datalist id="known-suppliers-list">
-                    {knownSuppliers.map(s => <option key={s} value={s} />)}
-                  </datalist>
                 </Champ>
               </SectionFormulaire>
             )}

@@ -1,7 +1,7 @@
 "use client";
 
-import React, { useState, useMemo } from 'react';
-import { Truck, Plus, CheckCircle2, Clock, XCircle, Search, Save, X, Printer, AlertTriangle } from 'lucide-react';
+import React, { useState, useMemo, useEffect } from 'react';
+import { Truck, Plus, CheckCircle2, Clock, XCircle, Search, Save, X, Printer, AlertTriangle, Building2, Lock } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
@@ -60,11 +60,39 @@ export default function TransferOrdersView({ transferOrders, stockItems, stores,
   const [createModal, setCreateModal] = useState(false);
   const [validateModal, setValidateModal] = useState<{ open: boolean; order?: TransferOrder }>({ open: false });
 
+  // ── Le trajet : départ fixé, arrivée choisie ─────────────────────────────────────────────────
+  // Règle de la maison : la marchandise part TOUJOURS du magasin principal — c'est lui qui tient la
+  // réserve et les entrepôts — et rejoint un des autres magasins. Le départ n'est donc plus une
+  // question posée au vendeur : il se déduit des magasins déclarés, et il s'affiche en clair.
+  /** Le magasin principal : celui marqué comme tel, à défaut celui dont l'identifiant est CHRIFA. */
+  const magasinPrincipal = useMemo(
+    () => stores.find(s => s.isMain && s.type !== 'WAREHOUSE')
+      || stores.find(s => s.isMain)
+      || stores.find(s => s.id === 'CHRIFA')
+      || null,
+    [stores]
+  );
+  /** Lieu de départ. Constante de l'écran : aucun champ ne le change. */
+  const fromStore = magasinPrincipal?.id || 'CHRIFA';
+  /** Les seuls lieux d'arrivée possibles : les AUTRES magasins — jamais un entrepôt. */
+  const magasinsArrivee = useMemo(
+    () => stores.filter(s => s.type !== 'WAREHOUSE' && s.id !== fromStore),
+    [stores, fromStore]
+  );
+
   // Create Form State
-  const [fromStore, setFromStore] = useState<string>(activeStore === 'ALL' || activeStore === 'ALL_MAIN' ? (stores?.[0]?.id || '') : activeStore);
   const [toStore, setToStore] = useState<string>('');
   const [selectedItems, setSelectedItems] = useState<TransferOrderItem[]>([]);
   const [articleSearch, setArticleSearch] = useState('');
+
+  // Le lieu de départ n'est plus choisi à la main, mais il peut encore changer sous les pieds de
+  // l'utilisateur : la liste des magasins arrive après le premier rendu, et le repli « CHRIFA »
+  // cède alors la place au vrai magasin principal. Les quantités déjà saisies ont été plafonnées
+  // sur le stock de l'ancien lieu : on repart des lignes vides plutôt que de les laisser se faire
+  // refuser à l'enregistrement sans explication.
+  useEffect(() => {
+    setSelectedItems([]);
+  }, [fromStore]);
 
   // Validate Form State
   const [receivedItems, setReceivedItems] = useState<Record<string, number>>({}); // articleId -> qty
@@ -84,7 +112,7 @@ export default function TransferOrdersView({ transferOrders, stockItems, stores,
       toast({
         variant: 'destructive',
         title: 'Stock insuffisant',
-        description: `L'article "${item.productName}" n'a aucun stock dans l'emplacement source sélectionné (${getStoreLabel(fromStore)}).`
+        description: `L'article "${item.productName}" n'a plus rien au lieu de départ (${getStoreLabel(fromStore)}).`
       });
       return;
     }
@@ -105,8 +133,8 @@ export default function TransferOrdersView({ transferOrders, stockItems, stores,
 
   const handleCreateTransfer = async () => {
     if (!firestore || !adminUid || selectedItems.length === 0) return;
-    if (!fromStore || !toStore) return toast({ variant: 'destructive', title: 'Erreur', description: 'Veuillez sélectionner la source et la destination.' });
-    if (fromStore === toStore) return toast({ variant: 'destructive', title: 'Erreur', description: 'Source et destination doivent être différentes.' });
+    if (!toStore) return toast({ variant: 'destructive', title: 'Lieu d\'arrivée manquant', description: 'Choisissez le magasin qui reçoit la marchandise, à l\'étape 1.' });
+    if (fromStore === toStore) return toast({ variant: 'destructive', title: 'Trajet impossible', description: 'Le lieu d\'arrivée doit être un autre magasin que le magasin principal.' });
     
     // Vérification stricte des stocks sources disponibles
     for (const item of selectedItems) {
@@ -353,8 +381,6 @@ export default function TransferOrdersView({ transferOrders, stockItems, stores,
 
   /** Total des unités qui quitteront le lieu de départ, pour le récapitulatif du nouveau bon. */
   const totalUnitesEnvoyees = selectedItems.reduce((s, i) => s + (i.sentQty || 0), 0);
-  /** Vrai quand départ et arrivée se confondent : le message se pose alors sous le lieu d'arrivée. */
-  const memeLieu = Boolean(fromStore && toStore && fromStore === toStore);
   /** Les références proposées par la recherche, sorties du JSX pour pouvoir dire « aucun résultat ». */
   const resultatsRecherche = articleSearch
     ? stockItems.filter(i =>
@@ -383,8 +409,8 @@ export default function TransferOrdersView({ transferOrders, stockItems, stores,
               Bons de <span className="text-blue-300">Transfert</span>
             </h1>
             <p className="text-xs font-medium text-blue-100/90 leading-snug mt-2">
-              Déplacer de la marchandise d'un lieu à un autre. Chaque bon écrit une sortie au lieu de départ et une
-              entrée au lieu d'arrivée, et s'imprime pour accompagner la marchandise.
+              Déplacer de la marchandise du magasin principal vers un autre magasin. Chaque bon écrit une sortie au
+              lieu de départ et une entrée au lieu d'arrivée, et s'imprime pour accompagner la marchandise.
             </p>
           </div>
           <Button onClick={() => setCreateModal(true)} className="bg-white hover:bg-stone-50 text-blue-900 font-black text-xs tracking-wide h-11 px-6 rounded-2xl shadow-lg shrink-0">
@@ -508,65 +534,73 @@ export default function TransferOrdersView({ transferOrders, stockItems, stores,
           </DialogHeader>
           <div className="space-y-6">
             <Encadre ton="info" titre="Ce que l'émission déclenche">
-              Un transfert écrit deux mouvements : une sortie au lieu de départ et une entrée au lieu d'arrivée. Les
-              deux stocks changent dès l'émission, il n'y a pas d'autre confirmation à donner. Le bon s'imprime
-              ensuite : il accompagne physiquement la marchandise pendant le trajet.
+              Un transfert part du magasin principal et rejoint un autre magasin. Il écrit deux mouvements : une
+              sortie au lieu de départ et une entrée au lieu d'arrivée. Les deux stocks changent dès l'émission, il
+              n'y a pas d'autre confirmation à donner. Le bon s'imprime ensuite : il accompagne physiquement la
+              marchandise pendant le trajet.
             </Encadre>
 
             {userRole !== 'ADMIN' && (
               <Encadre ton="attention" titre="L'émission revient à un responsable des deux lieux">
-                Un magasin ne peut écrire des mouvements que sur son propre stock : l'entrée à destination sera
-                refusée, et comme le bon et ses deux mouvements partent dans un seul lot, l'enregistrement entier
-                échoue. Les lignes se préparent ici ; l'émission revient à un compte ayant accès aux deux lieux.
+                La marchandise sort du magasin principal, et un magasin ne peut écrire des mouvements que sur son
+                propre stock : la sortie au départ sera refusée, et comme le bon et ses deux mouvements partent dans
+                un seul lot, l'enregistrement entier échoue. Les lignes se préparent ici ; l'émission revient à un
+                compte ayant accès au magasin principal comme au magasin destinataire.
               </Encadre>
             )}
 
             <SectionFormulaire
               numero={1}
-              titre="D'où vers où ?"
-              aide="Ce trajet commande tout le reste : les quantités proposées à l'étape 2 sont celles du lieu de départ."
+              titre="Vers quel magasin ?"
+              aide="Le départ est toujours le magasin principal : il ne reste qu'à désigner le magasin qui reçoit. Ce choix commande la suite — les quantités proposées à l'étape 2 sont celles du lieu de départ."
             >
               <div className="grid gap-3.5 sm:grid-cols-2">
                 <Champ
                   label="Lieu de départ"
-                  obligatoire
-                  htmlFor="transfert-depart"
-                  aide="C'est de ce lieu que la marchandise sort. En changer vide les lignes déjà saisies, parce que les quantités disponibles ne sont pas les mêmes d'un lieu à l'autre."
+                  aide="Il ne se choisit pas : la réserve et le stock central sont au magasin principal, c'est donc toujours de là que la marchandise part."
+                  indice={
+                    <span className="inline-flex items-center gap-1 text-stone-400">
+                      <Lock className="w-3 h-3" /> Non modifiable
+                    </span>
+                  }
                 >
-                  <select
+                  <div
                     id="transfert-depart"
-                    value={fromStore}
-                    onChange={e => {
-                      setFromStore(e.target.value);
-                      setSelectedItems([]); // Réinitialiser car les stocks sources changent
-                    }}
-                    className={`${CLASSE_CHAMP} w-full border bg-white px-3 outline-none`}
+                    className={`${CLASSE_CHAMP} flex w-full items-center gap-2 border border-stone-200 bg-stone-50 px-3`}
                   >
-                    <option value="" disabled>Choisissez le lieu de départ…</option>
-                    {stores.map(s => (
-                      <option key={s.id} value={s.id}>{s.type === 'WAREHOUSE' ? '🏢' : '🏪'} {s.name}</option>
-                    ))}
-                  </select>
+                    <Building2 className="w-4 h-4 shrink-0 text-stone-400" />
+                    <span className="truncate">{magasinPrincipal?.name || getStoreLabel(fromStore)}</span>
+                    <span className="ml-auto shrink-0 rounded-lg bg-white px-2 py-0.5 text-[10px] font-black uppercase tracking-widest text-stone-500 border border-stone-200">
+                      Magasin principal
+                    </span>
+                  </div>
                 </Champ>
 
                 <Champ
                   label="Lieu d'arrivée"
                   obligatoire
                   htmlFor="transfert-arrivee"
-                  aide="La marchandise y entre dès l'émission, et c'est là qu'elle sera comptée à la réception."
-                  erreur={memeLieu ? "Le lieu d'arrivée doit être différent du lieu de départ." : null}
+                  aide="Un des autres magasins. La marchandise y entre dès l'émission, et c'est là qu'elle sera comptée à la réception."
                 >
-                  <select
-                    id="transfert-arrivee"
-                    value={toStore}
-                    onChange={e => setToStore(e.target.value)}
-                    className={`${CLASSE_CHAMP} w-full border bg-white px-3 outline-none`}
-                  >
-                    <option value="" disabled>Choisissez le lieu d'arrivée…</option>
-                    {stores.map(s => (
-                      <option key={s.id} value={s.id}>{s.type === 'WAREHOUSE' ? '🏢' : '🏪'} {s.name}</option>
-                    ))}
-                  </select>
+                  {magasinsArrivee.length > 0 ? (
+                    <select
+                      id="transfert-arrivee"
+                      value={toStore}
+                      onChange={e => setToStore(e.target.value)}
+                      className={`${CLASSE_CHAMP} w-full border bg-white px-3 outline-none`}
+                    >
+                      <option value="" disabled>Choisissez le magasin qui reçoit…</option>
+                      {magasinsArrivee.map(s => (
+                        <option key={s.id} value={s.id}>🏪 {s.name}</option>
+                      ))}
+                    </select>
+                  ) : (
+                    <Encadre ton="attention" titre="Aucun magasin ne peut recevoir">
+                      En dehors du magasin principal, aucun autre magasin n'est déclaré : la marchandise n'a nulle
+                      part où aller. Les entrepôts ne comptent pas — ils appartiennent déjà au magasin principal.
+                      Faites ajouter le magasin destinataire, puis revenez émettre le bon.
+                    </Encadre>
+                  )}
                 </Champ>
               </div>
             </SectionFormulaire>
@@ -577,7 +611,7 @@ export default function TransferOrdersView({ transferOrders, stockItems, stores,
               aide="Une ligne par référence. Un article décliné en couleurs, qualités ou tailles se transfère variante par variante : c'est la variante choisie qui quitte le lieu de départ, jamais le produit entier."
               action={
                 <span className="shrink-0 rounded-lg bg-blue-50 px-2.5 py-1 text-[11px] font-bold text-blue-700">
-                  Départ : {getStoreLabel(fromStore) || '—'}
+                  Stock de départ : {getStoreLabel(fromStore)}
                 </span>
               }
             >
@@ -704,7 +738,7 @@ export default function TransferOrdersView({ transferOrders, stockItems, stores,
             </SectionFormulaire>
 
             <Recapitulatif titre="À relire avant d'émettre">
-              <LigneResume libelle="Part de" valeur={getStoreLabel(fromStore) || '—'} />
+              <LigneResume libelle="Part du magasin principal" valeur={getStoreLabel(fromStore)} />
               <LigneResume libelle="Arrive à" valeur={getStoreLabel(toStore) || '—'} />
               <LigneResume libelle="Références au bon" valeur={selectedItems.length} />
               <LigneResume libelle="Unités qui quittent le lieu de départ" valeur={totalUnitesEnvoyees} fort />
@@ -713,7 +747,15 @@ export default function TransferOrdersView({ transferOrders, stockItems, stores,
             <BoutonValider
               onClick={handleCreateTransfer}
               libelleEnCours="Émission…"
-              raisonDesactive={selectedItems.length === 0 ? "Ajoutez au moins une référence à l'étape 2 pour émettre le bon." : null}
+              raisonDesactive={
+                magasinsArrivee.length === 0
+                  ? "Aucun autre magasin n'est déclaré : il n'y a nulle part où envoyer la marchandise."
+                  : !toStore
+                    ? "Choisissez le magasin qui reçoit, à l'étape 1, pour émettre le bon."
+                    : selectedItems.length === 0
+                      ? "Ajoutez au moins une référence à l'étape 2 pour émettre le bon."
+                      : null
+              }
             >
               Émettre le bon et déplacer le stock
             </BoutonValider>

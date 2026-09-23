@@ -14,6 +14,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import type { Client, SaleOrder, Invoice, OrderItem, StockItem, PaymentMethod, CashingCompany } from '@/lib/types';
 import { getLocalDateString } from '@/lib/constants';
+import { cleanUndefined } from '@/lib/utils';
+import { exportSaleOrderPDF } from '@/lib/pdf-export-reports';
 import { stockItemVariant } from '@/lib/warehouse-locations';
 import { useToast } from '@/hooks/use-toast';
 import { useConfirm } from '@/hooks/use-confirm';
@@ -57,7 +59,40 @@ function escapeHtml(str: string | undefined | null): string {
     .replace(/'/g, '&#039;');
 }
 
+/**
+ * Une ligne vendue en dessous de ce que la marchandise a coûté.
+ *
+ * Le prix de revient n'a rien à faire dans /stock : il ne s'affiche nulle part, ni en clair, ni
+ * dans une infobulle, ni dans un récapitulatif. Il ne sert qu'ici, à répondre par oui ou par non.
+ * Ce que l'écran en dit se limite à « Vente à perte ».
+ */
+const venteAPerte = (item: StockItem, unitPrice: number): boolean => {
+  const revient = Number(item.purchasePricePerUnit) || 0;
+  return revient > 0 && unitPrice < revient;
+};
+
 interface CartLine { item: StockItem; qty: number; unitPrice: number; sourceStore?: string; }
+
+/** Une ligne de panier transformée en ligne de bon de commande ou de facture. */
+function ligneDeCommande(sub: StockItem, ligne: CartLine, qty: number, storeId: string): OrderItem {
+  return {
+    articleId: sub._realArticleId || sub.articleId,
+    productName: sub.nameFR || sub.productName,
+    nameFR: sub.nameFR,
+    color: sub.color || '',
+    size: sub.size || '',
+    quality: sub.quality || ligne.item.quality || undefined,
+    categoryId: sub.categoryId || '',
+    unitOfMeasure: sub.unitOfMeasure || '',
+    qty,
+    unitPrice: ligne.unitPrice,
+    // Champs d'analyse, écrits comme avant et jamais montrés dans /stock.
+    purchasePricePerUnit: sub.purchasePricePerUnit || 0,
+    costPrice: sub.purchasePricePerUnit || 0,
+    totalPrice: qty * ligne.unitPrice,
+    storeId,
+  };
+}
 
 interface CheckoutPaymentLine {
   id: string;
@@ -105,6 +140,10 @@ export default function StockSaleFlow({
   const [step, setStep] = useState(0);
   const [saving, setSaving] = useState(false);
   const [done, setDone] = useState(false);
+  // Commande préparée avant l'arrivée du client : enregistrement en cours, puis la commande
+  // enregistrée, gardée le temps d'imprimer son bon.
+  const [preparingOrder, setPreparingOrder] = useState(false);
+  const [preparedOrder, setPreparedOrder] = useState<{ reference: string; data: any } | null>(null);
 
   // Étape 1 — Client
   const [selectedClient, setSelectedClient] = useState<Client | null>(null);
@@ -488,31 +527,38 @@ export default function StockSaleFlow({
     } finally { setCreatingClient(false); }
   };
 
+  /**
+   * Le garde-fou de la vente à perte. C'est une règle de gestion, elle reste : un vendeur est
+   * refusé, seul un administrateur peut passer outre. Les messages nomment les articles concernés
+   * et s'arrêtent là — aucun montant d'achat ne sort d'ici.
+   */
+  const autoriserVenteAPerte = useCallback(async (): Promise<boolean> => {
+    const lignesAPerte = cart.filter(l => venteAPerte(l.item, l.unitPrice));
+    if (lignesAPerte.length === 0) return true;
+
+    const articles = lignesAPerte.map(l => l.item.nameFR || l.item.productName).join(', ');
+    const combien = `${lignesAPerte.length} article${lignesAPerte.length > 1 ? 's' : ''}`;
+
+    if (userRole !== 'ADMIN') {
+      toast({
+        variant: 'destructive',
+        title: 'Vente à perte',
+        description: `${combien} en vente à perte : ${articles}.\nSeul un administrateur peut valider une vente à perte. Remontez le prix, ou faites-la valider.`,
+      });
+      return false;
+    }
+    return await confirm({
+      title: 'Vente à perte',
+      description: `${combien} en vente à perte : ${articles}.\n\nContinuer quand même ?`,
+      confirmLabel: 'Valider malgré la perte',
+      variant: 'destructive',
+    });
+  }, [cart, userRole, toast, confirm]);
+
   const handleFinalize = async () => {
     if (cart.length === 0 || saving) return;
 
-    // ── Vérification marge négative : empêche de vendre en dessous du prix de revient ──
-    const lossLines = cart.filter(l => (Number(l.item.purchasePricePerUnit) || 0) > 0 && l.unitPrice < (Number(l.item.purchasePricePerUnit) || 0));
-    if (lossLines.length > 0) {
-      const detail = lossLines
-        .map(l => `${l.item.nameFR || l.item.productName} : vendu ${fmt$(l.unitPrice)} MAD, coût ${fmt$(Number(l.item.purchasePricePerUnit))} MAD`)
-        .join('\n');
-      if (userRole !== 'ADMIN') {
-        toast({
-          variant: 'destructive',
-          title: 'Vente à perte bloquée',
-          description: `${lossLines.length} article(s) sont vendus sous leur prix de revient. Seul un administrateur peut valider ce type de vente.\n${detail}`,
-        });
-        return;
-      }
-      const confirmed = await confirm({
-        title: 'Vente à perte détectée',
-        description: `${lossLines.length} article(s) sont vendus en dessous du prix de revient :\n\n${detail}\n\nContinuer quand même ?`,
-        confirmLabel: 'Valider malgré la perte',
-        variant: 'destructive',
-      });
-      if (!confirmed) return;
-    }
+    if (!(await autoriserVenteAPerte())) return;
 
     const isFullCredit = paymentStatus === 'UNPAID';
     const validLines = isFullCredit ? [] : paymentLines.filter(l => (parseFloat(l.amount) || 0) > 0);
@@ -753,9 +799,81 @@ export default function StockSaleFlow({
     }
   };
 
+  /**
+   * Les lignes du panier telles qu'elles seront écrites sur la commande. Une ligne du panier peut
+   * regrouper plusieurs lignes de stock de la même variante : elle se répartit sur les articles
+   * réels qui la composent, comme à la validation d'une vente.
+   */
+  const lignesDuPanier = useCallback((): OrderItem[] => {
+    const lignes: OrderItem[] = [];
+    for (const l of cart) {
+      const lieu = l.sourceStore || resolveSourceStore(l.item, selectedStoreId);
+      const sousArticles: StockItem[] = (l.item as any).originalItems || [l.item];
+      let restant = l.qty;
+      for (const sub of sousArticles) {
+        if (restant <= 0) break;
+        const dispo = lieu ? availableQtyAtStore(sub, lieu) : sub.currentQty;
+        if (dispo <= 0) continue;
+        const pris = Math.min(restant, dispo);
+        lignes.push(ligneDeCommande(sub, l, pris, lieu));
+        restant -= pris;
+      }
+      if (restant > 0 && sousArticles.length > 0) {
+        lignes.push(ligneDeCommande(sousArticles[sousArticles.length - 1], l, restant, lieu));
+      }
+    }
+    return lignes;
+  }, [cart, resolveSourceStore, selectedStoreId, availableQtyAtStore]);
+
+  /**
+   * Préparer la commande : le panier est mis de côté sous forme de bon de commande, avant que le
+   * client se présente. Rien ne sort du stock, rien n'est encaissé — la marchandise est seulement
+   * réservée sur le papier. La vente, elle, se fait à l'enlèvement.
+   */
+  const handlePrepareOrder = async () => {
+    if (cart.length === 0 || preparingOrder || saving) return;
+    if (!(await autoriserVenteAPerte())) return;
+
+    setPreparingOrder(true);
+    try {
+      const commande: any = cleanUndefined({
+        clientId: selectedClient?.id,
+        clientName: selectedClient?.name || (anonymous ? 'Anonyme' : ''),
+        items: lignesDuPanier(),
+        totalAmount: subTotal,
+        discount,
+        totalAfterDiscount: total,
+        status: 'CONFIRMED',
+        date: finalDate,
+        storeId: selectedStoreId,
+        notes,
+      });
+      const id = await onCreateOrder(commande);
+      setPreparedOrder({
+        reference: `BC-${String(id || '').slice(0, 6).toUpperCase() || 'SANS-REF'}`,
+        data: { ...commande, id },
+      });
+      setDone(true);
+    } catch (err: any) {
+      console.error('Erreur lors de la préparation de la commande:', err);
+      toast({ variant: 'destructive', title: 'Erreur', description: `Impossible d'enregistrer la commande : ${err?.message || err}` });
+    } finally {
+      setPreparingOrder(false);
+    }
+  };
+
+  const imprimerBonDeCommande = useCallback(() => {
+    if (!preparedOrder) return;
+    exportSaleOrderPDF(preparedOrder.data, categories, generalCategories, {
+      reference: preparedOrder.reference,
+      clientPhone: selectedClient?.phone,
+      storeName: stores?.find(s => s.id === selectedStoreId)?.name,
+    });
+  }, [preparedOrder, categories, generalCategories, selectedClient, stores, selectedStoreId]);
+
   const reset = () => {
     setStep(0); setCart([]); setSelectedClient(null); setAnonymous(false);
-    setDiscount(0); setNotes(''); setDone(false); setFinalDate(getLocalDateString());
+    setDiscount(0); setNotes(''); setDone(false); setPreparedOrder(null); setFinalDate(getLocalDateString());
     setSelGenCat(null); setSelCat(null); setProdSearch('');
     setPaymentStatus('PAID');
     setPaymentMode('CASH');
@@ -837,6 +955,38 @@ export default function StockSaleFlow({
     setTimeout(() => win.print(), 400);
   }, [cart, selectedClient, paymentStatus, paymentLines, subTotal, discount, discountAmt, total, notes]);
 
+  // ── Succès : commande préparée (aucune sortie de stock, aucun encaissement) ──
+  if (done && preparedOrder) return (
+    <div className="flex flex-col items-center justify-center min-h-[60vh] space-y-6 animate-in fade-in">
+      <div className="w-24 h-24 rounded-3xl bg-violet-100 flex items-center justify-center shadow-2xl shadow-violet-500/20">
+        <ClipboardList className="w-12 h-12 text-violet-600" />
+      </div>
+      <div className="text-center space-y-1">
+        <h2 className="text-2xl font-black uppercase tracking-tighter text-stone-900">
+          Commande préparée
+        </h2>
+        <p className="text-stone-400 font-bold text-sm">
+          {preparedOrder.reference} · {preparedOrder.data?.clientName || 'Comptoir'}
+          {' '}· Total : <strong className="text-stone-700">{fmt$(total)} MAD</strong>
+        </p>
+      </div>
+      <div className="max-w-md w-full px-4">
+        <Encadre ton="info" titre="La marchandise n'est pas sortie du stock">
+          Rien n'a été encaissé et aucun article n'a été retiré : la commande est seulement mise de
+          côté sur le papier. La vente se fait quand le client vient chercher sa marchandise.
+        </Encadre>
+      </div>
+      <div className="flex gap-3 flex-wrap justify-center">
+        <Button onClick={imprimerBonDeCommande} className="bg-stone-900 hover:bg-stone-800 text-white font-black uppercase text-xs px-8 h-11 rounded-2xl gap-2">
+          <FileText className="w-4 h-4" /> Bon de commande
+        </Button>
+        <Button onClick={reset} className="bg-violet-600 hover:bg-violet-700 text-white font-black uppercase text-xs px-8 h-11 rounded-2xl">
+          Nouvelle vente
+        </Button>
+      </div>
+    </div>
+  );
+
   // ── Succès ──
   if (done) return (
     <div className="flex flex-col items-center justify-center min-h-[60vh] space-y-6 animate-in fade-in">
@@ -845,7 +995,7 @@ export default function StockSaleFlow({
       </div>
       <div className="text-center space-y-1">
         <h2 className="text-2xl font-black uppercase tracking-tighter text-stone-900">
-          Bon de commande enregistré !
+          Vente enregistrée !
         </h2>
         <p className="text-stone-400 font-bold text-sm">
           Le stock a été mis à jour automatiquement.
@@ -1384,11 +1534,7 @@ export default function StockSaleFlow({
                         ? 'Ce prix sera repris sur toutes les couleurs de ce produit déjà au panier.'
                         : "Prix hors remise. La remise s'applique plus bas, sur le total de la vente."
                     }
-                    erreur={
-                      unitPrice > 0 && Number(item.purchasePricePerUnit) > 0 && unitPrice < Number(item.purchasePricePerUnit)
-                        ? `En dessous du prix de revient (${fmt$(Number(item.purchasePricePerUnit))} MAD) : seul l'administrateur peut valider une vente à perte.`
-                        : null
-                    }
+                    erreur={unitPrice > 0 && venteAPerte(item, unitPrice) ? 'Vente à perte.' : null}
                   >
                     <div className="relative">
                       <Input id={`prix-${item.articleId}`} type="number" min={0} step="any" value={unitPrice || ''}
@@ -1924,7 +2070,7 @@ export default function StockSaleFlow({
             <SectionFormulaire
               numero={3}
               titre="Relire, puis valider"
-              aide="Dernière vérification : à la validation, la marchandise sort du stock et le bon de commande est créé."
+              aide="Dernière vérification : à la validation, la marchandise sort du stock et la vente est enregistrée. Si le client n'est pas encore là, préparez plutôt sa commande, juste en dessous."
             >
               <Champ
                 label="Date de la vente"
@@ -2004,6 +2150,33 @@ export default function StockSaleFlow({
               >
                 Valider la vente — {fmt$(total)} MAD
               </BoutonValider>
+
+              {/* ── Le client n'est pas encore là : on prépare sa commande ── */}
+              <div className="pt-2 border-t border-stone-100 space-y-2.5">
+                <Encadre ton="astuce" titre="Le client n'est pas encore venu ?">
+                  « Préparer la commande » met ce panier de côté sous forme de bon de commande :
+                  la marchandise reste en stock, rien n'est encaissé. Le bon s'imprime juste après.
+                  À l'enlèvement, retrouvez la commande dans <span className="font-black">Commandes
+                  préparées</span> et facturez-la : c'est à ce moment-là que la marchandise sort.
+                  Attention, une commande préparée ne réserve rien — une vente passée entre-temps
+                  peut prendre les mêmes pièces.
+                </Encadre>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={handlePrepareOrder}
+                  disabled={!isOnline || preparingOrder || saving || cart.length === 0}
+                  className="w-full h-12 rounded-2xl border-2 border-violet-300 bg-white text-violet-800 hover:bg-violet-50 text-[13px] font-black tracking-wide gap-2 disabled:opacity-40"
+                >
+                  <ClipboardList className="w-4 h-4" />
+                  {preparingOrder ? 'Enregistrement de la commande…' : `Préparer la commande — ${fmt$(total)} MAD`}
+                </Button>
+                {!isOnline && (
+                  <p className="text-[11px] font-bold text-stone-500 text-center leading-snug">
+                    Sans connexion réseau, la commande ne peut pas être enregistrée.
+                  </p>
+                )}
+              </div>
             </SectionFormulaire>
           </div>
 

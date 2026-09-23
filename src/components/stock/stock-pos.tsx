@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useMemo, useCallback } from 'react';
-import { ShoppingCart, Plus, Minus, Trash2, CheckCircle2, Search, Tag, X, ChevronRight } from 'lucide-react';
+import { ShoppingCart, Plus, Minus, Trash2, CheckCircle2, Search, Tag, X, ChevronRight, AlertTriangle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
@@ -65,10 +65,13 @@ export default function StockPOS({ stockItems, categories, onValidateSale }: Sto
   }, [availableItems, activeCat, search]);
 
   // Totaux du panier
+  // Le coût d'achat sert uniquement à l'enregistrement de la vente et à l'alerte de vente
+  // à perte : il n'est jamais affiché en caisse.
   const cartTotal   = cart.reduce((s, c) => s + (c.stockItem.sellingPrice || 0) * c.qty, 0);
   const cartCost    = cart.reduce((s, c) => s + (c.stockItem.purchasePricePerUnit || 0) * c.qty, 0);
   const cartMargin  = cartTotal - cartCost;
   const cartItemCount = cart.reduce((s, c) => s + c.qty, 0);
+  const venteAPerte = cartCost > 0 && cartMargin < 0;
 
   const addToCart = useCallback((item: StockItem) => {
     setCart(prev => {
@@ -392,17 +395,21 @@ export default function StockPOS({ stockItems, categories, onValidateSale }: Sto
                   <span>{fmt$(cartTotal)}</span>
                 </div>
                 <div className="flex justify-between text-[9px] font-bold text-stone-400 uppercase">
-                  <span>Coût achat</span>
-                  <span>{fmt$(cartCost)}</span>
-                </div>
-                <div className="flex justify-between text-[9px] font-black text-emerald-600 uppercase">
-                  <span>Marge brute</span>
-                  <span>{cartMargin >= 0 ? '+' : ''}{fmt$(cartMargin)}</span>
+                  <span>Articles</span>
+                  <span>{fmtN(cartItemCount)}</span>
                 </div>
                 <div className="flex justify-between items-center pt-1.5 border-t border-stone-100">
                   <span className="text-xs font-black text-stone-900 uppercase">TOTAL</span>
                   <span className="text-xl font-black text-stone-900">{fmt$(cartTotal)}</span>
                 </div>
+                {venteAPerte && (
+                  <div className="flex items-center gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2">
+                    <AlertTriangle className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                    <span className="text-[9px] font-black text-amber-800 uppercase tracking-widest">
+                      Vente à perte
+                    </span>
+                  </div>
+                )}
               </div>
               <Button
                 onClick={() => setConfirmOpen(true)}
@@ -436,6 +443,14 @@ export default function StockPOS({ stockItems, categories, onValidateSale }: Sto
               <span>TOTAL</span>
               <span className="text-xl text-emerald-700">{fmt$(cartTotal)}</span>
             </div>
+            {venteAPerte && (
+              <div className="flex items-center gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5">
+                <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
+                <span className="text-[10px] font-black text-amber-800 uppercase tracking-widest">
+                  Vente à perte · accord de la direction requis
+                </span>
+              </div>
+            )}
             <div className="space-y-1.5">
               <Label className="text-[9px] font-black text-stone-500 uppercase tracking-widest">Nom client (optionnel)</Label>
               <Input value={clientName} onChange={e => setClientName(e.target.value)} placeholder="Ex: Ahmed, Boutique XYZ..." className="h-10 rounded-xl border-stone-200 font-bold" />

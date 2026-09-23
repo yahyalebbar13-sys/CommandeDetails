@@ -10,7 +10,6 @@ import {
   ArrowRight,
   Package,
   ShoppingBag,
-  BarChart3,
   Eye,
   Calendar,
   Activity,
@@ -34,9 +33,6 @@ import {
   Cell,
   PieChart,
   Pie,
-  LineChart,
-  Line,
-  CartesianGrid
 } from 'recharts';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -78,6 +74,11 @@ const fmt$ = (n: number) =>
 const fmtN = (n: number) =>
   (Number(n) || 0).toLocaleString('fr-FR', { maximumFractionDigits: 0 });
 
+// Une vente en dessous du prix de revient est signalée telle quelle : ni coût, ni marge,
+// ni pourcentage ne sont affichés dans /stock.
+const estVenteAPerte = (coutTotal: any, marge: any) =>
+  (Number(coutTotal) || 0) > 0 && (Number(marge) || 0) < 0;
+
 export default function StockDashboard({
   stockItems,
   allStockItems,
@@ -113,7 +114,7 @@ export default function StockDashboard({
     to: todayStr,
   });
 
-  // Filtres Ventes & Marges
+  // Filtres du journal des ventes
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('ALL');
 
@@ -146,7 +147,7 @@ export default function StockDashboard({
     }
   };
 
-  // ── 1. DICTIONNAIRE DE RÉSOLUTION DES ARTICLES & COÛTS D'ACHAT ────────────
+  // ── 1. RÉSOLUTION DES ARTICLES (le coût ne sert qu'à repérer une vente à perte) ────
   const articlesMap = useMemo(() => {
     const map = new Map<string, any>();
     articles.forEach(a => { if (a.id) map.set(a.id, a); });
@@ -450,16 +451,13 @@ export default function StockDashboard({
 
     return rawList.map(item => {
       const currentQty = Number(item.currentQty) || 0;
-      const cost = Number(item.purchasePricePerUnit) || 0;
       const sell = Number(item.sellingPrice) || 0;
       const positiveQty = Math.max(0, currentQty);
-      const totalValue = positiveQty * cost;
       const totalSellingValue = sell > 0 ? positiveQty * sell : undefined;
 
       return {
         ...item,
         currentQty,
-        totalValue: isNaN(totalValue) ? 0 : totalValue,
         totalSellingValue: totalSellingValue != null && !isNaN(totalSellingValue) ? totalSellingValue : undefined,
       };
     });
@@ -474,11 +472,6 @@ export default function StockDashboard({
   const negativeStockItems = useMemo(() =>
     displayStockItems.filter(i => (Number(i.currentQty) || 0) < 0),
     [displayStockItems]
-  );
-
-  const totalStockValue = useMemo(() =>
-    inStockItems.reduce((s, i) => s + (Number(i.totalValue) || 0), 0),
-    [inStockItems]
   );
 
   const totalSellingValue = useMemo(() =>
@@ -566,15 +559,11 @@ export default function StockDashboard({
     [normalizedSales, currentMonthStr, effectiveStoreId]
   );
   const caMonth = currentMonthSales.reduce((s, v) => s + v.totalAmount, 0);
-  const marginMonth = currentMonthSales.reduce((s, v) => s + v.totalMargin, 0);
   const nbSalesMonth = currentMonthSales.length;
   const panierMoyenMonth = nbSalesMonth > 0 ? caMonth / nbSalesMonth : 0;
 
   // Ventes de la période sélectionnée
   const periodCA = filteredSales.reduce((s, v) => s + v.totalAmount, 0);
-  const periodCost = filteredSales.reduce((s, v) => s + v.totalCost, 0);
-  const periodMargin = filteredSales.reduce((s, v) => s + v.totalMargin, 0);
-  const periodMarginRate = periodCA > 0 ? (periodMargin / periodCA) * 100 : 0;
   const periodUnitsSold = filteredSales.reduce((acc, s) => acc + s.items.reduce((sum: number, it: any) => sum + it.qty, 0), 0);
   const avgTicket = filteredSales.length > 0 ? periodCA / filteredSales.length : 0;
 
@@ -618,7 +607,7 @@ export default function StockDashboard({
     displayStockItems.forEach(i => {
       const rawName = categoryMap.get(i.categoryId) || i.categoryId || 'Autre';
       const key = rawName.toUpperCase();
-      map[key] = (map[key] || 0) + (userRole === 'ADMIN' ? i.totalValue : i.currentQty);
+      map[key] = (map[key] || 0) + Math.max(0, Number(i.currentQty) || 0);
     });
 
     return Object.entries(map)
@@ -628,7 +617,7 @@ export default function StockDashboard({
       }))
       .sort((a, b) => b.value - a.value)
       .slice(0, 8);
-  }, [displayStockItems, categoryMap, userRole]);
+  }, [displayStockItems, categoryMap]);
 
   // ── 8. RÉPARTITION DES VENTES PAR MAGASIN ─────────────────────────────────
   const storeSalesData = useMemo(() => {
@@ -654,27 +643,21 @@ export default function StockDashboard({
       });
   }, [filteredSales, stores]);
 
-  // ── 9. TOP PRODUITS VENDUS (AVEC COÛT ET MARGE RÉELLE) ───────────────────
+  // ── 9. TOP PRODUITS VENDUS (QUANTITÉS ET CHIFFRE D'AFFAIRES) ────────────────
   const topProducts = useMemo(() => {
-    const map: Record<string, { name: string; qty: number; ca: number; cost: number; margin: number }> = {};
+    const map: Record<string, { name: string; qty: number; ca: number }> = {};
     filteredSales.forEach(s => {
       s.items.forEach((item: any) => {
         const key = item.articleId || item.productName;
         if (!map[key]) {
-          map[key] = { name: item.productName, qty: 0, ca: 0, cost: 0, margin: 0 };
+          map[key] = { name: item.productName, qty: 0, ca: 0 };
         }
         map[key].qty += item.qty;
         map[key].ca += item.totalPrice;
-        map[key].cost += item.totalCost;
-        map[key].margin += item.margin;
       });
     });
 
     return Object.values(map)
-      .map(p => ({
-        ...p,
-        marginRate: p.ca > 0 ? (p.margin / p.ca) * 100 : 0,
-      }))
       .sort((a, b) => b.ca - a.ca)
       .slice(0, 10);
   }, [filteredSales]);
@@ -692,19 +675,17 @@ export default function StockDashboard({
       .slice(0, 6);
   }, [movements, effectiveStoreId]);
 
-  // ── 11. ÉVOLUTION MENSUELLE CA VS COÛT VS MARGE ──────────────────────────
+  // ── 11. ÉVOLUTION MENSUELLE DU CHIFFRE D'AFFAIRES ─────────────────────────
   const monthlyTrends = useMemo(() => {
-    const map: Record<string, { ca: number; cost: number; margin: number; count: number }> = {};
+    const map: Record<string, { ca: number; count: number }> = {};
     normalizedSales.forEach(s => {
       const m = s.date?.substring(0, 7) || '';
       if (!m) return;
       if (effectiveStoreId !== 'ALL' && effectiveStoreId !== 'ALL_MAIN') {
         if (s.storeId !== effectiveStoreId && (!s.storeId && effectiveStoreId !== 'CHRIFA')) return;
       }
-      if (!map[m]) map[m] = { ca: 0, cost: 0, margin: 0, count: 0 };
+      if (!map[m]) map[m] = { ca: 0, count: 0 };
       map[m].ca += s.totalAmount;
-      map[m].cost += s.totalCost;
-      map[m].margin += s.totalMargin;
       map[m].count += 1;
     });
 
@@ -717,17 +698,10 @@ export default function StockDashboard({
           monthKey: mKey,
           label: `${MONTH_NAMES[parseInt(m) - 1]} ${y}`,
           ca: Math.round(d.ca),
-          cost: Math.round(d.cost),
-          margin: Math.round(d.margin),
           count: d.count,
         };
       });
   }, [normalizedSales, effectiveStoreId]);
-
-  const tooltipMADFormatter = (v: any, name: string) => [
-    fmt$(v),
-    name === 'ca' ? 'Chiffre d\'Affaires' : name === 'cost' ? 'Coût d\'Achat' : 'Marge Brute'
-  ];
 
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
@@ -782,7 +756,7 @@ export default function StockDashboard({
                     : 'text-[#C9B89A] hover:text-white hover:bg-white/10'
                 }`}
               >
-                <TrendingUp className="w-4 h-4" /> Ventes & Marges
+                <TrendingUp className="w-4 h-4" /> Ventes & Encaissements
               </button>
             )}
           </div>
@@ -1038,24 +1012,23 @@ export default function StockDashboard({
           {/* KPIS PRINCIPAUX */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
 
-            {/* KPI 1 : Valeur du stock (Admin) ou CA Jour (Commercial) */}
+            {/* KPI 1 : Quantités en stock (Direction) ou CA du jour (Vendeur) */}
             {userRole === 'ADMIN' ? (
               <Card onClick={() => onNavigate('stock')} className="border-none shadow-xl rounded-3xl overflow-hidden cursor-pointer hover:shadow-2xl hover:-translate-y-0.5 transition-all">
                 <div className="h-1.5 bg-emerald-500" />
                 <CardContent className="p-5">
                   <div className="flex items-center justify-between mb-3">
                     <div className="p-2.5 bg-emerald-50 rounded-2xl"><Boxes className="w-5 h-5 text-emerald-600" /></div>
-                    <span className="text-[11px] font-black uppercase px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800">Coût Achat</span>
+                    <span className="text-[11px] font-black uppercase px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800">Stock</span>
                   </div>
                   <p className="text-2xl font-black text-stone-900 leading-none">{fmtN(totalStockQty)} unités</p>
                   <p className="text-[11px] font-black text-stone-400 uppercase tracking-widest mt-1.5">
                     Quantité Totale en Stock · {totalRefs} référence{totalRefs > 1 ? 's' : ''}
                   </p>
                   <p className="text-[10px] font-bold text-stone-500 mt-1">
-                    Coût d'achat : {fmt$(totalStockValue)}
-                    {negativeStockItems.length > 0 && (
-                      <span className="text-amber-600 font-black ml-1.5">({negativeStockItems.length} négatif)</span>
-                    )}
+                    {negativeStockItems.length > 0
+                      ? `${negativeStockItems.length} article(s) en stock négatif à régulariser`
+                      : 'Quantités issues des entrées validées'}
                   </p>
                 </CardContent>
               </Card>
@@ -1086,7 +1059,7 @@ export default function StockDashboard({
                   <p className="text-2xl font-black text-stone-900 leading-none">{fmt$(totalSellingValue)}</p>
                   <p className="text-[11px] font-black text-stone-400 uppercase tracking-widest mt-1.5">Valeur Vente Estimée</p>
                   <p className="text-[10px] font-bold text-teal-700 mt-1">
-                    Marge latente : +{fmt$(Math.max(0, totalSellingValue - totalStockValue))}
+                    Au prix de vente en vigueur · {totalRefs} référence{totalRefs > 1 ? 's' : ''}
                   </p>
                 </CardContent>
               </Card>
@@ -1116,11 +1089,7 @@ export default function StockDashboard({
                 <p className="text-2xl font-black text-stone-900 leading-none">{fmt$(periodCA)}</p>
                 <p className="text-[11px] font-black text-stone-400 uppercase tracking-widest mt-1.5">Chiffre d'Affaires</p>
                 <p className="text-[10px] font-bold text-stone-500 mt-1">
-                  {userRole === 'ADMIN' ? (
-                    <span className="text-emerald-700">Marge : +{fmt$(periodMargin)} ({periodMarginRate.toFixed(1)}%)</span>
-                  ) : (
-                    <span>{filteredSales.length} vente(s) réalisée(s)</span>
-                  )}
+                  {filteredSales.length} vente(s) réalisée(s)
                 </p>
               </CardContent>
             </Card>
@@ -1267,14 +1236,10 @@ export default function StockDashboard({
             <div className="lg:col-span-2 bg-white rounded-3xl shadow-xl p-6 border border-stone-100">
               <div className="flex items-center justify-between mb-5">
                 <div>
-                  <p className="text-[11px] font-black text-stone-400 uppercase tracking-widest">
-                    {userRole === 'ADMIN' ? 'Valeur Marchande en Stock' : 'Volumes en Stock'}
-                  </p>
+                  <p className="text-[11px] font-black text-stone-400 uppercase tracking-widest">Volumes en Stock</p>
                   <h3 className="text-lg font-black text-stone-900 uppercase tracking-tight">Top Catégories</h3>
                 </div>
-                <span className="text-xs font-bold text-stone-400">
-                  {userRole === 'ADMIN' ? 'En MAD' : 'En unités'}
-                </span>
+                <span className="text-xs font-bold text-stone-400">En unités</span>
               </div>
 
               {catData.length > 0 ? (
@@ -1289,10 +1254,10 @@ export default function StockDashboard({
                     />
                     <YAxis
                       tick={{ fontSize: 9, fill: '#a8a29e' }}
-                      tickFormatter={v => userRole === 'ADMIN' ? `${(v / 1000).toFixed(0)}k` : `${v}`}
+                      tickFormatter={v => `${v}`}
                     />
                     <Tooltip
-                      formatter={(v: any) => [userRole === 'ADMIN' ? fmt$(v) : fmtN(v), userRole === 'ADMIN' ? 'Valeur Stock' : 'Quantité']}
+                      formatter={(v: any) => [fmtN(v), 'Quantité']}
                       contentStyle={{ borderRadius: 16, border: 'none', boxShadow: '0 10px 25px rgba(0,0,0,0.1)' }}
                     />
                     <Bar dataKey="value" radius={[8, 8, 0, 0]}>
@@ -1403,11 +1368,6 @@ export default function StockDashboard({
                       </div>
                       <div className="text-right shrink-0">
                         <p className="text-xs font-black text-stone-900">{fmt$(item.ca)}</p>
-                        {userRole === 'ADMIN' && (
-                          <p className={`text-[10px] font-black ${item.margin >= 0 ? 'text-emerald-700' : 'text-red-500'}`}>
-                            +{fmt$(item.margin)} ({item.marginRate.toFixed(1)}%)
-                          </p>
-                        )}
                       </div>
                     </div>
                   ))
@@ -1493,7 +1453,7 @@ export default function StockDashboard({
       )}
 
       {/* =====================================================================
-                              ONGLET : VENTES & MARGES (ADMIN SEUL)
+                              ONGLET : VENTES & ENCAISSEMENTS (ADMIN SEUL)
           ===================================================================== */}
       {activeTab === 'sales' && userRole === 'ADMIN' && (
         <div className="space-y-6 animate-in fade-in duration-300">
@@ -1527,34 +1487,14 @@ export default function StockDashboard({
             </div>
           </div>
 
-          {/* 4 KPIS FINANCIERS DE VENTES & MARGES */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          {/* KPIS DE VENTES */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="bg-white rounded-3xl shadow-xl border border-stone-100 p-5 overflow-hidden relative">
               <div className="h-1.5 bg-violet-500 absolute top-0 left-0 right-0" />
               <div className="p-2.5 bg-violet-50 rounded-2xl w-fit mb-3"><DollarSign className="w-5 h-5 text-violet-600" /></div>
               <p className="text-2xl font-black text-stone-900 leading-none">{fmt$(periodCA)}</p>
               <p className="text-[11px] font-black text-stone-400 uppercase tracking-widest mt-1.5">Chiffre d'Affaires Net</p>
               <p className="text-[10px] font-bold text-stone-500 mt-1">{filteredSales.length} vente(s) enregistrée(s)</p>
-            </div>
-
-            <div className="bg-white rounded-3xl shadow-xl border border-stone-100 p-5 overflow-hidden relative">
-              <div className="h-1.5 bg-stone-500 absolute top-0 left-0 right-0" />
-              <div className="p-2.5 bg-stone-100 rounded-2xl w-fit mb-3"><BarChart3 className="w-5 h-5 text-stone-600" /></div>
-              <p className="text-2xl font-black text-stone-900 leading-none">{fmt$(periodCost)}</p>
-              <p className="text-[11px] font-black text-stone-400 uppercase tracking-widest mt-1.5">Coût d'Achat Réel (COGS)</p>
-              <p className="text-[10px] font-bold text-stone-500 mt-1">
-                {periodCA > 0 ? ((periodCost / periodCA) * 100).toFixed(1) : 0}% du Chiffre d'Affaires
-              </p>
-            </div>
-
-            <div className="bg-white rounded-3xl shadow-xl border border-stone-100 p-5 overflow-hidden relative">
-              <div className="h-1.5 bg-emerald-500 absolute top-0 left-0 right-0" />
-              <div className="p-2.5 bg-emerald-50 rounded-2xl w-fit mb-3"><TrendingUp className="w-5 h-5 text-emerald-600" /></div>
-              <p className="text-2xl font-black text-emerald-900 leading-none">{fmt$(periodMargin)}</p>
-              <p className="text-[11px] font-black text-stone-400 uppercase tracking-widest mt-1.5">Marge Brute Réalisée</p>
-              <p className="text-[10px] font-bold text-emerald-700 mt-1">
-                Taux de marge réel : {periodMarginRate.toFixed(1)}%
-              </p>
             </div>
 
             <div className="bg-white rounded-3xl shadow-xl border border-stone-100 p-5 overflow-hidden relative">
@@ -1614,38 +1554,20 @@ export default function StockDashboard({
 
           {/* GRAPHIQUES D'ANALYSE MENSUELLE */}
           {monthlyTrends.length > 0 && (
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-
-              {/* GRAPHIQUE 1 : CA VS COÛT PAR MOIS */}
-              <div className="bg-white rounded-3xl shadow-xl p-6 border border-stone-100">
-                <p className="text-[11px] font-black text-stone-400 uppercase tracking-widest mb-1">Évolution</p>
-                <h3 className="text-lg font-black text-stone-900 uppercase tracking-tight mb-5">CA vs Coût Réel par mois</h3>
-                <ResponsiveContainer width="100%" height={230}>
-                  <BarChart data={monthlyTrends} margin={{ top: 0, right: 10, left: 0, bottom: 30 }}>
-                    <XAxis dataKey="label" tick={{ fontSize: 9, fontWeight: 700, fill: '#78716c' }} angle={-30} textAnchor="end" interval={0} />
-                    <YAxis tick={{ fontSize: 9, fill: '#a8a29e' }} tickFormatter={v => `${(v / 1000).toFixed(0)}k`} />
-                    <Tooltip formatter={tooltipMADFormatter} contentStyle={{ borderRadius: 16, border: 'none', boxShadow: '0 10px 25px rgba(0,0,0,0.1)' }} />
-                    <Bar dataKey="ca" name="ca" radius={[6, 6, 0, 0]} fill="#8b5cf6" />
-                    <Bar dataKey="cost" name="cost" radius={[6, 6, 0, 0]} fill="#e2e8f0" />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-
-              {/* GRAPHIQUE 2 : MARGE BRUTE PAR MOIS */}
-              <div className="bg-white rounded-3xl shadow-xl p-6 border border-stone-100">
-                <p className="text-[11px] font-black text-stone-400 uppercase tracking-widest mb-1">Rentabilité</p>
-                <h3 className="text-lg font-black text-stone-900 uppercase tracking-tight mb-5">Marge Brute par mois (MAD)</h3>
-                <ResponsiveContainer width="100%" height={230}>
-                  <LineChart data={monthlyTrends} margin={{ top: 0, right: 10, left: 0, bottom: 30 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#f5f5f4" />
-                    <XAxis dataKey="label" tick={{ fontSize: 9, fontWeight: 700, fill: '#78716c' }} angle={-30} textAnchor="end" interval={0} />
-                    <YAxis tick={{ fontSize: 9, fill: '#a8a29e' }} tickFormatter={v => `${(v / 1000).toFixed(0)}k`} />
-                    <Tooltip formatter={(v: any) => [fmt$(v), 'Marge Brute']} contentStyle={{ borderRadius: 16, border: 'none', boxShadow: '0 10px 25px rgba(0,0,0,0.1)' }} />
-                    <Line type="monotone" dataKey="margin" stroke="#059669" strokeWidth={3} dot={{ fill: '#059669', r: 5 }} />
-                  </LineChart>
-                </ResponsiveContainer>
-              </div>
-
+            <div className="bg-white rounded-3xl shadow-xl p-6 border border-stone-100">
+              <p className="text-[11px] font-black text-stone-400 uppercase tracking-widest mb-1">Évolution</p>
+              <h3 className="text-lg font-black text-stone-900 uppercase tracking-tight mb-5">Chiffre d'affaires par mois</h3>
+              <ResponsiveContainer width="100%" height={230}>
+                <BarChart data={monthlyTrends} margin={{ top: 0, right: 10, left: 0, bottom: 30 }}>
+                  <XAxis dataKey="label" tick={{ fontSize: 9, fontWeight: 700, fill: '#78716c' }} angle={-30} textAnchor="end" interval={0} />
+                  <YAxis tick={{ fontSize: 9, fill: '#a8a29e' }} tickFormatter={v => `${(v / 1000).toFixed(0)}k`} />
+                  <Tooltip
+                    formatter={(v: any) => [fmt$(v), "Chiffre d'affaires"]}
+                    contentStyle={{ borderRadius: 16, border: 'none', boxShadow: '0 10px 25px rgba(0,0,0,0.1)' }}
+                  />
+                  <Bar dataKey="ca" name="ca" radius={[6, 6, 0, 0]} fill="#8b5cf6" />
+                </BarChart>
+              </ResponsiveContainer>
             </div>
           )}
 
@@ -1655,7 +1577,7 @@ export default function StockDashboard({
             {/* TOP PRODUITS */}
             <div className="bg-white rounded-3xl shadow-xl p-6 border border-stone-100">
               <p className="text-[11px] font-black text-stone-400 uppercase tracking-widest mb-1">Classement</p>
-              <h3 className="text-lg font-black text-stone-900 uppercase tracking-tight mb-4">Top Produits les Plus Rentables</h3>
+              <h3 className="text-lg font-black text-stone-900 uppercase tracking-tight mb-4">Top Produits par Chiffre d'Affaires</h3>
 
               {topProducts.length === 0 ? (
                 <p className="text-center text-stone-300 text-xs font-black uppercase py-8">Aucun produit vendu</p>
@@ -1669,14 +1591,11 @@ export default function StockDashboard({
                       <div className="flex-1 min-w-0">
                         <p className="text-xs font-black text-stone-800 uppercase truncate">{p.name}</p>
                         <p className="text-[10px] font-bold text-stone-400">
-                          {fmtN(p.qty)} unité(s) · Coût : {fmt$(p.cost)}
+                          {fmtN(p.qty)} unité(s) vendue(s)
                         </p>
                       </div>
                       <div className="text-right shrink-0">
                         <p className="text-xs font-black text-violet-700">{fmt$(p.ca)}</p>
-                        <p className={`text-[10px] font-black ${p.margin >= 0 ? 'text-emerald-700' : 'text-red-500'}`}>
-                          +{fmt$(p.margin)} ({p.marginRate.toFixed(1)}%)
-                        </p>
                       </div>
                     </div>
                   ))}
@@ -1735,9 +1654,9 @@ export default function StockDashboard({
 
                         <div className="text-right shrink-0">
                           <p className="text-sm font-black text-stone-900">{fmt$(sale.totalAmount)}</p>
-                          <p className={`text-[10px] font-black ${sale.totalMargin >= 0 ? 'text-emerald-700' : 'text-red-500'}`}>
-                            +{fmt$(sale.totalMargin)} ({sale.marginRate.toFixed(1)}%)
-                          </p>
+                          {estVenteAPerte(sale.totalCost, sale.totalMargin) && (
+                            <p className="text-[10px] font-black text-amber-700 uppercase">Vente à perte</p>
+                          )}
                         </div>
 
                         <Eye className="w-4 h-4 text-stone-300 group-hover:text-violet-600 transition-colors shrink-0" />
@@ -1753,7 +1672,7 @@ export default function StockDashboard({
         </div>
       )}
 
-      {/* ── MODALE DÉTAIL D'UNE VENTE AVEC ANALYSE DE MARGE PAR LIGNE ── */}
+      {/* ── MODALE DÉTAIL D'UNE VENTE ── */}
       <Dialog open={!!selectedSale} onOpenChange={open => !open && setSelectedSale(null)}>
         <DialogContent className="sm:max-w-xl rounded-3xl border-none shadow-2xl p-0 overflow-hidden">
           <div className="bg-gradient-to-r from-violet-800 to-stone-900 p-6 text-white">
@@ -1798,19 +1717,12 @@ export default function StockDashboard({
                         {item.qty} {item.unitOfMeasure || 'u'} × {fmt$(item.unitPrice)}
                         {(item.color || item.size) && ` · ${[item.color, item.size].filter(Boolean).join(' / ')}`}
                       </p>
-                      {userRole === 'ADMIN' && (
-                        <p className="text-[11px] font-bold text-stone-500 mt-0.5">
-                          Coût unitaire d'achat : {fmt$(item.unitCost)}
-                        </p>
-                      )}
                     </div>
 
                     <div className="text-right shrink-0">
                       <p className="text-xs font-black text-stone-900">{fmt$(item.totalPrice)}</p>
-                      {userRole === 'ADMIN' && (
-                        <p className={`text-[10px] font-black ${item.margin >= 0 ? 'text-emerald-700' : 'text-red-500'}`}>
-                          +{fmt$(item.margin)} ({item.marginRate.toFixed(1)}%)
-                        </p>
+                      {estVenteAPerte(item.totalCost, item.margin) && (
+                        <p className="text-[10px] font-black text-amber-700 uppercase">Vente à perte</p>
                       )}
                     </div>
                   </div>
@@ -1832,17 +1744,12 @@ export default function StockDashboard({
                   </div>
                 )}
 
-                <div className="flex justify-between text-xs font-bold text-stone-600">
-                  <span>Coût total des achats (COGS)</span>
-                  <span>{fmt$(selectedSale?.totalCost || 0)}</span>
-                </div>
-
-                <div className="flex justify-between text-xs font-black text-emerald-700 bg-emerald-50 p-2.5 rounded-xl">
-                  <span>Marge brute dégagée</span>
-                  <span>
-                    +{fmt$(selectedSale?.totalMargin || 0)} ({selectedSale?.marginRate?.toFixed(1) || 0}%)
-                  </span>
-                </div>
+                {estVenteAPerte(selectedSale?.totalCost, selectedSale?.totalMargin) && (
+                  <div className="flex items-center gap-2 bg-amber-50 border border-amber-200 p-2.5 rounded-xl">
+                    <AlertCircle className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                    <span className="text-xs font-black text-amber-800 uppercase">Vente à perte</span>
+                  </div>
+                )}
 
                 <div className="flex justify-between text-sm font-black text-stone-900 pt-2 border-t border-stone-100">
                   <span>Total Net Facturé</span>

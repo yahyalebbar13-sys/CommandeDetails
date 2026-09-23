@@ -3,7 +3,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import {
   Layers, Package, ArrowRight, ArrowDownToLine, ArrowUpFromLine,
-  ChevronLeft, AlertTriangle, CheckCircle2, BarChart3, DollarSign,
+  ChevronLeft, AlertTriangle, CheckCircle2, BarChart3,
   Boxes, TrendingUp, Hash, Calendar, Tag, Info, Warehouse, Search, Filter, Plus
 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
@@ -36,9 +36,6 @@ const GROUPS_ORDER = [
 ];
 
 function fmt(n: number) { return Math.round(n).toLocaleString('fr-MA'); }
-function fmtDec(n: number, d = 2) {
-  return Number(n).toLocaleString('fr-MA', { minimumFractionDigits: d, maximumFractionDigits: d });
-}
 
 // ── Ce qu'EST le produit : tout passe par la brique partagée ──────────────────
 /**
@@ -108,63 +105,10 @@ function resumeValeurs(valeurs: string[], singulier: string, pluriel: string): s
   return `${valeurs.length} ${valeurs.length > 1 ? pluriel : singulier}`;
 }
 
-// ── Calcul FIFO ───────────────────────────────────────────────────────────────
-interface FIFOBatch {
-  date: string;
-  factureId: string;
-  qtyIn: number;
-  consumed: number;
-  remaining: number;
-  costPerUnit: number;   // MAD/u
-  batchValue: number;    // valeur restante MAD
-  status: 'ÉPUISÉ' | 'PARTIEL' | 'DISPONIBLE';
-}
-
-function computeFIFO(
-  entriesIN: any[],
-  entriesOUT: any[],
-  defaultCost: number
-): FIFOBatch[] {
-  // Trier les entrées par date (plus ancien = prioritaire FIFO)
-  const batches: FIFOBatch[] = [...entriesIN]
-    .sort((a, b) => (a.date || '').localeCompare(b.date || ''))
-    .map(e => ({
-      date:        e.date || '',
-      factureId:   e.factureId || e.notes || '—',
-      qtyIn:       Number(e.quantity) || 0,
-      consumed:    0,
-      remaining:   Number(e.quantity) || 0,
-      costPerUnit: (e.purchasePriceMAD != null && e.purchasePriceMAD > 0) ? e.purchasePriceMAD : defaultCost,
-      batchValue:  0,
-      status:      'DISPONIBLE',
-    }));
-
-  // Appliquer les sorties en FIFO
-  const exits = [...entriesOUT].sort((a, b) => (a.date || '').localeCompare(b.date || ''));
-  exits.forEach(exit => {
-    let toConsume = Number(exit.quantity) || 0;
-    for (const batch of batches) {
-      if (toConsume <= 0 || batch.remaining <= 0) continue;
-      const consume = Math.min(toConsume, batch.remaining);
-      batch.consumed  += consume;
-      batch.remaining -= consume;
-      toConsume       -= consume;
-    }
-  });
-
-  // Calculer valeurs finales
-  batches.forEach(b => {
-    b.batchValue = Math.round(b.remaining * b.costPerUnit);
-    b.status = b.remaining === 0 ? 'ÉPUISÉ' : b.consumed > 0 ? 'PARTIEL' : 'DISPONIBLE';
-  });
-
-  return batches;
-}
-
 // ── Header KPI partagé ────────────────────────────────────────────────────────
 function StockHeader({
-  totalRefs, totalStock, totalVal, alertCount, userRole
-}: { totalRefs: number; totalStock: number; totalVal: number; alertCount: number; userRole?: string }) {
+  totalRefs, totalStock, alertCount
+}: { totalRefs: number; totalStock: number; alertCount: number }) {
   return (
     <div className="bg-gradient-to-br from-[#3D2E17] via-[#2A2014] to-[#1E1B15] rounded-3xl p-8 relative overflow-hidden">
       <div className="absolute top-0 right-0 w-72 h-72 bg-[#CC8626]/10 rounded-full -translate-y-1/2 translate-x-1/2 blur-3xl pointer-events-none" />
@@ -174,13 +118,12 @@ function StockHeader({
           <h2 className="text-3xl font-black text-white uppercase tracking-tighter leading-none">
             Fiches de <span className="text-[#E0A24C]">Stock</span>
           </h2>
-          <p className="text-[#C9B89A] text-xs mt-2">Méthode FIFO · entrées validées manuellement · coûts réels</p>
+          <p className="text-[#C9B89A] text-xs mt-2">Entrées validées manuellement · quantités réellement en place</p>
         </div>
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <div className="grid grid-cols-3 gap-3">
           {[
             { label: 'Références', value: String(totalRefs),         icon: BarChart3,    color: 'text-[#C9B89A]' },
             { label: 'Stock Total', value: fmt(totalStock),           icon: Boxes,        color: 'text-blue-300'  },
-            ...(userRole === 'ADMIN' ? [{ label: 'Valeur MAD',  value: `${fmt(totalVal)} MAD`,   icon: DollarSign,   color: 'text-[#E0A24C]'}] : []),
             { label: 'Alertes',     value: String(alertCount),        icon: AlertTriangle,color: alertCount > 0 ? 'text-red-400' : 'text-[#7A7362]' },
           ].map(({ label, value, icon: Icon, color }) => (
             <div key={label} className="bg-white/10 backdrop-blur-sm rounded-2xl px-4 py-3 text-center">
@@ -197,10 +140,10 @@ function StockHeader({
 
 // ── Fiche complète d'un produit (niveau 4) ───────────────────────────────────
 function ProductFiche({
-  article, variants, movements, factures, onBack, color, inline = false, userRole = 'COMMERCIAL',
+  article, variants, movements, factures, onBack, color, inline = false,
   categories = [], generalCategories = [],
 }: {
-  article: any; variants: any[]; movements: any[]; factures: any[]; onBack: () => void; color: string; inline?: boolean; userRole?: string;
+  article: any; variants: any[]; movements: any[]; factures: any[]; onBack: () => void; color: string; inline?: boolean;
   categories?: any[]; generalCategories?: any[];
 }) {
   const artMovs = useMemo(() =>
@@ -212,8 +155,6 @@ function ProductFiche({
   const totalIn  = variants.reduce((s, v) => s + v.initialQty + v.mouvementsIn, 0);
   const totalOut = variants.reduce((s, v) => s + v.mouvementsOut, 0);
   const currentQty = variants.reduce((s, v) => s + v.currentQty, 0);
-  const totalValue = variants.reduce((s, v) => s + (v.currentQty * (v.purchasePricePerUnit || 0)), 0);
-  const avgCost = currentQty > 0 ? totalValue / currentQty : (article.purchasePricePerUnit || 0);
 
   const isAlert   = variants.some(v => v.minThreshold != null && v.currentQty <= v.minThreshold);
   const pct       = totalIn > 0 ? Math.min(100, Math.round((currentQty / totalIn) * 100)) : 100;
@@ -224,20 +165,18 @@ function ProductFiche({
       variants.reduce((map, v) => {
         const key = `${v.quality || ''}|${v.color || ''}|${v.size || ''}`.toLowerCase();
         if (!map.has(key)) {
-          map.set(key, { 
-            ...v, 
+          map.set(key, {
+            ...v,
             totalIn: v.initialQty + v.mouvementsIn,
             totalOut: v.mouvementsOut,
             currentQty: v.currentQty,
             minThreshold: v.minThreshold,
-            totalValue: v.currentQty * (v.purchasePricePerUnit || 0)
           });
         } else {
           const e = map.get(key);
           e.totalIn += (v.initialQty + v.mouvementsIn);
           e.totalOut += v.mouvementsOut;
           e.currentQty += v.currentQty;
-          e.totalValue += (v.currentQty * (v.purchasePricePerUnit || 0));
         }
         return map;
       }, new Map<string, any>()).values()
@@ -373,20 +312,6 @@ function ProductFiche({
               <p className="text-[11px] font-black text-stone-400 uppercase tracking-wider mb-1">En Stock</p>
               <p className={`text-2xl font-black ${isAlert ? 'text-amber-600' : 'text-stone-900'}`}>{fmt(currentQty)} <span className="text-xs text-stone-400">{article.unitOfMeasure}</span></p>
             </div>
-            
-            {userRole === 'ADMIN' && (
-              <>
-                <div className="w-px h-8 bg-stone-100 hidden sm:block"></div>
-                <div className="text-center bg-stone-50 rounded-xl px-4 py-2 border border-stone-100">
-                  <p className="text-[11px] font-black text-stone-500 uppercase tracking-wider mb-1">Coût unitaire moy.</p>
-                  <p className="text-lg font-black text-violet-600">{fmtDec(avgCost)} <span className="text-[11px] text-stone-400">MAD</span></p>
-                </div>
-                <div className="text-center bg-emerald-50 rounded-xl px-4 py-2 border border-emerald-100">
-                  <p className="text-[11px] font-black text-emerald-700 uppercase tracking-wider mb-1">Valeur du Stock</p>
-                  <p className="text-2xl font-black text-emerald-600">{fmt(totalValue)} <span className="text-[11px] text-emerald-400">MAD</span></p>
-                </div>
-              </>
-            )}
           </div>
         </div>
         <div className="h-1.5 bg-stone-100 w-full">
@@ -472,8 +397,6 @@ function ProductFiche({
                   <th className="px-6 py-3 text-right font-black text-rose-600/70 uppercase tracking-wider text-[11px]">Sorties</th>
                   <th className="px-6 py-3 text-right font-black text-stone-800 uppercase tracking-wider text-[11px]">Stock Réel</th>
                   <th className="px-6 py-3 text-left font-black text-stone-400 uppercase tracking-wider text-[11px]">Répartition (par entrepôt)</th>
-                  {userRole === 'ADMIN' && <th className="px-6 py-3 text-right font-black text-violet-600/70 uppercase tracking-wider text-[11px]">Coût Unitaire</th>}
-                  {userRole === 'ADMIN' && <th className="px-6 py-3 text-right font-black text-emerald-600/70 uppercase tracking-wider text-[11px]">Valeur</th>}
                   <th className="px-6 py-3 text-right font-black text-stone-400 uppercase tracking-wider text-[11px]">Statut</th>
                 </tr>
               </thead>
@@ -519,8 +442,6 @@ function ProductFiche({
                           <span className="text-stone-300">—</span>
                         )}
                       </td>
-                      {userRole === 'ADMIN' && <td className="px-6 py-4 text-right font-bold text-violet-600">{fmtDec(v.purchasePricePerUnit || article.purchasePricePerUnit || 0)} <span className="text-[11px] text-stone-400">MAD</span></td>}
-                      {userRole === 'ADMIN' && <td className="px-6 py-4 text-right font-black text-emerald-600">{fmt(v.totalValue)} <span className="text-[11px] text-stone-400">MAD</span></td>}
                       <td className="px-6 py-4 text-right">
                         {isRupt ? (
                           <span className="text-[11px] font-black text-red-600 bg-red-50 px-2.5 py-1 rounded-full uppercase">Rupture</span>
@@ -614,11 +535,11 @@ function ProductFiche({
 
 // ── Tableau niveau 3 : produits d'une sous-catégorie ─────────────────────────
 function ProductsTable({
-  items, subCatName, movements, factures, onBack, headerProp, userRole = 'COMMERCIAL',
+  items, subCatName, movements, factures, onBack, headerProp,
   categories = [], generalCategories = [],
 }: {
   items: any[]; subCatName: string; movements: any[]; factures: any[];
-  onBack: () => void; headerProp?: React.ReactNode; userRole?: string;
+  onBack: () => void; headerProp?: React.ReactNode;
   categories?: any[]; generalCategories?: any[];
 }) {
   const [selectedArticle, setSelectedArticle] = useState<any | null>(null);
@@ -635,7 +556,6 @@ function ProductsTable({
 
   const totalIn  = items.reduce((s, i) => s + i.initialQty + i.mouvementsIn, 0);
   const totalQty = items.reduce((s, i) => s + i.currentQty, 0);
-  const totalVal = items.reduce((s, i) => s + Math.round(i.currentQty * (i.purchasePricePerUnit || 0)), 0);
   const alertCount = items.filter(i => i.minThreshold != null && i.currentQty <= i.minThreshold).length;
 
   if (groupedVariants.length === 1) {
@@ -652,7 +572,6 @@ function ProductsTable({
           color={UI_COLORS[0]}
           onBack={onBack}
           inline={false}
-          userRole={userRole}
           categories={categories}
           generalCategories={generalCategories}
         />
@@ -671,7 +590,6 @@ function ProductsTable({
           color={UI_COLORS[items.findIndex(i => i.articleId === selectedArticle.articleId) % UI_COLORS.length] || UI_COLORS[0]}
           onBack={() => setSelectedArticle(null)}
           inline={false}
-          userRole={userRole}
           categories={categories}
           generalCategories={generalCategories}
         />
@@ -711,9 +629,6 @@ function ProductsTable({
           </div>
           <div className="flex gap-4 text-[11px] font-bold text-stone-400">
             <span>Stock : <strong className="text-stone-700">{fmt(totalQty)}</strong></span>
-            {userRole === 'ADMIN' && (
-              <span>Valeur : <strong className="text-emerald-700">{fmt(totalVal)} MAD</strong></span>
-            )}
           </div>
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 p-6">
@@ -727,14 +642,9 @@ function ProductsTable({
               if (!a) return null;
               const isMulti = variants.length > 1;
               const color  = UI_COLORS[idx % UI_COLORS.length];
-              const cost   = a.purchasePricePerUnit || 0;
               const totalIn = variants.reduce((s, v) => s + v.initialQty + v.mouvementsIn, 0);
               const totalCurrent = variants.reduce((s, v) => s + v.currentQty, 0);
               const pct    = totalIn > 0 ? Math.min(100, Math.round((totalCurrent / totalIn) * 100)) : 100;
-              const artIN  = movements.filter(m => variants.some(v => m.articleId === v.articleId) && m.type === 'IN');
-              const artOUT = movements.filter(m => variants.some(v => m.articleId === v.articleId) && m.type === 'OUT');
-              const batches = computeFIFO(artIN, artOUT, cost);
-              const fifoVal = batches.reduce((s, b) => s + b.batchValue, 0);
               const isAlert = variants.some(v => v.minThreshold != null && v.currentQty <= v.minThreshold);
               const isRupture = totalCurrent === 0;
               const pctColor = pct < 25 ? '#ef4444' : pct < 50 ? '#f59e0b' : pct < 75 ? '#3b82f6' : '#10b981';
@@ -822,12 +732,10 @@ function ProductsTable({
                           {fmt(totalCurrent)} <span className="text-[11px] text-stone-400 font-bold">{a.unitOfMeasure}</span>
                         </p>
                       </div>
-                      {userRole === 'ADMIN' && (
-                        <div className="text-right">
-                          <p className="text-[11px] font-black text-stone-400 uppercase tracking-wider mb-0.5">Valeur FIFO</p>
-                          <p className="text-sm font-black text-violet-700">{fmt(fifoVal)} <span className="text-[11px]">MAD</span></p>
-                        </div>
-                      )}
+                      <div className="text-right">
+                        <p className="text-[11px] font-black text-stone-400 uppercase tracking-wider mb-0.5">Entrées cumulées</p>
+                        <p className="text-sm font-black text-emerald-700">+{fmt(totalIn)}</p>
+                      </div>
                     </div>
 
                     <div className="h-1.5 bg-stone-100 rounded-full overflow-hidden">
@@ -994,12 +902,6 @@ export default function StockFiches({
 
   const totalRefs  = stockItems.filter(i => (Number(i.currentQty) || 0) > 0).length;
   const totalStock = stockItems.reduce((s, i) => s + Math.max(0, Number(i.currentQty) || 0), 0);
-  const totalVal   = stockItems.reduce((s, i) => {
-    const q = Math.max(0, Number(i.currentQty) || 0);
-    const p = Number(i.purchasePricePerUnit) || 0;
-    const v = Math.round(q * p);
-    return s + (isNaN(v) ? 0 : v);
-  }, 0);
   const alertCount = stockItems.filter(i => i.minThreshold != null && (Number(i.currentQty) || 0) <= i.minThreshold).length;
 
   // ── Niveau 3 : tableau produits (expansion inline) ───────────────────────
@@ -1021,11 +923,10 @@ export default function StockFiches({
           onBack={() => setSelSubCat(null)}
           headerProp={
             <div className="space-y-4 mb-6">
-              <StockHeader totalRefs={totalRefs} totalStock={totalStock} totalVal={totalVal} alertCount={alertCount} userRole={userRole} />
+              <StockHeader totalRefs={totalRefs} totalStock={totalStock} alertCount={alertCount} />
               {actionBar}
             </div>
           }
-          userRole={userRole}
         />
         <AddOrderModal
           open={isNewProductModalOpen}
@@ -1050,7 +951,7 @@ export default function StockFiches({
         );
     return (
       <div className="space-y-6">
-        <StockHeader totalRefs={totalRefs} totalStock={totalStock} totalVal={totalVal} alertCount={alertCount} userRole={userRole} />
+        <StockHeader totalRefs={totalRefs} totalStock={totalStock} alertCount={alertCount} />
         {actionBar}
         <div className="flex items-center gap-2">
           <button onClick={() => setSelGenCat(null)} className="flex items-center gap-1.5 text-[11px] font-black text-stone-500 hover:text-stone-900 uppercase tracking-wider transition-colors">
@@ -1074,7 +975,6 @@ export default function StockFiches({
             {subCatsWS.map((sc, idx) => {
               const items  = stockByCategory[sc.name] || stockByCategory[sc.id] || [];
               const qty    = items.reduce((s:number, i:any) => s + i.currentQty, 0);
-              const val    = items.reduce((s:number, i:any) => s + Math.round(i.currentQty * (i.purchasePricePerUnit || 0)), 0);
               const alerts = items.filter((i:any) => i.minThreshold != null && i.currentQty <= i.minThreshold).length;
               const color  = UI_COLORS[idx % UI_COLORS.length];
               return (
@@ -1108,12 +1008,6 @@ export default function StockFiches({
                         <span className="text-stone-400 font-black uppercase">Stock</span>
                         <span className="font-black text-stone-800">{fmt(qty)}</span>
                       </div>
-                      {userRole === 'ADMIN' && (
-                        <div className="flex justify-between text-[11px]">
-                          <span className="text-stone-400 font-black uppercase">Valeur</span>
-                          <span className="font-black" style={{ color }}>{val > 0 ? `${fmt(val)} MAD` : '—'}</span>
-                        </div>
-                      )}
                     </div>
                     <div className="flex justify-end">
                       <div className="p-1.5 bg-stone-50 rounded-lg group-hover:bg-stone-900 transition-colors">
@@ -1140,7 +1034,7 @@ export default function StockFiches({
   // ── Niveau 1 : Lignes et Pôles ───────────────────────────────────────────
   return (
     <div className="space-y-6">
-      <StockHeader totalRefs={totalRefs} totalStock={totalStock} totalVal={totalVal} alertCount={alertCount} userRole={userRole} />
+      <StockHeader totalRefs={totalRefs} totalStock={totalStock} alertCount={alertCount} />
       {actionBar}
 
       {/* ── Toolbar : Recherche & Filtre par Ligne (Fabric, Zipper, Slider, Bouton, Reste...) ── */}
@@ -1215,7 +1109,6 @@ export default function StockFiches({
 
             // Statistiques de la ligne
             let groupQty = 0;
-            let groupVal = 0;
             let groupAlerts = 0;
             let groupRefs = 0;
 
@@ -1223,18 +1116,16 @@ export default function StockFiches({
               const gcSubs = categories.filter(c => c.generalCategoryId === gc.id);
               const gcItems = stockItems.filter(i => gcSubs.some(s => s.name === i.categoryId || s.id === i.categoryId || (s.nameFR && s.nameFR === i.categoryId)));
               const gcQty = gcItems.reduce((s, i) => s + i.currentQty, 0);
-              const gcVal = gcItems.reduce((s, i) => s + Math.round(i.currentQty * (i.purchasePricePerUnit || 0)), 0);
               const gcAlertCount = gcItems.filter(i => i.minThreshold != null && i.currentQty <= i.minThreshold).length;
               const subCount = showAllProducts
                 ? gcSubs.length
                 : gcSubs.filter(s => (stockByCategory[s.name]?.length || 0) > 0 || (stockByCategory[s.id]?.length || 0) > 0).length;
 
               groupQty += gcQty;
-              groupVal += gcVal;
               groupAlerts += gcAlertCount;
               groupRefs += gcItems.length;
 
-              return { gc, gcSubs, gcItems, gcQty, gcVal, gcAlertCount, subCount };
+              return { gc, gcSubs, gcItems, gcQty, gcAlertCount, subCount };
             });
 
             return (
@@ -1260,17 +1151,12 @@ export default function StockFiches({
                     <div className="text-stone-500">
                       Stock : <span className="text-stone-900 font-black">{fmt(groupQty)} pcs</span>
                     </div>
-                    {userRole === 'ADMIN' && groupVal > 0 && (
-                      <div className="text-stone-500">
-                        Valeur : <span className="font-black" style={{ color: lineColor }}>{fmt(groupVal)} MAD</span>
-                      </div>
-                    )}
                   </div>
                 </div>
 
                 {/* Grille des pôles de la ligne */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
-                  {groupCardsData.map(({ gc, gcItems, gcQty, gcVal, gcAlertCount, subCount }: any) => {
+                  {groupCardsData.map(({ gc, gcItems, gcQty, gcAlertCount, subCount }: any) => {
                     return (
                       <Card
                         key={gc.id}
@@ -1307,14 +1193,6 @@ export default function StockFiches({
                               <span className="text-stone-400 font-black uppercase">Stock</span>
                               <span className="font-black text-stone-800">{fmt(gcQty)}</span>
                             </div>
-                            {userRole === 'ADMIN' && (
-                              <div className="flex justify-between text-[11px]">
-                                <span className="text-stone-400 font-black uppercase">Valeur MAD</span>
-                                <span className="font-black" style={{ color: lineColor }}>
-                                  {gcVal > 0 ? `${fmt(gcVal)} MAD` : '—'}
-                                </span>
-                              </div>
-                            )}
                           </div>
                           <div className="flex justify-end">
                             <div className="p-1.5 bg-stone-50 rounded-lg group-hover:bg-stone-900 transition-colors">

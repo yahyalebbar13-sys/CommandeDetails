@@ -3,12 +3,13 @@
 import React, { useMemo, useState } from 'react';
 import {
   Send, Plus, Search, X, ClipboardList, Factory, Store as StoreIcon,
-  Palette, Ruler, Sparkles, Clock,
+  Palette, Ruler, Sparkles, Clock, Printer,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import AddOrderModal from '@/components/add-order-modal';
 import { getArticleFrenchName } from '@/lib/product-name-utils';
+import { exportDemandesImportPDF } from '@/lib/pdf-demande-import';
 
 /**
  * Demandes de nouveaux produits envoyées par les magasins au service import.
@@ -18,6 +19,10 @@ import { getArticleFrenchName } from '@/lib/product-name-utils';
  * « Envoyée » tant que l'import ne l'a pas lancée, puis « Commandée » pendant quelques jours avant
  * de disparaître — la suite (transit, arrivage) se suit dans la page Arrivages.
  * Aucun prix ni fournisseur n'est affiché ici.
+ *
+ * Le papier compte autant que l'écran : une demande s'imprime (src/lib/pdf-demande-import.ts),
+ * se fait viser par le commercial, et c'est ce document visé qui part au service import. Le
+ * bouton d'impression est donc présent sur chaque demande et sur la liste affichée.
  */
 
 interface StoreImportRequestsViewProps {
@@ -44,6 +49,17 @@ const STAGES: Record<Stage, { label: string; icon: any; cls: string; bar: string
   SENT:    { label: "Envoyée à l'import", icon: Send,    cls: 'bg-stone-100 text-stone-700 border-stone-200', bar: 'bg-stone-400' },
   ORDERED: { label: 'Commandée',          icon: Factory, cls: 'bg-emerald-50 text-emerald-800 border-emerald-200', bar: 'bg-emerald-500' },
 };
+
+/**
+ * Le parcours réel d'une demande, rappelé en trois lignes. L'étape du milieu est celle qu'on
+ * oubliait : sans document visé par le commercial, le service import reçoit des lignes que
+ * personne n'a relues.
+ */
+const ETAPES_DEMANDE = [
+  'Le magasin écrit la demande ici.',
+  "On l'imprime, le commercial la vérifie et la vise.",
+  'Le document visé part au service import.',
+];
 
 const fmtQty = (n: any) => (Number(n) || 0).toLocaleString('fr-FR', { maximumFractionDigits: 3 });
 
@@ -125,6 +141,23 @@ export default function StoreImportRequestsView({
 
   const canRequest = Boolean(storeId && adminUid && !readOnly);
 
+  /**
+   * Imprime le document que le commercial va viser. On n'envoie que ce qui est déjà à l'écran :
+   * le magasin imprime ce qu'il vient de relire, pas une liste qu'il n'a pas vue.
+   */
+  const imprimer = (lignes: typeof visible, sousTitre: string) => {
+    exportDemandesImportPDF(
+      lignes.map(({ a, frName, requestedAt }) => ({
+        article: a,
+        nomProduit: frName,
+        magasin: a.requestedByStoreName || storeName(a.requestedByStore) || storeName(storeId),
+        demandeeLe: requestedAt || undefined,
+        justification: a.notes,
+      })),
+      { categories, generalCategories, sousTitre },
+    );
+  };
+
   return (
     <div className="space-y-6 animate-in fade-in duration-300">
       {/* En-tête */}
@@ -142,30 +175,56 @@ export default function StoreImportRequestsView({
               pendant {ORDERED_VISIBLE_DAYS} jours.
             </p>
           </div>
-          {canRequest && (
-            <Button
-              onClick={() => setModalOpen(true)}
-              className="bg-amber-500 hover:bg-amber-600 text-stone-950 font-black uppercase text-[11px] tracking-widest px-6 h-12 rounded-2xl gap-2 shadow-lg shadow-amber-500/20 shrink-0"
-            >
-              <Plus className="w-4 h-4" /> Nouvelle demande
-            </Button>
-          )}
+          <div className="flex flex-wrap items-center gap-2 shrink-0">
+            {visible.length > 0 && (
+              <Button
+                onClick={() => imprimer(visible, `${visible.length} demande${visible.length > 1 ? 's' : ''} affichée${visible.length > 1 ? 's' : ''} — à vérifier avec le commercial`)}
+                className="bg-white/10 hover:bg-white/20 text-white border border-white/20 font-black uppercase text-[11px] tracking-widest px-5 h-12 rounded-2xl gap-2"
+                title="Imprimer les demandes affichées, pour les faire viser par le commercial"
+              >
+                <Printer className="w-4 h-4" /> Imprimer la liste
+              </Button>
+            )}
+            {canRequest && (
+              <Button
+                onClick={() => setModalOpen(true)}
+                className="bg-amber-500 hover:bg-amber-600 text-stone-950 font-black uppercase text-[11px] tracking-widest px-6 h-12 rounded-2xl gap-2 shadow-lg shadow-amber-500/20"
+              >
+                <Plus className="w-4 h-4" /> Nouvelle demande
+              </Button>
+            )}
+          </div>
         </div>
 
-        {/* Étapes */}
-        <div className="relative z-10 grid grid-cols-2 gap-3 mt-6 max-w-md">
-          {(['SENT', 'ORDERED'] as Stage[]).map(st => {
-            const conf = STAGES[st];
-            const Icon = conf.icon;
-            return (
-              <div key={st} className="bg-white/5 border border-white/10 rounded-2xl px-4 py-3">
-                <p className="text-[10px] font-black uppercase tracking-widest text-stone-400 flex items-center gap-1.5">
-                  <Icon className="w-3 h-3" /> {conf.label}
-                </p>
-                <p className="text-2xl font-black text-white mt-0.5">{counts[st]}</p>
-              </div>
-            );
-          })}
+        {/* Étapes du suivi, et parcours du document */}
+        <div className="relative z-10 flex flex-col lg:flex-row gap-3 mt-6">
+          <div className="grid grid-cols-2 gap-3 lg:w-80 shrink-0">
+            {(['SENT', 'ORDERED'] as Stage[]).map(st => {
+              const conf = STAGES[st];
+              const Icon = conf.icon;
+              return (
+                <div key={st} className="bg-white/5 border border-white/10 rounded-2xl px-4 py-3">
+                  <p className="text-[10px] font-black uppercase tracking-widest text-stone-400 flex items-center gap-1.5">
+                    <Icon className="w-3 h-3" /> {conf.label}
+                  </p>
+                  <p className="text-2xl font-black text-white mt-0.5">{counts[st]}</p>
+                </div>
+              );
+            })}
+          </div>
+          <div className="bg-white/5 border border-white/10 rounded-2xl px-4 py-3 flex-1 min-w-0">
+            <p className="text-[10px] font-black uppercase tracking-widest text-stone-400">Parcours d'une demande</p>
+            <ol className="mt-1.5 space-y-1">
+              {ETAPES_DEMANDE.map((etape, i) => (
+                <li key={i} className="flex items-start gap-2 text-[11px] font-semibold text-stone-300 leading-snug">
+                  <span className="mt-px w-4 h-4 shrink-0 rounded-full bg-white/10 text-[9px] font-black text-amber-400 flex items-center justify-center">
+                    {i + 1}
+                  </span>
+                  {etape}
+                </li>
+              ))}
+            </ol>
+          </div>
         </div>
       </div>
 
@@ -219,7 +278,8 @@ export default function StoreImportRequestsView({
         </div>
       ) : (
         <div className="space-y-2">
-          {visible.map(({ a, stage, frName, orderedAt, daysLeft, requestedAt }) => {
+          {visible.map((ligne) => {
+            const { a, stage, frName, orderedAt, daysLeft, requestedAt } = ligne;
             const conf = STAGES[stage];
             const Icon = conf.icon;
             const colors = Array.isArray(a.colorBreakdown) ? a.colorBreakdown.length : 0;
@@ -267,6 +327,15 @@ export default function StoreImportRequestsView({
                         </span>
                       )}
                     </div>
+                    {/* Le document à faire viser par le commercial avant l'envoi au service import. */}
+                    <button
+                      onClick={() => imprimer([ligne], `Demande du ${fmtDate(requestedAt)} — ${frName}`)}
+                      title="Imprimer cette demande pour la faire viser par le commercial"
+                      className="h-10 px-3 rounded-xl border-2 border-stone-200 text-stone-600 hover:border-stone-900 hover:text-stone-900 transition-colors inline-flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest shrink-0"
+                    >
+                      <Printer className="w-4 h-4" />
+                      <span className="hidden lg:inline">Imprimer</span>
+                    </button>
                   </div>
                 </div>
 

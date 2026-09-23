@@ -460,6 +460,82 @@ export function exportTransferOrderPDF(order: any, stores: any[], categories: an
 }
 
 /**
+ * Bon de commande d'une commande préparée à l'avance, au comptoir.
+ *
+ * Le vendeur monte le panier avant que le client se présente : la marchandise est réservée sur le
+ * papier, mais elle n'est PAS sortie du stock et rien n'est encaissé. Le document le dit deux
+ * fois — dans le récapitulatif et en pied de page — parce que c'est la seule chose qui distingue
+ * ce papier d'une facture pour celui qui le reçoit.
+ *
+ * Aucun prix d'achat n'y figure : ce document se prépare et se remet en magasin.
+ */
+export function exportSaleOrderPDF(
+  order: any,
+  categories: any[] = [],
+  generalCategories: any[] = [],
+  options: { reference?: string; clientPhone?: string; storeName?: string } = {},
+) {
+  const items: any[] = order?.items || [];
+  const totalQty = items.reduce((s: number, i: any) => s + (Number(i.qty) || 0), 0);
+  const sousTotal = Number(order?.totalAmount) || 0;
+  const total = Number(order?.totalAfterDiscount ?? sousTotal) || 0;
+  const remise = Math.max(0, sousTotal - total);
+  const reference = options.reference || `BC-${String(order?.id || '').slice(0, 6).toUpperCase() || 'SANS-REF'}`;
+  const dateLisible = order?.date
+    ? new Date(order.date).toLocaleDateString('fr-FR')
+    : new Date().toLocaleDateString('fr-FR');
+  const client = order?.clientName || 'Comptoir';
+
+  exportReportPDF({
+    title: `Bon de Commande N° ${reference}`,
+    subtitle: [
+      `Client : ${client}${options.clientPhone ? ` (${options.clientPhone})` : ''}`,
+      `Date : ${dateLisible}`,
+      options.storeName ? `Magasin : ${options.storeName}` : '',
+    ].filter(Boolean).join(' | '),
+    columns: [
+      { header: 'N°', dataKey: 'num', width: 10 },
+      { header: 'Désignation Produit', dataKey: 'productName' },
+      { header: 'Qualité', dataKey: 'quality', width: 22 },
+      { header: 'Couleur', dataKey: 'color', width: 22 },
+      { header: 'Taille', dataKey: 'size', width: 14 },
+      { header: 'Qté', dataKey: 'qty', width: 20 },
+      { header: 'Prix de vente', dataKey: 'unitPrice', width: 24 },
+      { header: 'Total', dataKey: 'total', width: 24 },
+    ],
+    // Le client relit sa commande sur ce papier : chaque ligne porte ce qui la distingue — la
+    // qualité, la couleur, la taille — et les caractéristiques de sa famille sous la désignation.
+    data: items.map((item: any, idx: number) => {
+      const specs = caracteristiques(item, categories, generalCategories);
+      const designation = item.productName || '—';
+      const qte = Number(item.qty) || 0;
+      const pu = Number(item.unitPrice) || 0;
+      return {
+        num: String(idx + 1),
+        productName: specs ? `${designation}\n${specs}` : designation,
+        quality: qualiteDeLArticle(item) || '—',
+        color: valeurImprimable(item.color, '—'),
+        size: valeurImprimable(item.size, '—'),
+        qty: `${qte}${item.unitOfMeasure ? ` ${item.unitOfMeasure}` : ''}`,
+        unitPrice: `${fmt(pu)} MAD`,
+        total: `${fmt(Number(item.totalPrice) || qte * pu)} MAD`,
+      };
+    }),
+    summaryRows: [
+      { label: 'Nombre de références commandées', value: `${items.length} réf.` },
+      { label: 'Total des quantités', value: String(totalQty) },
+      { label: 'Sous-total', value: `${fmt(sousTotal)} MAD` },
+      ...(remise > 0.009
+        ? [{ label: `Remise${order?.discount ? ` ${order.discount} %` : ''}`, value: `-${fmt(remise)} MAD` }]
+        : []),
+      { label: 'TOTAL GÉNÉRAL', value: `${fmt(total)} MAD` },
+      { label: 'État', value: 'Commande préparée — marchandise non encore sortie du stock' },
+    ],
+    footer: "LEBTEX SARL AU — Commande préparée : la marchandise reste en stock jusqu'à l'enlèvement, et ce document ne vaut pas facture.",
+  });
+}
+
+/**
  * Convertit un montant numérique en dirhams toutes lettres en français
  */
 function numberToWordsFR(n: number): string {
