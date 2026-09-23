@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useMemo } from 'react';
-import { Truck, Plus, CheckCircle2, Clock, XCircle, Search, Save, X, Printer } from 'lucide-react';
+import { Truck, Plus, CheckCircle2, Clock, XCircle, Search, Save, X, Printer, AlertTriangle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
@@ -15,6 +15,9 @@ import { cleanUndefined } from '@/lib/utils';
 import {
   type StockVariant, type VariantDimension, splitOutboundLines, suggestInboundLocation, stockItemVariant,
 } from '@/lib/warehouse-locations';
+import {
+  SectionFormulaire, Champ, Encadre, LigneResume, Recapitulatif, BoutonValider, CLASSE_CHAMP,
+} from './ui-formulaire';
 
 interface TransferOrdersViewProps {
   transferOrders: TransferOrder[];
@@ -339,40 +342,82 @@ export default function TransferOrdersView({ transferOrders, stockItems, stores,
     }
   };
 
+  // ---------------------------------------------------------------------------------------------
+  // Valeurs d'affichage uniquement : récapitulatifs et messages rattachés aux champs. Elles ne
+  // décident rien — aucune de ces lignes n'écrit, ne bloque un enregistrement ni ne change un
+  // calcul existant.
+  // ---------------------------------------------------------------------------------------------
+
+  /** Total des unités qui quitteront le lieu de départ, pour le récapitulatif du nouveau bon. */
+  const totalUnitesEnvoyees = selectedItems.reduce((s, i) => s + (i.sentQty || 0), 0);
+  /** Vrai quand départ et arrivée se confondent : le message se pose alors sous le lieu d'arrivée. */
+  const memeLieu = Boolean(fromStore && toStore && fromStore === toStore);
+  /** Les références proposées par la recherche, sorties du JSX pour pouvoir dire « aucun résultat ». */
+  const resultatsRecherche = articleSearch
+    ? stockItems.filter(i =>
+        i.productName.toLowerCase().includes(articleSearch.toLowerCase())
+        || i.color?.toLowerCase().includes(articleSearch.toLowerCase())
+        || i.quality?.toLowerCase().includes(articleSearch.toLowerCase())
+      ).slice(0, 10)
+    : [];
+
+  /** Le bon en cours de réception, et ses totaux relus avant validation. */
+  const bonRecu = validateModal.order;
+  const totalEnvoyeBon = bonRecu ? bonRecu.items.reduce((s, i) => s + (i.sentQty || 0), 0) : 0;
+  // Même lecture qu'à l'enregistrement : une case laissée telle quelle vaut la quantité envoyée.
+  const totalCompteBon = bonRecu ? bonRecu.items.reduce((s, i) => s + (receivedItems[i.articleId] ?? i.sentQty), 0) : 0;
+  const ecartBon = totalEnvoyeBon - totalCompteBon;
+
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
       {/* Header */}
       <div className="bg-gradient-to-br from-blue-900 to-blue-800 p-8 rounded-3xl shadow-2xl relative overflow-hidden">
         <div className="absolute top-0 right-0 w-64 h-64 bg-blue-500/10 rounded-full -translate-y-1/2 translate-x-1/2 blur-3xl" />
         <div className="relative z-10 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div>
+          <div className="max-w-xl">
             <p className="text-[11px] font-black text-blue-300 uppercase tracking-[0.3em] mb-1">Logistique Interne</p>
             <h1 className="text-3xl font-black text-white uppercase tracking-tighter">
               Bons de <span className="text-blue-300">Transfert</span>
             </h1>
+            <p className="text-xs font-medium text-blue-100/90 leading-snug mt-2">
+              Déplacer de la marchandise d'un lieu à un autre. Chaque bon écrit une sortie au lieu de départ et une
+              entrée au lieu d'arrivée, et s'imprime pour accompagner la marchandise.
+            </p>
           </div>
-          <Button onClick={() => setCreateModal(true)} className="bg-white hover:bg-stone-50 text-blue-900 font-black uppercase text-[10px] tracking-widest h-11 px-6 rounded-2xl shadow-lg">
-            <Plus className="w-4 h-4 mr-2" /> Nouveau Transfert
+          <Button onClick={() => setCreateModal(true)} className="bg-white hover:bg-stone-50 text-blue-900 font-black text-xs tracking-wide h-11 px-6 rounded-2xl shadow-lg shrink-0">
+            <Plus className="w-4 h-4 mr-2" /> Nouveau transfert
           </Button>
         </div>
       </div>
 
       {/* List */}
       <div className="bg-white rounded-2xl shadow-xl border border-stone-100 overflow-hidden">
-        <div className="p-4 border-b border-stone-100 flex items-center gap-4">
-          <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-stone-400" />
-            <Input placeholder="Rechercher un bon..." value={search} onChange={e => setSearch(e.target.value)} className="pl-10 rounded-xl" />
-          </div>
+        <div className="p-4 border-b border-stone-100">
+          <Champ
+            label="Retrouver un bon"
+            htmlFor="recherche-bon"
+            aide="Par numéro de bon ou par nom du lieu d'arrivée."
+          >
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-stone-400" />
+              <Input
+                id="recherche-bon"
+                placeholder="Numéro de bon ou lieu d'arrivée…"
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+                className={`${CLASSE_CHAMP} pl-10`}
+              />
+            </div>
+          </Champ>
         </div>
         <table className="w-full text-left border-collapse">
           <thead>
             <tr className="bg-stone-50/50">
-              <th className="px-6 py-4 text-[10px] font-black text-stone-500 uppercase tracking-widest">Date & ID</th>
-              <th className="px-6 py-4 text-[10px] font-black text-stone-500 uppercase tracking-widest">Trajet</th>
-              <th className="px-6 py-4 text-[10px] font-black text-stone-500 uppercase tracking-widest">Articles</th>
-              <th className="px-6 py-4 text-[10px] font-black text-stone-500 uppercase tracking-widest">Statut</th>
-              <th className="px-6 py-4 text-[10px] font-black text-stone-500 uppercase tracking-widest text-right">Action</th>
+              <th className="px-6 py-3.5 text-[11px] font-bold text-stone-600">Date et numéro</th>
+              <th className="px-6 py-3.5 text-[11px] font-bold text-stone-600">Trajet</th>
+              <th className="px-6 py-3.5 text-[11px] font-bold text-stone-600">Contenu</th>
+              <th className="px-6 py-3.5 text-[11px] font-bold text-stone-600">Où en est le bon</th>
+              <th className="px-6 py-3.5 text-[11px] font-bold text-stone-600 text-right">Action</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-stone-100">
@@ -380,7 +425,7 @@ export default function TransferOrdersView({ transferOrders, stockItems, stores,
               <tr key={order.id} className="hover:bg-stone-50 transition-colors">
                 <td className="px-6 py-4">
                   <div className="text-xs font-bold text-stone-900">{new Date(order.date).toLocaleDateString('fr-FR')}</div>
-                  <div className="text-[10px] text-stone-400 uppercase">{order.id.slice(0, 8)}</div>
+                  <div className="text-[11px] font-medium text-stone-400">Bon {order.id.slice(0, 8)}</div>
                 </td>
                 <td className="px-6 py-4">
                   <div className="flex items-center gap-2 text-xs font-bold text-stone-700">
@@ -391,19 +436,19 @@ export default function TransferOrdersView({ transferOrders, stockItems, stores,
                 </td>
                 <td className="px-6 py-4">
                   <div className="text-xs font-bold text-stone-700">{order.items.length} référence(s)</div>
-                  <div className="text-[10px] text-stone-400">{order.items.reduce((acc, i) => acc + i.sentQty, 0)} unités totales</div>
+                  <div className="text-[11px] font-medium text-stone-400">{order.items.reduce((acc, i) => acc + i.sentQty, 0)} unité(s) envoyée(s)</div>
                 </td>
                 <td className="px-6 py-4">
                   {order.status === 'PENDING' ? (
-                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-100 text-amber-700 text-[10px] font-black uppercase tracking-widest">
+                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-100 text-amber-700 text-[11px] font-bold" title="La marchandise est partie : elle reste à compter au lieu d'arrivée">
                       <Clock className="w-3 h-3" /> En transit
                     </span>
                   ) : order.status === 'VALIDATED' ? (
-                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-700 text-[10px] font-black uppercase tracking-widest">
+                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-700 text-[11px] font-bold" title="Bon émis : la sortie et l'entrée ont été écrites dans la foulée">
                       <CheckCircle2 className="w-3 h-3" /> Validé
                     </span>
                   ) : (
-                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-red-100 text-red-700 text-[10px] font-black uppercase tracking-widest">
+                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-red-100 text-red-700 text-[11px] font-bold">
                       <XCircle className="w-3 h-3" /> Annulé
                     </span>
                   )}
@@ -414,11 +459,11 @@ export default function TransferOrdersView({ transferOrders, stockItems, stores,
                       size="sm"
                       variant="outline"
                       onClick={() => exportTransferOrderPDF(order, stores)}
-                      className="h-8 px-3 rounded-xl border-stone-200 text-stone-700 hover:text-blue-600 hover:border-blue-200 text-[10px] uppercase font-black tracking-wider gap-1.5 shadow-sm"
-                      title="Imprimer / Télécharger le Bon de Transfert"
+                      className="h-8 px-3 rounded-xl border-stone-200 text-stone-700 hover:text-blue-600 hover:border-blue-200 text-[11px] font-bold gap-1.5 shadow-sm"
+                      title="Le bon imprimé accompagne la marchandise pendant le trajet"
                     >
                       <Printer className="w-3.5 h-3.5" />
-                      <span>Bon PDF</span>
+                      <span>Imprimer le bon</span>
                     </Button>
                     {order.status === 'PENDING' && (userRole === 'ADMIN' || activeStore === order.toStore || activeStore === 'ALL_MAIN') && (
                       <Button size="sm" onClick={() => {
@@ -426,8 +471,8 @@ export default function TransferOrdersView({ transferOrders, stockItems, stores,
                         order.items.forEach(i => init[i.articleId] = i.sentQty);
                         setReceivedItems(init);
                         setValidateModal({ open: true, order });
-                      }} className="bg-blue-600 hover:bg-blue-700 text-[10px] uppercase font-black tracking-widest h-8 px-3 rounded-xl">
-                        Réceptionner
+                      }} className="bg-blue-600 hover:bg-blue-700 text-[11px] font-black h-8 px-3 rounded-xl" title="Compter ce qui est arrivé et créditer le lieu d'arrivée">
+                        Compter à l'arrivée
                       </Button>
                     )}
                   </div>
@@ -436,7 +481,12 @@ export default function TransferOrdersView({ transferOrders, stockItems, stores,
             ))}
             {filteredOrders.length === 0 && (
               <tr>
-                <td colSpan={5} className="px-6 py-12 text-center text-stone-400 font-bold">Aucun transfert trouvé.</td>
+                <td colSpan={5} className="px-6 py-12 text-center">
+                  <p className="text-sm font-bold text-stone-500">Aucun bon de transfert à afficher.</p>
+                  <p className="text-[11px] font-medium text-stone-400 mt-1">
+                    Le bouton « Nouveau transfert », en haut à droite, sert à en créer un.
+                  </p>
+                </td>
               </tr>
             )}
           </tbody>
@@ -447,103 +497,188 @@ export default function TransferOrdersView({ transferOrders, stockItems, stores,
       <Dialog open={createModal} onOpenChange={setCreateModal}>
         <DialogContent className="max-w-3xl rounded-3xl">
           <DialogHeader>
-            <DialogTitle className="text-lg font-black uppercase">Nouveau Transfert</DialogTitle>
+            <DialogTitle className="text-lg font-black text-stone-900">Nouveau bon de transfert</DialogTitle>
+            <p className="text-[11px] font-medium text-stone-500 leading-snug">
+              Deux questions dans l'ordre : le trajet, puis la marchandise. Le récapitulatif en bas se relit avant
+              d'émettre le bon.
+            </p>
           </DialogHeader>
           <div className="space-y-6">
-            <div className="flex gap-4">
-              <div className="flex-1 space-y-2">
-                <label className="text-[10px] font-black uppercase text-stone-500">De (Emplacement Source)</label>
-                <select value={fromStore} onChange={e => {
-                  setFromStore(e.target.value);
-                  setSelectedItems([]); // Réinitialiser car les stocks sources changent
-                }} className="w-full h-10 px-3 bg-white border border-stone-200 rounded-xl text-sm font-bold outline-none">
-                  <option value="" disabled>Choisir l'origine...</option>
-                  {stores.map(s => (
-                    <option key={s.id} value={s.id}>{s.type === 'WAREHOUSE' ? '🏢' : '🏪'} {s.name}</option>
-                  ))}
-                </select>
-              </div>
-              <div className="flex-1 space-y-2">
-                <label className="text-[10px] font-black uppercase text-stone-500">Vers (Emplacement Destination)</label>
-                <select value={toStore} onChange={e => setToStore(e.target.value)} className="w-full h-10 px-3 bg-white border border-stone-200 rounded-xl text-sm font-bold outline-none">
-                  <option value="" disabled>Choisir la destination...</option>
-                  {stores.map(s => (
-                    <option key={s.id} value={s.id}>{s.type === 'WAREHOUSE' ? '🏢' : '🏪'} {s.name}</option>
-                  ))}
-                </select>
-              </div>
-            </div>
+            <Encadre ton="info" titre="Ce que l'émission déclenche">
+              Un transfert écrit deux mouvements : une sortie au lieu de départ et une entrée au lieu d'arrivée. Les
+              deux stocks changent dès l'émission, il n'y a pas d'autre confirmation à donner. Le bon s'imprime
+              ensuite : il accompagne physiquement la marchandise pendant le trajet.
+            </Encadre>
 
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <label className="text-[10px] font-black uppercase text-stone-500">Articles à transférer</label>
-                <span className="text-[10px] font-bold text-stone-400">Origine active : <strong className="text-stone-700">{getStoreLabel(fromStore)}</strong></span>
-              </div>
-              
-              {/* Search & Add */}
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-stone-400" />
-                <Input placeholder="Rechercher un article..." value={articleSearch} onChange={e => setArticleSearch(e.target.value)} className="pl-10 rounded-xl" />
-                
-                {articleSearch && (
-                  <div className="absolute top-full left-0 right-0 mt-2 max-h-48 overflow-y-auto bg-white border border-stone-200 rounded-xl shadow-xl z-50 p-2">
-                    {stockItems.filter(i => i.productName.toLowerCase().includes(articleSearch.toLowerCase()) || i.color?.toLowerCase().includes(articleSearch.toLowerCase()) || i.quality?.toLowerCase().includes(articleSearch.toLowerCase())).slice(0, 10).map(item => {
-                      const availInSrc = fromStore && item.qtyByStore ? ((item.qtyByStore as any)[fromStore] || 0) : item.currentQty;
-                      return (
-                        <button key={item.articleId} onClick={() => addArticleToTransfer(item)} className="w-full text-left px-3 py-2 hover:bg-stone-50 rounded-lg flex items-center justify-between">
-                          <div>
-                            <p className="text-xs font-bold">{item.productName}</p>
-                            <p className="text-[10px] text-stone-400">{[item.quality, item.color, item.size].filter(Boolean).join(' · ')}</p>
-                          </div>
-                          <span className={`text-[10px] font-black px-2 py-1 rounded-md ${availInSrc > 0 ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-700'}`}>
-                            Dispo {getStoreLabel(fromStore)}: {availInSrc}
-                          </span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
+            {userRole !== 'ADMIN' && (
+              <Encadre ton="attention" titre="L'émission revient à un responsable des deux lieux">
+                Un magasin ne peut écrire des mouvements que sur son propre stock : l'entrée à destination sera
+                refusée, et comme le bon et ses deux mouvements partent dans un seul lot, l'enregistrement entier
+                échoue. Les lignes se préparent ici ; l'émission revient à un compte ayant accès aux deux lieux.
+              </Encadre>
+            )}
 
-              {/* Selected Items */}
+            <SectionFormulaire
+              numero={1}
+              titre="D'où vers où ?"
+              aide="Ce trajet commande tout le reste : les quantités proposées à l'étape 2 sont celles du lieu de départ."
+            >
+              <div className="grid gap-3.5 sm:grid-cols-2">
+                <Champ
+                  label="Lieu de départ"
+                  obligatoire
+                  htmlFor="transfert-depart"
+                  aide="C'est de ce lieu que la marchandise sort. En changer vide les lignes déjà saisies, parce que les quantités disponibles ne sont pas les mêmes d'un lieu à l'autre."
+                >
+                  <select
+                    id="transfert-depart"
+                    value={fromStore}
+                    onChange={e => {
+                      setFromStore(e.target.value);
+                      setSelectedItems([]); // Réinitialiser car les stocks sources changent
+                    }}
+                    className={`${CLASSE_CHAMP} w-full border bg-white px-3 outline-none`}
+                  >
+                    <option value="" disabled>Choisissez le lieu de départ…</option>
+                    {stores.map(s => (
+                      <option key={s.id} value={s.id}>{s.type === 'WAREHOUSE' ? '🏢' : '🏪'} {s.name}</option>
+                    ))}
+                  </select>
+                </Champ>
+
+                <Champ
+                  label="Lieu d'arrivée"
+                  obligatoire
+                  htmlFor="transfert-arrivee"
+                  aide="La marchandise y entre dès l'émission, et c'est là qu'elle sera comptée à la réception."
+                  erreur={memeLieu ? "Le lieu d'arrivée doit être différent du lieu de départ." : null}
+                >
+                  <select
+                    id="transfert-arrivee"
+                    value={toStore}
+                    onChange={e => setToStore(e.target.value)}
+                    className={`${CLASSE_CHAMP} w-full border bg-white px-3 outline-none`}
+                  >
+                    <option value="" disabled>Choisissez le lieu d'arrivée…</option>
+                    {stores.map(s => (
+                      <option key={s.id} value={s.id}>{s.type === 'WAREHOUSE' ? '🏢' : '🏪'} {s.name}</option>
+                    ))}
+                  </select>
+                </Champ>
+              </div>
+            </SectionFormulaire>
+
+            <SectionFormulaire
+              numero={2}
+              titre="Quoi et combien ?"
+              aide="Une ligne par référence. Un article décliné en couleurs, qualités ou tailles se transfère variante par variante : c'est la variante choisie qui quitte le lieu de départ, jamais le produit entier."
+              action={
+                <span className="shrink-0 rounded-lg bg-blue-50 px-2.5 py-1 text-[11px] font-bold text-blue-700">
+                  Départ : {getStoreLabel(fromStore) || '—'}
+                </span>
+              }
+            >
+              <Champ
+                label="Chercher la référence à transférer"
+                htmlFor="transfert-recherche"
+                aide="Nom, couleur ou qualité. La pastille de droite donne ce qui reste au lieu de départ : une référence à zéro ne peut pas être ajoutée au bon."
+              >
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-stone-400 z-10" />
+                  <Input
+                    id="transfert-recherche"
+                    placeholder="Nom, couleur ou qualité…"
+                    value={articleSearch}
+                    onChange={e => setArticleSearch(e.target.value)}
+                    className={`${CLASSE_CHAMP} pl-10`}
+                  />
+
+                  {articleSearch && (
+                    <div className="absolute top-full left-0 right-0 mt-2 max-h-48 overflow-y-auto bg-white border border-stone-200 rounded-xl shadow-xl z-50 p-2">
+                      {resultatsRecherche.map(item => {
+                        const availInSrc = fromStore && item.qtyByStore ? ((item.qtyByStore as any)[fromStore] || 0) : item.currentQty;
+                        return (
+                          <button key={item.articleId} onClick={() => addArticleToTransfer(item)} className="w-full text-left px-3 py-2 hover:bg-stone-50 rounded-lg flex items-center justify-between gap-3">
+                            <div className="min-w-0">
+                              <p className="text-[13px] font-bold text-stone-800 truncate">{item.productName}</p>
+                              <p className="text-[11px] font-medium text-stone-400 truncate">{[item.quality, item.color, item.size].filter(Boolean).join(' · ') || 'Référence sans déclinaison'}</p>
+                            </div>
+                            <span className={`text-[11px] font-black px-2 py-1 rounded-md shrink-0 ${availInSrc > 0 ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-700'}`}>
+                              {availInSrc > 0 ? `${availInSrc} au départ` : 'Rien au départ'}
+                            </span>
+                          </button>
+                        );
+                      })}
+                      {resultatsRecherche.length === 0 && (
+                        <p className="px-3 py-4 text-center text-[11px] font-bold text-stone-400">
+                          Aucune référence ne correspond à cette recherche.
+                        </p>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </Champ>
+
+              {/* Lignes retenues */}
               <div className="border border-stone-200 rounded-xl overflow-hidden">
                 <table className="w-full text-left">
                   <thead className="bg-stone-50 border-b border-stone-200">
                     <tr>
-                      <th className="px-4 py-2 text-[10px] font-black uppercase text-stone-500">Article</th>
-                      <th className="px-4 py-2 text-[10px] font-black uppercase text-stone-500 w-32">Qté envoyée</th>
-                      <th className="px-4 py-2 w-10"></th>
+                      <th className="px-4 py-2.5 text-[11px] font-bold text-stone-600">Référence retenue</th>
+                      <th className="px-4 py-2.5 text-[11px] font-bold text-stone-600 w-36">Quantité envoyée</th>
+                      <th className="px-4 py-2.5 w-10"></th>
                     </tr>
                   </thead>
                   <tbody>
                     {selectedItems.map((item, idx) => {
                       const originalStock = stockItems.find(s => s.articleId === item.articleId);
                       const availInSrc = fromStore && originalStock?.qtyByStore ? ((originalStock.qtyByStore as any)[fromStore] || 0) : (originalStock?.currentQty || 0);
+                      // Message rattaché à la ligne fautive, pour ne plus le découvrir au moment du clic.
+                      const erreurLigne = availInSrc <= 0
+                        ? `Plus rien à ${getStoreLabel(fromStore) || 'ce lieu'} : retirez la ligne ou changez le lieu de départ.`
+                        : item.sentQty <= 0
+                          ? 'Indiquez la quantité : une ligne à zéro empêche l\'émission du bon.'
+                          : item.sentQty > availInSrc
+                            ? `Au-delà de ce qui reste au départ (${availInSrc}).`
+                            : null;
 
                       return (
-                        <tr key={item.articleId} className="border-b border-stone-100 last:border-0">
-                          <td className="px-4 py-2 text-xs font-bold text-stone-700">
-                            <div>
-                              <p>{item.productName} {[item.quality ? `[${item.quality}]` : '', item.color, item.size].filter(Boolean).join(' · ')}</p>
-                              <p className="text-[10px] text-stone-400 font-normal">Dispo source: <strong className="text-emerald-700">{availInSrc}</strong></p>
-                            </div>
+                        <tr key={item.articleId} className="border-b border-stone-100 last:border-0 align-top">
+                          <td className="px-4 py-3">
+                            <p className="text-[13px] font-bold text-stone-800 leading-tight">
+                              {item.productName} {[item.quality ? `[${item.quality}]` : '', item.color, item.size].filter(Boolean).join(' · ')}
+                            </p>
+                            <p className="text-[11px] font-medium text-stone-500 mt-0.5">
+                              Reste à {getStoreLabel(fromStore) || 'ce lieu'} : <strong className="text-emerald-700">{availInSrc}</strong>
+                            </p>
                           </td>
-                          <td className="px-4 py-2">
+                          <td className="px-4 py-3">
                             <Input
                               type="number"
                               min={1}
                               max={availInSrc}
                               value={item.sentQty}
+                              aria-label={`Quantité envoyée pour ${item.productName}`}
                               onChange={e => {
                                 const val = parseFloat(e.target.value) || 0;
                                 const bounded = Math.max(0, Math.min(val, availInSrc));
                                 setSelectedItems(prev => prev.map((p, i) => i === idx ? { ...p, sentQty: bounded } : p));
                               }}
-                              className="h-8 text-xs font-bold text-center"
+                              className={`${CLASSE_CHAMP} text-center`}
                             />
+                            {erreurLigne && (
+                              <p className="text-[11px] font-bold text-rose-600 leading-snug flex items-start gap-1 mt-1.5">
+                                <AlertTriangle className="w-3 h-3 mt-0.5 shrink-0" /> {erreurLigne}
+                              </p>
+                            )}
                           </td>
-                          <td className="px-4 py-2">
-                            <button onClick={() => setSelectedItems(prev => prev.filter((_, i) => i !== idx))} className="text-red-500 hover:text-red-700">
+                          <td className="px-4 py-3">
+                            <button
+                              onClick={() => setSelectedItems(prev => prev.filter((_, i) => i !== idx))}
+                              className="text-red-500 hover:text-red-700 mt-3"
+                              title="Retirer cette référence du bon"
+                              aria-label={`Retirer ${item.productName} du bon`}
+                            >
                               <X className="w-4 h-4" />
                             </button>
                           </td>
@@ -551,19 +686,37 @@ export default function TransferOrdersView({ transferOrders, stockItems, stores,
                       );
                     })}
                     {selectedItems.length === 0 && (
-                      <tr><td colSpan={3} className="px-4 py-8 text-center text-stone-400 text-xs font-bold">Aucun article sélectionné.</td></tr>
+                      <tr>
+                        <td colSpan={3} className="px-4 py-8 text-center">
+                          <p className="text-[13px] font-bold text-stone-500">Aucune référence dans ce bon.</p>
+                          <p className="text-[11px] font-medium text-stone-400 mt-1">
+                            Utilisez la recherche ci-dessus : chaque référence trouvée s'ajoute en un clic.
+                          </p>
+                        </td>
+                      </tr>
                     )}
                   </tbody>
                 </table>
               </div>
+            </SectionFormulaire>
 
-            </div>
+            <Recapitulatif titre="À relire avant d'émettre">
+              <LigneResume libelle="Part de" valeur={getStoreLabel(fromStore) || '—'} />
+              <LigneResume libelle="Arrive à" valeur={getStoreLabel(toStore) || '—'} />
+              <LigneResume libelle="Références au bon" valeur={selectedItems.length} />
+              <LigneResume libelle="Unités qui quittent le lieu de départ" valeur={totalUnitesEnvoyees} fort />
+            </Recapitulatif>
+
+            <BoutonValider
+              onClick={handleCreateTransfer}
+              libelleEnCours="Émission…"
+              raisonDesactive={selectedItems.length === 0 ? "Ajoutez au moins une référence à l'étape 2 pour émettre le bon." : null}
+            >
+              Émettre le bon et déplacer le stock
+            </BoutonValider>
           </div>
           <DialogFooter>
-            <Button variant="ghost" onClick={() => setCreateModal(false)} className="rounded-xl text-[10px] uppercase font-black">Annuler</Button>
-            <Button onClick={handleCreateTransfer} disabled={selectedItems.length === 0} className="bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-[10px] uppercase font-black tracking-widest px-8">
-              Émettre le Bon
-            </Button>
+            <Button variant="ghost" onClick={() => setCreateModal(false)} className="rounded-xl text-xs font-bold text-stone-500">Annuler</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -572,50 +725,122 @@ export default function TransferOrdersView({ transferOrders, stockItems, stores,
       <Dialog open={validateModal.open} onOpenChange={open => !open && setValidateModal({ open: false })}>
         <DialogContent className="max-w-2xl rounded-3xl">
           <DialogHeader>
-            <DialogTitle className="text-lg font-black uppercase">Réception du Transfert</DialogTitle>
+            <DialogTitle className="text-lg font-black text-stone-900">Comptage à l'arrivée</DialogTitle>
+            <p className="text-[11px] font-medium text-stone-500 leading-snug">
+              Comptez ce qui est réellement arrivé, référence par référence, puis validez. C'est ce comptage qui
+              crédite le lieu d'arrivée.
+            </p>
           </DialogHeader>
-          <div className="space-y-4">
-            <p className="text-xs text-stone-500 font-bold">Vérifiez les quantités reçues avant de valider. Tout écart sera comptabilisé comme perte.</p>
-            <table className="w-full text-left border border-stone-200 rounded-xl overflow-hidden">
-              <thead className="bg-stone-50 border-b border-stone-200">
-                <tr>
-                  <th className="px-4 py-2 text-[10px] font-black uppercase text-stone-500">Article</th>
-                  <th className="px-4 py-2 text-[10px] font-black uppercase text-stone-500 w-24">Qté Envoyée</th>
-                  <th className="px-4 py-2 text-[10px] font-black uppercase text-stone-500 w-32">Qté Reçue</th>
-                </tr>
-              </thead>
-              <tbody>
-                {validateModal.order?.items.map(item => (
-                  <tr key={item.articleId} className="border-b border-stone-100 last:border-0">
-                    <td className="px-4 py-3 text-xs font-bold text-stone-700">{item.productName} {item.color ? ` - ${item.color}` : ''}</td>
-                    <td className="px-4 py-3 text-xs font-black text-blue-600">{item.sentQty}</td>
-                    <td className="px-4 py-2">
-                      <Input type="number" min={0} max={item.sentQty} value={receivedItems[item.articleId] ?? ''} onChange={e => {
-                        const val = parseFloat(e.target.value) || 0;
-                        setReceivedItems(prev => ({ ...prev, [item.articleId]: val }));
-                      }} className="h-8 text-xs font-bold text-center border-emerald-200 focus-visible:ring-emerald-500" />
-                    </td>
+          <div className="space-y-6">
+            <Encadre ton="attention" titre="Ce qui manque devient une perte">
+              La différence entre ce qui a été envoyé et ce qui est compté ici est enregistrée comme une perte au
+              lieu d'arrivée, au nom de ce bon. Recomptez avant de valider : après coup, la correction passe par un
+              inventaire.
+            </Encadre>
+
+            <SectionFormulaire
+              numero={1}
+              titre="De quel bon s'agit-il ?"
+              aide="Rappel du trajet inscrit sur le bon. Il ne se modifie plus à ce stade."
+            >
+              <div className="flex flex-wrap items-center gap-2.5 rounded-xl border border-stone-200 bg-stone-50 p-3">
+                <span className="bg-white border border-stone-200 px-2.5 py-1 rounded-lg text-xs font-bold text-stone-700">
+                  {bonRecu ? getStoreLabel(bonRecu.fromStore) : '—'}
+                </span>
+                <Truck className="w-3.5 h-3.5 text-stone-400" />
+                <span className="bg-blue-50 text-blue-700 px-2.5 py-1 rounded-lg text-xs font-bold">
+                  {bonRecu ? getStoreLabel(bonRecu.toStore) : '—'}
+                </span>
+                <span className="text-[11px] font-medium text-stone-500 ml-auto">
+                  Bon {bonRecu ? bonRecu.id.slice(0, 8) : ''} · parti le {bonRecu ? new Date(bonRecu.date).toLocaleDateString('fr-FR') : ''}
+                </span>
+              </div>
+            </SectionFormulaire>
+
+            <SectionFormulaire
+              numero={2}
+              titre="Combien est arrivé ?"
+              aide="Une case par référence, déjà remplie avec la quantité envoyée. Ne la corrigez que si le comptage donne autre chose."
+            >
+              <table className="w-full text-left border border-stone-200 rounded-xl overflow-hidden">
+                <thead className="bg-stone-50 border-b border-stone-200">
+                  <tr>
+                    <th className="px-4 py-2.5 text-[11px] font-bold text-stone-600">Référence</th>
+                    <th className="px-4 py-2.5 text-[11px] font-bold text-stone-600 w-24">Envoyé</th>
+                    <th className="px-4 py-2.5 text-[11px] font-bold text-stone-600 w-40">Compté à l'arrivée</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {bonRecu?.items.map(item => {
+                    const compte = receivedItems[item.articleId] ?? item.sentQty;
+                    const manque = item.sentQty - compte;
+                    return (
+                      <tr key={item.articleId} className="border-b border-stone-100 last:border-0 align-top">
+                        <td className="px-4 py-3">
+                          <p className="text-[13px] font-bold text-stone-800 leading-tight">{item.productName}</p>
+                          {[item.quality, item.color, item.size].filter(Boolean).length > 0 && (
+                            <p className="text-[11px] font-medium text-stone-500 mt-0.5">
+                              {[item.quality, item.color, item.size].filter(Boolean).join(' · ')}
+                            </p>
+                          )}
+                        </td>
+                        <td className="px-4 py-3 text-[13px] font-black text-blue-600 tabular-nums">{item.sentQty}</td>
+                        <td className="px-4 py-3">
+                          <Input
+                            type="number"
+                            min={0}
+                            max={item.sentQty}
+                            value={receivedItems[item.articleId] ?? ''}
+                            aria-label={`Quantité comptée à l'arrivée pour ${item.productName}`}
+                            onChange={e => {
+                              const val = parseFloat(e.target.value) || 0;
+                              setReceivedItems(prev => ({ ...prev, [item.articleId]: val }));
+                            }}
+                            className={`${CLASSE_CHAMP} text-center border-emerald-200 focus-visible:ring-emerald-500`}
+                          />
+                          {manque > 0 && (
+                            <p className="text-[11px] font-bold text-rose-600 leading-snug flex items-start gap-1 mt-1.5">
+                              <AlertTriangle className="w-3 h-3 mt-0.5 shrink-0" /> {manque} manquant(s) : enregistré(s) en perte.
+                            </p>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </SectionFormulaire>
+
+            <Recapitulatif titre="À relire avant de valider">
+              <LigneResume libelle="Parti de" valeur={bonRecu ? getStoreLabel(bonRecu.fromStore) : '—'} />
+              <LigneResume libelle="Unités envoyées" valeur={totalEnvoyeBon} />
+              <LigneResume libelle="Unités comptées à l'arrivée" valeur={totalCompteBon} fort ton="positif" />
+              <LigneResume
+                libelle="Écart enregistré en perte"
+                valeur={ecartBon}
+                ton={ecartBon > 0 ? 'alerte' : 'neutre'}
+              />
+            </Recapitulatif>
+
+            <BoutonValider
+              onClick={handleValidateTransfer}
+              libelleEnCours="Validation…"
+            >
+              Valider le comptage et créditer le lieu d'arrivée
+            </BoutonValider>
           </div>
           <DialogFooter className="flex items-center justify-between sm:justify-between w-full">
             <Button
               variant="outline"
               type="button"
               onClick={() => validateModal.order && exportTransferOrderPDF(validateModal.order, stores)}
-              className="rounded-xl text-[10px] uppercase font-black tracking-wider gap-1.5"
+              className="rounded-xl text-xs font-bold gap-1.5"
+              title="Le bon imprimé accompagne la marchandise pendant le trajet"
             >
               <Printer className="w-3.5 h-3.5" />
-              <span>Imprimer Bon</span>
+              <span>Imprimer le bon</span>
             </Button>
-            <div className="flex items-center gap-2">
-              <Button variant="ghost" onClick={() => setValidateModal({ open: false })} className="rounded-xl text-[10px] uppercase font-black">Annuler</Button>
-              <Button onClick={handleValidateTransfer} className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-[10px] uppercase font-black tracking-widest px-8">
-                Valider la Réception
-              </Button>
-            </div>
+            <Button variant="ghost" onClick={() => setValidateModal({ open: false })} className="rounded-xl text-xs font-bold text-stone-500">Annuler</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

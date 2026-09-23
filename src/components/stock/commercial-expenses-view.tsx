@@ -9,12 +9,14 @@ import {
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
-import { 
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
   SelectGroup, SelectLabel
 } from '@/components/ui/select';
+import {
+  SectionFormulaire, Champ, Encadre, LigneResume, Recapitulatif, BoutonValider, CLASSE_CHAMP,
+} from './ui-formulaire';
 import { useToast } from '@/hooks/use-toast';
 import type { CommercialExpense, ExpenseCategory, StoreLocation, Store } from '@/lib/types';
 import { exportReportPDF } from '@/lib/pdf-export-reports';
@@ -73,16 +75,6 @@ const COLOR_MAP_FR: Record<string, string> = {
 };
 const ZIPPER_TYPES = ["O/E", "C/E"];
 const SLIDER_TYPES = ["A/L", "P/L", "N/L", "SEMI A/L"];
-
-function SectionLabel({ icon, label }: { icon: React.ReactNode; label: string }) {
-  return (
-    <div className="flex items-center gap-2 -mb-1">
-      <div className="p-1.5 bg-stone-100 rounded-lg text-stone-500">{icon}</div>
-      <span className="text-[11px] font-black text-stone-400 uppercase tracking-[0.2em]">{label}</span>
-      <div className="flex-1 h-px bg-stone-100" />
-    </div>
-  );
-}
 
 const CATEGORY_CONFIG: Record<ExpenseCategory, { label: string; icon: any; color: string; bg: string }> = {
   ACHAT_MARCHANDISE: { label: 'Achat Marchandise (Marché)', icon: ShoppingBag, color: 'text-indigo-600', bg: 'bg-indigo-50 border-indigo-200' },
@@ -721,6 +713,55 @@ export default function CommercialExpensesView({
     });
   };
 
+  // ── Valeurs d'affichage du formulaire (récapitulatif, phrases d'aide, bouton) ──
+  // Rien ici n'entre dans l'enregistrement : ce sont des relectures de ce qui est déjà saisi.
+  const estAchatMarchandise = newCategory === 'ACHAT_MARCHANDISE';
+
+  // Le nom qui partira en stock, reconstitué à l'identique de ce que calcule l'enregistrement.
+  const apercuMarchandise = isManualArticle
+    ? newArticleName.trim()
+    : (computedArticleName || selectedCategoryName || newArticleName.trim());
+
+  const nomEntrepotChoisi = warehouseOptions.find(w => w.id === newWarehouseId)?.name || 'la réserve choisie';
+
+  // Nombre de lots détaillés : l'enregistrement crée alors une dépense par lot.
+  const nbLots = (qualityBreakdown?.length || 0) > 0
+    ? (qualityBreakdown?.length || 0)
+    : (colorBreakdown?.length || 0);
+
+  // Ce qui sera RÉELLEMENT comptabilisé quand l'achat est détaillé en lots : l'enregistrement
+  // écrit une dépense par lot, au prix propre du lot s'il en a un, et n'utilise jamais le montant
+  // global saisi. Le récapitulatif affichait ce montant global : dès qu'un lot portait son propre
+  // prix, le chiffre relu avant de valider n'était pas celui qui partait en comptabilité.
+  const montantReelLots = (() => {
+    if (nbLots === 0) return null;
+    const prixGlobal = newUnitPrice ? parseNum(newUnitPrice) : 0;
+    const lignes = ((qualityBreakdown?.length || 0) > 0 ? qualityBreakdown! : colorBreakdown!) as any[];
+    return lignes.reduce((somme, r: any) => {
+      const qte = Number((qualityBreakdown?.length || 0) > 0 ? r.quantity : r.rolls) || 0;
+      const prix = (r.priceOverride !== '' && r.priceOverride != null && Number(r.priceOverride) > 0)
+        ? Number(r.priceOverride) : prixGlobal;
+      return somme + qte * prix;
+    }, 0);
+  })();
+
+  // Cohérence entre le montant payé et quantité × prix d'une unité (signalée, jamais bloquante).
+  const totalLigneCalcule = Number(newQuantity) * Number(newUnitPrice);
+  const ecartMontant = estAchatMarchandise && nbLots === 0
+    && newQuantity !== '' && newUnitPrice !== '' && newAmount !== ''
+    && Math.abs(totalLigneCalcule - Number(newAmount)) > 0.01;
+
+  // Pourquoi le bouton est grisé. Reprend mot pour mot les champs déjà obligatoires : rien de nouveau
+  // n'est exigé, la raison est simplement dite avant le clic au lieu d'après.
+  const raisonBoutonDesactive =
+    !newDate ? 'Indiquer la date de la dépense (étape 1).'
+    : !newAmount ? 'Indiquer le montant payé (étape 1).'
+    : estAchatMarchandise && !apercuMarchandise ? 'Choisir la marchandise achetée (étape 2).'
+    : estAchatMarchandise && !newQuantity ? 'Indiquer la quantité achetée (étape 2).'
+    : estAchatMarchandise && !newUnitPrice ? "Indiquer le prix d'une unité (étape 2)."
+    : !estAchatMarchandise && !newDescription.trim() ? 'Indiquer le motif de la dépense (étape 1).'
+    : null;
+
   return (
     <div className="space-y-6 animate-in fade-in duration-300 pb-12">
       {/* ── Header ── */}
@@ -1061,52 +1102,150 @@ export default function CommercialExpensesView({
         )}
       </div>
 
-      {/* ── Modal d'Ajout d'une Dépense ── */}
+      {/* ── Fenêtre : nouvelle dépense / achat au marché ── */}
       <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
         <DialogContent className="max-w-2xl rounded-3xl p-6 max-h-[92vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle className="text-lg font-black uppercase tracking-tight flex items-center gap-2">
+            <DialogTitle className="text-lg font-black tracking-tight flex items-center gap-2">
               <Receipt className="w-5 h-5 text-amber-500" />
-              <span>Déclarer une Dépense / Achat Marché</span>
+              <span>Nouvelle dépense</span>
             </DialogTitle>
+            <p className="text-[11px] font-medium text-stone-500 leading-snug text-left">
+              Trois questions dans l'ordre : ce qui a été payé, la marchandise s'il y en a une, et l'endroit où
+              elle entre.
+            </p>
           </DialogHeader>
 
-          <form onSubmit={handleSubmit} className="space-y-4 pt-2">
-            <div className="space-y-1">
-              <Label className="text-[10px] font-black uppercase text-stone-500">Catégorie de dépense</Label>
-              <Select value={newCategory} onValueChange={(v: ExpenseCategory) => setNewCategory(v)}>
-                <SelectTrigger className="rounded-xl h-10 text-xs font-bold">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {Object.entries(CATEGORY_CONFIG).map(([k, cfg]) => (
-                    <SelectItem key={k} value={k}>
-                      {cfg.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+          <form onSubmit={handleSubmit} className="space-y-6 pt-3">
+            {/* ── 1. Quelle dépense ? ── */}
+            <SectionFormulaire
+              numero={1}
+              titre="Quelle dépense ?"
+              aide="La catégorie commande tout le reste : elle seule décide si de la marchandise entre en stock."
+            >
+              <Champ
+                label="Catégorie"
+                obligatoire
+                aide="« Achat Marchandise (Marché) » ouvre l'étape 2 et peut créer le produit ; les autres catégories ne font que sortir de l'argent."
+              >
+                <Select value={newCategory} onValueChange={(v: ExpenseCategory) => setNewCategory(v)}>
+                  <SelectTrigger className={CLASSE_CHAMP}>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {Object.entries(CATEGORY_CONFIG).map(([k, cfg]) => (
+                      <SelectItem key={k} value={k}>
+                        {cfg.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </Champ>
 
-            {/* SECTION DÉDIÉE : ACHAT MARCHANDISE DU MARCHÉ (EXACTEMENT COMME NVX PTDS DANS LEBTEX/GESTION) */}
-            {newCategory === 'ACHAT_MARCHANDISE' && (
-              <div className="p-4 rounded-2xl bg-indigo-50/70 border-2 border-indigo-200 space-y-4 animate-in fade-in">
-                {/* En-tête avec switch Catalogue vs Saisie libre */}
-                <div className="flex items-center justify-between gap-2 border-b border-indigo-200/60 pb-3">
-                  <div className="flex items-center gap-2">
-                    <ShoppingBag className="w-4 h-4 text-indigo-700" />
-                    <span className="text-xs font-black uppercase text-indigo-950 tracking-wider">
-                      Sélection du Produit Acheté au Marché
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-1.5 bg-white/80 p-1 rounded-xl border border-indigo-200 text-[10px] font-bold">
+              {estAchatMarchandise ? (
+                <Encadre ton="attention" titre="Cette catégorie touche à la marchandise">
+                  Avec la case de l'étape 3 cochée, l'enregistrement crée le produit <strong>et</strong> son entrée
+                  en réserve. L'argent sort quand même de la caisse : un achat au marché reste un décaissement.
+                </Encadre>
+              ) : (
+                <Encadre>
+                  Une dépense ordinaire ne touche pas au stock : elle sort seulement de la caisse. Aucun produit
+                  n'est créé, aucune quantité n'est modifiée.
+                </Encadre>
+              )}
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                <Champ label="Date de la dépense" obligatoire htmlFor="depense-date">
+                  <Input
+                    id="depense-date"
+                    type="date"
+                    value={newDate}
+                    onChange={e => setNewDate(e.target.value)}
+                    className={CLASSE_CHAMP}
+                    required
+                  />
+                </Champ>
+
+                <Champ
+                  label="Montant payé (MAD)"
+                  obligatoire
+                  htmlFor="depense-montant"
+                  aide={estAchatMarchandise
+                    ? "Se recalcule tout seul dès que la quantité et le prix d'une unité de l'étape 2 sont saisis. À corriger si le vendeur a arrondi."
+                    : "La somme qui sort réellement de la caisse."}
+                >
+                  <Input
+                    id="depense-montant"
+                    type="number"
+                    step="any"
+                    min="0.1"
+                    placeholder="Ex. 250"
+                    value={newAmount}
+                    onChange={e => setNewAmount(e.target.value)}
+                    className={CLASSE_CHAMP}
+                    required
+                  />
+                </Champ>
+              </div>
+
+              <Champ
+                label={estAchatMarchandise ? 'Précisions pour la caisse' : 'Motif de la dépense'}
+                obligatoire={!estAchatMarchandise}
+                htmlFor="depense-motif"
+                aide={estAchatMarchandise
+                  ? "Facultatif : ce qui ne tient pas dans la désignation, un numéro de bon, un arrangement avec le vendeur. Le texte s'ajoute à la ligne de dépense."
+                  : "C'est ce que la comptabilité relira dans plusieurs mois : dire ce qui a été payé et pour quoi."}
+              >
+                <Input
+                  id="depense-motif"
+                  placeholder={estAchatMarchandise ? 'Note ou détail pour la caisse' : 'Ex. Plein de la camionnette, tournée Derb Omar'}
+                  value={newDescription}
+                  onChange={e => setNewDescription(e.target.value)}
+                  className={CLASSE_CHAMP}
+                  required={newCategory !== 'ACHAT_MARCHANDISE'}
+                />
+              </Champ>
+
+              <Champ
+                label="Photo du ticket ou du bon"
+                htmlFor="depense-recu"
+                aide="Le justificatif reste attaché à la dépense et se rouvre depuis la liste, au moment de la valider."
+              >
+                <input
+                  id="depense-recu"
+                  type="file"
+                  accept="image/*"
+                  capture="environment"
+                  onChange={handleReceiptFile}
+                  className="w-full text-xs file:mr-3 file:py-2 file:px-3 file:rounded-xl file:border-0 file:text-xs file:font-black file:bg-stone-100 file:text-stone-700 hover:file:bg-stone-200 cursor-pointer"
+                />
+                {newReceiptUrl && (
+                  <p className="text-[11px] text-emerald-600 font-bold flex items-center gap-1">
+                    <Check className="w-3 h-3" /> Photo chargée
+                  </p>
+                )}
+              </Champ>
+            </SectionFormulaire>
+
+            {/* ── 2. Quelle marchandise ? (achat au marché seulement) ── */}
+            {estAchatMarchandise && (
+              <SectionFormulaire
+                numero={2}
+                titre="Quelle marchandise ?"
+                aide="Cette description devient la fiche produit et la ligne d'entrée en stock : elle doit être reconnaissable par quelqu'un qui n'était pas au marché."
+              >
+                <Champ
+                  label="Origine de la référence"
+                  aide="« Catalogue Lebtex » reprend une référence qui existe déjà. « Saisie libre » en crée une nouvelle : ne l'employer que si la référence n'existe vraiment pas."
+                >
+                  <div className="inline-flex items-center gap-1.5 rounded-xl border border-stone-200 bg-stone-100 p-1">
                     <button
                       type="button"
                       onClick={() => setIsManualArticle(false)}
-                      className={`px-2.5 py-1 rounded-lg transition-all ${
+                      className={`px-3 h-9 rounded-lg text-xs transition-all ${
                         !isManualArticle
                           ? 'bg-indigo-600 text-white font-black shadow-sm'
-                          : 'text-indigo-700 hover:bg-indigo-50'
+                          : 'text-stone-600 font-bold hover:bg-white'
                       }`}
                     >
                       Catalogue Lebtex
@@ -1114,37 +1253,35 @@ export default function CommercialExpensesView({
                     <button
                       type="button"
                       onClick={() => setIsManualArticle(true)}
-                      className={`px-2.5 py-1 rounded-lg transition-all ${
+                      className={`px-3 h-9 rounded-lg text-xs transition-all ${
                         isManualArticle
                           ? 'bg-indigo-600 text-white font-black shadow-sm'
-                          : 'text-indigo-700 hover:bg-indigo-50'
+                          : 'text-stone-600 font-bold hover:bg-white'
                       }`}
                     >
-                      Hors Catalogue
+                      Saisie libre
                     </button>
                   </div>
-                </div>
+                </Champ>
 
                 {!isManualArticle ? (
                   <>
-                    {/* ── 1. Identification (Pôle & Type Produit) ── */}
-                    <SectionLabel icon={<Layers className="w-3 h-3" />} label="1. Identification Catalogue" />
-                    
-                    <div className="grid grid-cols-2 gap-3">
-                      {/* Pôle (Catégorie Générale) */}
-                      <div className="space-y-1.5">
-                        <Label className="text-[10px] font-black text-stone-500 uppercase tracking-widest flex items-center gap-1">
-                          <Layers className="w-3 h-3" /> Pôle
-                        </Label>
-                        <Select 
-                          value={selectedGenCatId} 
-                          onValueChange={id => { 
-                            setSelectedGenCatId(id); 
-                            setSelectedCategoryName(''); 
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                      {/* Famille (catégorie générale) */}
+                      <Champ
+                        label="Famille de produit"
+                        obligatoire
+                        aide="Tant qu'elle n'est pas choisie, la liste des produits reste vide."
+                      >
+                        <Select
+                          value={selectedGenCatId}
+                          onValueChange={id => {
+                            setSelectedGenCatId(id);
+                            setSelectedCategoryName('');
                           }}
                         >
-                          <SelectTrigger className="h-10 font-bold rounded-xl border-stone-200 bg-white text-xs">
-                            <SelectValue placeholder="Choisir le pôle...">
+                          <SelectTrigger className={`${CLASSE_CHAMP} bg-white`}>
+                            <SelectValue placeholder="Choisir la famille…">
                               {(() => {
                                 const gc = (generalCategories || []).find((g: any) => g.id === selectedGenCatId);
                                 return gc ? (gc.nameFR || gc.name) : undefined;
@@ -1176,20 +1313,21 @@ export default function CommercialExpensesView({
                             })()}
                           </SelectContent>
                         </Select>
-                      </div>
+                      </Champ>
 
-                      {/* Type Produit (Sous-catégorie) */}
-                      <div className="space-y-1.5">
-                        <Label className="text-[10px] font-black text-stone-500 uppercase tracking-widest flex items-center gap-1">
-                          <Package className="w-3 h-3" /> Type Produit
-                        </Label>
+                      {/* Produit (sous-catégorie) */}
+                      <Champ
+                        label="Produit"
+                        obligatoire
+                        aide="Le produit choisi décide des caractéristiques demandées en dessous, de l'unité de comptage, et rappelle le dernier prix payé."
+                      >
                         <Select
                           disabled={!selectedGenCatId}
                           value={selectedCategoryName}
                           onValueChange={handleSelectSubCategory}
                         >
-                          <SelectTrigger className={`h-10 font-bold rounded-xl border text-xs ${!selectedGenCatId ? 'opacity-50' : 'border-stone-200 bg-white'}`}>
-                            <SelectValue placeholder={selectedGenCatId ? "Choisir le produit..." : "← Pôle d'abord"}>
+                          <SelectTrigger className={`${CLASSE_CHAMP} bg-white ${!selectedGenCatId ? 'opacity-50' : ''}`}>
+                            <SelectValue placeholder={selectedGenCatId ? 'Choisir le produit…' : "Choisir la famille d'abord"}>
                               {selectedSubCat ? (selectedSubCat.nameFR || selectedSubCat.name) : undefined}
                             </SelectValue>
                           </SelectTrigger>
@@ -1197,212 +1335,205 @@ export default function CommercialExpensesView({
                             <GroupedCategorySelect />
                           </SelectContent>
                         </Select>
-                      </div>
+                      </Champ>
                     </div>
 
-                    {/* ── 2. Spécifications & Caractéristiques ── */}
+                    {/* Caractéristiques du produit */}
                     {selectedCategoryName && (
-                      <div className="space-y-3 pt-1">
-                        <SectionLabel icon={<Settings2 className="w-3 h-3" />} label="2. Spécifications du Produit" />
+                      <div className="space-y-3.5 rounded-2xl border border-indigo-200 bg-indigo-50/60 p-3.5">
+                        <div>
+                          <p className="text-[13px] font-bold text-stone-900 leading-tight">Caractéristiques du produit</p>
+                          <p className="text-[11px] font-medium text-stone-500 leading-snug mt-0.5">
+                            Elles composent la désignation : deux articles qui ne diffèrent que par la couleur
+                            restent deux produits séparés en stock.
+                          </p>
+                        </div>
 
                         {isFabric ? (
-                          /* CAS FABRIC */
-                          <div className="space-y-3 p-3.5 rounded-2xl bg-white/80 border border-indigo-200">
-                            <div className="grid grid-cols-2 gap-3">
-                              {/* Qualité Fabric */}
-                              <div className="space-y-1">
-                                <Label className="text-[10px] font-black text-indigo-900 uppercase tracking-wider flex items-center gap-1">
-                                  <Maximize className="w-3 h-3 text-indigo-600" /> Qualité Tissu
-                                </Label>
-                                {fabricQualities.length > 0 ? (
-                                  <Select onValueChange={v => {
-                                    const q = fabricQualities[Number(v)];
-                                    if (q) {
-                                      setSelectedGsm(q.gsm ? String(q.gsm) : '');
-                                      setSelectedFabricWidth(q.fabricWidth ? String(q.fabricWidth) : '');
-                                      setSelectedRollLength(q.rollLength ? String(q.rollLength) : '');
-                                      setSelectedRollLengthUnit(q.rollLengthUnit || 'm');
-                                      setSelectedPackagingPerBag(q.packagingPerBag ? String(q.packagingPerBag) : '');
-                                    }
-                                  }}>
-                                    <SelectTrigger className="h-9 border-indigo-200 bg-white font-bold rounded-xl text-xs text-indigo-900">
-                                      <SelectValue placeholder="Choisir une qualité..." />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                      {fabricQualities.map((q: any, i: number) => (
-                                        <SelectItem key={i} value={String(i)} className="font-bold text-xs">{q.nameFR || q.label}</SelectItem>
-                                      ))}
-                                    </SelectContent>
-                                  </Select>
-                                ) : (
-                                  <div className="grid grid-cols-2 gap-2">
-                                    <Input
-                                      type="number"
-                                      placeholder="GSM (ex: 120)"
-                                      value={selectedGsm}
-                                      onChange={e => setSelectedGsm(e.target.value)}
-                                      className="h-9 border-stone-200 bg-white rounded-xl text-xs font-bold"
-                                    />
-                                    <Input
-                                      type="number"
-                                      placeholder="Larg cm (ex: 150)"
-                                      value={selectedFabricWidth}
-                                      onChange={e => setSelectedFabricWidth(e.target.value)}
-                                      className="h-9 border-stone-200 bg-white rounded-xl text-xs font-bold"
-                                    />
-                                  </div>
-                                )}
-                              </div>
-
-                              {/* Couleur Fabric */}
-                              <div className="space-y-1">
-                                <Label className="text-[10px] font-black text-indigo-900 uppercase tracking-wider flex items-center gap-1">
-                                  <Palette className="w-3 h-3 text-indigo-600" /> Couleur
-                                </Label>
-                                <Select value={selectedColor} onValueChange={setSelectedColor}>
-                                  <SelectTrigger className="h-9 border-indigo-200 bg-white font-bold rounded-xl text-xs">
-                                    <SelectValue>{COLOR_MAP_FR[selectedColor] || selectedColor}</SelectValue>
+                          /* CAS TISSU */
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                            <Champ
+                              label={<span className="inline-flex items-center gap-1.5"><Maximize className="w-3.5 h-3.5 text-indigo-600" /> Qualité du tissu</span>}
+                              aide="La qualité choisie remplit d'un coup le grammage, la laize et la longueur du rouleau."
+                            >
+                              {fabricQualities.length > 0 ? (
+                                <Select onValueChange={v => {
+                                  const q = fabricQualities[Number(v)];
+                                  if (q) {
+                                    setSelectedGsm(q.gsm ? String(q.gsm) : '');
+                                    setSelectedFabricWidth(q.fabricWidth ? String(q.fabricWidth) : '');
+                                    setSelectedRollLength(q.rollLength ? String(q.rollLength) : '');
+                                    setSelectedRollLengthUnit(q.rollLengthUnit || 'm');
+                                    setSelectedPackagingPerBag(q.packagingPerBag ? String(q.packagingPerBag) : '');
+                                  }
+                                }}>
+                                  <SelectTrigger className={`${CLASSE_CHAMP} bg-white`}>
+                                    <SelectValue placeholder="Choisir une qualité…" />
                                   </SelectTrigger>
-                                  <SelectContent className="max-h-60">
-                                    {COLORS.map(c => (
-                                      <SelectItem key={c} value={c} className="font-bold text-xs">{COLOR_MAP_FR[c] || c}</SelectItem>
+                                  <SelectContent>
+                                    {fabricQualities.map((q: any, i: number) => (
+                                      <SelectItem key={i} value={String(i)} className="font-bold text-xs">{q.nameFR || q.label}</SelectItem>
                                     ))}
                                   </SelectContent>
                                 </Select>
-                              </div>
-                            </div>
+                              ) : (
+                                <div className="grid grid-cols-2 gap-2">
+                                  <Input
+                                    type="number"
+                                    placeholder="Grammage, ex. 120"
+                                    value={selectedGsm}
+                                    onChange={e => setSelectedGsm(e.target.value)}
+                                    className={`${CLASSE_CHAMP} bg-white`}
+                                  />
+                                  <Input
+                                    type="number"
+                                    placeholder="Laize en cm, ex. 150"
+                                    value={selectedFabricWidth}
+                                    onChange={e => setSelectedFabricWidth(e.target.value)}
+                                    className={`${CLASSE_CHAMP} bg-white`}
+                                  />
+                                </div>
+                              )}
+                            </Champ>
+
+                            <Champ
+                              label={<span className="inline-flex items-center gap-1.5"><Palette className="w-3.5 h-3.5 text-indigo-600" /> Couleur</span>}
+                              aide="Choisir « Divers » quand le lot mélange plusieurs couleurs sans les compter séparément."
+                            >
+                              <Select value={selectedColor} onValueChange={setSelectedColor}>
+                                <SelectTrigger className={`${CLASSE_CHAMP} bg-white`}>
+                                  <SelectValue>{COLOR_MAP_FR[selectedColor] || selectedColor}</SelectValue>
+                                </SelectTrigger>
+                                <SelectContent className="max-h-60">
+                                  {COLORS.map(c => (
+                                    <SelectItem key={c} value={c} className="font-bold text-xs">{COLOR_MAP_FR[c] || c}</SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            </Champ>
                           </div>
                         ) : isZipper ? (
-                          /* CAS ZIPPER */
-                          <div className="space-y-3 p-3.5 rounded-2xl bg-white/80 border border-indigo-200">
-                            <div className="grid grid-cols-2 gap-3">
-                              {/* Qualité / Taille Zipper */}
-                              <div className="space-y-1">
-                                <Label className="text-[10px] font-black text-indigo-900 uppercase tracking-wider flex items-center gap-1">
-                                  <Ruler className="w-3 h-3 text-indigo-600" /> Longueur / Taille
-                                </Label>
-                                {zipperQualities.length > 0 ? (
-                                  <Select onValueChange={v => {
-                                    const q = zipperQualities[Number(v)];
-                                    if (q) {
-                                      setSelectedSize(q.length || '');
-                                      setSelectedZipperType(q.zipperType || '');
-                                      setSelectedSlider(q.slider || '');
-                                      setSelectedSliderType(q.sliderType || '');
-                                    }
-                                  }}>
-                                    <SelectTrigger className="h-9 border-indigo-200 bg-white font-bold rounded-xl text-xs text-indigo-900">
-                                      <SelectValue placeholder="Choisir une qualité..." />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                      {zipperQualities.map((q: any, i: number) => (
-                                        <SelectItem key={i} value={String(i)} className="font-bold text-xs">{q.nameFR || q.label}</SelectItem>
-                                      ))}
-                                    </SelectContent>
-                                  </Select>
-                                ) : (
-                                  <Input
-                                    placeholder="Ex: 20cm, 50cm, Chaîne continue..."
-                                    value={selectedSize}
-                                    onChange={e => setSelectedSize(e.target.value)}
-                                    className="h-9 border-stone-200 bg-white rounded-xl text-xs font-bold"
-                                  />
-                                )}
-                              </div>
-
-                              {/* Couleur Zipper */}
-                              <div className="space-y-1">
-                                <Label className="text-[10px] font-black text-indigo-900 uppercase tracking-wider flex items-center gap-1">
-                                  <Palette className="w-3 h-3 text-indigo-600" /> Couleur
-                                </Label>
-                                <Select value={selectedColor} onValueChange={setSelectedColor}>
-                                  <SelectTrigger className="h-9 border-indigo-200 bg-white font-bold rounded-xl text-xs">
-                                    <SelectValue>{COLOR_MAP_FR[selectedColor] || selectedColor}</SelectValue>
+                          /* CAS FERMETURE À GLISSIÈRE */
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                            <Champ
+                              label={<span className="inline-flex items-center gap-1.5"><Ruler className="w-3.5 h-3.5 text-indigo-600" /> Longueur de la fermeture</span>}
+                              aide="Une qualité choisie remplit d'un coup la longueur, le type et le curseur."
+                            >
+                              {zipperQualities.length > 0 ? (
+                                <Select onValueChange={v => {
+                                  const q = zipperQualities[Number(v)];
+                                  if (q) {
+                                    setSelectedSize(q.length || '');
+                                    setSelectedZipperType(q.zipperType || '');
+                                    setSelectedSlider(q.slider || '');
+                                    setSelectedSliderType(q.sliderType || '');
+                                  }
+                                }}>
+                                  <SelectTrigger className={`${CLASSE_CHAMP} bg-white`}>
+                                    <SelectValue placeholder="Choisir une qualité…" />
                                   </SelectTrigger>
-                                  <SelectContent className="max-h-60">
-                                    {COLORS.map(c => (
-                                      <SelectItem key={c} value={c} className="font-bold text-xs">{COLOR_MAP_FR[c] || c}</SelectItem>
+                                  <SelectContent>
+                                    {zipperQualities.map((q: any, i: number) => (
+                                      <SelectItem key={i} value={String(i)} className="font-bold text-xs">{q.nameFR || q.label}</SelectItem>
                                     ))}
                                   </SelectContent>
                                 </Select>
-                              </div>
-                            </div>
+                              ) : (
+                                <Input
+                                  placeholder="Ex. 20 cm, 50 cm, chaîne continue"
+                                  value={selectedSize}
+                                  onChange={e => setSelectedSize(e.target.value)}
+                                  className={`${CLASSE_CHAMP} bg-white`}
+                                />
+                              )}
+                            </Champ>
+
+                            <Champ
+                              label={<span className="inline-flex items-center gap-1.5"><Palette className="w-3.5 h-3.5 text-indigo-600" /> Couleur</span>}
+                              aide="Choisir « Divers » quand le lot mélange plusieurs couleurs sans les compter séparément."
+                            >
+                              <Select value={selectedColor} onValueChange={setSelectedColor}>
+                                <SelectTrigger className={`${CLASSE_CHAMP} bg-white`}>
+                                  <SelectValue>{COLOR_MAP_FR[selectedColor] || selectedColor}</SelectValue>
+                                </SelectTrigger>
+                                <SelectContent className="max-h-60">
+                                  {COLORS.map(c => (
+                                    <SelectItem key={c} value={c} className="font-bold text-xs">{COLOR_MAP_FR[c] || c}</SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            </Champ>
                           </div>
                         ) : isThread ? (
-                          /* CAS THREAD */
-                          <div className="space-y-3 p-3.5 rounded-2xl bg-white/80 border border-teal-200">
-                            <div className="grid grid-cols-2 gap-3">
-                              {/* Qualité Thread */}
-                              <div className="space-y-1">
-                                <Label className="text-[10px] font-black text-teal-900 uppercase tracking-wider flex items-center gap-1">
-                                  <span className="text-xs">🪡</span> Qualité Fil à coudre
-                                </Label>
-                                {threadQualities.length > 0 ? (
-                                  <Select onValueChange={v => {
-                                    const q = threadQualities[Number(v)];
-                                    if (q) {
-                                      setSelectedConeWeightG(q.coneWeightG ? String(q.coneWeightG) : '');
-                                      setSelectedThreadWeightG(q.threadWeightG ? String(q.threadWeightG) : '');
-                                      setSelectedLengthPerPiece(q.lengthPerPiece ? String(q.lengthPerPiece) : '');
-                                      setSelectedLengthUnit(q.lengthUnit || 'm');
-                                      setSelectedPcsPerBag(q.pcsPerBag ? String(q.pcsPerBag) : '');
-                                      setSelectedBagsPerCarton(q.bagsPerCarton ? String(q.bagsPerCarton) : '');
-                                    }
-                                  }}>
-                                    <SelectTrigger className="h-9 border-teal-200 bg-white font-bold rounded-xl text-xs text-teal-900">
-                                      <SelectValue placeholder="Choisir une qualité..." />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                      {threadQualities.map((q: any, i: number) => (
-                                        <SelectItem key={i} value={String(i)} className="font-bold text-xs">{q.nameFR || q.label}</SelectItem>
-                                      ))}
-                                    </SelectContent>
-                                  </Select>
-                                ) : (
-                                  <div className="grid grid-cols-2 gap-2">
-                                    <Input
-                                      placeholder="Cône (ex: 10g)"
-                                      value={selectedConeWeightG}
-                                      onChange={e => setSelectedConeWeightG(e.target.value)}
-                                      className="h-9 border-stone-200 bg-white rounded-xl text-xs font-bold"
-                                    />
-                                    <Input
-                                      placeholder="Fil (ex: 100g)"
-                                      value={selectedThreadWeightG}
-                                      onChange={e => setSelectedThreadWeightG(e.target.value)}
-                                      className="h-9 border-stone-200 bg-white rounded-xl text-xs font-bold"
-                                    />
-                                  </div>
-                                )}
-                              </div>
-
-                              {/* Couleur Thread */}
-                              <div className="space-y-1">
-                                <Label className="text-[10px] font-black text-teal-900 uppercase tracking-wider flex items-center gap-1">
-                                  <Palette className="w-3 h-3 text-teal-600" /> Couleur
-                                </Label>
-                                <Select value={selectedColor} onValueChange={setSelectedColor}>
-                                  <SelectTrigger className="h-9 border-teal-200 bg-white font-bold rounded-xl text-xs">
-                                    <SelectValue>{COLOR_MAP_FR[selectedColor] || selectedColor}</SelectValue>
+                          /* CAS FIL À COUDRE */
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                            <Champ
+                              label="Qualité du fil"
+                              aide="Elle fixe le poids du cône, le poids du fil et la longueur par pièce, qui servent à compter le stock."
+                            >
+                              {threadQualities.length > 0 ? (
+                                <Select onValueChange={v => {
+                                  const q = threadQualities[Number(v)];
+                                  if (q) {
+                                    setSelectedConeWeightG(q.coneWeightG ? String(q.coneWeightG) : '');
+                                    setSelectedThreadWeightG(q.threadWeightG ? String(q.threadWeightG) : '');
+                                    setSelectedLengthPerPiece(q.lengthPerPiece ? String(q.lengthPerPiece) : '');
+                                    setSelectedLengthUnit(q.lengthUnit || 'm');
+                                    setSelectedPcsPerBag(q.pcsPerBag ? String(q.pcsPerBag) : '');
+                                    setSelectedBagsPerCarton(q.bagsPerCarton ? String(q.bagsPerCarton) : '');
+                                  }
+                                }}>
+                                  <SelectTrigger className={`${CLASSE_CHAMP} bg-white`}>
+                                    <SelectValue placeholder="Choisir une qualité…" />
                                   </SelectTrigger>
-                                  <SelectContent className="max-h-60">
-                                    {COLORS.map(c => (
-                                      <SelectItem key={c} value={c} className="font-bold text-xs">{COLOR_MAP_FR[c] || c}</SelectItem>
+                                  <SelectContent>
+                                    {threadQualities.map((q: any, i: number) => (
+                                      <SelectItem key={i} value={String(i)} className="font-bold text-xs">{q.nameFR || q.label}</SelectItem>
                                     ))}
                                   </SelectContent>
                                 </Select>
-                              </div>
-                            </div>
+                              ) : (
+                                <div className="grid grid-cols-2 gap-2">
+                                  <Input
+                                    placeholder="Poids du cône, ex. 10 g"
+                                    value={selectedConeWeightG}
+                                    onChange={e => setSelectedConeWeightG(e.target.value)}
+                                    className={`${CLASSE_CHAMP} bg-white`}
+                                  />
+                                  <Input
+                                    placeholder="Poids du fil, ex. 100 g"
+                                    value={selectedThreadWeightG}
+                                    onChange={e => setSelectedThreadWeightG(e.target.value)}
+                                    className={`${CLASSE_CHAMP} bg-white`}
+                                  />
+                                </div>
+                              )}
+                            </Champ>
+
+                            <Champ
+                              label={<span className="inline-flex items-center gap-1.5"><Palette className="w-3.5 h-3.5 text-teal-600" /> Couleur</span>}
+                              aide="Choisir « Divers » quand le lot mélange plusieurs couleurs sans les compter séparément."
+                            >
+                              <Select value={selectedColor} onValueChange={setSelectedColor}>
+                                <SelectTrigger className={`${CLASSE_CHAMP} bg-white`}>
+                                  <SelectValue>{COLOR_MAP_FR[selectedColor] || selectedColor}</SelectValue>
+                                </SelectTrigger>
+                                <SelectContent className="max-h-60">
+                                  {COLORS.map(c => (
+                                    <SelectItem key={c} value={c} className="font-bold text-xs">{COLOR_MAP_FR[c] || c}</SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            </Champ>
                           </div>
                         ) : isSlider ? (
-                          /* CAS SLIDER */
-                          <div className="space-y-3 p-3.5 rounded-2xl bg-white/80 border border-orange-200">
-                            <div className="grid grid-cols-2 gap-3">
-                              {/* Qualité / Modèle Slider */}
-                              <div className="space-y-1">
-                                <Label className="text-[10px] font-black text-orange-900 uppercase tracking-wider flex items-center gap-1">
-                                  <span className="text-xs">🎛️</span> Qualité / Modèle Curseur
-                                </Label>
+                          /* CAS CURSEUR */
+                          <div className="space-y-3.5">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                              <Champ
+                                label="Modèle du curseur"
+                                aide="Le modèle remplit la taille, le poids et le conditionnement, et rattache la photo du curseur."
+                              >
                                 {sliderQualities.length > 0 ? (
                                   <Select onValueChange={v => {
                                     const q = sliderQualities[Number(v)];
@@ -1414,8 +1545,8 @@ export default function CommercialExpensesView({
                                       setSelectedDesignImageUrl(q.imageUrl || '');
                                     }
                                   }}>
-                                    <SelectTrigger className="h-9 border-orange-200 bg-white font-bold rounded-xl text-xs text-orange-900">
-                                      <SelectValue placeholder="Choisir un modèle..." />
+                                    <SelectTrigger className={`${CLASSE_CHAMP} bg-white`}>
+                                      <SelectValue placeholder="Choisir un modèle…" />
                                     </SelectTrigger>
                                     <SelectContent>
                                       {sliderQualities.map((q: any, i: number) => (
@@ -1432,26 +1563,27 @@ export default function CommercialExpensesView({
                                 ) : (
                                   <div className="grid grid-cols-2 gap-2">
                                     <Input
-                                      placeholder="Taille (ex: #3)"
+                                      placeholder="Taille, ex. #3"
                                       value={selectedSize}
                                       onChange={e => setSelectedSize(e.target.value)}
-                                      className="h-9 border-stone-200 bg-white rounded-xl text-xs font-bold"
+                                      className={`${CLASSE_CHAMP} bg-white`}
                                     />
                                     <Input
-                                      placeholder="Poids curseur (ex: 2.5g)"
+                                      placeholder="Poids, ex. 2,5 g"
                                       value={selectedSliderWeightG}
                                       onChange={e => setSelectedSliderWeightG(e.target.value)}
-                                      className="h-9 border-stone-200 bg-white rounded-xl text-xs font-bold"
+                                      className={`${CLASSE_CHAMP} bg-white`}
                                     />
                                   </div>
                                 )}
-                              </div>
+                              </Champ>
 
-                              {/* Couleur */}
-                              <div className="space-y-1">
-                                <Label className="text-[10px] font-black text-stone-400 uppercase tracking-wider">Couleur</Label>
+                              <Champ
+                                label={<span className="inline-flex items-center gap-1.5"><Palette className="w-3.5 h-3.5 text-orange-600" /> Couleur</span>}
+                                aide="Choisir « Divers » quand le lot mélange plusieurs couleurs sans les compter séparément."
+                              >
                                 <Select value={selectedColor} onValueChange={setSelectedColor}>
-                                  <SelectTrigger className="h-9 border-stone-200 bg-white font-bold rounded-xl text-xs">
+                                  <SelectTrigger className={`${CLASSE_CHAMP} bg-white`}>
                                     <SelectValue>{COLOR_MAP_FR[selectedColor] || selectedColor}</SelectValue>
                                   </SelectTrigger>
                                   <SelectContent className="max-h-60">
@@ -1460,282 +1592,258 @@ export default function CommercialExpensesView({
                                     ))}
                                   </SelectContent>
                                 </Select>
-                              </div>
+                              </Champ>
                             </div>
 
-                            {/* Aperçu Photo & Badges */}
+                            {/* Aperçu du modèle retenu */}
                             <div className="flex items-center gap-3">
                               {selectedDesignImageUrl && (
                                 <img src={selectedDesignImageUrl} alt="" className="w-10 h-10 rounded-lg object-cover border border-orange-200 shrink-0" />
                               )}
                               <div className="flex flex-wrap gap-1.5">
-                                {selectedSize && <span className="px-2 py-0.5 rounded bg-orange-100 text-orange-800 text-[10px] font-black">{selectedSize}</span>}
-                                {selectedSliderWeightG && <span className="px-2 py-0.5 rounded bg-amber-100 text-amber-800 text-[10px] font-black">{selectedSliderWeightG}g/pc</span>}
-                                {selectedPcsPerBag && <span className="px-2 py-0.5 rounded bg-cyan-100 text-cyan-800 text-[10px] font-black">{selectedPcsPerBag} pcs/sachet</span>}
-                                {selectedBagsPerCarton && <span className="px-2 py-0.5 rounded bg-indigo-100 text-indigo-700 text-[10px] font-black">{selectedBagsPerCarton} sachets/ctn</span>}
+                                {selectedSize && <span className="px-2 py-0.5 rounded bg-orange-100 text-orange-800 text-[11px] font-bold">{selectedSize}</span>}
+                                {selectedSliderWeightG && <span className="px-2 py-0.5 rounded bg-amber-100 text-amber-800 text-[11px] font-bold">{selectedSliderWeightG} g par pièce</span>}
+                                {selectedPcsPerBag && <span className="px-2 py-0.5 rounded bg-cyan-100 text-cyan-800 text-[11px] font-bold">{selectedPcsPerBag} pièces par sachet</span>}
+                                {selectedBagsPerCarton && <span className="px-2 py-0.5 rounded bg-indigo-100 text-indigo-700 text-[11px] font-bold">{selectedBagsPerCarton} sachets par carton</span>}
                               </div>
                             </div>
                           </div>
                         ) : (
-                          /* CAS STANDARD / AUTRE */
-                          <div className="space-y-3 p-3.5 rounded-2xl bg-white/80 border border-indigo-200">
-                            <div className="grid grid-cols-2 gap-3">
-                              <div className="space-y-1">
-                                <Label className="text-[10px] font-black text-indigo-900 uppercase tracking-wider">Taille / Dimension</Label>
-                                {availableSizes.length > 0 ? (
-                                  <Select value={selectedSize} onValueChange={setSelectedSize}>
-                                    <SelectTrigger className="h-9 border-indigo-200 bg-white font-bold rounded-xl text-xs">
-                                      <SelectValue placeholder="Choisir..." />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                      {availableSizes.map((s: string) => (
-                                        <SelectItem key={s} value={s} className="font-bold text-xs">{s}</SelectItem>
-                                      ))}
-                                    </SelectContent>
-                                  </Select>
-                                ) : (
-                                  <Input
-                                    placeholder="Ex: 14L, 18L, 20mm..."
-                                    value={selectedSize}
-                                    onChange={e => setSelectedSize(e.target.value)}
-                                    className="h-9 border-stone-200 bg-white rounded-xl text-xs font-bold"
-                                  />
-                                )}
-                              </div>
-
-                              <div className="space-y-1">
-                                <Label className="text-[10px] font-black text-indigo-900 uppercase tracking-wider">Couleur</Label>
-                                <Select value={selectedColor} onValueChange={setSelectedColor}>
-                                  <SelectTrigger className="h-9 border-indigo-200 bg-white font-bold rounded-xl text-xs">
-                                    <SelectValue>{COLOR_MAP_FR[selectedColor] || selectedColor}</SelectValue>
+                          /* CAS GÉNÉRAL */
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                            <Champ
+                              label="Taille"
+                              aide="Elle entre dans la désignation : sans elle, deux tailles du même article se confondent en stock."
+                            >
+                              {availableSizes.length > 0 ? (
+                                <Select value={selectedSize} onValueChange={setSelectedSize}>
+                                  <SelectTrigger className={`${CLASSE_CHAMP} bg-white`}>
+                                    <SelectValue placeholder="Choisir…" />
                                   </SelectTrigger>
-                                  <SelectContent className="max-h-60">
-                                    {COLORS.map(c => (
-                                      <SelectItem key={c} value={c} className="font-bold text-xs">{COLOR_MAP_FR[c] || c}</SelectItem>
+                                  <SelectContent>
+                                    {availableSizes.map((s: string) => (
+                                      <SelectItem key={s} value={s} className="font-bold text-xs">{s}</SelectItem>
                                     ))}
                                   </SelectContent>
                                 </Select>
-                              </div>
-                            </div>
+                              ) : (
+                                <Input
+                                  placeholder="Ex. 14L, 18L, 20 mm"
+                                  value={selectedSize}
+                                  onChange={e => setSelectedSize(e.target.value)}
+                                  className={`${CLASSE_CHAMP} bg-white`}
+                                />
+                              )}
+                            </Champ>
+
+                            <Champ
+                              label={<span className="inline-flex items-center gap-1.5"><Palette className="w-3.5 h-3.5 text-indigo-600" /> Couleur</span>}
+                              aide="Choisir « Divers » quand le lot mélange plusieurs couleurs sans les compter séparément."
+                            >
+                              <Select value={selectedColor} onValueChange={setSelectedColor}>
+                                <SelectTrigger className={`${CLASSE_CHAMP} bg-white`}>
+                                  <SelectValue>{COLOR_MAP_FR[selectedColor] || selectedColor}</SelectValue>
+                                </SelectTrigger>
+                                <SelectContent className="max-h-60">
+                                  {COLORS.map(c => (
+                                    <SelectItem key={c} value={c} className="font-bold text-xs">{COLOR_MAP_FR[c] || c}</SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            </Champ>
                           </div>
                         )}
 
-                        {/* Badge de synthèse du produit */}
+                        {/* Désignation reconstituée */}
                         {computedArticleName && (
-                          <div className="p-2.5 rounded-xl bg-indigo-100/90 border border-indigo-300 flex items-center justify-between gap-2">
-                            <div className="flex items-center gap-2">
-                              <Sparkles className="w-4 h-4 text-indigo-600 shrink-0" />
-                              <div>
-                                <p className="text-[11px] font-black uppercase text-indigo-600 tracking-wider">Désignation Générée</p>
-                                <p className="text-xs font-black text-indigo-950">{computedArticleName}</p>
-                              </div>
+                          <div className="rounded-xl border border-indigo-200 bg-white p-3 flex items-start gap-2.5">
+                            <Sparkles className="w-4 h-4 text-indigo-600 shrink-0 mt-0.5" />
+                            <div className="min-w-0">
+                              <p className="text-[11px] font-medium text-stone-500 leading-snug">
+                                Nom sous lequel la marchandise apparaîtra en stock
+                              </p>
+                              <p className="text-[13px] font-black text-indigo-950 leading-tight mt-0.5 break-words">
+                                {computedArticleName}
+                              </p>
                             </div>
-                            <span className="text-[11px] font-black uppercase tracking-widest px-2 py-0.5 rounded-md bg-white text-indigo-700 border border-indigo-200">
-                              Catalogue
-                            </span>
                           </div>
                         )}
                       </div>
                     )}
                   </>
                 ) : (
-                  /* ── Mode Saisie Libre Hors Catalogue ── */
-                  <div className="space-y-1 bg-white/80 p-3.5 rounded-2xl border border-indigo-200">
-                    <Label className="text-[10px] font-black uppercase text-indigo-900">
-                      Désignation libre de la marchandise *
-                    </Label>
+                  /* Saisie libre : une nouvelle référence sera créée */
+                  <Champ
+                    label="Désignation de la marchandise"
+                    obligatoire
+                    htmlFor="marchandise-libre"
+                    aide="Écrire le nom tel qu'il devra se lire en réserve : matière, taille, couleur. Une référence sera créée sous ce nom."
+                  >
                     <Input
-                      placeholder="Ex: Tissu doublure sergé spécial, fil à coudre écru..."
+                      id="marchandise-libre"
+                      placeholder="Ex. Tissu doublure sergé écru 150 cm"
                       value={newArticleName}
                       onChange={e => setNewArticleName(e.target.value)}
-                      className="rounded-xl h-10 text-xs font-bold bg-white border-indigo-200"
+                      className={`${CLASSE_CHAMP} bg-white`}
                     />
-                  </div>
+                  </Champ>
                 )}
 
-                {/* ── 2b. Multi-qualités / Multi-couleurs (plusieurs lots dans le même achat marché) ── */}
+                {/* Plusieurs lots dans le même achat */}
                 {!isManualArticle && selectedCategoryName && (
-                  <div className="space-y-2">
-                    <QualityBreakdownInput
-                      value={qualityBreakdown}
-                      onChange={(rows, total) => {
-                        setQualityBreakdown(rows);
-                        if (rows && rows.length > 0) handleQtyChange(String(total));
-                      }}
-                      unit={newUnitOfMeasure}
-                      availableQualities={isFabric ? fabricQualities : isZipper ? zipperQualities : isThread ? threadQualities : isSlider ? sliderQualities : []}
-                      isFabric={isFabric}
-                      isZipper={isZipper}
-                      isThread={isThread}
-                      isSlider={isSlider}
-                    />
-                    {(!qualityBreakdown || qualityBreakdown.length === 0) && (
-                      <ColorBreakdownInput
-                        value={colorBreakdown}
+                  <Champ
+                    label="Plusieurs qualités ou plusieurs couleurs dans le même achat"
+                    aide="Détailler ici pour garder chaque lot séparé : une dépense sera enregistrée par ligne, et la quantité totale se reporte plus bas."
+                  >
+                    <div className="space-y-2">
+                      <QualityBreakdownInput
+                        value={qualityBreakdown}
                         onChange={(rows, total) => {
-                          setColorBreakdown(rows);
+                          setQualityBreakdown(rows);
                           if (rows && rows.length > 0) handleQtyChange(String(total));
                         }}
                         unit={newUnitOfMeasure}
+                        availableQualities={isFabric ? fabricQualities : isZipper ? zipperQualities : isThread ? threadQualities : isSlider ? sliderQualities : []}
+                        isFabric={isFabric}
+                        isZipper={isZipper}
+                        isThread={isThread}
+                        isSlider={isSlider}
                       />
-                    )}
+                      {(!qualityBreakdown || qualityBreakdown.length === 0) && (
+                        <ColorBreakdownInput
+                          value={colorBreakdown}
+                          onChange={(rows, total) => {
+                            setColorBreakdown(rows);
+                            if (rows && rows.length > 0) handleQtyChange(String(total));
+                          }}
+                          unit={newUnitOfMeasure}
+                        />
+                      )}
+                    </div>
+                  </Champ>
+                )}
+
+                {/* Combien, et à quel prix */}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
+                  <Champ
+                    label="Quantité"
+                    obligatoire
+                    htmlFor="marchandise-quantite"
+                    aide="Ce qui a réellement été emporté du marché."
+                  >
+                    <Input
+                      id="marchandise-quantite"
+                      type="number"
+                      step="any"
+                      min="0.1"
+                      placeholder="Ex. 25"
+                      value={newQuantity}
+                      onChange={e => handleQtyChange(e.target.value)}
+                      className={`${CLASSE_CHAMP} bg-white`}
+                      required
+                    />
+                  </Champ>
+
+                  <Champ
+                    label="Unité de comptage"
+                    aide="C'est dans cette unité que la réserve comptera la marchandise."
+                  >
+                    <Select value={newUnitOfMeasure} onValueChange={setNewUnitOfMeasure}>
+                      <SelectTrigger className={`${CLASSE_CHAMP} bg-white`}>
+                        <SelectValue>{UNIT_MAP_FR[newUnitOfMeasure] || newUnitOfMeasure}</SelectValue>
+                      </SelectTrigger>
+                      <SelectContent>
+                        {UNITS.map(u => (
+                          <SelectItem key={u} value={u} className="text-xs font-bold">{UNIT_MAP_FR[u] || u}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </Champ>
+
+                  <Champ
+                    label="Prix d'une unité (MAD)"
+                    obligatoire
+                    htmlFor="marchandise-prix"
+                    aide="Le prix d'une seule unité, pas le total payé."
+                  >
+                    <Input
+                      id="marchandise-prix"
+                      type="number"
+                      step="any"
+                      min="0"
+                      placeholder="Ex. 15,50"
+                      value={newUnitPrice}
+                      onChange={e => handlePriceChange(e.target.value)}
+                      className={`${CLASSE_CHAMP} bg-white`}
+                      required
+                    />
+                  </Champ>
+                </div>
+
+                {newQuantity && newUnitPrice && (
+                  <p className="text-[11px] font-medium text-stone-500 leading-snug">
+                    {newQuantity} {UNIT_MAP_FR[newUnitOfMeasure] || newUnitOfMeasure} × {newUnitPrice} MAD ={' '}
+                    <span className="font-black text-stone-900">{fmt$(totalLigneCalcule)}</span>, reporté sur le
+                    montant de l'étape 1.
+                  </p>
+                )}
+
+                {/* Suggestion du dernier prix payé */}
+                {lastOrderInfo?.price && (
+                  <div className="flex items-center justify-between gap-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] font-medium text-amber-900">
+                    <span>
+                      Dernier prix payé pour ce produit :{' '}
+                      <strong>{lastOrderInfo.price} MAD / {lastOrderInfo.unitOfMeasure || 'unité'}</strong>
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => handlePriceChange(String(lastOrderInfo.price))}
+                      className="shrink-0 text-[11px] font-black underline hover:text-amber-950"
+                    >
+                      Reprendre ce prix
+                    </button>
                   </div>
                 )}
 
-                {/* ── 3. Quantité & Prix d'Achat Constaté ── */}
-                <div className="space-y-2 pt-1">
-                  <SectionLabel icon={<DollarSign className="w-3 h-3" />} label="3. Quantité & Prix Achat Constaté" />
+                <Champ
+                  label="Vendeur ou grossiste"
+                  htmlFor="marchandise-vendeur"
+                  aide="Facultatif. Le nom reste sur la ligne de dépense et permet de retrouver plus tard chez qui la marchandise a été prise."
+                >
+                  <Input
+                    id="marchandise-vendeur"
+                    list="known-suppliers-list"
+                    placeholder="Ex. Grossiste Derb Omar"
+                    value={newSupplierName}
+                    onChange={e => setNewSupplierName(e.target.value)}
+                    className={`${CLASSE_CHAMP} bg-white`}
+                  />
+                  <datalist id="known-suppliers-list">
+                    {knownSuppliers.map(s => <option key={s} value={s} />)}
+                  </datalist>
+                </Champ>
+              </SectionFormulaire>
+            )}
 
-                  <div className="grid grid-cols-3 gap-2 bg-white/90 p-3 rounded-2xl border border-indigo-200">
-                    <div className="space-y-1">
-                      <Label className="text-[10px] font-black uppercase text-indigo-900">Quantité *</Label>
-                      <Input
-                        type="number"
-                        step="any"
-                        min="0.1"
-                        placeholder="Ex: 25"
-                        value={newQuantity}
-                        onChange={e => handleQtyChange(e.target.value)}
-                        className="rounded-xl h-9 text-xs font-bold bg-white border-indigo-200"
-                        required
-                      />
-                    </div>
+            {/* ── 3. Où la faire entrer ? (achat au marché) ── */}
+            {estAchatMarchandise && (
+              <SectionFormulaire
+                numero={3}
+                titre="Où la faire entrer ?"
+                aide="Une marchandise achetée au marché entre dans une réserve, jamais directement au comptoir."
+              >
+                <Encadre ton="attention" titre="Elle entre en réserve, pas en boutique">
+                  La réserve compte dans le stock du magasin principal : la marchandise y est vendable sans transfert. Une boutique secondaire, elle, doit d'abord la recevoir.
+                </Encadre>
 
-                    <div className="space-y-1">
-                      <Label className="text-[10px] font-black uppercase text-indigo-900">Unité</Label>
-                      <Select value={newUnitOfMeasure} onValueChange={setNewUnitOfMeasure}>
-                        <SelectTrigger className="rounded-xl h-9 text-xs font-bold bg-white border-indigo-200">
-                          <SelectValue>{UNIT_MAP_FR[newUnitOfMeasure] || newUnitOfMeasure}</SelectValue>
-                        </SelectTrigger>
-                        <SelectContent>
-                          {UNITS.map(u => (
-                            <SelectItem key={u} value={u} className="text-xs font-bold">{UNIT_MAP_FR[u] || u}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-
-                    <div className="space-y-1">
-                      <Label className="text-[10px] font-black uppercase text-indigo-900">P.U Achat (MAD) *</Label>
-                      <Input
-                        type="number"
-                        step="any"
-                        min="0"
-                        placeholder="Ex: 15.50"
-                        value={newUnitPrice}
-                        onChange={e => handlePriceChange(e.target.value)}
-                        className="rounded-xl h-9 text-xs font-bold bg-white border-indigo-200"
-                        required
-                      />
-                    </div>
-                  </div>
-
-                  {/* Suggestion dernier prix d'achat */}
-                  {lastOrderInfo?.price && (
-                    <div className="flex items-center justify-between text-[10px] font-bold px-3 py-1.5 bg-amber-50 rounded-xl border border-amber-200 text-amber-900">
-                      <span>💡 Dernier prix constaté dans les commandes : <strong>{lastOrderInfo.price} MAD/{lastOrderInfo.unitOfMeasure || 'unité'}</strong></span>
-                      <button
-                        type="button"
-                        onClick={() => handlePriceChange(String(lastOrderInfo.price))}
-                        className="text-[11px] font-black uppercase underline hover:text-amber-950 ml-2"
-                      >
-                        Appliquer ce prix
-                      </button>
-                    </div>
-                  )}
-
-                  {/* Total calculé en direct */}
-                  {newQuantity && newUnitPrice && (
-                    <div className="p-3 bg-stone-900 rounded-2xl text-white flex justify-between items-center shadow-sm">
-                      <div className="text-[10px] uppercase font-bold text-stone-300">
-                        Total calculé : <span className="text-amber-400 font-black">{newQuantity} {newUnitOfMeasure} × {newUnitPrice} MAD</span>
-                      </div>
-                      <div className="text-base font-black text-amber-400">
-                        {fmt$(Number(newAmount) || 0)}
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                {/* ── 4. Fournisseur & Entrée Stock ── */}
-                <div className="space-y-2 pt-1">
-                  <SectionLabel icon={<Building2 className="w-3 h-3" />} label="4. Vendeur Marché & Entrée Stock" />
-
-                  <div className="space-y-1">
-                    <Label className="text-[10px] font-black uppercase text-indigo-900">
-                      Grossiste / Vendeur du marché (Optionnel)
-                    </Label>
-                    <Input
-                      list="known-suppliers-list"
-                      placeholder="Ex: Grossiste Derb Omar, Tissus Maroc..."
-                      value={newSupplierName}
-                      onChange={e => setNewSupplierName(e.target.value)}
-                      className="rounded-xl h-9 text-xs font-bold bg-white border-indigo-200"
-                    />
-                    <datalist id="known-suppliers-list">
-                      {knownSuppliers.map(s => <option key={s} value={s} />)}
-                    </datalist>
-                  </div>
-
-                  {/* Sélection de l'Entrepôt de destination */}
-                  <div className="p-3.5 rounded-2xl bg-amber-50/90 border border-amber-200 space-y-2">
-                    <div className="flex items-center justify-between">
-                      <Label className="text-[10px] font-black uppercase tracking-wider text-amber-900 flex items-center gap-1.5">
-                        <Building2 className="w-3.5 h-3.5 text-amber-700" />
-                        Sélection de l'Entrepôt de destination *
-                      </Label>
-                      <span className="text-[11px] font-black uppercase px-2 py-0.5 rounded-md bg-amber-200 text-amber-900">
-                        {warehouseOptions.length} entrepôt{warehouseOptions.length > 1 ? 's' : ''}
-                      </span>
-                    </div>
-
-                    {warehouseOptions.length === 0 ? (
-                      <div className="p-3 bg-white rounded-xl border border-amber-300 text-amber-900 text-xs font-medium">
-                        Aucun entrepôt configuré dans le système. Vous pouvez créer vos entrepôts personnalisés dans l'onglet <strong>Paramètres</strong> / <strong>Entrepôts</strong>.
-                      </div>
-                    ) : (
-                      <Select value={newWarehouseId} onValueChange={setNewWarehouseId}>
-                        <SelectTrigger className="rounded-xl h-10 text-xs font-black bg-white border-amber-300 shadow-sm">
-                          <SelectValue placeholder="Choisir l'entrepôt" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {warehouseOptions.map(wh => (
-                            <SelectItem key={wh.id} value={wh.id} className="text-xs font-bold">
-                              🏭 {wh.name} ({wh.id})
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    )}
-
-                    {/* Emplacement précis — proposé seulement si l'entrepôt est découpé en zones */}
-                    {expenseLocations.length > 0 && (
-                      <div className="mt-2">
-                        <p className="text-[10px] font-black uppercase tracking-widest text-amber-800 mb-1 flex items-center gap-1">
-                          <MapPin className="w-3 h-3" /> Où ranger la marchandise
-                        </p>
-                        <Select
-                          value={newLocationCode || '__NONE__'}
-                          onValueChange={v => setNewLocationCode(v === '__NONE__' ? '' : v)}
-                        >
-                          <SelectTrigger className="rounded-xl h-10 text-xs font-black bg-white border-amber-300 shadow-sm">
-                            <SelectValue placeholder="Non précisé" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="__NONE__" className="text-xs font-bold">Non précisé</SelectItem>
-                            {expenseLocations.map(l => (
-                              <SelectItem key={l.id} value={l.code} className="text-xs font-bold font-mono">
-                                📍 {l.code}{l.label ? ` — ${l.label}` : ''}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Case à cocher : Entrée automatique en stock entrepôt */}
-                  <div className="flex items-start gap-2.5 bg-white p-3 rounded-2xl border border-indigo-200 shadow-sm">
+                <Champ
+                  label="Faire entrer la marchandise en stock"
+                  aide="Cochée, cette case crée le produit et son entrée dans la réserve choisie ci-dessous. Décochée, seule la dépense est enregistrée et rien ne bouge en stock."
+                >
+                  <label
+                    htmlFor="addToStock"
+                    className="flex items-start gap-2.5 rounded-2xl border border-stone-200 bg-white p-3 cursor-pointer"
+                  >
                     <input
                       type="checkbox"
                       id="addToStock"
@@ -1743,114 +1851,157 @@ export default function CommercialExpensesView({
                       onChange={e => setNewAddToStock(e.target.checked)}
                       className="w-4 h-4 mt-0.5 rounded text-indigo-600 cursor-pointer"
                     />
-                    <label htmlFor="addToStock" className="text-[11px] text-indigo-950 font-bold leading-tight cursor-pointer">
-                      <span className="font-black flex items-center gap-1.5">
-                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                        Faire entrer automatiquement cette marchandise dans l'entrepôt sélectionné
-                      </span>
-                      <span className="block text-[10px] text-indigo-700 font-normal mt-0.5">
-                        Crée l'article et le mouvement IN directement dans {warehouseOptions.find(w => w.id === newWarehouseId)?.name || 'l\'entrepôt sélectionné'}.
-                      </span>
-                    </label>
-                  </div>
-                </div>
-              </div>
+                    <span className="text-[13px] font-bold text-stone-800 leading-snug">
+                      Créer le produit et son entrée dans {nomEntrepotChoisi}
+                    </span>
+                  </label>
+                </Champ>
+
+                <Champ
+                  label="Réserve de destination"
+                  obligatoire
+                  aide="C'est dans cette réserve que la marchandise sera comptée."
+                  indice={warehouseOptions.length > 0 ? `${warehouseOptions.length} réserve${warehouseOptions.length > 1 ? 's' : ''}` : undefined}
+                >
+                  {warehouseOptions.length === 0 ? (
+                    <Encadre ton="attention">
+                      Aucune réserve n'est encore configurée. Elles se créent dans l'onglet <strong>Paramètres</strong>,
+                      rubrique <strong>Entrepôts</strong>.
+                    </Encadre>
+                  ) : (
+                    <Select value={newWarehouseId} onValueChange={setNewWarehouseId}>
+                      <SelectTrigger className={`${CLASSE_CHAMP} bg-white`}>
+                        <SelectValue placeholder="Choisir la réserve" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {warehouseOptions.map(wh => (
+                          <SelectItem key={wh.id} value={wh.id} className="text-xs font-bold">
+                            {wh.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
+                </Champ>
+
+                {expenseLocations.length > 0 && (
+                  <Champ
+                    label={<span className="inline-flex items-center gap-1.5"><MapPin className="w-3.5 h-3.5 text-amber-600" /> Emplacement dans la réserve</span>}
+                    aide="Le rayon où la marchandise sera rangée. Sans emplacement, elle entre bien en stock, mais personne ne saura où aller la chercher."
+                  >
+                    <Select
+                      value={newLocationCode || '__NONE__'}
+                      onValueChange={v => setNewLocationCode(v === '__NONE__' ? '' : v)}
+                    >
+                      <SelectTrigger className={`${CLASSE_CHAMP} bg-white`}>
+                        <SelectValue placeholder="Non précisé" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="__NONE__" className="text-xs font-bold">Non précisé</SelectItem>
+                        {expenseLocations.map(l => (
+                          <SelectItem key={l.id} value={l.code} className="text-xs font-bold font-mono">
+                            {l.code}{l.label ? ` — ${l.label}` : ''}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </Champ>
+                )}
+              </SectionFormulaire>
             )}
 
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1">
-                <Label className="text-[10px] font-black uppercase text-stone-500">Date</Label>
-                <Input
-                  type="date"
-                  value={newDate}
-                  onChange={e => setNewDate(e.target.value)}
-                  className="rounded-xl h-10 text-xs font-bold"
-                  required
-                />
-              </div>
-
-              <div className="space-y-1">
-                <Label className="text-[10px] font-black uppercase text-stone-500">Montant Total (MAD) *</Label>
-                <Input
-                  type="number"
-                  step="any"
-                  min="0.1"
-                  placeholder="Ex: 250"
-                  value={newAmount}
-                  onChange={e => setNewAmount(e.target.value)}
-                  className="rounded-xl h-10 text-xs font-bold"
-                  required
-                />
-              </div>
-            </div>
-
-            <div className="space-y-1">
-              <Label className="text-[10px] font-black uppercase text-stone-500">
-                {newCategory === 'ACHAT_MARCHANDISE' ? 'Précisions / Note supplémentaire' : 'Motif / Description *'}
-              </Label>
-              <Input
-                placeholder={newCategory === 'ACHAT_MARCHANDISE' ? 'Note ou détail pour la caisse / comptabilité' : 'Ex: Plein carburant camionnette tournée Derb Omar'}
-                value={newDescription}
-                onChange={e => setNewDescription(e.target.value)}
-                className="rounded-xl h-10 text-xs font-bold"
-                required={newCategory !== 'ACHAT_MARCHANDISE'}
-              />
-            </div>
-
-            {/* Magasin rattaché uniquement pour les frais généraux (pas pour l'achat marchandise qui va à l'Entrepôt) */}
-            {newCategory !== 'ACHAT_MARCHANDISE' && (
-              <div className="space-y-1">
-                <Label className="text-[10px] font-black uppercase text-stone-500">Magasin rattaché</Label>
-                <Select value={newStoreId} onValueChange={setNewStoreId}>
-                  <SelectTrigger className="rounded-xl h-10 text-xs font-bold">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {stores.map(s => (
-                      <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+            {/* ── 2. Qui supporte la dépense ? (dépense ordinaire) ── */}
+            {!estAchatMarchandise && (
+              <SectionFormulaire
+                numero={2}
+                titre="Quel magasin supporte la dépense ?"
+                aide="Le montant est rattaché à ce magasin dans les relevés. Le stock n'est pas touché."
+              >
+                <Champ
+                  label="Magasin rattaché"
+                  obligatoire
+                  aide="Choisir le magasin pour le compte duquel la dépense a été faite."
+                >
+                  <Select value={newStoreId} onValueChange={setNewStoreId}>
+                    <SelectTrigger className={CLASSE_CHAMP}>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {stores.map(s => (
+                        <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </Champ>
+              </SectionFormulaire>
             )}
 
-            {/* Photo / Justificatif du reçu */}
-            <div className="space-y-1 pt-1">
-              <Label className="text-[10px] font-black uppercase text-stone-500 flex items-center gap-1.5">
-                <Camera className="w-3.5 h-3.5 text-stone-400" />
-                <span>Photo du bon / ticket de caisse / reçu marché</span>
-              </Label>
-              <input
-                type="file"
-                accept="image/*"
-                capture="environment"
-                onChange={handleReceiptFile}
-                className="w-full text-xs file:mr-3 file:py-2 file:px-3 file:rounded-xl file:border-0 file:text-xs file:font-black file:bg-stone-100 file:text-stone-700 hover:file:bg-stone-200 cursor-pointer"
-              />
-              {newReceiptUrl && (
-                <p className="text-[10px] text-emerald-600 font-black flex items-center gap-1 mt-1">
-                  <Check className="w-3 h-3" /> Justificatif photo chargé avec succès
-                </p>
+            {/* ── Relecture avant enregistrement ── */}
+            <div className="space-y-3">
+              <Recapitulatif titre="Avant d'enregistrer">
+                <LigneResume libelle="Catégorie" valeur={CATEGORY_CONFIG[newCategory]?.label || '—'} />
+                <LigneResume libelle="Date" valeur={newDate || '—'} />
+                {estAchatMarchandise ? (
+                  <>
+                    <LigneResume libelle="Marchandise" valeur={apercuMarchandise || '—'} />
+                    <LigneResume
+                      libelle="Quantité"
+                      valeur={newQuantity ? `${newQuantity} ${UNIT_MAP_FR[newUnitOfMeasure] || newUnitOfMeasure}` : '—'}
+                    />
+                    <LigneResume libelle="Prix d'une unité" valeur={newUnitPrice ? fmt$(Number(newUnitPrice)) : '—'} />
+                    {nbLots > 0 && (
+                      <LigneResume
+                        libelle="Lots détaillés"
+                        valeur={`${nbLots} ligne${nbLots > 1 ? 's' : ''} — une dépense par lot`}
+                      />
+                    )}
+                    <LigneResume
+                      libelle="Entrée en stock"
+                      ton={newAddToStock ? 'positif' : 'alerte'}
+                      valeur={newAddToStock
+                        ? `${nomEntrepotChoisi}${newLocationCode ? ` · ${newLocationCode}` : ''}`
+                        : "Aucune — rien n'entre en stock"}
+                    />
+                  </>
+                ) : (
+                  <LigneResume libelle="Magasin" valeur={stores.find(s => s.id === newStoreId)?.name || '—'} />
+                )}
+                <LigneResume
+                  libelle={montantReelLots !== null ? `Sort de la caisse — ${nbLots} dépense${nbLots > 1 ? 's' : ''}` : 'Sort de la caisse'}
+                  valeur={fmt$(montantReelLots !== null ? montantReelLots : (Number(newAmount) || 0))}
+                  fort
+                />
+                {ecartMontant && (
+                  <LigneResume libelle="Quantité × prix d'une unité" valeur={fmt$(totalLigneCalcule)} ton="alerte" />
+                )}
+              </Recapitulatif>
+
+              {ecartMontant && (
+                <Encadre ton="attention" titre="Le montant ne correspond pas au calcul">
+                  Le montant de l'étape 1 n'est pas égal à la quantité multipliée par le prix d'une unité. Corriger
+                  l'un des trois avant d'enregistrer, sinon la caisse et le stock ne raconteront pas la même chose.
+                </Encadre>
               )}
-            </div>
 
-            <DialogFooter className="pt-4 flex justify-between items-center gap-2">
-              <Button
+              <BoutonValider
+                type="submit"
+                enCours={saving}
+                raisonDesactive={raisonBoutonDesactive}
+                className="!bg-amber-500 hover:!bg-amber-600 !text-stone-950"
+              >
+                {estAchatMarchandise && newAddToStock
+                  ? "Enregistrer la dépense et l'entrée en stock"
+                  : 'Enregistrer la dépense'}
+              </BoutonValider>
+
+              <button
                 type="button"
-                variant="outline"
                 onClick={() => setIsModalOpen(false)}
-                className="rounded-xl text-xs font-bold"
+                className="w-full text-[11px] font-bold text-stone-500 hover:text-stone-800 transition-colors"
               >
                 Annuler
-              </Button>
-              <Button
-                type="submit"
-                disabled={saving}
-                className="bg-amber-500 hover:bg-amber-600 text-stone-950 font-black text-xs uppercase px-5 rounded-xl shadow-md"
-              >
-                {saving ? 'Enregistrement...' : 'Enregistrer la Dépense'}
-              </Button>
-            </DialogFooter>
+              </button>
+            </div>
           </form>
         </DialogContent>
       </Dialog>
@@ -1859,7 +2010,7 @@ export default function CommercialExpensesView({
       <Dialog open={!!previewImage} onOpenChange={() => setPreviewImage(null)}>
         <DialogContent className="max-w-lg p-3 bg-stone-900 border-stone-800 rounded-3xl overflow-hidden">
           <div className="flex justify-between items-center p-2 text-white">
-            <DialogTitle className="text-xs font-black uppercase tracking-wider">Justificatif / Reçu</DialogTitle>
+            <DialogTitle className="text-sm font-black tracking-tight">Justificatif de la dépense</DialogTitle>
             <Button
               variant="ghost"
               size="sm"

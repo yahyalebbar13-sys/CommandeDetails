@@ -4,13 +4,15 @@ import React, { useState, useMemo } from 'react';
 import { UserPlus, Search, Phone, Mail, FileText, CreditCard, ChevronLeft, Edit2, Check, X, Users, TrendingUp, Printer, Plus, Trash2, AlertCircle, CheckCircle2, Camera, Clock, Building2, Banknote, FileCheck, Landmark, MoreHorizontal } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import type { Client, SaleOrder, Invoice, ClientPayment, PaymentMethod, InvoiceStatus } from '@/lib/types';
 import { cleanUndefined } from '@/lib/utils';
 import { centimes, repartirSurFactures, statutFacture } from '@/lib/reglement';
 import { useToast } from '@/hooks/use-toast';
+import {
+  SectionFormulaire, Champ, Encadre, LigneResume, Recapitulatif, BoutonValider, CLASSE_CHAMP,
+} from './ui-formulaire';
 
 interface StockClientsProps {
   clients: Client[];
@@ -34,6 +36,12 @@ const CATEGORY_BADGE: Record<string, { label: string; cls: string }> = {
   GROSSISTE:       { label: 'Grossiste',       cls: 'bg-violet-100 text-violet-700' },
   SEMI_GROSSISTE:  { label: 'Semi-grossiste',  cls: 'bg-blue-100 text-blue-700' },
   DETAILLANT:      { label: 'Détaillant',       cls: 'bg-emerald-100 text-emerald-700' },
+};
+
+/** Le nom du mode de règlement tel qu'on le dit au magasin, pour l'en-tête de chaque ligne. */
+const LIBELLE_MODE: Record<string, string> = {
+  CASH: 'Espèces', CHEQUE: 'Chèque', EFFET: 'LC (effet)', LC: 'LC (effet)', LCN: 'LC (effet)',
+  VIREMENT: 'Virement bancaire', AUTRE: 'Autre mode',
 };
 
 interface PaymentLineState {
@@ -353,6 +361,63 @@ export default function StockClients({ clients, orders, invoices, payments, user
   const totalPaymentEntered = paymentLines.reduce((sum, l) => sum + (parseFloat(l.amount) || 0), 0);
   const diffBalance = selBalance - totalPaymentEntered;
 
+  const estPapier = (m: PaymentMethod) => m === 'CHEQUE' || m === 'LC' || m === 'EFFET' || m === 'LCN';
+
+  /** Une ligne chiffrée sur un chèque / une LC, mais sans son scan : le règlement reste bloqué. */
+  const manqueScanReglement = paymentLines.some(
+    l => (parseFloat(l.amount) || 0) > 0 && estPapier(l.method) && !l.scannedImageUrl?.trim()
+  );
+
+  /** Pourquoi le bouton de validation est grisé, en une phrase. Vide = il est actif. */
+  const raisonReglementDesactive =
+    totalPaymentEntered <= 0
+      ? 'Saisir au moins un montant supérieur à 0 pour pouvoir valider.'
+      : manqueScanReglement
+        ? "Il manque le scan d'un chèque ou d'une LC : c'est la seule preuve du document en cas d'impayé."
+        : null;
+
+  /**
+   * AFFICHAGE SEUL. Rejoue l'imputation que la validation fera — de la facture la plus ancienne à
+   * la plus récente, une ligne pouvant en solder plusieurs — pour la montrer avant de valider.
+   * Rien n'est enregistré ici : les mêmes fonctions servent, dans le même ordre.
+   */
+  const apercuImputation = (() => {
+    if (!globalPaymentOpen) return [] as { facture: Invoice; impute: number; resteApres: number }[];
+    const lignesChiffrees = paymentLines.filter(l => (parseFloat(l.amount) || 0) > 0);
+    if (lignesChiffrees.length === 0) return [];
+    const ouvertes = selInvoices
+      .filter(i => i.status !== 'CANCELLED')
+      .map(i => ({
+        facture: i,
+        reste: centimes(
+          typeof i.remainingBalance === 'number'
+            ? i.remainingBalance
+            : Math.max(0, (i.totalAfterDiscount || 0) - (i.paidAmount || 0))
+        ),
+      }))
+      .filter(i => i.reste > 0)
+      .sort((a, b) => a.facture.date.localeCompare(b.facture.date));
+
+    const soldes = ouvertes.map(o => ({ id: o.facture.id, reste: o.reste }));
+    const impute = new Map<string, number>();
+    for (const ligne of lignesChiffrees) {
+      for (const part of repartirSurFactures(parseFloat(ligne.amount), soldes)) {
+        const cible = soldes.find(x => x.id === part.invoiceId);
+        if (cible) cible.reste = centimes(cible.reste - part.amount);
+        impute.set(part.invoiceId, centimes((impute.get(part.invoiceId) || 0) + part.amount));
+      }
+    }
+    return ouvertes
+      .filter(o => (impute.get(o.facture.id) || 0) > 0)
+      .map(o => {
+        const montant = impute.get(o.facture.id) || 0;
+        return { facture: o.facture, impute: montant, resteApres: Math.max(0, centimes(o.reste - montant)) };
+      });
+  })();
+
+  /** Un chèque ou une LC dans le lot : les factures qu'il couvre restent « en attente ». */
+  const reglementAvecPapier = paymentLines.some(l => (parseFloat(l.amount) || 0) > 0 && estPapier(l.method));
+
   const printClientStatement = () => {
     if (!selected) return;
     const w = window.open('', '_blank');
@@ -482,47 +547,146 @@ export default function StockClients({ clients, orders, invoices, payments, user
       </div>
 
       {editMode && (
-        <div className="bg-white rounded-2xl shadow-lg border border-stone-100 p-5 grid grid-cols-2 gap-3 mt-4">
-          {[
-            { key: 'phone', label: 'Téléphone', placeholder: '+212 6...' },
-            { key: 'email', label: 'Email', placeholder: 'email@example.com' },
-            { key: 'address', label: 'Adresse', placeholder: 'Ville, quartier...' },
-            { key: 'ice', label: 'ICE', placeholder: 'N° ICE' },
-            { key: 'identifiantFiscal', label: 'IF', placeholder: 'Identifiant Fiscal' },
-            { key: 'notes', label: 'Notes', placeholder: 'Remarques...' },
-          ].map(({ key, label, placeholder }) => (
-            <div key={key} className="space-y-1">
-              <Label className="text-[11px] font-black text-stone-500 uppercase tracking-widest">{label}</Label>
-              <Input value={(editForm as any)[key] ?? (selected as any)[key] ?? ''} placeholder={placeholder}
-                onChange={e => setEditForm(f => ({ ...f, [key]: e.target.value }))}
-                className="h-9 rounded-xl border-stone-200 font-bold text-sm" />
+        <div className="bg-white rounded-2xl shadow-lg border border-stone-100 p-5 space-y-6 mt-4">
+          <Encadre ton="info" titre="Modification de la fiche">
+            Le nom se corrige directement en haut de la fiche. Pour garder les changements, utiliser
+            le bouton ✓ de l'en-tête ; le bouton ✕ juste à côté les abandonne.
+          </Encadre>
+
+          <SectionFormulaire
+            numero={1}
+            titre="Comment joindre ce client ?"
+            aide="Servent aux relances. Le téléphone et l'adresse figurent sur le relevé de compte imprimé, l'adresse électronique non."
+          >
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+              <Champ label="Téléphone" htmlFor="edit-phone">
+                <Input
+                  id="edit-phone"
+                  value={editForm.phone ?? selected.phone ?? ''}
+                  placeholder="+212 6..."
+                  onChange={e => setEditForm(f => ({ ...f, phone: e.target.value }))}
+                  className={CLASSE_CHAMP}
+                />
+              </Champ>
+              <Champ label="Adresse électronique" htmlFor="edit-email">
+                <Input
+                  id="edit-email"
+                  value={editForm.email ?? selected.email ?? ''}
+                  placeholder="email@example.com"
+                  onChange={e => setEditForm(f => ({ ...f, email: e.target.value }))}
+                  className={CLASSE_CHAMP}
+                />
+              </Champ>
+              <Champ
+                label="Adresse"
+                htmlFor="edit-address"
+                aide="Ville et quartier suffisent : c'est ce qui est imprimé sur le relevé."
+                className="sm:col-span-2"
+              >
+                <Input
+                  id="edit-address"
+                  value={editForm.address ?? selected.address ?? ''}
+                  placeholder="Ville, quartier..."
+                  onChange={e => setEditForm(f => ({ ...f, address: e.target.value }))}
+                  className={CLASSE_CHAMP}
+                />
+              </Champ>
             </div>
-          ))}
-          <div className="space-y-1">
-            <Label className="text-[11px] font-black text-stone-500 uppercase tracking-widest">Catégorie</Label>
-            <Select value={editForm.category ?? selected.category ?? ''} onValueChange={v => setEditForm(f => ({ ...f, category: v as any }))}>
-              <SelectTrigger className="h-9 rounded-xl border-stone-200 text-sm font-bold">
-                <SelectValue placeholder="Catégorie" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="GROSSISTE">Grossiste</SelectItem>
-                <SelectItem value="SEMI_GROSSISTE">Semi-grossiste</SelectItem>
-                <SelectItem value="DETAILLANT">Détaillant</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="space-y-1">
-            <Label className="text-[11px] font-black text-stone-500 uppercase tracking-widest">Plafond de crédit</Label>
-            <Input type="number" value={editForm.creditLimit ?? selected.creditLimit ?? ''} placeholder="0"
-              onChange={e => setEditForm(f => ({ ...f, creditLimit: parseFloat(e.target.value) || 0 }))}
-              className="h-9 rounded-xl border-stone-200 font-bold text-sm" />
-          </div>
-          <div className="col-span-2 flex items-center space-x-2 mt-2">
-            <input type="checkbox" id="creditBlockedEdit" checked={editForm.creditBlocked ?? selected.creditBlocked ?? false}
-              onChange={e => setEditForm(f => ({ ...f, creditBlocked: e.target.checked }))}
-              className="rounded border-stone-300 w-4 h-4" />
-            <Label htmlFor="creditBlockedEdit" className="text-sm font-bold text-red-600">Bloquer le crédit</Label>
-          </div>
+          </SectionFormulaire>
+
+          <SectionFormulaire
+            numero={2}
+            titre="Numéros de facturation"
+            aide="À remplir seulement pour un client qui réclame une facture à son nom d'entreprise. Ces numéros sont repris tels quels sur la facture."
+          >
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+              <Champ label="ICE" htmlFor="edit-ice" aide="Identifiant commun de l'entreprise, sur les papiers du client.">
+                <Input
+                  id="edit-ice"
+                  value={editForm.ice ?? selected.ice ?? ''}
+                  placeholder="N° ICE"
+                  onChange={e => setEditForm(f => ({ ...f, ice: e.target.value }))}
+                  className={CLASSE_CHAMP}
+                />
+              </Champ>
+              <Champ label="Identifiant fiscal" htmlFor="edit-if" aide="Appelé « IF » sur les documents officiels.">
+                <Input
+                  id="edit-if"
+                  value={editForm.identifiantFiscal ?? selected.identifiantFiscal ?? ''}
+                  placeholder="Identifiant Fiscal"
+                  onChange={e => setEditForm(f => ({ ...f, identifiantFiscal: e.target.value }))}
+                  className={CLASSE_CHAMP}
+                />
+              </Champ>
+            </div>
+          </SectionFormulaire>
+
+          <SectionFormulaire
+            numero={3}
+            titre="Jusqu'où peut-il acheter à crédit ?"
+            aide="C'est cette partie qui autorise ou refuse une vente non payée en caisse."
+          >
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+              <Champ
+                label="Catégorie"
+                htmlFor="edit-category"
+                aide="Sert à classer et à filtrer la liste des clients. Elle n'a aucun effet sur les prix de vente."
+              >
+                <Select value={editForm.category ?? selected.category ?? ''} onValueChange={v => setEditForm(f => ({ ...f, category: v as any }))}>
+                  <SelectTrigger id="edit-category" className={CLASSE_CHAMP}>
+                    <SelectValue placeholder="Catégorie" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="GROSSISTE">Grossiste</SelectItem>
+                    <SelectItem value="SEMI_GROSSISTE">Semi-grossiste</SelectItem>
+                    <SelectItem value="DETAILLANT">Détaillant</SelectItem>
+                  </SelectContent>
+                </Select>
+              </Champ>
+              <Champ
+                label="Plafond de crédit (MAD)"
+                htmlFor="edit-credit"
+                aide="Au-delà de ce reste dû, la caisse demande une confirmation avant de vendre à crédit. Laisser 0 revient à ne poser aucun plafond."
+                indice={`Reste dû : ${fmt$(selBalance)} MAD`}
+              >
+                <Input
+                  id="edit-credit"
+                  type="number"
+                  value={editForm.creditLimit ?? selected.creditLimit ?? ''}
+                  placeholder="0"
+                  onChange={e => setEditForm(f => ({ ...f, creditLimit: parseFloat(e.target.value) || 0 }))}
+                  className={CLASSE_CHAMP}
+                />
+              </Champ>
+            </div>
+            <label htmlFor="creditBlockedEdit" className="flex items-start gap-2.5 rounded-xl border border-stone-200 p-3 cursor-pointer hover:bg-stone-50 transition-colors">
+              <input type="checkbox" id="creditBlockedEdit" checked={editForm.creditBlocked ?? selected.creditBlocked ?? false}
+                onChange={e => setEditForm(f => ({ ...f, creditBlocked: e.target.checked }))}
+                className="rounded border-stone-300 w-4 h-4 mt-0.5" />
+              <span className="min-w-0">
+                <span className="block text-[13px] font-bold text-rose-700 leading-tight">Bloquer le crédit</span>
+                <span className="block text-[11px] font-medium text-stone-500 leading-snug mt-0.5">
+                  Interdit toute nouvelle vente à crédit, même si le plafond n'est pas atteint. À utiliser pour un client qui ne règle plus.
+                </span>
+              </span>
+            </label>
+          </SectionFormulaire>
+
+          <SectionFormulaire
+            numero={4}
+            titre="Quelque chose à signaler ?"
+            aide="Se relit en rouvrant la fiche en modification. Ce n'est pas un message qui s'affiche à la vente."
+          >
+            <Champ label="Remarques" htmlFor="edit-notes">
+              <Input
+                id="edit-notes"
+                value={editForm.notes ?? selected.notes ?? ''}
+                placeholder="Remarques..."
+                onChange={e => setEditForm(f => ({ ...f, notes: e.target.value }))}
+                className={CLASSE_CHAMP}
+              />
+            </Champ>
+          </SectionFormulaire>
         </div>
       )}
 
@@ -820,37 +984,45 @@ export default function StockClients({ clients, orders, invoices, payments, user
             </div>
           </div>
 
-          <div className="p-5 space-y-4 bg-white max-h-[72vh] overflow-y-auto">
-            {/* Info répartition automatique */}
-            <div className="flex items-center gap-2 bg-emerald-50 text-emerald-900 text-[11px] p-3 rounded-xl font-bold">
-              <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-              <span>Ce règlement sera automatiquement affecté aux factures impayées du client (de la plus ancienne à la plus récente).</span>
-            </div>
+          <div className="p-5 space-y-7 bg-white max-h-[72vh] overflow-y-auto">
+            <SectionFormulaire
+              numero={1}
+              titre="Combien reçoit-on ?"
+              aide="Une ligne par moyen de paiement. Si le client règle une partie en espèces et le reste par chèque, ajouter une deuxième ligne plutôt que d'additionner."
+            >
+              <Champ
+                label="Date du règlement"
+                obligatoire
+                htmlFor="reglement-date"
+                aide="Le jour où l'argent est remis, pas celui de la facture. C'est cette date qui apparaît dans l'historique des paiements."
+              >
+                <Input
+                  id="reglement-date"
+                  type="date"
+                  value={globalPaymentDate}
+                  onChange={e => setGlobalPaymentDate(e.target.value)}
+                  className={`${CLASSE_CHAMP} max-w-xs`}
+                />
+              </Champ>
 
-            {/* Date générale de transaction */}
-            <div className="flex items-center gap-3">
-              <Label className="text-[10px] font-black text-stone-500 uppercase tracking-widest shrink-0">Date du règlement :</Label>
-              <Input
-                type="date"
-                value={globalPaymentDate}
-                onChange={e => setGlobalPaymentDate(e.target.value)}
-                className="h-10 rounded-xl border-stone-200 font-bold text-xs max-w-xs"
-              />
-            </div>
+              {reglementAvecPapier && (
+                <Encadre ton="attention" titre="Un chèque ou une LC n'est pas encore de l'argent">
+                  Les factures couvertes par un chèque ou une lettre de change restent « en attente »
+                  jusqu'à l'encaissement en banque. Le reste dû du client ne baisse vraiment qu'à ce
+                  moment-là.
+                </Encadre>
+              )}
 
-            {/* Lignes de paiements (Multi-Modes) */}
-            <div className="space-y-4 pt-2">
-              <div className="flex items-center justify-between">
-                <Label className="text-[10px] font-black text-stone-800 uppercase tracking-widest">
-                  Modes de règlement ({paymentLines.length})
-                </Label>
-                <div className="flex items-center gap-1.5">
+              {/* Lignes de paiements (Multi-Modes) */}
+              <div className="space-y-4">
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <span className="text-[11px] font-bold text-stone-500 mr-1">Ajouter une ligne :</span>
                   <Button
                     type="button"
                     variant="outline"
                     size="sm"
                     onClick={() => addPaymentLine('CASH')}
-                    className="h-7 text-[11px] font-black rounded-lg uppercase tracking-wider text-stone-600 hover:text-emerald-700 hover:border-emerald-300">
+                    className="h-8 text-[11px] font-bold rounded-lg text-stone-600 hover:text-emerald-700 hover:border-emerald-300">
                     + Espèces
                   </Button>
                   <Button
@@ -858,7 +1030,7 @@ export default function StockClients({ clients, orders, invoices, payments, user
                     variant="outline"
                     size="sm"
                     onClick={() => addPaymentLine('CHEQUE')}
-                    className="h-7 text-[11px] font-black rounded-lg uppercase tracking-wider text-stone-600 hover:text-blue-700 hover:border-blue-300">
+                    className="h-8 text-[11px] font-bold rounded-lg text-stone-600 hover:text-blue-700 hover:border-blue-300">
                     + Chèque
                   </Button>
                   <Button
@@ -866,25 +1038,25 @@ export default function StockClients({ clients, orders, invoices, payments, user
                     variant="outline"
                     size="sm"
                     onClick={() => addPaymentLine('EFFET')}
-                    className="h-7 text-[11px] font-black rounded-lg uppercase tracking-wider text-stone-600 hover:text-amber-700 hover:border-amber-300">
-                    + LC (Effet)
+                    className="h-8 text-[11px] font-bold rounded-lg text-stone-600 hover:text-amber-700 hover:border-amber-300">
+                    + LC (effet)
                   </Button>
                   <Button
                     type="button"
                     variant="outline"
                     size="sm"
                     onClick={() => addPaymentLine('VIREMENT')}
-                    className="h-7 text-[11px] font-black rounded-lg uppercase tracking-wider text-stone-600 hover:text-cyan-700 hover:border-cyan-300">
+                    className="h-8 text-[11px] font-bold rounded-lg text-stone-600 hover:text-cyan-700 hover:border-cyan-300">
                     + Virement
                   </Button>
                 </div>
-              </div>
 
               {paymentLines.map((line, idx) => (
                 <div key={line.id} className="p-4 rounded-2xl border-2 border-stone-100 bg-stone-50/60 hover:border-stone-200 transition-all space-y-3">
-                  <div className="flex items-center justify-between">
-                    <span className="text-[11px] font-black uppercase tracking-wider px-2 py-0.5 rounded-lg bg-stone-200 text-stone-700">
-                      Règlement #{idx + 1}
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="text-[13px] font-black text-stone-800 leading-tight">
+                      Ligne {idx + 1}
+                      <span className="font-bold text-stone-500"> · {LIBELLE_MODE[line.method] || line.method}</span>
                     </span>
                     {paymentLines.length > 1 && (
                       <Button
@@ -892,17 +1064,21 @@ export default function StockClients({ clients, orders, invoices, payments, user
                         variant="ghost"
                         size="sm"
                         onClick={() => removePaymentLine(line.id)}
-                        className="h-7 w-7 p-0 text-red-500 hover:text-red-700 hover:bg-red-50 rounded-lg">
+                        className="h-7 w-7 p-0 text-red-500 hover:text-red-700 hover:bg-red-50 rounded-lg"
+                        title="Retirer cette ligne">
                         <Trash2 className="w-3.5 h-3.5" />
                       </Button>
                     )}
                   </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div className="space-y-1">
-                      <Label className="text-[11px] font-black text-stone-500 uppercase tracking-widest">Mode de paiement *</Label>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                    <Champ
+                      label="Mode de règlement"
+                      obligatoire
+                      aide="Espèces et virement entrent tout de suite. Chèque et LC n'entrent qu'à l'encaissement."
+                    >
                       <Select value={line.method} onValueChange={v => updatePaymentLine(line.id, { method: v as PaymentMethod })}>
-                        <SelectTrigger className="h-10 rounded-xl border-stone-200 bg-white font-bold text-xs">
+                        <SelectTrigger className={`${CLASSE_CHAMP} bg-white`}>
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
@@ -913,12 +1089,14 @@ export default function StockClients({ clients, orders, invoices, payments, user
                           <SelectItem value="AUTRE"><MoreHorizontal className="inline w-3.5 h-3.5 mr-1.5 -mt-0.5" />Autre mode</SelectItem>
                         </SelectContent>
                       </Select>
-                    </div>
+                    </Champ>
 
-                    <div className="space-y-1">
-                      <div className="flex justify-between items-center">
-                        <Label className="text-[11px] font-black text-stone-500 uppercase tracking-widest">Montant (MAD) *</Label>
-                        {diffBalance > 0 && parseFloat(line.amount || '0') !== selBalance && (
+                    <Champ
+                      label="Montant reçu (MAD)"
+                      obligatoire
+                      aide="Le montant de cette ligne seule, pas le total du règlement."
+                      indice={
+                        diffBalance > 0 && parseFloat(line.amount || '0') !== selBalance ? (
                           <button
                             type="button"
                             onClick={() => {
@@ -926,10 +1104,11 @@ export default function StockClients({ clients, orders, invoices, payments, user
                               updatePaymentLine(line.id, { amount: String(Math.max(0, selBalance - otherSum)) });
                             }}
                             className="text-[11px] font-bold text-emerald-600 hover:underline">
-                            Compléter le reste
+                            Mettre tout le reste dû
                           </button>
-                        )}
-                      </div>
+                        ) : null
+                      }
+                    >
                       <Input
                         type="number"
                         min={0}
@@ -937,58 +1116,61 @@ export default function StockClients({ clients, orders, invoices, payments, user
                         placeholder="0.00"
                         value={line.amount}
                         onChange={e => updatePaymentLine(line.id, { amount: e.target.value })}
-                        className="h-10 text-base font-black rounded-xl border-stone-200 bg-white"
+                        className={`${CLASSE_CHAMP} bg-white text-base font-black`}
                       />
-                    </div>
+                    </Champ>
                   </div>
 
                   {/* Champs spécifiques : Chèque ou LC (Effet) */}
                   {(line.method === 'CHEQUE' || line.method === 'EFFET' || line.method === 'LC' || line.method === 'LCN') && (
-                    <div className="pt-3 border-t border-stone-200/60 space-y-3">
-                      <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
-                        <div className="space-y-1">
-                          <Label className="text-[11px] font-black text-stone-500 uppercase tracking-widest">
-                            Banque Tirée
-                          </Label>
+                    <div className="pt-3.5 border-t border-stone-200/60 space-y-3.5">
+                      <p className="text-[13px] font-black text-stone-800 leading-tight">
+                        Le document remis {line.method === 'CHEQUE' ? '(chèque)' : '(lettre de change)'}
+                      </p>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                        <Champ
+                          label="Banque tirée"
+                          aide="La banque du client, celle qui paiera le document."
+                        >
                           <Input
                             placeholder="Ex: BCP, CIH..."
                             value={line.bankName}
                             onChange={e => updatePaymentLine(line.id, { bankName: e.target.value })}
-                            className="h-9 rounded-xl border-stone-200 bg-white text-xs font-bold"
+                            className={`${CLASSE_CHAMP} bg-white`}
                           />
-                        </div>
-                        <div className="space-y-1">
-                          <Label className="text-[11px] font-black text-stone-500 uppercase tracking-widest">
-                            {line.method === 'CHEQUE' ? 'N° de Chèque' : 'N° LC / Effet'}
-                          </Label>
+                        </Champ>
+                        <Champ
+                          label={line.method === 'CHEQUE' ? 'Numéro du chèque' : 'Numéro de la LC'}
+                          aide="Le numéro imprimé sur le papier : c'est par lui qu'on retrouve le document en banque."
+                        >
                           <Input
                             placeholder={line.method === 'CHEQUE' ? 'Ex: CHQ-987654' : 'Ex: LC-123456'}
                             value={line.checkNumber}
                             onChange={e => updatePaymentLine(line.id, { checkNumber: e.target.value })}
-                            className="h-9 rounded-xl border-stone-200 bg-white text-xs font-bold"
+                            className={`${CLASSE_CHAMP} bg-white`}
                           />
-                        </div>
-                        <div className="space-y-1">
-                          <Label className="text-[11px] font-black text-stone-500 uppercase tracking-widest">
-                            Date d'échéance
-                          </Label>
+                        </Champ>
+                        <Champ
+                          label="Date d'échéance"
+                          aide="Le jour à partir duquel le document peut être présenté en banque. C'est elle qui place le document dans le calendrier d'encaissement."
+                        >
                           <Input
                             type="date"
                             value={line.dueDate}
                             onChange={e => updatePaymentLine(line.id, { dueDate: e.target.value })}
-                            className="h-9 rounded-xl border-stone-200 bg-white text-xs font-bold"
+                            className={`${CLASSE_CHAMP} bg-white`}
                           />
-                        </div>
+                        </Champ>
                         {userRole === 'ADMIN' && (
-                          <div className="space-y-1">
-                            <Label className="text-[11px] font-black text-stone-500 uppercase tracking-widest">
-                              Société Attijari
-                            </Label>
+                          <Champ
+                            label="Société qui encaissera"
+                            aide="« Arbitrer à J-7 » laisse le choix ouvert jusqu'à une semaine avant l'échéance."
+                          >
                             <Select
                               value={(line as any).cashingCompany || 'PENDING'}
                               onValueChange={v => updatePaymentLine(line.id, { cashingCompany: v === 'PENDING' ? undefined : v } as any)}
                             >
-                              <SelectTrigger className="h-9 rounded-xl border-stone-200 bg-white text-xs font-bold">
+                              <SelectTrigger className={`${CLASSE_CHAMP} bg-white`}>
                                 <SelectValue />
                               </SelectTrigger>
                               <SelectContent>
@@ -997,25 +1179,26 @@ export default function StockClients({ clients, orders, invoices, payments, user
                                 <SelectItem value="ROBE IN BOX"><Building2 className="inline w-3.5 h-3.5 mr-1.5 -mt-0.5" />ROBE IN BOX</SelectItem>
                               </SelectContent>
                             </Select>
-                          </div>
+                          </Champ>
                         )}
                       </div>
 
                       {/* Photo / Scan OBLIGATOIRE pour chèque et LC */}
-                      <div className="space-y-1.5">
-                        <div className="flex items-center justify-between">
-                          <Label className="text-[11px] font-black uppercase tracking-widest flex items-center gap-1.5 text-amber-800">
+                      <Champ
+                        label={
+                          <span className="inline-flex items-center gap-1.5">
                             <Camera className="w-3.5 h-3.5 text-amber-600" />
-                            <span>Scan / Photo du {line.method === 'CHEQUE' ? 'Chèque' : 'la LC'}</span>
-                            <span className="text-red-500 font-black">* OBLIGATOIRE</span>
-                          </Label>
-                          {!line.scannedImageUrl && (
-                            <span className="text-[11px] font-black uppercase tracking-wider text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full">
-                              Scan requis avant validation
-                            </span>
-                          )}
-                        </div>
-
+                            Photo ou scan {line.method === 'CHEQUE' ? 'du chèque' : 'de la LC'}
+                          </span>
+                        }
+                        obligatoire
+                        aide="C'est la preuve de ce que le client a remis. Si le document revient impayé, c'est cette image qui sert à le réclamer — sans elle, le règlement ne peut pas être validé."
+                        erreur={
+                          (parseFloat(line.amount) || 0) > 0 && !line.scannedImageUrl?.trim()
+                            ? "Image manquante : la validation reste bloquée tant qu'elle n'est pas jointe."
+                            : null
+                        }
+                      >
                         <div className={`relative border-2 border-dashed rounded-xl p-3 transition-colors ${
                           line.scannedImageUrl
                             ? 'border-emerald-400 bg-emerald-50/40'
@@ -1074,44 +1257,50 @@ export default function StockClients({ clients, orders, invoices, payments, user
                             </label>
                           )}
                         </div>
-                      </div>
+                      </Champ>
                     </div>
                   )}
 
                   {/* Champs spécifiques : Virement */}
                   {line.method === 'VIREMENT' && (
-                    <div className="pt-3 border-t border-stone-200/60 grid grid-cols-1 sm:grid-cols-2 gap-3">
-                      <div className="space-y-1">
-                        <Label className="text-[11px] font-black text-stone-500 uppercase tracking-widest">Banque émettrice / réceptrice</Label>
+                    <div className="pt-3.5 border-t border-stone-200/60 grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                      <Champ
+                        label="Banque du virement"
+                        aide="Permet de retrouver l'opération sur le relevé bancaire."
+                      >
                         <Input
                           placeholder="Ex: Attijariwafa, CIH..."
                           value={line.bankName}
                           onChange={e => updatePaymentLine(line.id, { bankName: e.target.value })}
-                          className="h-9 rounded-xl border-stone-200 bg-white text-xs font-bold"
+                          className={`${CLASSE_CHAMP} bg-white`}
                         />
-                      </div>
-                      <div className="space-y-1">
-                        <Label className="text-[11px] font-black text-stone-500 uppercase tracking-widest">N° Référence Virement</Label>
+                      </Champ>
+                      <Champ
+                        label="Référence du virement"
+                        aide="La référence inscrite sur l'avis de la banque : c'est elle qui permettra de rapprocher l'argent reçu."
+                      >
                         <Input
                           placeholder="Ex: VIR-2026-9901"
                           value={line.checkNumber}
                           onChange={e => updatePaymentLine(line.id, { checkNumber: e.target.value })}
-                          className="h-9 rounded-xl border-stone-200 bg-white text-xs font-bold"
+                          className={`${CLASSE_CHAMP} bg-white`}
                         />
-                      </div>
+                      </Champ>
                     </div>
                   )}
 
                   {/* Remarques / Référence libre */}
-                  <div className="space-y-1">
-                    <Label className="text-[11px] font-black text-stone-500 uppercase tracking-widest">Notes / Référence libre</Label>
+                  <Champ
+                    label="Remarque"
+                    aide="Numéro du reçu, nom de la personne qui a remis l'argent… Ce texte se retrouve dans l'historique des paiements du client."
+                  >
                     <Input
                       placeholder="Commentaire ou numéro de reçu..."
                       value={line.notes}
                       onChange={e => updatePaymentLine(line.id, { notes: e.target.value })}
-                      className="h-9 rounded-xl border-stone-200 bg-white text-xs font-bold"
+                      className={`${CLASSE_CHAMP} bg-white`}
                     />
-                  </div>
+                  </Champ>
                 </div>
               ))}
 
@@ -1119,36 +1308,100 @@ export default function StockClients({ clients, orders, invoices, payments, user
                 type="button"
                 variant="outline"
                 onClick={() => addPaymentLine()}
-                className="w-full h-11 rounded-2xl border-dashed border-2 border-stone-300 hover:border-emerald-500 text-stone-600 hover:text-emerald-700 font-black uppercase text-[10px] tracking-widest gap-2">
-                <Plus className="w-4 h-4" /> Ajouter un autre moyen de paiement (Chèque, LC, Virement, Espèces...)
+                className="w-full h-11 rounded-2xl border-dashed border-2 border-stone-300 hover:border-emerald-500 text-stone-600 hover:text-emerald-700 font-bold text-[13px] gap-2">
+                <Plus className="w-4 h-4" /> Ajouter un autre moyen de règlement
               </Button>
-            </div>
+              </div>
+            </SectionFormulaire>
+
+            <SectionFormulaire
+              numero={2}
+              titre="Quelles factures cela solde-t-il ?"
+              aide="L'imputation se fait toute seule, de la facture la plus ancienne à la plus récente. Une même ligne de règlement peut en solder plusieurs."
+            >
+              {apercuImputation.length === 0 ? (
+                <p className="text-[13px] font-medium text-stone-500 leading-snug rounded-2xl border border-dashed border-stone-200 p-3.5">
+                  {totalPaymentEntered > 0
+                    ? "Aucune facture ouverte à solder : ce montant restera au crédit du client, en avance sur ses prochains achats."
+                    : "Saisir un montant ci-dessus pour voir les factures que ce règlement soldera."}
+                </p>
+              ) : (
+                <div className="rounded-2xl border border-stone-200 divide-y divide-stone-100 overflow-hidden">
+                  {apercuImputation.map(({ facture, impute, resteApres }) => (
+                    <div key={facture.id} className="flex items-center justify-between gap-3 px-3.5 py-2.5 bg-white">
+                      <div className="min-w-0">
+                        <p className="text-[13px] font-bold text-stone-800 leading-tight truncate">
+                          {facture.invoiceNumber || `FAC-${facture.id.slice(0, 6)}`}
+                        </p>
+                        <p className="text-[11px] font-medium text-stone-500 leading-snug">Facture du {facture.date}</p>
+                      </div>
+                      <div className="text-right shrink-0">
+                        <p className="text-[13px] font-black text-emerald-700 tabular-nums">{fmt$(impute)} MAD</p>
+                        <p className={`text-[11px] font-bold leading-snug ${resteApres > 0 ? 'text-rose-600' : 'text-emerald-600'}`}>
+                          {resteApres > 0 ? `Restera ${fmt$(resteApres)} MAD` : 'Soldée'}
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {reglementAvecPapier && apercuImputation.length > 0 && (
+                <Encadre ton="info">
+                  Une facture soldée par un effet passera en « en attente » et non en « payée » : un chèque ou
+                  une LC ne la solde vraiment qu'une fois l'argent crédité en banque. Celle qui est soldée en
+                  espèces ou par virement passe bien en « payée ».
+                </Encadre>
+              )}
+
+              <Recapitulatif titre="Avant de valider">
+                <LigneResume libelle="Reste dû avant ce règlement" valeur={`${fmt$(selBalance)} MAD`} />
+                <LigneResume
+                  libelle={`Total reçu (${paymentLines.filter(l => (parseFloat(l.amount) || 0) > 0).length} ligne${paymentLines.filter(l => (parseFloat(l.amount) || 0) > 0).length > 1 ? 's' : ''})`}
+                  valeur={`${fmt$(totalPaymentEntered)} MAD`}
+                  ton="positif"
+                  fort
+                />
+                {diffBalance >= 0 ? (
+                  <LigneResume
+                    libelle="Reste dû après ce règlement"
+                    valeur={`${fmt$(diffBalance)} MAD`}
+                    ton={diffBalance > 0 ? 'alerte' : 'positif'}
+                  />
+                ) : (
+                  <LigneResume libelle="Avance portée au compte du client" valeur={`${fmt$(-diffBalance)} MAD`} ton="positif" />
+                )}
+                {reglementAvecPapier && (
+                  <LigneResume
+                    libelle="Dont chèques / LC à encaisser plus tard"
+                    valeur={`${fmt$(paymentLines.filter(l => (parseFloat(l.amount) || 0) > 0 && estPapier(l.method)).reduce((s, l) => s + parseFloat(l.amount), 0))} MAD`}
+                  />
+                )}
+                {selected?.creditLimit ? (
+                  <LigneResume libelle="Plafond de crédit de ce client" valeur={`${fmt$(selected.creditLimit)} MAD`} />
+                ) : null}
+              </Recapitulatif>
+            </SectionFormulaire>
           </div>
 
-          {paymentLines.some(l => (parseFloat(l.amount) || 0) > 0 && (l.method === 'CHEQUE' || l.method === 'LC' || l.method === 'EFFET' || l.method === 'LCN') && !l.scannedImageUrl?.trim()) && (
-            <div className="px-6 py-2.5 bg-amber-50 border-t border-amber-200 flex items-center gap-2 text-amber-900 text-xs font-bold">
-              <Camera className="w-4 h-4 text-amber-600 shrink-0" />
-              <span>Le scan ou la photo du chèque / de la LC est obligatoire pour pouvoir valider le règlement.</span>
-            </div>
-          )}
-
-          <DialogFooter className="p-4 bg-stone-50 border-t border-stone-100 gap-2">
+          <DialogFooter className="p-4 bg-stone-50 border-t border-stone-100 gap-2 sm:items-start">
             <Button
               variant="ghost"
               onClick={() => setGlobalPaymentOpen(false)}
-              className="flex-1 font-black uppercase text-[10px] rounded-xl h-11">
+              className="flex-1 font-bold text-[13px] rounded-2xl h-12">
               Annuler
             </Button>
-            <Button
-              onClick={handleGlobalPayment}
-              disabled={
-                totalPaymentEntered <= 0 || 
-                saving || 
-                paymentLines.some(l => (parseFloat(l.amount) || 0) > 0 && (l.method === 'CHEQUE' || l.method === 'LC' || l.method === 'EFFET' || l.method === 'LCN') && !l.scannedImageUrl?.trim())
-              }
-              className="flex-[2] bg-emerald-600 hover:bg-emerald-700 text-white font-black uppercase text-[10px] h-11 rounded-xl shadow-lg shadow-emerald-600/20">
-              {saving ? 'Validation en cours...' : `Valider le paiement (${fmt$(totalPaymentEntered)} MAD)`}
-            </Button>
+            <div className="flex-[2]">
+              <BoutonValider
+                onClick={handleGlobalPayment}
+                raisonDesactive={raisonReglementDesactive}
+                enCours={saving}
+                libelleEnCours="Validation en cours…"
+                className="!bg-emerald-600 hover:!bg-emerald-700 shadow-emerald-600/20"
+              >
+                Valider le règlement · {fmt$(totalPaymentEntered)} MAD
+              </BoutonValider>
+            </div>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -1341,59 +1594,172 @@ export default function StockClients({ clients, orders, invoices, payments, user
 
       {/* Modal nouveau client */}
       <Dialog open={createOpen} onOpenChange={setCreateOpen}>
-        <DialogContent className="sm:max-w-md max-h-[85vh] sm:max-h-[90vh] flex flex-col rounded-3xl border-none shadow-2xl p-0 overflow-hidden">
+        <DialogContent className="sm:max-w-lg max-h-[85vh] sm:max-h-[90vh] flex flex-col rounded-3xl border-none shadow-2xl p-0 overflow-hidden">
           <div className="bg-gradient-to-r from-[#3D2E17] to-[#2A2014] p-6 text-white shrink-0">
             <DialogTitle className="text-lg font-black uppercase tracking-tight">Nouveau client</DialogTitle>
+            <p className="text-xs font-bold text-[#C9B89A] mt-1">
+              Seul le nom est nécessaire. Le reste peut être complété plus tard depuis la fiche.
+            </p>
           </div>
-          <div className="p-6 space-y-3 bg-white flex-1 overflow-y-auto overscroll-contain touch-pan-y" style={{ WebkitOverflowScrolling: 'touch' }}>
-            {[
-              { key: 'name', label: 'Nom *', placeholder: 'Nom complet ou raison sociale' },
-              { key: 'phone', label: 'Téléphone', placeholder: '+212 6...' },
-              { key: 'email', label: 'Email', placeholder: 'email@example.com' },
-              { key: 'address', label: 'Adresse', placeholder: 'Casablanca, Maroc...' },
-              { key: 'ice', label: 'ICE', placeholder: 'N° ICE' },
-              { key: 'identifiantFiscal', label: 'IF', placeholder: 'Identifiant Fiscal' },
-              { key: 'notes', label: 'Notes', placeholder: 'Informations complémentaires...' },
-            ].map(({ key, label, placeholder }) => (
-              <div key={key} className="space-y-1">
-                <Label className="text-[11px] font-black text-stone-500 uppercase tracking-widest">{label}</Label>
-                <Input value={(form as any)[key]} placeholder={placeholder}
-                  onChange={e => setForm(f => ({ ...f, [key]: e.target.value }))}
-                  className="h-10 rounded-xl border-stone-200 font-bold text-sm" />
+          <div className="p-6 space-y-7 bg-white flex-1 overflow-y-auto overscroll-contain touch-pan-y" style={{ WebkitOverflowScrolling: 'touch' }}>
+            <SectionFormulaire
+              numero={1}
+              titre="Qui est ce client ?"
+              aide="Le nom saisi ici est celui qui apparaîtra sur les bons de vente et les factures."
+            >
+              <Champ
+                label="Nom du client"
+                obligatoire
+                htmlFor="new-name"
+                aide="Nom de la personne ou raison sociale de l'entreprise, écrit comme il doit figurer sur la facture."
+              >
+                <Input
+                  id="new-name"
+                  value={form.name}
+                  placeholder="Nom complet ou raison sociale"
+                  onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
+                  className={CLASSE_CHAMP}
+                />
+              </Champ>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                <Champ label="Téléphone" htmlFor="new-phone" aide="Le numéro servira aux relances en cas d'impayé.">
+                  <Input
+                    id="new-phone"
+                    value={form.phone}
+                    placeholder="+212 6..."
+                    onChange={e => setForm(f => ({ ...f, phone: e.target.value }))}
+                    className={CLASSE_CHAMP}
+                  />
+                </Champ>
+                <Champ label="Adresse électronique" htmlFor="new-email">
+                  <Input
+                    id="new-email"
+                    value={form.email}
+                    placeholder="email@example.com"
+                    onChange={e => setForm(f => ({ ...f, email: e.target.value }))}
+                    className={CLASSE_CHAMP}
+                  />
+                </Champ>
               </div>
-            ))}
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1">
-                <Label className="text-[11px] font-black text-stone-500 uppercase tracking-widest">Catégorie</Label>
-                <Select value={(form as any).category || undefined} onValueChange={v => setForm(f => ({ ...f, category: v }))}>
-                  <SelectTrigger className="h-10 rounded-xl border-stone-200 font-bold text-sm"><SelectValue placeholder="Catégorie..." /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="GROSSISTE">Grossiste</SelectItem>
-                    <SelectItem value="SEMI_GROSSISTE">Semi-grossiste</SelectItem>
-                    <SelectItem value="DETAILLANT">Détaillant</SelectItem>
-                  </SelectContent>
-                </Select>
+              <Champ
+                label="Adresse"
+                htmlFor="new-address"
+                aide="Ville et quartier suffisent : c'est ce qui est imprimé sur le relevé de compte."
+              >
+                <Input
+                  id="new-address"
+                  value={form.address}
+                  placeholder="Casablanca, Maroc..."
+                  onChange={e => setForm(f => ({ ...f, address: e.target.value }))}
+                  className={CLASSE_CHAMP}
+                />
+              </Champ>
+            </SectionFormulaire>
+
+            <SectionFormulaire
+              numero={2}
+              titre="Numéros de facturation"
+              aide="À remplir seulement pour un client qui demande une facture au nom de son entreprise. Ces numéros sont repris tels quels sur la facture."
+            >
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                <Champ label="ICE" htmlFor="new-ice" aide="Identifiant commun de l'entreprise, sur les papiers du client.">
+                  <Input
+                    id="new-ice"
+                    value={form.ice}
+                    placeholder="N° ICE"
+                    onChange={e => setForm(f => ({ ...f, ice: e.target.value }))}
+                    className={CLASSE_CHAMP}
+                  />
+                </Champ>
+                <Champ label="Identifiant fiscal" htmlFor="new-if" aide="Appelé « IF » sur les documents officiels.">
+                  <Input
+                    id="new-if"
+                    value={form.identifiantFiscal}
+                    placeholder="Identifiant Fiscal"
+                    onChange={e => setForm(f => ({ ...f, identifiantFiscal: e.target.value }))}
+                    className={CLASSE_CHAMP}
+                  />
+                </Champ>
               </div>
-              <div className="space-y-1">
-                <Label className="text-[11px] font-black text-stone-500 uppercase tracking-widest">Plafond de crédit</Label>
-                <Input type="number" value={(form as any).creditLimit || ''} placeholder="0"
-                  onChange={e => setForm(f => ({ ...f, creditLimit: parseFloat(e.target.value) || 0 }))}
-                  className="h-10 rounded-xl border-stone-200 font-bold text-sm" />
+            </SectionFormulaire>
+
+            <SectionFormulaire
+              numero={3}
+              titre="Jusqu'où peut-il acheter à crédit ?"
+              aide="C'est cette partie qui autorise ou refuse une vente non payée en caisse."
+            >
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                <Champ
+                  label="Catégorie"
+                  htmlFor="new-category"
+                  aide="Sert à classer et à filtrer la liste des clients. Elle n'a aucun effet sur les prix de vente."
+                >
+                  <Select value={form.category || undefined} onValueChange={v => setForm(f => ({ ...f, category: v }))}>
+                    <SelectTrigger id="new-category" className={CLASSE_CHAMP}><SelectValue placeholder="Catégorie..." /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="GROSSISTE">Grossiste</SelectItem>
+                      <SelectItem value="SEMI_GROSSISTE">Semi-grossiste</SelectItem>
+                      <SelectItem value="DETAILLANT">Détaillant</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </Champ>
+                <Champ
+                  label="Plafond de crédit (MAD)"
+                  htmlFor="new-credit"
+                  aide="Au-delà de ce reste dû, la caisse demande une confirmation avant de vendre à crédit. Laisser 0 revient à ne poser aucun plafond."
+                >
+                  <Input
+                    id="new-credit"
+                    type="number"
+                    value={form.creditLimit || ''}
+                    placeholder="0"
+                    onChange={e => setForm(f => ({ ...f, creditLimit: parseFloat(e.target.value) || 0 }))}
+                    className={CLASSE_CHAMP}
+                  />
+                </Champ>
               </div>
-            </div>
-            <div className="flex items-center space-x-2 pt-2">
-              <input type="checkbox" id="formCreditBlocked" checked={(form as any).creditBlocked || false}
-                onChange={e => setForm(f => ({ ...f, creditBlocked: e.target.checked }))}
-                className="rounded border-stone-300 w-4 h-4" />
-              <Label htmlFor="formCreditBlocked" className="text-sm font-bold text-red-600">Bloquer le crédit dès la création</Label>
-            </div>
+              <label htmlFor="formCreditBlocked" className="flex items-start gap-2.5 rounded-xl border border-stone-200 p-3 cursor-pointer hover:bg-stone-50 transition-colors">
+                <input type="checkbox" id="formCreditBlocked" checked={form.creditBlocked || false}
+                  onChange={e => setForm(f => ({ ...f, creditBlocked: e.target.checked }))}
+                  className="rounded border-stone-300 w-4 h-4 mt-0.5" />
+                <span className="min-w-0">
+                  <span className="block text-[13px] font-bold text-rose-700 leading-tight">Bloquer le crédit dès la création</span>
+                  <span className="block text-[11px] font-medium text-stone-500 leading-snug mt-0.5">
+                    Ce client ne pourra régler qu'au comptant, même si un plafond est indiqué au-dessus.
+                  </span>
+                </span>
+              </label>
+            </SectionFormulaire>
+
+            <SectionFormulaire
+              numero={4}
+              titre="Quelque chose à signaler ?"
+              aide="Se relit en rouvrant la fiche en modification. Ce n'est pas un message qui s'affiche à la vente."
+            >
+              <Champ label="Remarques" htmlFor="new-notes">
+                <Input
+                  id="new-notes"
+                  value={form.notes}
+                  placeholder="Informations complémentaires..."
+                  onChange={e => setForm(f => ({ ...f, notes: e.target.value }))}
+                  className={CLASSE_CHAMP}
+                />
+              </Champ>
+            </SectionFormulaire>
           </div>
-          <DialogFooter className="p-4 bg-stone-50 gap-2 shrink-0 border-t border-stone-100">
-            <Button variant="ghost" onClick={() => setCreateOpen(false)} className="flex-1 font-black uppercase text-[10px] rounded-xl">Annuler</Button>
-            <Button onClick={handleCreate} disabled={!form.name.trim() || saving}
-              className="flex-[2] bg-[#CC8626] hover:bg-[#B3721C] text-white font-black uppercase text-[11px] h-11 rounded-xl">
-              {saving ? 'Création...' : 'Créer le client'}
-            </Button>
+          <DialogFooter className="p-4 bg-stone-50 gap-2 shrink-0 border-t border-stone-100 sm:items-start">
+            <Button variant="ghost" onClick={() => setCreateOpen(false)} className="flex-1 font-bold text-[13px] rounded-2xl h-12">Annuler</Button>
+            <div className="flex-[2]">
+              <BoutonValider
+                onClick={handleCreate}
+                raisonDesactive={!form.name.trim() ? 'Le nom du client manque : sans lui, la fiche ne peut pas être créée.' : null}
+                enCours={saving}
+                libelleEnCours="Création…"
+                className="!bg-[#CC8626] hover:!bg-[#B3721C]"
+              >
+                Créer le client
+              </BoutonValider>
+            </div>
           </DialogFooter>
         </DialogContent>
       </Dialog>

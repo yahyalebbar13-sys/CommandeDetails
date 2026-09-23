@@ -10,7 +10,6 @@ import {
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import type { Client, SaleOrder, Invoice, OrderItem, StockItem, PaymentMethod, CashingCompany } from '@/lib/types';
@@ -19,6 +18,9 @@ import { stockItemVariant } from '@/lib/warehouse-locations';
 import { useToast } from '@/hooks/use-toast';
 import { useConfirm } from '@/hooks/use-confirm';
 import { useOnlineStatus } from '@/hooks/use-online-status';
+import {
+  SectionFormulaire, Champ, Encadre, LigneResume, Recapitulatif, BoutonValider, CLASSE_CHAMP,
+} from './ui-formulaire';
 
 // ── helpers ──
 const fmt$ = (n: number) => n.toLocaleString('fr-MA', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -876,14 +878,17 @@ export default function StockSaleFlow({
               <ShoppingBag className="w-5 h-5" />
             </div>
             <div>
-              <p className="text-[10px] font-black uppercase tracking-wider text-stone-400">Magasin de vente (Caisse)</p>
+              <p className="text-[11px] font-medium text-stone-500">Caisse utilisée pour cette vente</p>
               <p className="text-sm font-black text-stone-800">
                 {stores.find(s => s.id === selectedStoreId)?.name || selectedStoreId}
+              </p>
+              <p className="text-[11px] font-medium text-stone-500 leading-snug mt-0.5 max-w-md">
+                C'est le magasin enregistré sur la vente, et celui dont le stock est proposé en premier.
               </p>
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <span className="text-[11px] font-bold text-stone-500">Choisir le magasin :</span>
+            <span className="text-[11px] font-bold text-stone-700">Changer de magasin :</span>
             <select
               value={selectedStoreId}
               onChange={(e) => onStoreChange && onStoreChange(e.target.value)}
@@ -936,8 +941,10 @@ export default function StockSaleFlow({
                 className={`p-6 rounded-2xl border-2 text-left transition-all ${
                   anonymous ? 'border-stone-700 bg-stone-900 text-white' : 'border-stone-200 bg-white hover:border-stone-400'
                 }`}>
-                <p className="font-black text-lg uppercase tracking-tighter flex items-center gap-2"><ShoppingBag className="w-5 h-5" />Vente Comptoir</p>
-                <p className={`text-[10px] font-bold mt-1 ${anonymous ? 'opacity-60' : 'text-stone-400'}`}>Passer directement aux produits</p>
+                <p className="font-black text-lg uppercase tracking-tighter flex items-center gap-2"><ShoppingBag className="w-5 h-5" />Vente comptoir</p>
+                <p className={`text-[11px] font-medium leading-snug mt-1 ${anonymous ? 'opacity-70' : 'text-stone-500'}`}>
+                  Client de passage, sans dossier. La vente doit être réglée en totalité : rien ne peut rester à crédit.
+                </p>
              </button>
 
              {/* Big Button Vente Client */}
@@ -945,51 +952,79 @@ export default function StockSaleFlow({
                 className={`p-6 rounded-2xl border-2 text-left transition-all ${
                   !anonymous ? 'border-violet-600 bg-violet-50 text-violet-900' : 'border-stone-200 bg-white hover:border-violet-200'
                 }`}>
-                <p className="font-black text-lg uppercase tracking-tighter flex items-center gap-2"><Users className="w-5 h-5" />Vente Client</p>
-                <p className={`text-[10px] font-bold mt-1 ${!anonymous ? 'text-violet-600/70' : 'text-stone-400'}`}>Rechercher ou créer un dossier client</p>
+                <p className="font-black text-lg uppercase tracking-tighter flex items-center gap-2"><Users className="w-5 h-5" />Vente à un client</p>
+                <p className={`text-[11px] font-medium leading-snug mt-1 ${!anonymous ? 'text-violet-700' : 'text-stone-500'}`}>
+                  Client suivi par son dossier : la vente peut rester en partie, ou en totalité, sur son compte.
+                </p>
              </button>
           </div>
 
           {!anonymous && (
             <div className="bg-white rounded-2xl shadow-lg border border-stone-100 p-5 space-y-4 animate-in slide-in-from-top-2">
-              <div className="flex items-center justify-between">
-                <h3 className="text-[10px] font-black text-stone-400 uppercase tracking-widest">Dossier client</h3>
-                <button onClick={() => setShowNewClient(v => !v)}
-                  className="flex items-center gap-1.5 text-[11px] font-black text-violet-600 hover:text-violet-800 uppercase tracking-wider bg-violet-50 px-3 py-1.5 rounded-xl border border-violet-200 transition-colors">
-                  <UserPlus className="w-3 h-3" /> Nouveau Client
-                </button>
-              </div>
+              <SectionFormulaire
+                titre="Dossier client"
+                aide="Le dossier suit ce que le client doit. C'est lui qui autorise à emporter la marchandise et à payer plus tard."
+                action={(
+                  <button onClick={() => setShowNewClient(v => !v)}
+                    className="flex items-center gap-1.5 text-[11px] font-bold text-violet-700 hover:text-violet-900 bg-violet-50 px-3 py-1.5 rounded-xl border border-violet-200 transition-colors shrink-0">
+                    <UserPlus className="w-3.5 h-3.5" /> {showNewClient ? 'Revenir à la liste' : 'Nouveau client'}
+                  </button>
+                )}
+              >
 
               {showNewClient ? (
-                <div className="bg-violet-50 rounded-2xl border border-violet-100 p-5 space-y-3">
-                  {[
-                    { key: 'name', label: 'Nom *', placeholder: 'Ex: Mohamed Alami' },
-                    { key: 'phone', label: 'Téléphone', placeholder: '+212 6...' },
-                    { key: 'email', label: 'Email', placeholder: 'email@example.com' },
-                  ].map(({ key, label, placeholder }) => (
-                    <div key={key} className="space-y-1">
-                      <Label className="text-[11px] font-black text-stone-500 uppercase tracking-widest">{label}</Label>
-                      <Input placeholder={placeholder} value={(newClientForm as any)[key]}
-                        onChange={e => setNewClientForm(f => ({ ...f, [key]: e.target.value }))}
-                        className="h-9 rounded-xl border-white bg-white text-sm font-bold" />
-                    </div>
-                  ))}
-                  <Button onClick={handleCreateClient} disabled={!newClientForm.name.trim() || creatingClient}
-                    className="w-full bg-violet-600 hover:bg-violet-700 text-white font-black uppercase text-[10px] h-10 rounded-xl mt-2">
-                    {creatingClient ? 'Création...' : 'Créer et sélectionner'}
-                  </Button>
+                <div className="bg-violet-50 rounded-2xl border border-violet-100 p-5 space-y-3.5">
+                  <Champ
+                    label="Nom du client"
+                    obligatoire
+                    htmlFor="vente-client-nom"
+                    aide="Ce nom est repris sur le bon de commande et sur le compte du client."
+                  >
+                    <Input id="vente-client-nom" placeholder="Ex : Mohamed Alami" value={newClientForm.name}
+                      onChange={e => setNewClientForm(f => ({ ...f, name: e.target.value }))}
+                      className={`${CLASSE_CHAMP} bg-white border-white`} />
+                  </Champ>
+                  <Champ
+                    label="Téléphone"
+                    htmlFor="vente-client-tel"
+                    aide="Sert à rappeler le client pour une commande prête ou un reste à payer."
+                  >
+                    <Input id="vente-client-tel" placeholder="+212 6..." value={newClientForm.phone}
+                      onChange={e => setNewClientForm(f => ({ ...f, phone: e.target.value }))}
+                      className={`${CLASSE_CHAMP} bg-white border-white`} />
+                  </Champ>
+                  <Champ label="Adresse e-mail" htmlFor="vente-client-email">
+                    <Input id="vente-client-email" placeholder="client@exemple.com" value={newClientForm.email}
+                      onChange={e => setNewClientForm(f => ({ ...f, email: e.target.value }))}
+                      className={`${CLASSE_CHAMP} bg-white border-white`} />
+                  </Champ>
+                  <BoutonValider
+                    onClick={handleCreateClient}
+                    raisonDesactive={!newClientForm.name.trim() ? 'Indiquez au moins le nom du client.' : null}
+                    enCours={creatingClient}
+                    libelleEnCours="Création du dossier…"
+                    className="bg-violet-600 hover:bg-violet-700"
+                  >
+                    Créer le dossier et le choisir
+                  </BoutonValider>
                 </div>
               ) : (
                 <>
-                  <div className="relative">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-stone-400" />
-                    <Input placeholder="Chercher un client existant..." value={clientSearch}
-                      onChange={e => setClientSearch(e.target.value)}
-                      className="pl-9 h-11 rounded-xl border-stone-200 text-sm font-bold bg-stone-50 focus:bg-white transition-colors" />
-                  </div>
+                  <Champ
+                    label="Chercher un client déjà connu"
+                    htmlFor="vente-recherche-client"
+                    aide="Par nom, téléphone ou e-mail. Si le client n'existe pas encore, créez son dossier avec le bouton en haut."
+                  >
+                    <div className="relative">
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-stone-400" />
+                      <Input id="vente-recherche-client" placeholder="Nom, téléphone ou e-mail..." value={clientSearch}
+                        onChange={e => setClientSearch(e.target.value)}
+                        className={`${CLASSE_CHAMP} pl-9 bg-stone-50 focus:bg-white transition-colors`} />
+                    </div>
+                  </Champ>
                   <div className="space-y-1.5 max-h-60 overflow-y-auto pr-1">
                     {filteredClients.length === 0 && (
-                      <p className="text-center text-stone-400 text-xs font-bold py-6">Aucun client trouvé</p>
+                      <p className="text-center text-stone-400 text-xs font-bold py-6">Aucun client ne correspond à cette recherche</p>
                     )}
                     {filteredClients.map(c => (
                       <button key={c.id} onClick={() => setSelectedClient(c)}
@@ -1011,14 +1046,20 @@ export default function StockSaleFlow({
                   </div>
                 </>
               )}
+              </SectionFormulaire>
             </div>
           )}
 
-          <div className="flex justify-end">
+          <div className="flex flex-col items-end gap-1.5">
             <Button onClick={() => setStep(1)} disabled={!selectedClient && !anonymous}
               className="bg-violet-600 hover:bg-violet-700 text-white font-black uppercase text-xs h-11 px-8 rounded-2xl gap-2">
               Suivant — Choisir les produits <ChevronRight className="w-4 h-4" />
             </Button>
+            {!selectedClient && !anonymous && (
+              <p className="text-[11px] font-bold text-stone-500 leading-snug">
+                Choisissez un client dans la liste, ou passez par « Vente comptoir ».
+              </p>
+            )}
           </div>
         </div>
       )}
@@ -1046,34 +1087,45 @@ export default function StockSaleFlow({
           <div className="grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-4">
             <div className="space-y-3">
               {/* Search bar */}
-              <div className="relative">
-                <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-stone-400" />
-                <Input
-                  placeholder="Tapez le nom du produit..."
-                  value={prodSearch}
-                  onChange={e => setProdSearch(e.target.value)}
-                  className="pl-12 h-14 rounded-2xl border-stone-200 text-base font-bold shadow-sm bg-white"
-                  autoFocus
-                />
-                {prodSearch && (
-                  <button onClick={() => setProdSearch('')}
-                    className="absolute right-4 top-1/2 -translate-y-1/2 w-7 h-7 rounded-full bg-stone-100 hover:bg-stone-200 flex items-center justify-center transition-colors">
-                    <X className="w-3.5 h-3.5 text-stone-500" />
-                  </button>
-                )}
-              </div>
+              <Champ
+                label="Quel produit vendez-vous ?"
+                htmlFor="vente-recherche-produit"
+                aide="Seuls les produits qui restent en stock apparaissent. Ouvrez une ligne pour choisir la couleur, la qualité ou la taille."
+              >
+                <div className="relative">
+                  <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-stone-400" />
+                  <Input
+                    id="vente-recherche-produit"
+                    placeholder="Tapez le nom du produit..."
+                    value={prodSearch}
+                    onChange={e => setProdSearch(e.target.value)}
+                    className="pl-12 h-14 rounded-2xl border-stone-200 text-base font-bold shadow-sm bg-white"
+                    autoFocus
+                  />
+                  {prodSearch && (
+                    <button onClick={() => setProdSearch('')}
+                      className="absolute right-4 top-1/2 -translate-y-1/2 w-7 h-7 rounded-full bg-stone-100 hover:bg-stone-200 flex items-center justify-center transition-colors">
+                      <X className="w-3.5 h-3.5 text-stone-500" />
+                    </button>
+                  )}
+                </div>
+              </Champ>
 
               {/* Product list */}
               <div className="bg-white rounded-2xl shadow-lg border border-stone-100 overflow-hidden">
                 {prodSearch.length < 2 ? (
                   <div className="p-10 text-center">
                     <Search className="w-10 h-10 text-stone-200 mx-auto mb-3" />
-                    <p className="text-stone-400 text-sm font-bold">Tapez au moins 2 caractères pour rechercher</p>
+                    <p className="text-stone-500 text-sm font-bold">Tapez au moins 2 lettres du nom du produit</p>
+                    <p className="text-stone-400 text-[11px] font-medium mt-1">Par exemple « fil », « bouton », « fermeture ».</p>
                   </div>
                 ) : groupedProducts.length === 0 ? (
                   <div className="p-10 text-center">
                     <ShoppingBag className="w-10 h-10 text-stone-200 mx-auto mb-3" />
-                    <p className="text-stone-400 text-sm font-bold">Aucun produit trouvé pour « {prodSearch} »</p>
+                    <p className="text-stone-500 text-sm font-bold">Aucun produit en stock pour « {prodSearch} »</p>
+                    <p className="text-stone-400 text-[11px] font-medium mt-1">
+                      Un produit épuisé n'apparaît plus ici. Vérifiez l'orthographe, ou regardez en réserve.
+                    </p>
                   </div>
                 ) : (
                   <div className="divide-y divide-stone-50 max-h-[500px] overflow-y-auto">
@@ -1092,8 +1144,8 @@ export default function StockSaleFlow({
                           className="w-full text-left px-5 py-4 hover:bg-violet-50/50 transition-colors flex items-center gap-4 group">
                           <div className="flex-1 min-w-0">
                             <p className="text-sm font-black text-stone-900 uppercase tracking-tight truncate">{group.name}</p>
-                            <p className="text-[10px] font-bold text-stone-400 mt-0.5">
-                              {group.categoryId} · {group.variants.length} couleur{group.variants.length > 1 ? 's' : ''} · Stock: {group.totalQty}
+                            <p className="text-[11px] font-medium text-stone-500 mt-0.5">
+                              {group.categoryId} · {group.variants.length} variante{group.variants.length > 1 ? 's' : ''} (couleur, qualité, taille) · {group.totalQty} en stock
                             </p>
                           </div>
                           {cartQtyTotal > 0 && (
@@ -1124,8 +1176,11 @@ export default function StockSaleFlow({
                 </div>
 
                 {cart.length === 0 ? (
-                  <div className="p-6 text-center">
-                    <p className="text-stone-300 text-xs font-bold">Panier vide</p>
+                  <div className="p-6 text-center space-y-1">
+                    <p className="text-stone-400 text-xs font-bold">Panier vide</p>
+                    <p className="text-stone-400 text-[11px] font-medium leading-snug">
+                      Ouvrez un produit à gauche, puis indiquez la quantité par couleur.
+                    </p>
                   </div>
                 ) : (
                   <>
@@ -1152,10 +1207,13 @@ export default function StockSaleFlow({
                 )}
 
                 <div className="p-4 pt-0">
-                  <Button onClick={() => setStep(2)} disabled={cart.length === 0}
-                    className="w-full bg-violet-600 hover:bg-violet-700 text-white font-black uppercase text-xs h-11 rounded-xl gap-2">
-                    Voir le panier <ArrowRight className="w-4 h-4" />
-                  </Button>
+                  <BoutonValider
+                    onClick={() => setStep(2)}
+                    raisonDesactive={cart.length === 0 ? 'Ajoutez au moins un article au panier.' : null}
+                    className="bg-violet-600 hover:bg-violet-700"
+                  >
+                    Voir le panier
+                  </BoutonValider>
                 </div>
               </div>
             </div>
@@ -1194,16 +1252,25 @@ export default function StockSaleFlow({
       {step === 2 && (
         <div className="space-y-5">
           {/* Header */}
-          <div className="flex items-center justify-between">
+          <div className="flex items-start justify-between gap-4">
             <div>
               <p className="text-[11px] font-black text-stone-400 uppercase tracking-[0.3em]">Étape 3</p>
-              <h2 className="text-xl font-black text-stone-900 uppercase tracking-tight mt-0.5">Récapitulatif</h2>
+              <h2 className="text-xl font-black text-stone-900 uppercase tracking-tight mt-0.5">Vérifier le panier</h2>
+              <p className="text-[11px] font-medium text-stone-500 leading-snug mt-1 max-w-xl">
+                Pour chaque ligne : d'où sort la marchandise, combien, et à quel prix.
+              </p>
             </div>
-            <div className="text-right">
+            <div className="text-right shrink-0">
               <p className="text-2xl font-black text-stone-900">{cartCount}</p>
-              <p className="text-[11px] font-black text-stone-400 uppercase tracking-widest">article{cartCount > 1 ? 's' : ''}</p>
+              <p className="text-[11px] font-bold text-stone-500">article{cartCount > 1 ? 's' : ''}</p>
             </div>
           </div>
+
+          <Encadre ton="info" titre="D'où sort la marchandise">
+            Le lieu de vente d'une ligne ne propose que les endroits qui ont réellement l'article.
+            La réserve compte dans le stock du magasin principal : sa marchandise s'y vend sans transfert.
+            Une boutique secondaire, elle, doit d'abord la recevoir.
+          </Encadre>
 
           {/* Articles */}
           <div className="space-y-3">
@@ -1235,33 +1302,10 @@ export default function StockSaleFlow({
                       {item.size && (
                         <span className="text-[10px] font-bold bg-stone-50 text-stone-600 px-2 py-1 rounded-lg border border-stone-100">T. {item.size}</span>
                       )}
-                      <div className="flex items-center gap-1.5 bg-stone-50 px-2 py-0.5 rounded-lg border border-stone-200">
-                        <span className="text-[11px] font-black text-stone-500 uppercase">Emplacement:</span>
-                        <select
-                          value={sourceStore || resolveSourceStore(item, selectedStoreId)}
-                          onChange={e => updateCartStore(item.articleId, e.target.value)}
-                          className="h-6 text-[10px] font-black bg-white rounded border border-stone-300 text-stone-800 px-1 outline-none focus:border-violet-500 cursor-pointer"
-                        >
-                          {(() => {
-                            const lieux = (stores || [])
-                              .filter(s => s.type !== 'WAREHOUSE')
-                              .map(s => ({ s, q: availableQtyAtStore(item, s.id) }))
-                              .filter(({ s, q }) => q > 0 || s.id === sourceStore);
-                            if (lieux.length === 0) {
-                              return <option value={sourceStore || selectedStoreId}>{sourceStore || selectedStoreId}</option>;
-                            }
-                            return lieux.map(({ s, q }) => (
-                              <option key={s.id} value={s.id}>
-                                🏪 {s.name} ({q} dispo)
-                              </option>
-                            ));
-                          })()}
-                        </select>
-                      </div>
-                      <span className="text-[10px] text-stone-300 font-bold">{item.categoryId}</span>
+                      <span className="text-[11px] text-stone-400 font-medium">{item.categoryId}</span>
                       {cart.filter(l => l.item.productName === item.productName).length > 1 && (
-                        <span className="text-[11px] font-black text-violet-700 bg-violet-50 px-2 py-0.5 rounded-md border border-violet-200/60" title="Prix unifié pour toutes les couleurs">
-                          🔗 Prix partagé ({cart.filter(l => l.item.productName === item.productName).length} couleurs)
+                        <span className="text-[11px] font-bold text-violet-700 bg-violet-50 px-2 py-0.5 rounded-md border border-violet-200/60" title="Le prix saisi vaut pour toutes les couleurs de ce produit">
+                          Prix commun à {cart.filter(l => l.item.productName === item.productName).length} couleurs
                         </span>
                       )}
                     </div>
@@ -1269,82 +1313,134 @@ export default function StockSaleFlow({
 
                   {/* Supprimer */}
                   <button onClick={() => removeFromCart(item.articleId)}
-                    className="w-8 h-8 rounded-lg text-stone-300 hover:text-red-500 hover:bg-red-50 flex items-center justify-center transition-colors shrink-0">
+                    title="Retirer cet article du panier"
+                    className="w-8 h-8 rounded-lg text-stone-400 hover:text-red-500 hover:bg-red-50 flex items-center justify-center transition-colors shrink-0">
                     <X className="w-4 h-4" />
                   </button>
                 </div>
 
-                {/* Quantité + Prix */}
-                <div className="px-4 pb-4 flex items-center gap-4">
-                  <div className="flex items-center gap-1 bg-stone-50 rounded-xl p-1 border border-stone-100">
-                    <button onClick={() => qty > 1 && updateCart(item.articleId, 'qty', qty - 1)}
-                      className="w-8 h-8 rounded-lg bg-white border border-stone-200 text-stone-600 flex items-center justify-center hover:bg-stone-100 transition-colors shadow-sm">
-                      <Minus className="w-3.5 h-3.5" />
-                    </button>
-                    <span className="w-10 text-center text-sm font-black text-stone-900">{qty}</span>
-                    <button
-                      disabled={qty >= availableStock}
-                      onClick={() => qty < availableStock && updateCart(item.articleId, 'qty', qty + 1)}
-                      className={`w-8 h-8 rounded-lg bg-white border border-stone-200 text-stone-600 flex items-center justify-center transition-colors shadow-sm ${qty >= availableStock ? 'opacity-40 cursor-not-allowed' : 'hover:bg-stone-100'}`}
-                      title={qty >= availableStock ? `Stock max disponible : ${availableStock}` : undefined}
+                {/* Lieu de vente + Quantité + Prix */}
+                <div className="px-4 pb-4 grid grid-cols-1 sm:grid-cols-3 gap-4 border-t border-stone-100 pt-4">
+                  <Champ
+                    label="Lieu de vente"
+                    obligatoire
+                    htmlFor={`lieu-${item.articleId}`}
+                    aide="C'est de là que la marchandise sort. Le menu ne propose que les lieux qui en ont ; si aucun n'en a, seul le lieu déjà choisi reste affiché."
+                  >
+                    <select
+                      id={`lieu-${item.articleId}`}
+                      value={sourceStore || resolveSourceStore(item, selectedStoreId)}
+                      onChange={e => updateCartStore(item.articleId, e.target.value)}
+                      className={`${CLASSE_CHAMP} w-full border bg-white px-3 outline-none focus:border-violet-500 cursor-pointer`}
                     >
-                      <Plus className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
+                      {(() => {
+                        const lieux = (stores || [])
+                          .filter(s => s.type !== 'WAREHOUSE')
+                          .map(s => ({ s, q: availableQtyAtStore(item, s.id) }))
+                          .filter(({ s, q }) => q > 0 || s.id === sourceStore);
+                        if (lieux.length === 0) {
+                          return <option value={sourceStore || selectedStoreId}>{sourceStore || selectedStoreId}</option>;
+                        }
+                        return lieux.map(({ s, q }) => (
+                          <option key={s.id} value={s.id}>
+                            {s.name} — {q} en stock
+                          </option>
+                        ));
+                      })()}
+                    </select>
+                  </Champ>
 
-                  <div className="flex items-center gap-2 flex-1">
-                    <span className="text-[11px] font-black text-stone-400 uppercase tracking-widest shrink-0">×</span>
-                    <Input type="number" min={0} step="any" value={unitPrice || ''}
-                      onChange={e => updateCart(item.articleId, 'unitPrice', Number(e.target.value))}
-                      placeholder="Prix (MAD)"
-                      className="h-9 flex-1 max-w-[140px] text-sm font-black rounded-xl border-stone-200 placeholder:text-stone-300 placeholder:font-normal" />
-                    <span className="text-[11px] font-bold text-stone-400 shrink-0">MAD</span>
-                  </div>
+                  <Champ
+                    label="Quantité vendue"
+                    obligatoire
+                    indice={`${availableStock} disponibles ici`}
+                    aide="Le bouton + s'arrête au stock du lieu choisi. Pour aller plus loin, transférez d'abord la marchandise."
+                  >
+                    <div className="h-11 inline-flex items-center gap-1 bg-stone-50 rounded-xl p-1 border border-stone-200">
+                      <button onClick={() => qty > 1 && updateCart(item.articleId, 'qty', qty - 1)}
+                        title="Enlever une unité"
+                        className="w-8 h-8 rounded-lg bg-white border border-stone-200 text-stone-600 flex items-center justify-center hover:bg-stone-100 transition-colors shadow-sm">
+                        <Minus className="w-3.5 h-3.5" />
+                      </button>
+                      <span className="w-12 text-center text-sm font-black text-stone-900 tabular-nums">{qty}</span>
+                      <button
+                        disabled={qty >= availableStock}
+                        onClick={() => qty < availableStock && updateCart(item.articleId, 'qty', qty + 1)}
+                        className={`w-8 h-8 rounded-lg bg-white border border-stone-200 text-stone-600 flex items-center justify-center transition-colors shadow-sm ${qty >= availableStock ? 'opacity-40 cursor-not-allowed' : 'hover:bg-stone-100'}`}
+                        title={qty >= availableStock ? `Tout le stock de ce lieu est déjà au panier : ${availableStock}` : 'Ajouter une unité'}
+                      >
+                        <Plus className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </Champ>
 
-                  <div className="text-right shrink-0 min-w-[80px]">
-                    <p className="text-sm font-black text-stone-900">{unitPrice > 0 ? fmt$(qty * unitPrice) : '—'}</p>
-                  </div>
+                  <Champ
+                    label="Prix de vente à l'unité"
+                    obligatoire
+                    htmlFor={`prix-${item.articleId}`}
+                    indice={unitPrice > 0 ? `${fmt$(qty * unitPrice)} MAD la ligne` : undefined}
+                    aide={
+                      cart.filter(l => l.item.productName === item.productName).length > 1
+                        ? 'Ce prix sera repris sur toutes les couleurs de ce produit déjà au panier.'
+                        : "Prix hors remise. La remise s'applique plus bas, sur le total de la vente."
+                    }
+                    erreur={
+                      unitPrice > 0 && Number(item.purchasePricePerUnit) > 0 && unitPrice < Number(item.purchasePricePerUnit)
+                        ? `En dessous du prix de revient (${fmt$(Number(item.purchasePricePerUnit))} MAD) : seul l'administrateur peut valider une vente à perte.`
+                        : null
+                    }
+                  >
+                    <div className="relative">
+                      <Input id={`prix-${item.articleId}`} type="number" min={0} step="any" value={unitPrice || ''}
+                        onChange={e => updateCart(item.articleId, 'unitPrice', Number(e.target.value))}
+                        placeholder="0,00"
+                        className={`${CLASSE_CHAMP} pr-14`} />
+                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[11px] font-bold text-stone-400">MAD</span>
+                    </div>
+                  </Champ>
                 </div>
               </div>
             ); })}
           </div>
 
           {/* Totaux */}
-          <div className="bg-white rounded-2xl border border-stone-200 p-5 space-y-4">
-            <div className="flex items-center gap-3">
-              <Label className="text-[11px] font-black text-stone-400 uppercase tracking-widest shrink-0 flex items-center gap-1">
-                <Percent className="w-3 h-3" /> Remise
-              </Label>
-              <Input type="number" min={0} max={100} value={discount}
-                onChange={e => setDiscount(Math.min(100, Math.max(0, Number(e.target.value))))}
-                className="h-9 w-20 text-sm font-black rounded-xl border-stone-200" />
-              <span className="text-[10px] text-stone-400 font-bold">%</span>
-              {discount > 0 && <span className="text-[10px] text-emerald-600 font-bold">— {fmt$(discountAmt)} économisé</span>}
-            </div>
-
-            <div className="border-t border-stone-100 pt-4 space-y-2">
-              <div className="flex justify-between text-xs font-bold text-stone-400">
-                <span>Sous-total ({cartCount} article{cartCount > 1 ? 's' : ''})</span>
-                <span>{fmt$(subTotal)}</span>
-              </div>
-              {discount > 0 && (
-                <div className="flex justify-between text-xs font-bold text-emerald-600">
-                  <span>Remise {discount}%</span>
-                  <span>-{fmt$(discountAmt)}</span>
+          <div className="bg-white rounded-2xl border border-stone-200 p-5 space-y-5">
+            <SectionFormulaire
+              titre="Remise et note"
+              aide="Facultatif. À remplir avant de passer au règlement."
+            >
+              <Champ
+                label={<span className="inline-flex items-center gap-1.5"><Percent className="w-3.5 h-3.5 text-stone-400" /> Remise sur le total</span>}
+                htmlFor="vente-remise"
+                aide="La remise porte sur le total de la vente, pas sur une ligne. Le reste dû se recalcule tout seul."
+                indice={discount > 0 ? `${fmt$(discountAmt)} MAD de moins` : undefined}
+              >
+                <div className="relative max-w-[140px]">
+                  <Input id="vente-remise" type="number" min={0} max={100} value={discount}
+                    onChange={e => setDiscount(Math.min(100, Math.max(0, Number(e.target.value))))}
+                    className={`${CLASSE_CHAMP} pr-8`} />
+                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[11px] font-bold text-stone-400">%</span>
                 </div>
-              )}
-              <div className="flex justify-between text-xl font-black text-stone-900 pt-2 border-t border-stone-200">
-                <span>Total</span>
-                <span>{fmt$(total)}</span>
-              </div>
-            </div>
+              </Champ>
 
-            <div className="space-y-1.5 pt-2 border-t border-stone-100">
-              <Label className="text-[11px] font-black text-stone-400 uppercase tracking-widest">Notes</Label>
-              <Input placeholder="Référence, instructions..." value={notes}
-                onChange={e => setNotes(e.target.value)}
-                className="h-10 rounded-xl border-stone-200 font-bold text-sm" />
-            </div>
+              <Champ
+                label="Note sur la vente"
+                htmlFor="vente-note"
+                aide="Reprise telle quelle sur le bon de commande imprimé : référence du client, consigne de livraison."
+              >
+                <Input id="vente-note" placeholder="Ex : à livrer lundi matin" value={notes}
+                  onChange={e => setNotes(e.target.value)}
+                  className={CLASSE_CHAMP} />
+              </Champ>
+            </SectionFormulaire>
+
+            <Recapitulatif titre="Montant de la vente">
+              <LigneResume libelle={`Sous-total (${cartCount} article${cartCount > 1 ? 's' : ''})`} valeur={`${fmt$(subTotal)} MAD`} />
+              {discount > 0 && (
+                <LigneResume libelle={`Remise ${discount} %`} valeur={`-${fmt$(discountAmt)} MAD`} ton="positif" />
+              )}
+              <LigneResume libelle="Total à régler" valeur={`${fmt$(total)} MAD`} fort />
+            </Recapitulatif>
           </div>
 
           {/* Navigation */}
@@ -1354,7 +1450,7 @@ export default function StockSaleFlow({
             </Button>
             <Button onClick={goToValidation}
               className="bg-stone-900 hover:bg-stone-800 text-white font-black uppercase text-xs h-11 px-8 rounded-2xl gap-2">
-              Finaliser <ChevronRight className="w-4 h-4" />
+              Passer au règlement <ChevronRight className="w-4 h-4" />
             </Button>
           </div>
         </div>
@@ -1372,6 +1468,12 @@ export default function StockSaleFlow({
           </div>
 
           {/* Choix type de règlement */}
+          <div className="bg-white rounded-2xl shadow-lg border border-stone-100 p-5">
+          <SectionFormulaire
+            numero={1}
+            titre="Comment le client règle-t-il ?"
+            aide="Ce choix décide de l'état de la facture : réglée, en attente d'encaissement, ou portée au compte du client."
+          >
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <button
               type="button"
@@ -1393,9 +1495,9 @@ export default function StockSaleFlow({
                 paymentStatus === 'PAID' ? 'border-emerald-600 bg-emerald-600 text-white shadow-lg' : 'border-stone-200 bg-white hover:border-emerald-300'
               }`}>
               <CheckCircle2 className="w-8 h-8 mb-3 opacity-80" />
-              <p className="font-black text-lg uppercase tracking-tighter">Règlement (Comptant / Chèque / LC)</p>
-              <p className={`text-[10px] font-bold mt-1 ${paymentStatus === 'PAID' ? 'text-emerald-100' : 'text-stone-400'}`}>
-                Espèces encaissées, ou Effets (Chèque / LC) enregistrés en attente d'encaissement.
+              <p className="font-black text-lg uppercase tracking-tighter">Le client règle maintenant</p>
+              <p className={`text-[11px] font-medium leading-snug mt-1 ${paymentStatus === 'PAID' ? 'text-emerald-50' : 'text-stone-500'}`}>
+                Espèces, chèque, effet ou virement. Le détail du règlement se saisit juste en dessous, et peut être partiel.
               </p>
             </button>
 
@@ -1407,23 +1509,40 @@ export default function StockSaleFlow({
                 paymentStatus === 'UNPAID' ? 'border-amber-600 bg-amber-600 text-white shadow-lg' : 'border-stone-200 bg-white hover:border-amber-300'
               } ${anonymous ? 'opacity-50 cursor-not-allowed' : ''}`}>
               <ClipboardList className="w-8 h-8 mb-3 opacity-80" />
-              <p className="font-black text-lg uppercase tracking-tighter">À Crédit (100% Compte Client)</p>
-              <p className={`text-[10px] font-bold mt-1 ${paymentStatus === 'UNPAID' ? 'text-amber-100' : 'text-stone-400'}`}>
-                {anonymous ? "Sélectionnez un client à l'étape 1" : "Ajouté intégralement à la dette du client. Le stock est décompté."}
+              <p className="font-black text-lg uppercase tracking-tighter">Tout à crédit</p>
+              <p className={`text-[11px] font-medium leading-snug mt-1 ${paymentStatus === 'UNPAID' ? 'text-amber-50' : 'text-stone-500'}`}>
+                {anonymous
+                  ? "Impossible pour une vente comptoir : revenez à l'étape 1 et choisissez un client."
+                  : "La totalité s'ajoute à la dette du client. La marchandise sort quand même du stock."}
               </p>
             </button>
           </div>
 
+          {(paymentStatus === 'UNPAID' || remainingBalance > 0.01) && !anonymous && (
+            <Encadre ton="attention" titre="Ce qui reste dû engage le client" className="mt-3.5">
+              Le reste dû s'ajoute à l'encours de {selectedClient?.name || 'ce client'}
+              {selectedClient?.creditLimit != null && selectedClient.creditLimit > 0
+                ? `, dont le plafond est de ${fmt$(selectedClient.creditLimit)} MAD`
+                : ''}.
+              {' '}Au moment de valider, le logiciel compare l'encours au plafond et demande confirmation en cas de dépassement.
+            </Encadre>
+          )}
+          </SectionFormulaire>
+          </div>
+
           {/* Si règlement immédiat / partiel : modes de paiement */}
           {paymentStatus === 'PAID' && (
-            <div className="bg-white rounded-2xl shadow-lg border border-stone-100 p-5 space-y-4">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-stone-100 pb-4">
-                <div>
-                  <Label className="text-xs font-black text-stone-900 uppercase tracking-wide">
-                    Mode de paiement
-                  </Label>
-                  <p className="text-[10px] text-stone-400 font-bold">
-                    Choisissez le mode de paiement ou combinez plusieurs modes
+            <div className="bg-white rounded-2xl shadow-lg border border-stone-100 p-5">
+              <SectionFormulaire
+                numero={2}
+                titre="Détail du règlement"
+                aide="Une ligne par moyen de paiement reçu. Ce qui n'est pas réglé ici reste dû par le client."
+              >
+              <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3 pb-1">
+                <div className="max-w-xs">
+                  <p className="text-[13px] font-bold text-stone-800 leading-tight">Raccourcis</p>
+                  <p className="text-[11px] font-medium text-stone-500 leading-snug mt-0.5">
+                    Un raccourci remplace les lignes par une seule, au montant total de la vente. « Mixte » en prépare deux.
                   </p>
                 </div>
                 <div className="flex flex-wrap gap-1.5">
@@ -1490,6 +1609,13 @@ export default function StockSaleFlow({
                 </div>
               </div>
 
+              {paymentLines.some(l => l.method === 'CHEQUE' || l.method === 'LC' || l.method === 'LCN' || l.method === 'EFFET') && (
+                <Encadre ton="attention" titre="Un chèque ou un effet ne solde pas la facture">
+                  La facture reste « en attente » jusqu'à l'encaissement en banque. Elle ne passe à « réglée » que le jour
+                  où l'argent est réellement sur le compte. D'ici là, la pièce reste à suivre.
+                </Encadre>
+              )}
+
               {/* Datalist pour suggestions banques marocaines */}
               <datalist id="moroccan-banks-sale">
                 {MOROCCAN_BANKS.map(b => (
@@ -1499,98 +1625,136 @@ export default function StockSaleFlow({
 
               {/* Lignes de paiement */}
               <div className="space-y-3">
-                {paymentLines.map((line) => {
+                {paymentLines.map((line, indexLigne) => {
                   const isPaper = line.method === 'CHEQUE' || line.method === 'LC' || line.method === 'LCN' || line.method === 'EFFET';
                   const isTransfer = line.method === 'VIREMENT';
 
                   return (
-                    <div key={line.id} className="p-4 rounded-2xl bg-stone-50 border border-stone-200 space-y-3">
-                      <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
-                        <div className="w-full sm:w-56">
-                          <Select
-                            value={line.method}
-                            onValueChange={v => updateCheckoutPaymentLine(line.id, 'method', v as PaymentMethod)}
-                          >
-                            <SelectTrigger className="h-11 bg-white font-black text-xs rounded-xl border-stone-200">
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="CASH"><Banknote className="inline w-3.5 h-3.5 mr-1.5 -mt-0.5" />Espèces (Cash)</SelectItem>
-                              <SelectItem value="CHEQUE"><FileCheck className="inline w-3.5 h-3.5 mr-1.5 -mt-0.5" />Chèque</SelectItem>
-                              <SelectItem value="LC"><FileText className="inline w-3.5 h-3.5 mr-1.5 -mt-0.5" />LC (Lettre de Change)</SelectItem>
-                              <SelectItem value="VIREMENT"><Landmark className="inline w-3.5 h-3.5 mr-1.5 -mt-0.5" />Virement</SelectItem>
-                            </SelectContent>
-                          </Select>
-                        </div>
-
-                        <div className="flex-1 relative">
-                          <Input
-                            type="number"
-                            step="any"
-                            min="0"
-                            placeholder="Montant (MAD)"
-                            value={line.amount}
-                            onChange={e => updateCheckoutPaymentLine(line.id, 'amount', e.target.value)}
-                            className="h-11 bg-white font-black text-base pr-14 rounded-xl border-stone-200"
-                          />
-                          <span className="absolute right-3 top-3 text-xs font-black text-stone-400">MAD</span>
-                        </div>
-
+                    <div key={line.id} className="p-4 rounded-2xl bg-stone-50 border border-stone-200 space-y-3.5">
+                      <div className="flex items-center justify-between gap-3">
+                        <p className="text-[10px] font-black uppercase tracking-widest text-stone-400">
+                          Règlement {indexLigne + 1}{paymentLines.length > 1 ? ` sur ${paymentLines.length}` : ''}
+                        </p>
                         {paymentLines.length > 1 && (
                           <Button
                             type="button"
                             variant="ghost"
                             size="icon"
+                            title="Retirer cette ligne de règlement"
                             onClick={() => removeCheckoutPaymentLine(line.id)}
-                            className="h-11 w-11 text-red-500 hover:text-red-700 hover:bg-red-50 rounded-xl shrink-0"
+                            className="h-9 w-9 text-red-500 hover:text-red-700 hover:bg-red-50 rounded-xl shrink-0"
                           >
                             <Trash2 className="w-4 h-4" />
                           </Button>
                         )}
                       </div>
 
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                        <Champ
+                          label="Moyen de paiement"
+                          obligatoire
+                          aide={
+                            isPaper
+                              ? "La pièce est enregistrée, mais la facture reste en attente jusqu'à son encaissement en banque."
+                              : isTransfer
+                                ? 'Compté comme encaissé. Vérifiez que le virement est bien arrivé sur le compte.'
+                                : 'Argent encaissé tout de suite : cette part de la facture est réglée.'
+                          }
+                        >
+                          <Select
+                            value={line.method}
+                            onValueChange={v => updateCheckoutPaymentLine(line.id, 'method', v as PaymentMethod)}
+                          >
+                            <SelectTrigger className={`${CLASSE_CHAMP} bg-white border`}>
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="CASH"><Banknote className="inline w-3.5 h-3.5 mr-1.5 -mt-0.5" />Espèces</SelectItem>
+                              <SelectItem value="CHEQUE"><FileCheck className="inline w-3.5 h-3.5 mr-1.5 -mt-0.5" />Chèque</SelectItem>
+                              <SelectItem value="LC"><FileText className="inline w-3.5 h-3.5 mr-1.5 -mt-0.5" />Effet (lettre de change)</SelectItem>
+                              <SelectItem value="VIREMENT"><Landmark className="inline w-3.5 h-3.5 mr-1.5 -mt-0.5" />Virement</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </Champ>
+
+                        <Champ
+                          label="Montant reçu"
+                          obligatoire
+                          htmlFor={`reglement-montant-${line.id}`}
+                          indice={`Vente : ${fmt$(total)} MAD`}
+                          aide="Laissez le montant total si le client solde tout. Un montant plus faible laisse le reste à sa charge."
+                          erreur={isOverpaid ? `Le total saisi dépasse la vente de ${fmt$(totalPaid - total)} MAD.` : null}
+                        >
+                          <div className="relative">
+                            <Input
+                              id={`reglement-montant-${line.id}`}
+                              type="number"
+                              step="any"
+                              min="0"
+                              placeholder="0,00"
+                              value={line.amount}
+                              onChange={e => updateCheckoutPaymentLine(line.id, 'amount', e.target.value)}
+                              className={`${CLASSE_CHAMP} bg-white text-base pr-14`}
+                            />
+                            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-stone-400">MAD</span>
+                          </div>
+                        </Champ>
+                      </div>
+
                       {/* Détails Chèque ou LC */}
                       {isPaper && (
-                        <div className="space-y-3 pt-2 border-t border-stone-200/60">
-                          <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
-                            <div className="space-y-1">
-                              <Label className="text-[11px] font-black uppercase text-stone-500">Banque Tirée</Label>
+                        <div className="space-y-3.5 pt-3 border-t border-stone-200/60">
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                            <Champ
+                              label="Banque du client"
+                              htmlFor={`reglement-banque-${line.id}`}
+                              aide="Banque qui a émis la pièce. Elle figure sur le chèque."
+                            >
                               <Input
+                                id={`reglement-banque-${line.id}`}
                                 list="moroccan-banks-sale"
-                                placeholder="Ex: BCP, CIH..."
+                                placeholder="Ex : BCP, CIH..."
                                 value={line.bankName}
                                 onChange={e => updateCheckoutPaymentLine(line.id, 'bankName', e.target.value)}
-                                className="h-9 bg-white text-xs font-bold rounded-lg border-stone-200"
+                                className={`${CLASSE_CHAMP} bg-white`}
                               />
-                            </div>
-                            <div className="space-y-1">
-                              <Label className="text-[11px] font-black uppercase text-stone-500">
-                                {line.method === 'CHEQUE' ? 'N° de Chèque' : 'N° LC / Effet'}
-                              </Label>
+                            </Champ>
+                            <Champ
+                              label={line.method === 'CHEQUE' ? 'Numéro du chèque' : "Numéro de l'effet"}
+                              htmlFor={`reglement-numero-${line.id}`}
+                              aide="Numéro imprimé sur la pièce : c'est par lui qu'on la retrouve le jour de l'encaissement."
+                            >
                               <Input
-                                placeholder="N° de la pièce"
+                                id={`reglement-numero-${line.id}`}
+                                placeholder="Numéro de la pièce"
                                 value={line.checkNumber}
                                 onChange={e => updateCheckoutPaymentLine(line.id, 'checkNumber', e.target.value)}
-                                className="h-9 bg-white text-xs font-bold rounded-lg border-stone-200"
+                                className={`${CLASSE_CHAMP} bg-white`}
                               />
-                            </div>
-                            <div className="space-y-1">
-                              <Label className="text-[11px] font-black uppercase text-stone-500">Date d'échéance</Label>
+                            </Champ>
+                            <Champ
+                              label="Date d'échéance"
+                              htmlFor={`reglement-echeance-${line.id}`}
+                              aide="Date à partir de laquelle la pièce peut être déposée en banque."
+                            >
                               <Input
+                                id={`reglement-echeance-${line.id}`}
                                 type="date"
                                 value={line.dueDate}
                                 onChange={e => updateCheckoutPaymentLine(line.id, 'dueDate', e.target.value)}
-                                className="h-9 bg-white text-xs font-bold rounded-lg border-stone-200"
+                                className={`${CLASSE_CHAMP} bg-white`}
                               />
-                            </div>
+                            </Champ>
                             {userRole === 'ADMIN' && (
-                              <div className="space-y-1">
-                                <Label className="text-[11px] font-black uppercase text-stone-500">Société Attijari</Label>
+                              <Champ
+                                label="Société qui encaissera"
+                                aide="Compte sur lequel la pièce sera déposée. « Arbitrer à J-7 » laisse le choix pour plus tard."
+                              >
                                 <Select
                                   value={line.cashingCompany || 'PENDING'}
                                   onValueChange={v => updateCheckoutPaymentLine(line.id, 'cashingCompany', v === 'PENDING' ? undefined : v as CashingCompany)}
                                 >
-                                  <SelectTrigger className="h-9 bg-white text-xs font-bold rounded-lg border-stone-200">
+                                  <SelectTrigger className={`${CLASSE_CHAMP} bg-white border`}>
                                     <SelectValue />
                                   </SelectTrigger>
                                   <SelectContent>
@@ -1599,25 +1763,26 @@ export default function StockSaleFlow({
                                     <SelectItem value="ROBE IN BOX"><Building2 className="inline w-3.5 h-3.5 mr-1.5 -mt-0.5" />ROBE IN BOX</SelectItem>
                                   </SelectContent>
                                 </Select>
-                              </div>
+                              </Champ>
                             )}
                           </div>
 
                           {/* Scan / Photo obligatoire du Chèque / LC */}
-                          <div className="space-y-1">
-                            <div className="flex items-center justify-between">
-                              <Label className="text-[11px] font-black uppercase tracking-widest flex items-center gap-1.5 text-amber-800">
+                          <Champ
+                            label={(
+                              <span className="inline-flex items-center gap-1.5">
                                 <Camera className="w-3.5 h-3.5 text-amber-600" />
-                                <span>Scan / Photo du {line.method === 'CHEQUE' ? 'Chèque' : 'la LC'}</span>
-                                <span className="text-red-500 font-black">* Obligatoire</span>
-                              </Label>
-                              {!line.scannedImageUrl && (
-                                <span className="text-[11px] font-black uppercase tracking-wider text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full">
-                                  Scan requis avant validation
-                                </span>
-                              )}
-                            </div>
-
+                                Photo {line.method === 'CHEQUE' ? 'du chèque' : "de l'effet"}
+                              </span>
+                            )}
+                            obligatoire
+                            aide="Sans cette photo, la vente ne peut pas être validée : c'est la seule preuve de la pièce reçue."
+                            indice={!line.scannedImageUrl ? (
+                              <span className="text-[11px] font-bold text-amber-800 bg-amber-100 px-2 py-0.5 rounded-full">
+                                Photo manquante
+                              </span>
+                            ) : undefined}
+                          >
                             <div className={`relative border-2 border-dashed rounded-xl p-3 transition-colors ${
                               line.scannedImageUrl
                                 ? 'border-emerald-400 bg-emerald-50/40'
@@ -1654,10 +1819,10 @@ export default function StockSaleFlow({
                                   </div>
                                   <div className="text-center sm:text-left">
                                     <span className="text-xs font-black text-stone-900 group-hover:text-amber-900">
-                                      Prendre une photo ou importer le scan du chèque / de la LC
+                                      Prendre la pièce en photo, ou choisir une image
                                     </span>
-                                    <p className="text-[10px] text-stone-500 font-medium">
-                                      Appareil photo mobile/tablette ou fichier image (JPG, PNG)
+                                    <p className="text-[11px] text-stone-500 font-medium">
+                                      Appareil photo du téléphone ou de la tablette, ou fichier image (JPG, PNG)
                                     </p>
                                   </div>
                                   <input
@@ -1676,32 +1841,40 @@ export default function StockSaleFlow({
                                 </label>
                               )}
                             </div>
-                          </div>
+                          </Champ>
                         </div>
                       )}
 
                       {/* Détails Virement */}
                       {isTransfer && (
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-stone-200/60">
-                          <div className="space-y-1">
-                            <Label className="text-[11px] font-black uppercase text-stone-500">Banque</Label>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 pt-3 border-t border-stone-200/60">
+                          <Champ
+                            label="Banque du client"
+                            htmlFor={`virement-banque-${line.id}`}
+                            aide="Banque depuis laquelle le client a fait le virement."
+                          >
                             <Input
+                              id={`virement-banque-${line.id}`}
                               list="moroccan-banks-sale"
-                              placeholder="Ex: CIH, BMCE..."
+                              placeholder="Ex : CIH, BMCE..."
                               value={line.bankName}
                               onChange={e => updateCheckoutPaymentLine(line.id, 'bankName', e.target.value)}
-                              className="h-9 bg-white text-xs font-bold rounded-lg border-stone-200"
+                              className={`${CLASSE_CHAMP} bg-white`}
                             />
-                          </div>
-                          <div className="space-y-1">
-                            <Label className="text-[11px] font-black uppercase text-stone-500">Réf. Virement</Label>
+                          </Champ>
+                          <Champ
+                            label="Référence du virement"
+                            htmlFor={`virement-reference-${line.id}`}
+                            aide="Référence de l'opération : elle permet de retrouver le virement sur le relevé de banque."
+                          >
                             <Input
-                              placeholder="N° référence ou transaction"
+                              id={`virement-reference-${line.id}`}
+                              placeholder="Numéro de référence"
                               value={line.checkNumber}
                               onChange={e => updateCheckoutPaymentLine(line.id, 'checkNumber', e.target.value)}
-                              className="h-9 bg-white text-xs font-bold rounded-lg border-stone-200"
+                              className={`${CLASSE_CHAMP} bg-white`}
                             />
-                          </div>
+                          </Champ>
                         </div>
                       )}
                     </div>
@@ -1710,105 +1883,133 @@ export default function StockSaleFlow({
               </div>
 
               {/* Bouton ajouter mode si split / multi-mode */}
-              <div className="flex flex-wrap items-center justify-between gap-3 pt-2">
+              <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
                 <Button
                   type="button"
                   variant="outline"
                   size="sm"
                   onClick={() => addCheckoutPaymentLine('CASH')}
-                  className="text-xs font-black uppercase rounded-xl border-dashed border-stone-300 gap-1.5 h-9"
+                  className="text-xs font-bold rounded-xl border-dashed border-stone-300 gap-1.5 h-9"
+                  title="Quand le client règle une partie en espèces et le reste par chèque, par exemple"
                 >
                   <Plus className="w-3.5 h-3.5" />
-                  Ajouter un mode de paiement (Mixte)
+                  Ajouter un autre moyen de paiement
                 </Button>
 
                 {/* Statut de paiement en direct */}
                 <div className="flex items-center gap-2">
                   {Math.abs(remainingBalance) < 0.01 && (
-                    <span className="px-3 py-1 rounded-full text-[11px] font-black uppercase bg-emerald-100 text-emerald-800">
-                      ✓ Réglé en totalité ({fmt$(total)} MAD)
+                    <span className="px-3 py-1 rounded-full text-[11px] font-bold bg-emerald-100 text-emerald-800">
+                      Toute la vente est couverte ({fmt$(total)} MAD)
                     </span>
                   )}
                   {remainingBalance > 0.01 && (
-                    <span className="px-3 py-1 rounded-full text-[11px] font-black uppercase bg-amber-100 text-amber-800">
-                      Acompte : {fmt$(totalPaid)} MAD · Reste à crédit : {fmt$(remainingBalance)} MAD
+                    <span className="px-3 py-1 rounded-full text-[11px] font-bold bg-amber-100 text-amber-800">
+                      Réglé : {fmt$(totalPaid)} MAD · reste {fmt$(remainingBalance)} MAD au compte du client
                     </span>
                   )}
                   {isOverpaid && (
-                    <span className="px-3 py-1 rounded-full text-[11px] font-black uppercase bg-red-100 text-red-800">
-                      Attention : Total saisi ({fmt$(totalPaid)} MAD) dépasse la vente
+                    <span className="px-3 py-1 rounded-full text-[11px] font-bold bg-red-100 text-red-800">
+                      Le total saisi ({fmt$(totalPaid)} MAD) dépasse la vente
                     </span>
                   )}
                 </div>
               </div>
+              </SectionFormulaire>
             </div>
           )}
 
-          {/* Champs date & Récapitulatif */}
-          <div className="bg-white rounded-2xl shadow-lg border border-stone-100 p-5 space-y-4">
-            <div className="grid grid-cols-1 gap-4">
-              <div className="space-y-1.5">
-                <Label className="text-[11px] font-black text-stone-500 uppercase tracking-widest">Date de la vente</Label>
-                <Input type="date" value={finalDate} onChange={e => setFinalDate(e.target.value)}
-                  className="h-11 rounded-xl border-stone-200 font-bold max-w-sm" />
-              </div>
-            </div>
+          {/* Date, relecture et validation */}
+          <div className="bg-white rounded-2xl shadow-lg border border-stone-100 p-5">
+            <SectionFormulaire
+              numero={3}
+              titre="Relire, puis valider"
+              aide="Dernière vérification : à la validation, la marchandise sort du stock et le bon de commande est créé."
+            >
+              <Champ
+                label="Date de la vente"
+                obligatoire
+                htmlFor="vente-date"
+                aide="À changer seulement si la marchandise est sortie un autre jour que celui-ci."
+              >
+                <Input id="vente-date" type="date" value={finalDate} onChange={e => setFinalDate(e.target.value)}
+                  className={`${CLASSE_CHAMP} max-w-sm`} />
+              </Champ>
 
-            {/* Récap final */}
-            <div className="bg-stone-50 rounded-xl p-4 space-y-1">
-              <p className="text-[11px] font-black text-stone-400 uppercase tracking-widest mb-2">Récapitulatif</p>
-              {cart.slice(0, 4).map(({ item, qty, unitPrice }) => (
-                <div key={item.articleId} className="flex justify-between text-[10px] font-bold text-stone-600">
-                  <span>{qty}x {item.productName} {item.color || ''} {item.size || ''}</span>
-                  <span>{fmt$(qty * unitPrice)}</span>
+              {/* Récap final */}
+              <Recapitulatif titre="Ce qui va être enregistré">
+                {cart.slice(0, 4).map(({ item, qty, unitPrice, sourceStore }) => (
+                  <LigneResume
+                    key={item.articleId}
+                    libelle={`${qty} × ${item.productName} ${item.color || ''} ${item.size ? 'T. ' + item.size : ''} — depuis ${stores?.find(s => s.id === sourceStore)?.name || sourceStore || selectedStoreId}`}
+                    valeur={`${fmt$(qty * unitPrice)} MAD`}
+                  />
+                ))}
+                {cart.length > 4 && (
+                  <p className="text-[11px] text-stone-500 font-medium">
+                    + {cart.length - 4} autre{cart.length - 4 > 1 ? 's' : ''} article{cart.length - 4 > 1 ? 's' : ''} au panier
+                  </p>
+                )}
+                <div className="border-t border-stone-200 pt-2 mt-2 space-y-1.5">
+                  <LigneResume libelle="Total de la vente" valeur={`${fmt$(total)} MAD`} fort />
+                  {paymentStatus === 'PAID' && totalPaid > 0 && (
+                    <LigneResume libelle="Encaissé ou reçu aujourd'hui" valeur={`${fmt$(totalPaid)} MAD`} ton="positif" />
+                  )}
+                  {paymentStatus === 'PAID' && remainingBalance > 0.01 && (
+                    <LigneResume libelle="Reste au compte du client" valeur={`${fmt$(remainingBalance)} MAD`} ton="alerte" />
+                  )}
+                  {paymentStatus === 'UNPAID' && (
+                    <LigneResume libelle="Porté en entier au compte du client" valeur={`${fmt$(total)} MAD`} ton="alerte" />
+                  )}
+                  <LigneResume
+                    libelle="Sortie de stock"
+                    valeur={`${cartCount} article${cartCount > 1 ? 's' : ''}`}
+                  />
                 </div>
-              ))}
-              {cart.length > 4 && <p className="text-[11px] text-stone-400 font-bold">+{cart.length - 4} autre(s)...</p>}
-              <div className="border-t border-stone-200 pt-2 mt-2 flex justify-between font-black text-stone-900">
-                <span>Total de la vente</span>
-                <span className={paymentStatus === 'PAID' ? 'text-emerald-700' : 'text-amber-700'}>{fmt$(total)}</span>
-              </div>
-              {paymentStatus === 'PAID' && totalPaid > 0 && (
-                <div className="flex justify-between text-xs font-bold text-emerald-700">
-                  <span>Montant réglé immédiatement</span>
-                  <span>{fmt$(totalPaid)}</span>
+              </Recapitulatif>
+
+              {paymentStatus === 'PAID' && paymentLines.some(l => (parseFloat(l.amount) || 0) > 0 && (l.method === 'CHEQUE' || l.method === 'LC' || l.method === 'EFFET' || l.method === 'LCN')) && (
+                <Encadre ton="info">
+                  La facture sera créée « en attente » : le chèque ou l'effet ne la solde qu'une fois encaissé en banque.
+                </Encadre>
+              )}
+
+              {paymentStatus === 'PAID' && paymentLines.some(l => (parseFloat(l.amount) || 0) > 0 && (l.method === 'CHEQUE' || l.method === 'LC' || l.method === 'EFFET' || l.method === 'LCN') && !l.scannedImageUrl?.trim()) && (
+                <Encadre ton="attention" titre="Photo de la pièce manquante">
+                  La photo du chèque ou de l'effet est obligatoire pour valider la vente. Joignez-la dans le détail du règlement, juste au-dessus.
+                </Encadre>
+              )}
+
+              {!isOnline && (
+                <div className="flex items-center gap-2.5 p-3.5 bg-red-50 border border-red-300 rounded-2xl text-red-800 text-[11px] font-medium shadow-sm">
+                  <WifiOff className="w-4 h-4 text-red-600 shrink-0" />
+                  <span>Pas de connexion réseau. La vente ne peut pas être enregistrée tant que la connexion n'est pas revenue : patientez, rien n'est perdu.</span>
                 </div>
               )}
-              {paymentStatus === 'PAID' && remainingBalance > 0.01 && (
-                <div className="flex justify-between text-xs font-bold text-amber-700">
-                  <span>Reste à reporter au crédit du client</span>
-                  <span>{fmt$(remainingBalance)}</span>
-                </div>
-              )}
-            </div>
+
+              <BoutonValider
+                onClick={handleFinalize}
+                enCours={saving}
+                libelleEnCours="Enregistrement de la vente…"
+                raisonDesactive={
+                  !isOnline
+                    ? "Sans connexion réseau, la vente ne peut pas être enregistrée."
+                    : (paymentStatus === 'PAID' && paymentLines.some(l => (parseFloat(l.amount) || 0) > 0 && (l.method === 'CHEQUE' || l.method === 'LC' || l.method === 'EFFET' || l.method === 'LCN') && !l.scannedImageUrl?.trim()))
+                      ? "Joignez la photo du chèque ou de l'effet pour pouvoir valider."
+                      : null
+                }
+                className={paymentStatus === 'PAID'
+                  ? 'bg-emerald-600 hover:bg-emerald-700 shadow-emerald-500/30'
+                  : 'bg-amber-600 hover:bg-amber-700 shadow-amber-500/30'}
+              >
+                Valider la vente — {fmt$(total)} MAD
+              </BoutonValider>
+            </SectionFormulaire>
           </div>
-          {paymentStatus === 'PAID' && paymentLines.some(l => (parseFloat(l.amount) || 0) > 0 && (l.method === 'CHEQUE' || l.method === 'LC' || l.method === 'EFFET' || l.method === 'LCN') && !l.scannedImageUrl?.trim()) && (
-            <div className="flex items-center gap-2.5 p-3.5 bg-amber-50 border border-amber-300 rounded-2xl text-amber-900 text-xs font-bold shadow-sm">
-              <Camera className="w-4 h-4 text-amber-600 shrink-0" />
-              <span>Le scan ou la photo du chèque / de la LC est obligatoire pour pouvoir valider la vente. Veuillez joindre la photo ci-dessus.</span>
-            </div>
-          )}
 
-          {!isOnline && (
-            <div className="flex items-center gap-2.5 p-3.5 bg-red-50 border border-red-300 rounded-2xl text-red-800 text-xs font-bold shadow-sm">
-              <WifiOff className="w-4 h-4 text-red-600 shrink-0" />
-              <span>Pas de connexion réseau — la vente ne peut pas être enregistrée tant que la connexion n'est pas rétablie. Patientez ou réessayez plus tard.</span>
-            </div>
-          )}
-
-          <div className="flex justify-between">
+          <div className="flex justify-start">
             <Button variant="outline" onClick={() => setStep(2)} className="gap-2 font-black uppercase text-xs h-11 rounded-2xl">
               <ChevronLeft className="w-4 h-4" /> Modifier le panier
-            </Button>
-            <Button onClick={handleFinalize} disabled={saving || !isOnline || (paymentStatus === 'PAID' && paymentLines.some(l => (parseFloat(l.amount) || 0) > 0 && (l.method === 'CHEQUE' || l.method === 'LC' || l.method === 'EFFET' || l.method === 'LCN') && !l.scannedImageUrl?.trim()))}
-              className={`font-black uppercase text-xs h-12 px-10 rounded-2xl gap-2 shadow-lg transition-all ${
-                paymentStatus === 'PAID'
-                  ? 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-emerald-500/30'
-                  : 'bg-amber-600 hover:bg-amber-700 text-white shadow-amber-500/30'
-              }`}>
-              {saving ? 'Enregistrement...' : (
-                <>Valider la Vente <CheckCircle2 className="w-4 h-4" /></>
-              )}
             </Button>
           </div>
         </div>
@@ -1819,54 +2020,83 @@ export default function StockSaleFlow({
         <DialogContent className="sm:max-w-sm rounded-3xl border-none shadow-2xl p-0 overflow-hidden">
           <div className="bg-gradient-to-r from-[#3D2E17] to-[#2A2014] p-5 text-white">
             <DialogTitle className="text-base font-black uppercase tracking-tight">{addModal.item?.productName}</DialogTitle>
-            <p className="text-[11px] font-bold text-[#C9B89A] mt-1">
-              {[addModal.item?.color, addModal.item?.size].filter(Boolean).join(' · ')} · Stock: {addModal.item?.currentQty} {addModal.item?.unitOfMeasure}
+            <p className="text-[11px] font-medium text-[#C9B89A] mt-1">
+              {[addModal.item?.color, addModal.item?.size].filter(Boolean).join(' · ')} · {addModal.item?.currentQty} {addModal.item?.unitOfMeasure} en stock, tous lieux confondus
             </p>
           </div>
           <div className="p-5 space-y-4 bg-white">
-            <div className="space-y-1.5">
-              <Label className="text-[11px] font-black text-stone-500 uppercase tracking-widest">Quantité</Label>
-              <Input type="number" min={1} max={addModal.sourceStore && addModal.item ? availableQtyAtStore(addModal.item, addModal.sourceStore) : addModal.item?.currentQty} value={addModal.qty}
+            {addModal.item?.qtyByStore && Object.keys(addModal.item.qtyByStore).length > 0 && (
+              <Champ
+                label="Lieu d'où sort la marchandise"
+                obligatoire
+                htmlFor="ajout-lieu"
+                aide="C'est ce lieu qui sera débité. La réserve compte dans le stock du magasin principal ; une boutique secondaire doit d'abord recevoir la marchandise."
+              >
+                <select
+                  id="ajout-lieu"
+                  className={`${CLASSE_CHAMP} w-full border bg-white px-3 outline-none focus:border-violet-500`}
+                  value={addModal.sourceStore || ''}
+                  onChange={e => setAddModal(m => ({ ...m, sourceStore: normalizeSourceStore(e.target.value) }))}
+                >
+                  <option value="" disabled>Choisir un lieu…</option>
+                  {Object.entries(addModal.item.qtyByStore).map(([sId, q]) => (q as number) > 0 && (
+                    <option key={sId} value={sId}>{sId.replace('_', ' ')} — {q} en stock</option>
+                  ))}
+                </select>
+              </Champ>
+            )}
+            <Champ
+              label="Quantité"
+              obligatoire
+              htmlFor="ajout-quantite"
+              indice={`${(addModal.sourceStore && addModal.item ? availableQtyAtStore(addModal.item, addModal.sourceStore) : addModal.item?.currentQty) ?? 0} disponible(s)`}
+              aide="La saisie s'arrête au stock du lieu choisi."
+            >
+              <Input id="ajout-quantite" type="number" min={1} max={addModal.sourceStore && addModal.item ? availableQtyAtStore(addModal.item, addModal.sourceStore) : addModal.item?.currentQty} value={addModal.qty}
                 onChange={e => setAddModal(m => {
                   const maxStock = (m.sourceStore && m.item ? availableQtyAtStore(m.item, m.sourceStore) : m.item?.currentQty) || 999;
                   return { ...m, qty: Math.min(Number(e.target.value), maxStock) };
                 })}
-                className="h-12 text-xl font-black rounded-xl border-stone-200" autoFocus />
-            </div>
-            <div className="space-y-1.5">
-              <Label className="text-[11px] font-black text-stone-500 uppercase tracking-widest">Prix unitaire</Label>
-              <Input type="number" min={0} step="any" value={addModal.unitPrice}
-                onChange={e => setAddModal(m => ({ ...m, unitPrice: Number(e.target.value) }))}
-                className="h-12 text-xl font-black rounded-xl border-stone-200" />
-            </div>
-            <div className="bg-stone-50 rounded-xl p-3 flex justify-between font-black">
-              <span className="text-stone-500 text-sm">Total</span>
-              <span className="text-violet-700 text-lg">{fmt$(addModal.qty * addModal.unitPrice)}</span>
-            </div>
-            {addModal.item?.qtyByStore && Object.keys(addModal.item.qtyByStore).length > 0 && (
-              <div className="space-y-1.5 pt-2 border-t border-stone-100">
-                <Label className="text-[11px] font-black text-stone-500 uppercase tracking-widest">Retirer depuis l'emplacement</Label>
-                <select
-                  className="w-full h-10 border border-stone-200 rounded-lg text-xs font-bold text-stone-700 px-3 outline-none focus:border-violet-500 bg-white"
-                  value={addModal.sourceStore || ''}
-                  onChange={e => setAddModal(m => ({ ...m, sourceStore: normalizeSourceStore(e.target.value) }))}
-                >
-                  <option value="" disabled>-- Choisir un emplacement --</option>
-                  {Object.entries(addModal.item.qtyByStore).map(([sId, q]) => (q as number) > 0 && (
-                    <option key={sId} value={sId}>{sId.replace('_', ' ')} (Stock: {q})</option>
-                  ))}
-                </select>
+                className={`${CLASSE_CHAMP} text-lg`} autoFocus />
+            </Champ>
+            <Champ
+              label="Prix de vente à l'unité"
+              obligatoire
+              htmlFor="ajout-prix"
+              aide="Ce prix sera repris sur toutes les couleurs de ce produit déjà au panier."
+            >
+              <div className="relative">
+                <Input id="ajout-prix" type="number" min={0} step="any" value={addModal.unitPrice}
+                  onChange={e => setAddModal(m => ({ ...m, unitPrice: Number(e.target.value) }))}
+                  className={`${CLASSE_CHAMP} text-lg pr-14`} />
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[11px] font-bold text-stone-400">MAD</span>
               </div>
-            )}
+            </Champ>
+            <Recapitulatif titre="À ajouter au panier">
+              <LigneResume libelle="Quantité" valeur={`${addModal.qty} ${addModal.item?.unitOfMeasure || ''}`} />
+              <LigneResume libelle="Prix unitaire" valeur={`${fmt$(addModal.unitPrice)} MAD`} />
+              <LigneResume libelle="Total de la ligne" valeur={`${fmt$(addModal.qty * addModal.unitPrice)} MAD`} fort />
+            </Recapitulatif>
           </div>
-          <DialogFooter className="p-4 bg-stone-50 gap-2">
-            <Button variant="ghost" onClick={() => setAddModal({ open: false, qty: 1, unitPrice: 0 })} className="font-black uppercase text-[10px] rounded-xl flex-1">
-              Annuler
-            </Button>
-            <Button onClick={addToCart} disabled={addModal.qty <= 0 || (!!addModal.item?.qtyByStore && !addModal.sourceStore)}
-              className="flex-[2] bg-violet-600 hover:bg-violet-700 text-white font-black uppercase text-[10px] h-11 rounded-xl gap-2">
-              <Plus className="w-4 h-4" /> Ajouter au panier
-            </Button>
+          <DialogFooter className="p-4 bg-stone-50">
+            <div className="w-full space-y-2">
+              <BoutonValider
+                onClick={addToCart}
+                raisonDesactive={
+                  addModal.qty <= 0
+                    ? 'Indiquez une quantité d\'au moins 1.'
+                    : (!!addModal.item?.qtyByStore && !addModal.sourceStore)
+                      ? "Choisissez le lieu d'où sort la marchandise."
+                      : null
+                }
+                className="bg-violet-600 hover:bg-violet-700"
+              >
+                Ajouter au panier
+              </BoutonValider>
+              <Button variant="ghost" onClick={() => setAddModal({ open: false, qty: 1, unitPrice: 0 })} className="w-full font-bold text-xs rounded-xl h-9">
+                Annuler
+              </Button>
+            </div>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -1877,11 +2107,18 @@ export default function StockSaleFlow({
           <div className="bg-white p-5 border-b border-stone-100 flex justify-between items-center sticky top-0 z-10 shadow-sm">
             <div>
               <DialogTitle className="text-xl font-black uppercase tracking-tight text-stone-900">{variantModal.productName}</DialogTitle>
-              <p className="text-[10px] font-bold text-stone-400 mt-1 uppercase tracking-widest">{variantModal.categoryId}</p>
+              <p className="text-[11px] font-medium text-stone-500 mt-1">{variantModal.categoryId}</p>
             </div>
-            <div className="bg-stone-100 text-stone-600 px-3 py-1.5 rounded-xl text-xs font-black uppercase">
+            <div className="bg-stone-100 text-stone-600 px-3 py-1.5 rounded-xl text-xs font-bold shrink-0">
               {variantModal.variants.reduce((s, v) => s + v.currentQty, 0)} en stock
             </div>
+          </div>
+
+          <div className="px-5 pt-4 bg-white">
+            <Encadre ton="info" titre="Le stock est tenu variante par variante">
+              Choisir la couleur — et la qualité ou la taille quand le produit en a — est obligatoire : c'est elle qui
+              sera retirée du stock. Une variante à 0 ne peut pas être vendue.
+            </Encadre>
           </div>
           
           {(() => {
@@ -1893,8 +2130,14 @@ export default function StockSaleFlow({
             if (sizes.length > 0) {
               return (
                 <div className="bg-white px-5 py-3 border-b border-stone-100">
-                  <p className="text-[11px] font-black text-stone-400 uppercase tracking-widest mb-2">
-                    {dimension === 'quality' ? 'Choisir la qualité' : 'Choisir la taille'}
+                  <p className="text-[13px] font-bold text-stone-800 leading-tight">
+                    {dimension === 'quality' ? '1. Choisir la qualité' : '1. Choisir la taille'}
+                  </p>
+                  <p className="text-[11px] font-medium text-stone-500 leading-snug mt-0.5 mb-2">
+                    {dimension === 'quality'
+                      ? "Les couleurs proposées en dessous ne sont que celles de cette qualité."
+                      : "Les couleurs proposées en dessous ne sont que celles de cette taille."}
+                    {' '}Le chiffre entre parenthèses est le stock.
                   </p>
                   <div className="flex gap-2 flex-wrap">
                     {sizes.map(size => {
@@ -1924,52 +2167,68 @@ export default function StockSaleFlow({
                 <div className="w-16 h-16 rounded-full border-4 border-white shadow-xl mb-4" style={{ backgroundColor: getColorCSS(activeVariant.color) }} />
               )}
               <h3 className="text-2xl font-black text-stone-900 uppercase">{activeVariant.color || activeVariant.productName}</h3>
-              <p className="text-sm font-bold text-stone-500 uppercase tracking-widest mt-1 mb-8">
-                {activeVariant.size ? `Taille ${activeVariant.size} • ` : ''}{activeVariant.currentQty} en stock
+              <p className="text-sm font-bold text-stone-500 mt-1 mb-6">
+                {activeVariant.size ? `Taille ${activeVariant.size} · ` : ''}{activeVariant.quality ? `${activeVariant.quality} · ` : ''}{activeVariant.currentQty} en stock
               </p>
-              
-              <div className="flex items-center gap-4">
-                <button 
-                  onClick={() => setVariantQtyInCart(activeVariant, (cart.find(l => l.item.articleId === activeVariant.articleId)?.qty || 0) - 1, activeVariant.sellingPrice)}
-                  className="w-16 h-16 rounded-2xl bg-white hover:bg-stone-100 border border-stone-200 text-stone-700 flex items-center justify-center text-2xl font-black shadow-sm transition-colors">
-                  <Minus className="w-6 h-6" />
-                </button>
-                <input
-                  type="number"
-                  min="0"
-                  max={activeVariant.currentQty}
-                  value={cart.find(l => l.item.articleId === activeVariant.articleId)?.qty || ''}
-                  placeholder="0"
-                  autoFocus
-                  onChange={e => setVariantQtyInCart(activeVariant, parseInt(e.target.value) || 0, activeVariant.sellingPrice)}
-                  className="w-32 h-20 text-center text-4xl font-black rounded-3xl border-2 border-stone-200 focus:border-stone-900 focus:outline-none shadow-sm"
-                />
-                <button 
-                  onClick={() => setVariantQtyInCart(activeVariant, (cart.find(l => l.item.articleId === activeVariant.articleId)?.qty || 0) + 1, activeVariant.sellingPrice)}
-                  className="w-16 h-16 rounded-2xl bg-white hover:bg-stone-100 border border-stone-200 text-stone-700 flex items-center justify-center text-2xl font-black shadow-sm transition-colors">
-                  <Plus className="w-6 h-6" />
-                </button>
+
+              <div className="w-full max-w-sm">
+                <Champ
+                  label="Quantité à vendre"
+                  obligatoire
+                  htmlFor="variante-quantite"
+                  indice={`${activeVariant.currentQty} en stock`}
+                  aide="La saisie s'arrête au stock de cette variante. À 0, la ligne disparaît du panier."
+                >
+                  <div className="flex items-center justify-center gap-4 pt-1">
+                    <button
+                      title="Enlever une unité"
+                      onClick={() => setVariantQtyInCart(activeVariant, (cart.find(l => l.item.articleId === activeVariant.articleId)?.qty || 0) - 1, activeVariant.sellingPrice)}
+                      className="w-16 h-16 rounded-2xl bg-white hover:bg-stone-100 border border-stone-200 text-stone-700 flex items-center justify-center text-2xl font-black shadow-sm transition-colors">
+                      <Minus className="w-6 h-6" />
+                    </button>
+                    <input
+                      id="variante-quantite"
+                      type="number"
+                      min="0"
+                      max={activeVariant.currentQty}
+                      value={cart.find(l => l.item.articleId === activeVariant.articleId)?.qty || ''}
+                      placeholder="0"
+                      autoFocus
+                      onChange={e => setVariantQtyInCart(activeVariant, parseInt(e.target.value) || 0, activeVariant.sellingPrice)}
+                      className="w-32 h-20 text-center text-4xl font-black rounded-3xl border-2 border-stone-200 focus:border-stone-900 focus:outline-none shadow-sm"
+                    />
+                    <button
+                      title="Ajouter une unité"
+                      onClick={() => setVariantQtyInCart(activeVariant, (cart.find(l => l.item.articleId === activeVariant.articleId)?.qty || 0) + 1, activeVariant.sellingPrice)}
+                      className="w-16 h-16 rounded-2xl bg-white hover:bg-stone-100 border border-stone-200 text-stone-700 flex items-center justify-center text-2xl font-black shadow-sm transition-colors">
+                      <Plus className="w-6 h-6" />
+                    </button>
+                  </div>
+                </Champ>
               </div>
 
               <Button onClick={() => setActiveVariant(null)} className="mt-8 bg-stone-900 hover:bg-stone-800 text-white h-12 px-8 rounded-xl font-black uppercase text-xs">
-                Valider la quantité
+                Revenir aux couleurs
               </Button>
             </div>
           ) : (
             <div className="p-5 max-h-[50vh] overflow-y-auto">
-              <p className="text-[11px] font-black text-stone-400 uppercase tracking-widest mb-3">
+              <p className="text-[13px] font-bold text-stone-800 leading-tight">
                 {activeOption
-                  ? `Couleurs pour ${activeOption.dimension === 'quality' ? 'la qualité' : 'la taille'} ${activeOption.value}`
-                  : 'Variantes disponibles'}
+                  ? `2. Choisir la couleur — ${activeOption.dimension === 'quality' ? 'qualité' : 'taille'} ${activeOption.value}`
+                  : 'Choisir la couleur'}
+              </p>
+              <p className="text-[11px] font-medium text-stone-500 leading-snug mt-0.5 mb-3">
+                Touchez une ligne pour indiquer la quantité. Une couleur à 0 n'est pas vendable.
               </p>
               
               <div className="bg-white rounded-2xl border border-stone-200 overflow-hidden shadow-sm">
                 <table className="w-full text-left">
                   <thead className="bg-stone-50 border-b border-stone-200">
                     <tr>
-                      <th className="px-4 py-3 text-[10px] font-black uppercase tracking-widest text-stone-500">Couleur</th>
-                      <th className="px-4 py-3 text-[10px] font-black uppercase tracking-widest text-stone-500 text-center">En Stock</th>
-                      <th className="px-4 py-3 text-[10px] font-black uppercase tracking-widest text-stone-500 text-right w-32">Panier</th>
+                      <th className="px-4 py-3 text-[11px] font-bold text-stone-600">Couleur</th>
+                      <th className="px-4 py-3 text-[11px] font-bold text-stone-600 text-center">En stock</th>
+                      <th className="px-4 py-3 text-[11px] font-bold text-stone-600 text-right w-32">Au panier</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-stone-100">
@@ -2021,13 +2280,13 @@ export default function StockSaleFlow({
             </div>
           )}
           
-          <div className="p-4 bg-stone-50 border-t border-stone-100 flex items-center justify-between">
-            <p className="text-xs font-bold text-stone-400">
-              {cart.filter(l => variantModal.variants.some(v => v.articleId === l.item.articleId)).reduce((s, l) => s + l.qty, 0)} article(s) sélectionné(s)
+          <div className="p-4 bg-stone-50 border-t border-stone-100 flex items-center justify-between gap-3">
+            <p className="text-xs font-bold text-stone-500">
+              {cart.filter(l => variantModal.variants.some(v => v.articleId === l.item.articleId)).reduce((s, l) => s + l.qty, 0)} article(s) de ce produit au panier
             </p>
             <Button onClick={() => setVariantModal({ open: false, productName: '', variants: [], categoryId: '' })}
-              className="bg-stone-900 hover:bg-stone-800 text-white font-black uppercase text-xs h-11 px-8 rounded-xl shadow-md">
-              Confirmer
+              className="bg-stone-900 hover:bg-stone-800 text-white font-black uppercase text-xs h-11 px-8 rounded-xl shadow-md shrink-0">
+              Terminer ce produit
             </Button>
           </div>
         </DialogContent>
