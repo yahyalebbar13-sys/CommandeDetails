@@ -26,12 +26,40 @@ export type DesignAncien = {
 
 const vide = (v: unknown) => v === undefined || v === null || (typeof v === 'string' && !v.trim());
 
+/**
+ * La description d'un ancien design contient le plus souvent le POIDS du
+ * curseur (« 3.28g », « 2.4-3.8g ») et parfois sa taille (« NO8 5g/pc ») :
+ * on les range dans leurs champs, et seul le texte qui reste devient le nom
+ * français — sinon « 3.28G » s'afficherait comme nom de produit.
+ */
+export function lireDescription(description?: string | null): { poids?: string; taille?: string; nom?: string } {
+  let reste = String(description || '').trim();
+  if (!reste) return {};
+  const out: { poids?: string; taille?: string; nom?: string } = {};
+  const poids = reste.match(/(\d+(?:[.,]\d+)?(?:\s*[-–]\s*\d+(?:[.,]\d+)?)?)\s*g(?:\s*\/\s*pcs?)?\b/i);
+  if (poids) {
+    out.poids = poids[1].replace(/,/g, '.').replace(/\s+/g, '').replace('–', '-');
+    reste = reste.replace(poids[0], ' ');
+  }
+  const taille = reste.match(/\bN[O°]\.?\s*(\d+)\b/i);
+  if (taille) {
+    out.taille = taille[1];
+    reste = reste.replace(taille[0], ' ');
+  }
+  reste = reste.replace(/[·,;/\-–]+/g, ' ').replace(/\s+/g, ' ').trim();
+  if (/[a-zà-ÿ]{2,}/i.test(reste)) out.nom = reste;
+  return out;
+}
+
 /** Le design sous forme de qualité de curseur — sans champ vide (Firestore refuse `undefined`). */
 export function designVersQualite(d: DesignAncien): QualiteCurseur | null {
   const label = (d.ref || '').trim().toUpperCase();
   if (!label) return null;
   const q: QualiteCurseur = { label };
-  if (!vide(d.description)) q.nameFR = String(d.description).trim();
+  const lu = lireDescription(d.description);
+  if (lu.nom) q.nameFR = lu.nom;
+  if (lu.taille && vide(d.size)) q.size = lu.taille;
+  if (lu.poids && vide(d.sliderWeightG)) q.sliderWeightG = lu.poids;
   if (!vide(d.imageUrl)) q.imageUrl = String(d.imageUrl);
   if (!vide(d.size)) q.size = String(d.size).trim();
   if (!vide(d.sliderWeightG)) q.sliderWeightG = d.sliderWeightG as number | string;

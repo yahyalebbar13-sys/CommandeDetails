@@ -14,7 +14,21 @@ function check(label: string, ok: boolean, detail = '') {
 console.log('\n── Un design devient une qualité ──');
 const q = designVersQualite({ ref: ' d-201 ', description: 'Curseur doré', imageUrl: 'https://img/1.jpg', size: '5', sliderWeightG: '3.2', pcsPerBag: 1000, bagsPerCarton: null });
 check('référence en majuscules', q?.label === 'D-201', `→ ${q?.label}`);
-check('description → nom français', q?.nameFR === 'Curseur doré');
+check('description en texte → nom français', q?.nameFR === 'Curseur doré');
+
+console.log('\n── La description des anciens designs porte le poids ──');
+const poids = designVersQualite({ ref: '6573-5051', description: '3.28g' });
+check('« 3.28g » → poids, pas un nom', poids?.sliderWeightG === '3.28' && !poids?.nameFR, JSON.stringify(poids));
+const fourchette = designVersQualite({ ref: '6572-0251', description: '2.4-3.8g' });
+check('« 2.4-3.8g » → fourchette de poids', fourchette?.sliderWeightG === '2.4-3.8', JSON.stringify(fourchette));
+const tailleEtPoids = designVersQualite({ ref: '6570-0823', description: 'NO8 5g/pc' });
+check('« NO8 5g/pc » → taille 8 et poids 5', tailleEtPoids?.size === '8' && tailleEtPoids?.sliderWeightG === '5' && !tailleEtPoids?.nameFR, JSON.stringify(tailleEtPoids));
+const virgule = designVersQualite({ ref: 'X', description: '4,66 g' });
+check('virgule décimale acceptée', virgule?.sliderWeightG === '4.66', JSON.stringify(virgule));
+const texteEtPoids = designVersQualite({ ref: 'Y', description: 'Doré mat 3.5g' });
+check('texte + poids : les deux gardés', texteEtPoids?.nameFR === 'Doré mat' && texteEtPoids?.sliderWeightG === '3.5', JSON.stringify(texteEtPoids));
+const dejaPese = designVersQualite({ ref: 'Z', description: '9g', sliderWeightG: 4 });
+check('un poids déjà renseigné l’emporte sur la description', dejaPese?.sliderWeightG === 4, JSON.stringify(dejaPese));
 check('photo, taille, poids, pcs/bag gardés', q?.imageUrl === 'https://img/1.jpg' && q?.size === '5' && q?.sliderWeightG === '3.2' && q?.pcsPerBag === 1000);
 check('aucun champ vide ni undefined (Firestore)', !('bagsPerCarton' in (q || {})) && Object.values(q || {}).every(v => v !== undefined && v !== null));
 check('design sans référence ignoré', designVersQualite({ ref: '  ', imageUrl: 'x' }) === null);
