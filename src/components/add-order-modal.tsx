@@ -2,6 +2,7 @@
 "use client";
 
 import React, { useState, useMemo, useCallback, useEffect } from 'react';
+import { CHAMP_ETAPE } from '@/lib/demande-magasin';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -598,6 +599,10 @@ export function AddOrderForm({
         requestedByStore: storeRequest!.storeId,
         requestedByStoreName: storeRequest!.storeName || storeRequest!.storeId,
         requestedAt: serverTimestamp(),
+        // Brouillon : la demande reste au magasin, invisible de /gestion, le temps de
+        // l'imprimer et de la faire relire. C'est le bouton « Envoyer au service commercial »
+        // de l'écran des demandes qui la met en route.
+        [CHAMP_ETAPE]: 'DRAFT',
       } : {}),
       generalCategoryId: selectedGenCatId,
       quality: formData.quality || null,
@@ -786,12 +791,12 @@ export function AddOrderForm({
           new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 20000)),
         ]);
       } catch (err: any) {
-        console.error('[Demande import] échec d\'envoi :', err);
+        console.error('[Demande import] échec d\'enregistrement :', err);
         toast({
           variant: 'destructive',
-          title: "❌ Demande NON envoyée",
+          title: "❌ Demande NON enregistrée",
           description: err?.message === 'timeout'
-            ? "Pas de réponse du serveur. Vérifiez la connexion internet puis renvoyez la demande."
+            ? "Pas de réponse du serveur. Vérifiez la connexion, puis regardez la liste des demandes avant de recommencer : le brouillon a pu être enregistré quand même."
             : "L'enregistrement a été refusé. Réessayez ; si le problème persiste, prévenez l'administrateur.",
         });
         setSubmitting(false);
@@ -801,11 +806,11 @@ export function AddOrderForm({
     }
 
     toast({
-      title: isInventoryMode ? "✅ Produit ajouté au stock" : isStoreRequest ? "✅ Demande envoyée au service import" : "✅ Besoin enregistré",
+      title: isInventoryMode ? "✅ Produit ajouté au stock" : isStoreRequest ? "✅ Demande enregistrée" : "✅ Besoin enregistré",
       description: isInventoryMode
         ? "L'article a été ajouté avec succès à l'inventaire."
         : isStoreRequest
-          ? "Elle apparaît dans les Besoins de l'import. Vous pouvez suivre son avancement ici."
+          ? "Elle reste au magasin : imprimez-la, faites-la viser, puis envoyez-la au service commercial."
         : (splitCount > 1
             ? `${splitCount} articles créés (auto-split par prix)`
             : "L'article a été ajouté à la liste des rappels."),
@@ -870,7 +875,7 @@ export function AddOrderForm({
           </div>
           <div className="flex-1 min-w-0">
             <h2 className="text-lg font-black uppercase tracking-tight leading-none">
-              {isStoreRequest ? 'Demande au service import' : 'Nouvel Article'}
+              {isStoreRequest ? 'Nouvelle demande d\'import' : 'Nouvel Article'}
             </h2>
             <p className="text-[10px] font-bold text-stone-400 uppercase tracking-widest mt-1">
               {isStoreRequest ? `Magasin demandeur : ${storeRequest?.storeName || storeRequest?.storeId}` : 'Identification du besoin logistique'}
@@ -2163,7 +2168,7 @@ export function AddOrderForm({
             }`}
           >
             <Save className="w-4 h-4" />
-            {isInventoryMode ? 'Ajouter à l\'inventaire' : isStoreRequest ? (submitting ? 'Envoi en cours…' : 'Envoyer au service import') : 'Enregistrer le besoin'}
+            {isInventoryMode ? 'Ajouter à l\'inventaire' : isStoreRequest ? (submitting ? 'Enregistrement…' : 'Enregistrer la demande') : 'Enregistrer le besoin'}
             {isValid && <ChevronRight className="w-4 h-4 ml-auto opacity-50" />}
           </Button>
 

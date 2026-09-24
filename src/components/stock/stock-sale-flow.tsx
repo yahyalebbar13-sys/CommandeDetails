@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useMemo, useCallback } from 'react';
+import { valeurImprimable } from '@/lib/specification-produit';
 import {
   Users, ShoppingBag, ClipboardList, CheckCircle2,
   Search, Plus, Minus, X, ChevronRight, ChevronLeft,
@@ -1032,7 +1033,7 @@ export default function StockSaleFlow({
       <div class="info-box"><h4>Règlement</h4><p>${paymentDetailsText}</p><p class="sub">Date : ${dateStr}</p></div>
     </div>
     <table><thead><tr><th>Désignation</th><th>Variante</th><th>Qté</th><th>P.U. (MAD)</th><th>Total (MAD)</th></tr></thead>
-    <tbody>${cart.map(({ item, qty, unitPrice }) => `<tr><td>${escapeHtml(item.productName)}</td><td class="variant">${[escapeHtml(item.color), item.size ? 'T.' + escapeHtml(item.size) : ''].filter(Boolean).join(' &middot; ') || '—'}</td><td style="text-align:right">${escapeHtml(qteAvecUnite(qty, item.unitOfMeasure))}</td><td style="text-align:right">${unitPrice > 0 ? fmt$(unitPrice) : '<span class="no-price">N/D</span>'}</td><td style="text-align:right;font-weight:900">${unitPrice > 0 ? fmt$(qty * unitPrice) : '<span class="no-price">—</span>'}</td></tr>`).join('')}</tbody></table>
+    <tbody>${cart.map(({ item, qty, unitPrice }) => `<tr><td>${escapeHtml(item.productName)}</td><td class="variant">${[escapeHtml(valeurImprimable(item.color)), valeurImprimable(item.size) ? 'T.' + escapeHtml(valeurImprimable(item.size)) : ''].filter(Boolean).join(' &middot; ') || '—'}</td><td style="text-align:right">${escapeHtml(qteAvecUnite(qty, item.unitOfMeasure))}</td><td style="text-align:right">${unitPrice > 0 ? fmt$(unitPrice) : '<span class="no-price">N/D</span>'}</td><td style="text-align:right;font-weight:900">${unitPrice > 0 ? fmt$(qty * unitPrice) : '<span class="no-price">—</span>'}</td></tr>`).join('')}</tbody></table>
     <div class="totals">
       <div class="row"><span>Sous-total</span><span>${fmt$(subTotal)}</span></div>
       ${discount > 0 ? `<div class="row" style="color:#16a34a"><span>Remise ${discount}%</span><span>-${fmt$(discountAmt)}</span></div>` : ''}

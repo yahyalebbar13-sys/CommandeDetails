@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useMemo } from 'react';
+import { valeurImprimable } from '@/lib/specification-produit';
 import { Search, Eye, Printer, CreditCard, X, Download, Mail, Send, Plus, Trash2, CheckCircle2, Camera, Calendar, Banknote, FileCheck, FileText, Landmark, MoreHorizontal, Undo2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -355,7 +356,7 @@ export default function StockInvoices({ invoices, clients, payments, onRecordPay
       <th>Produit</th><th>Couleur</th><th>Taille</th><th>Qté</th><th>Prix unit. HT</th><th>Total HT</th>
     </tr></thead>
     <tbody>${inv.items.map(item => `<tr>
-      <td><strong>${item.productName}</strong></td><td>${item.color || '—'}</td><td>${item.size || '—'}</td>
+      <td><strong>${item.productName}</strong></td><td>${valeurImprimable(item.color, '—')}</td><td>${valeurImprimable(item.size, '—')}</td>
       <td>${item.qty} ${item.unitOfMeasure}</td><td>${fmt$(item.unitPrice)}</td><td><strong>${fmt$(item.totalPrice)}</strong></td>
     </tr>`).join('')}</tbody></table>
     <div style="text-align:right;border-top:1px solid #e7e5e4;padding-top:12px">

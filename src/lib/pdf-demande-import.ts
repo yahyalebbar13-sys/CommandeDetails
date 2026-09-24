@@ -10,24 +10,20 @@
  * Une demande d'import annonce un besoin de marchandise, pas un engagement d'argent — et elle
  * sort d'un écran de magasin, où les prix d'achat n'ont pas à circuler.
  *
- * Le style suit les autres exports (src/lib/pdf-export-reports.ts) : A4, bandeau LEBTEX noir,
- * tableau autoTable aux mêmes couleurs, pied de page numéroté.
+ * La mise en page suit la charte commune (src/lib/pdf-charte-lebtex.ts), celle des documents de
+ * /gestion : logo, bleu nuit et or, titres soulignés d'un filet doré, bandeau de pied de page.
+ * Une demande par carte, comme la liste des besoins — pas une ligne dans un tableau à neuf
+ * colonnes où les couleurs finissaient entassées dans la cellule du produit.
  */
 
 import jsPDF from 'jspdf';
-import autoTable from 'jspdf-autotable';
-import { precisionsLigne, specificationsArticle } from '@/lib/specification-produit';
+import { specificationsArticle, precisionsLigne } from '@/lib/specification-produit';
 import { breakdownRowQuantity, libelleFixe } from '@/lib/warehouse-locations';
-
-// ── Couleurs communes aux documents LEBTEX ──
-const NOIR: [number, number, number] = [28, 25, 23];      // stone-900
-const GRIS: [number, number, number] = [120, 113, 108];   // stone-500
-const GRIS_CLAIR: [number, number, number] = [168, 162, 158]; // stone-400
-const TRAIT: [number, number, number] = [214, 211, 209];  // stone-300
-const FOND: [number, number, number] = [250, 250, 249];   // stone-50
-const AMBRE: [number, number, number] = [217, 119, 6];    // amber-600
-
-const MARGE = 14;
+import {
+  MARGE, HAUTEUR_PIED, NAVY, GOLD, AMBRE, TEXTE, ESTOMPE, BORDURE, FOND, BLANC,
+  enTeteDocument, piedDeDocument, titreSection, encart, ajuster, reserver,
+  tableauVentilation, type LigneVentilee,
+} from '@/lib/pdf-charte-lebtex';
 
 /** Une demande telle qu'elle est affichée au magasin, prête à imprimer. */
 export interface DemandeImportAImprimer {
@@ -72,253 +68,255 @@ function fmtDate(v: any): string {
 }
 
 /**
- * Les caractéristiques techniques du produit sur une ligne — « GSM 180 · Largeur (cm) 150 ».
- * La taille est écartée : elle a sa propre colonne, comme sur le bon de transfert.
+ * Ce qu'un article ventilé demande réellement : une ligne par qualité, couleur ou taille, avec sa
+ * quantité. Sans elle, une demande de dix couleurs s'imprime « various » et le commercial ne peut
+ * rien vérifier. L'ordre de priorité est celui du reste du logiciel : qualité, couleur, taille.
  */
-function caracteristiques(article: any, categories: any[], generalCategories: any[]): string {
-  return specificationsArticle(article, categories, generalCategories)
-    .filter(ligne => ligne.cle !== 'size')
-    .map(ligne => `${ligne.label} ${ligne.valeur}`)
-    .join(' · ');
-}
+type Dimension = 'quality' | 'color' | 'size' | 'design';
 
-/**
- * Ce qu'un article ventilé demande réellement : une ligne par qualité, couleur ou taille, avec
- * sa quantité. Sans elle, une demande de dix couleurs s'imprime « various » et le commercial ne
- * peut rien vérifier. L'ordre de priorité est celui du reste du logiciel : qualité, couleur,
- * taille.
- */
-function detailVentilation(article: any, unite: string): string {
-  const groupes: [any, (row: any) => unknown][] = [
-    [article?.qualityBreakdown, (r: any) => r?.quality],
-    [article?.colorBreakdown, (r: any) => r?.colorCode || r?.description || r?.color],
-    [article?.sizeBreakdown, (r: any) => r?.size],
+function ventilation(article: any): { dimension: Dimension; mot: string; colonne: string; lignes: LigneVentilee[] } | null {
+  const groupes: [Dimension, any, (row: any) => unknown, string, string][] = [
+    ['quality', article?.qualityBreakdown, (r: any) => r?.quality, 'Qualités demandées', 'Qualité'],
+    ['color', article?.colorBreakdown, (r: any) => r?.colorCode || r?.description || r?.color, 'Couleurs demandées', 'Couleur'],
+    ['size', article?.sizeBreakdown, (r: any) => r?.size, 'Tailles demandées', 'Taille'],
+    ['design', article?.designBreakdown, (r: any) => r?.designRef, 'Modèles demandés', 'Modèle'],
   ];
-  for (const [rows, libelleDe] of groupes) {
+  for (const [dimension, rows, libelleDe, mot, colonne] of groupes) {
     const lignes = (Array.isArray(rows) ? rows : [])
       .map(row => ({ libelle: libelleFixe(libelleDe(row)) || '', quantite: breakdownRowQuantity(row) }))
       .filter(l => l.libelle !== '' || l.quantite > 0);
-    if (lignes.length === 0) continue;
-    return lignes
-      .map(l => (l.quantite > 0
-        ? `${(l.libelle || '—').toUpperCase()} : ${fmtQte(l.quantite)} ${unite}`
-        : (l.libelle || '—').toUpperCase()))
-      .join('\n');
+    if (lignes.length > 0) return { dimension, mot, colonne, lignes };
   }
-  return '';
+  return null;
 }
 
 /**
- * Un texte ramené à la largeur disponible, en le signalant. Un nom de magasin ou de produit
- * coupé net se lit comme s'il était complet : l'ellipse dit qu'il manque quelque chose.
+ * Les lignes qui décrivent le produit sous son nom : ce qui est fixe (qualité, couleur ou taille
+ * d'un produit qui n'en a qu'une) puis ses caractéristiques techniques.
+ *
+ * SEULE la dimension réellement ventilée est retirée — elle a son propre tableau juste en
+ * dessous. Les autres restent : une fermeture CL-5 en taille N5 demandée en trois couleurs reste
+ * une fermeture CL-5 en N5, et c'est précisément ce que le commercial vérifie avant de viser.
  */
-function texteAjuste(doc: jsPDF, texte: string, largeurMax: number): string {
-  const morceaux = doc.splitTextToSize(texte, largeurMax) as string[];
-  if (morceaux.length <= 1) return morceaux[0] || '';
-  return (doc.splitTextToSize(`${morceaux[0]} …`, largeurMax) as string[])[0] || morceaux[0];
+function descriptif(
+  article: any, categories: any[], generalCategories: any[], dimensionVentilee: Dimension | null,
+): string[] {
+  const lignes: string[] = [];
+  const precisions = ([['quality', article?.quality], ['color', article?.color], ['size', article?.size]] as const)
+    .filter(([dimension]) => dimension !== dimensionVentilee)
+    .map(([, valeur]) => libelleFixe(valeur))
+    .filter(Boolean)
+    .map(v => String(v).toUpperCase());
+  if (precisions.length > 0) lignes.push(precisions.join('  ·  '));
+
+  const specs = specificationsArticle(article, categories, generalCategories)
+    .filter(ligne => ligne.cle !== 'size')
+    .map(ligne => `${ligne.label} ${ligne.valeur}`)
+    .join('  ·  ');
+  if (specs) lignes.push(specs);
+
+  const note = libelleFixe(article?.specs);
+  if (note && !lignes.includes(note)) lignes.push(note);
+  return lignes;
 }
 
-/** Une valeur de colonne passée au filtre commun : « various » n'est ni une couleur ni une taille. */
-const valeurImprimable = (valeur: unknown, defaut = '—'): string =>
-  precisionsLigne({ color: valeur })[0] ?? defaut;
+/** Le double encart du haut : qui demande d'un côté, le visa du commercial de l'autre. */
+function encartsIdentite(doc: jsPDF, y: number, magasin: string, nbDemandes: number): number {
+  const largeurPage = doc.internal.pageSize.getWidth();
+  const hauteur = 30;
+  const largeurBloc = (largeurPage - 2 * MARGE - 6) / 2;
 
-/** Bandeau LEBTEX, titre du document et sous-titre. Rend le Y où la suite peut commencer. */
-function enTete(doc: jsPDF, sousTitre: string | undefined, largeur: number): number {
-  doc.setFillColor(...NOIR);
-  doc.rect(0, 0, largeur, 32, 'F');
-  doc.setTextColor(255, 255, 255);
-  doc.setFontSize(18);
-  doc.setFont('helvetica', 'bold');
-  doc.text('LEBTEX', MARGE, 15);
-  doc.setFontSize(8);
-  doc.setTextColor(...GRIS_CLAIR);
-  doc.setFont('helvetica', 'normal');
-  doc.text('Mercerie, fils à coudre, fermetures à glissière', MARGE, 22);
-  doc.setFontSize(7);
-  const maintenant = new Date();
-  doc.text(
-    `Édité le ${maintenant.toLocaleDateString('fr-FR')} à ${maintenant.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}`,
-    largeur - MARGE, 15, { align: 'right' },
-  );
+  encart(doc, {
+    x: MARGE, y, largeur: largeurBloc, hauteur,
+    etiquette: 'Magasin demandeur',
+    ton: 'or',
+    valeur: magasin || '—',
+    lignes: [
+      `${nbDemandes} demande${nbDemandes > 1 ? 's' : ''} sur ce document`,
+      `Éditée le ${new Date().toLocaleDateString('fr-FR')}`,
+    ],
+  });
 
-  doc.setTextColor(...NOIR);
-  doc.setFontSize(14);
-  doc.setFont('helvetica', 'bold');
-  doc.text("DEMANDE D'IMPORT", MARGE, 44);
-  if (sousTitre) {
-    doc.setFontSize(9);
-    doc.setFont('helvetica', 'normal');
-    doc.setTextColor(...GRIS);
-    doc.text(texteAjuste(doc, sousTitre, largeur - 2 * MARGE), MARGE, 51);
-    return 56;
-  }
-  return 50;
-}
-
-/**
- * Le double encart du haut : qui demande d'un côté, le visa du commercial de l'autre.
- * Le visa n'est pas une décoration — c'est l'étape qui autorise l'envoi au service import.
- */
-function encartsIdentite(doc: jsPDF, y: number, largeur: number, magasin: string, nbDemandes: number): number {
-  const hauteur = 26;
-  const largeurBloc = (largeur - 2 * MARGE - 8) / 2;
-
-  doc.setFillColor(...FOND);
-  doc.setDrawColor(...TRAIT);
-  doc.roundedRect(MARGE, y, largeurBloc, hauteur, 2, 2, 'FD');
-  doc.setFontSize(7.5);
-  doc.setFont('helvetica', 'bold');
-  doc.setTextColor(...NOIR);
-  doc.text('MAGASIN DEMANDEUR', MARGE + 4, y + 6);
-  doc.setFontSize(11);
-  doc.setTextColor(...AMBRE);
-  doc.text(texteAjuste(doc, magasin || '—', largeurBloc - 8), MARGE + 4, y + 13);
-  doc.setFontSize(7);
-  doc.setFont('helvetica', 'normal');
-  doc.setTextColor(...GRIS);
-  doc.text(
-    `${nbDemandes} demande${nbDemandes > 1 ? 's' : ''} · Date d'édition : ${new Date().toLocaleDateString('fr-FR')}`,
-    MARGE + 4, y + 20,
-  );
-
-  const x2 = MARGE + largeurBloc + 8;
-  doc.setFillColor(255, 255, 255);
-  doc.setDrawColor(...TRAIT);
-  doc.roundedRect(x2, y, largeurBloc, hauteur, 2, 2, 'FD');
-  doc.setFontSize(7.5);
-  doc.setFont('helvetica', 'bold');
-  doc.setTextColor(...NOIR);
-  doc.text('VISA DU COMMERCIAL (VÉRIFICATION)', x2 + 4, y + 6);
-  doc.setFontSize(7);
-  doc.setFont('helvetica', 'normal');
-  doc.setTextColor(...GRIS);
-  doc.text('Nom : ..........................................', x2 + 4, y + 13);
-  doc.text('Date : ......................    Signature :', x2 + 4, y + 20);
+  const x2 = MARGE + largeurBloc + 6;
+  encart(doc, {
+    x: x2, y, largeur: largeurBloc, hauteur,
+    etiquette: 'Visa du commercial (vérification)',
+    ton: 'nuit',
+    lignes: [
+      'Nom : ..............................................',
+      'Date : .....................   Signature :',
+    ],
+  });
 
   return y + hauteur + 8;
 }
 
-/** Le tableau des demandes d'un magasin. Rend le Y de fin. */
-function tableauDemandes(
+/**
+ * Une demande, sous forme de carte : le numéro et la quantité tiennent les deux bords, le produit
+ * et son descriptif au milieu, la justification du magasin en bas. Rend le Y de fin.
+ */
+function carteDemande(
   doc: jsPDF,
-  demandes: DemandeImportAImprimer[],
-  debutY: number,
+  demande: DemandeImportAImprimer,
+  numero: number,
+  y: number,
   categories: any[],
   generalCategories: any[],
 ): number {
-  autoTable(doc, {
-    startY: debutY,
-    head: [['N°', 'Produit demandé', 'Qualité', 'Couleur', 'Taille', 'Qté', 'Unité', 'Demandée le', 'Justification du magasin']],
-    body: demandes.map((demande, index) => {
-      const article = demande.article || {};
-      const unite = article.unitOfMeasure || 'pcs';
-      const nom = (demande.nomProduit || article.nameFR || article.name || '—').toUpperCase();
-      const specs = caracteristiques(article, categories, generalCategories);
-      const detail = detailVentilation(article, unite);
-      const designation = [nom, specs, detail].filter(Boolean).join('\n');
-      return [
-        String(index + 1),
-        designation,
-        valeurImprimable(article.quality),
-        valeurImprimable(article.color),
-        valeurImprimable(article.size),
-        fmtQte(article.quantity),
-        unite,
-        fmtDate(demande.demandeeLe ?? article.requestedAt ?? article.createdAt),
-        demande.justification || article.notes || '—',
-      ];
-    }),
-    headStyles: {
-      fillColor: NOIR,
-      textColor: [255, 255, 255],
-      fontStyle: 'bold',
-      fontSize: 7,
-      cellPadding: 3,
-    },
-    bodyStyles: {
-      fontSize: 7,
-      cellPadding: 2.5,
-      textColor: NOIR,
-      valign: 'top',
-    },
-    alternateRowStyles: { fillColor: FOND },
-    columnStyles: {
-      0: { cellWidth: 8, halign: 'center' },
-      1: { cellWidth: 'auto', fontStyle: 'bold' },
-      2: { cellWidth: 18 },
-      3: { cellWidth: 18 },
-      4: { cellWidth: 13 },
-      5: { cellWidth: 16, halign: 'right', fontStyle: 'bold' },
-      6: { cellWidth: 12 },
-      7: { cellWidth: 19, halign: 'center' },
-      8: { cellWidth: 34, fontStyle: 'italic' },
-    },
-    margin: { left: MARGE, right: MARGE },
-  });
-  return (doc as any).lastAutoTable?.finalY || debutY + 20;
-}
+  const largeurPage = doc.internal.pageSize.getWidth();
+  const largeur = largeurPage - 2 * MARGE;
+  const article = demande.article || {};
+  const unite = (article.unitOfMeasure || 'pcs').toUpperCase();
+  const nom = (demande.nomProduit || article.nameFR || article.name || '—').toUpperCase();
+  const famille = String(article.categoryId || '').toUpperCase();
+  const detail = ventilation(article);
+  const lignesTexte = descriptif(article, categories, generalCategories, detail?.dimension ?? null);
+  const justification = (demande.justification || article.notes || '').trim();
 
-/** Le titre d'une section quand plusieurs magasins figurent sur le même document. */
-function titreMagasin(doc: jsPDF, y: number, magasin: string, nb: number): number {
-  doc.setFontSize(9);
+  const gauche = MARGE + 14;
+  const bordDroit = largeurPage - MARGE;
+  const largeurTexte = bordDroit - 34 - gauche;
+
+  // On mesure AVANT de dessiner : le cadre doit contenir ce qu'on va y écrire. Un nom de produit
+  // de quatre-vingts caractères, six caractéristiques techniques et une justification de trois
+  // lignes sont le cas normal, pas l'exception — les couper en silence, c'est envoyer au
+  // commercial un document qui ne dit plus ce que le magasin a demandé.
+  doc.setFontSize(10.5);
   doc.setFont('helvetica', 'bold');
-  doc.setTextColor(...NOIR);
-  doc.text(`${magasin} — ${nb} demande${nb > 1 ? 's' : ''}`, MARGE, y);
-  return y + 4;
+  const lignesNom = (doc.splitTextToSize(nom, largeurTexte) as string[]).slice(0, 2);
+  doc.setFontSize(7.5);
+  doc.setFont('helvetica', 'normal');
+  const lignesDetail = lignesTexte.flatMap(t => (doc.splitTextToSize(t, largeurTexte) as string[]).slice(0, 2));
+  const lignesJustif = justification
+    ? (doc.splitTextToSize(`« ${justification} »`, largeur - 20) as string[]).slice(0, 3)
+    : [];
+
+  const hauteur = 5
+    + lignesNom.length * 5
+    + (famille ? 4 : 0)
+    + lignesDetail.length * 4
+    + 5                                   // la ligne « Demandée le … »
+    + (lignesJustif.length ? lignesJustif.length * 4 + 1 : 0)
+    + 3;
+
+  // La carte et son tableau de couleurs voyagent ensemble : le tableau peut déborder sur la page
+  // suivante, mais il ne doit pas COMMENCER sur une autre page que sa carte.
+  const amorceTableau = detail ? 4 + 8 + Math.min(detail.lignes.length + 1, 4) * 7 : 0;
+  y = reserver(doc, y, hauteur + 6 + amorceTableau);
+
+  doc.setFillColor(...FOND);
+  doc.setDrawColor(...BORDURE);
+  doc.setLineWidth(0.2);
+  doc.roundedRect(MARGE, y, largeur, hauteur, 2, 2, 'FD');
+  doc.setFillColor(...GOLD);
+  doc.roundedRect(MARGE, y, 2.5, hauteur, 1, 1, 'F');
+
+  // Numéro de la demande, à gauche.
+  doc.setFontSize(7);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(...ESTOMPE);
+  doc.text(`#${numero}`, MARGE + 6, y + 8);
+
+  // La quantité demandée : c'est le chiffre que le commercial cherche en premier.
+  doc.setFontSize(15);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(...NAVY);
+  doc.text(fmtQte(article.quantity), bordDroit - 4, y + 10, { align: 'right' });
+  doc.setFontSize(7);
+  doc.setTextColor(...ESTOMPE);
+  doc.text(unite, bordDroit - 4, y + 14.5, { align: 'right' });
+
+  let ligne = y + 8;
+  doc.setFontSize(10.5);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(...NAVY);
+  for (const texte of lignesNom) {
+    doc.text(texte, gauche, ligne);
+    ligne += 5;
+  }
+
+  if (famille) {
+    doc.setFontSize(7);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(...ESTOMPE);
+    doc.text(ajuster(doc, famille, largeurTexte), gauche, ligne);
+    ligne += 4;
+  }
+  doc.setFontSize(7.5);
+  doc.setFont('helvetica', 'normal');
+  doc.setTextColor(...TEXTE);
+  for (const texte of lignesDetail) {
+    doc.text(texte, gauche, ligne);
+    ligne += 4;
+  }
+
+  doc.setFontSize(7);
+  doc.setTextColor(...ESTOMPE);
+  doc.text(`Demandée le ${fmtDate(demande.demandeeLe ?? article.requestedAt ?? article.createdAt)}`, gauche, ligne + 1);
+  ligne += 5;
+
+  if (lignesJustif.length > 0) {
+    doc.setFont('helvetica', 'italic');
+    doc.setFontSize(7.5);
+    doc.setTextColor(...TEXTE);
+    for (const texte of lignesJustif) {
+      doc.text(texte, gauche, ligne + 1);
+      ligne += 4;
+    }
+    doc.setFont('helvetica', 'normal');
+  }
+
+  y += hauteur + 5;
+
+  // Le détail des couleurs (ou des qualités, ou des tailles) : une ligne chacune, et un total.
+  if (detail) {
+    y = tableauVentilation(doc, {
+      y,
+      titre: detail.mot,
+      colonne: detail.colonne,
+      lignes: detail.lignes,
+      unite: article.unitOfMeasure || 'pcs',
+      x: MARGE + 6,
+    });
+  }
+
+  return y + 2;
 }
 
 /**
  * Le pied du document : les étapes qui restent à faire, et le rappel qu'une demande ne commande
- * rien. C'est la phrase qui évite qu'un magasin compte sur une marchandise qui n'a jamais été
- * lancée.
+ * rien. C'est la phrase qui évite qu'un magasin compte sur une marchandise jamais lancée.
  */
-function blocProcessus(doc: jsPDF, y: number, largeur: number, hauteurPage: number): void {
+function blocProcessus(doc: jsPDF, y: number): void {
+  const largeurPage = doc.internal.pageSize.getWidth();
+  const largeur = largeurPage - 2 * MARGE;
   const hauteur = 30;
-  let debut = y + 8;
-  if (debut + hauteur > hauteurPage - 16) {
-    doc.addPage();
-    debut = 20;
-  }
+  y = reserver(doc, y + 4, hauteur);
 
   doc.setFillColor(...FOND);
-  doc.setDrawColor(...TRAIT);
-  doc.roundedRect(MARGE, debut, largeur - 2 * MARGE, hauteur, 2, 2, 'FD');
-
-  doc.setFontSize(7.5);
-  doc.setFont('helvetica', 'bold');
-  doc.setTextColor(...NOIR);
-  doc.text('SUITE DU PARCOURS DE CETTE DEMANDE', MARGE + 4, debut + 6);
+  doc.setDrawColor(...BORDURE);
+  doc.setLineWidth(0.25);
+  doc.roundedRect(MARGE, y, largeur, hauteur, 2, 2, 'FD');
+  doc.setFillColor(...NAVY);
+  doc.roundedRect(MARGE, y, largeur, 6, 1, 1, 'F');
+  doc.rect(MARGE, y + 3, largeur, 3, 'F');
 
   doc.setFontSize(7);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(...BLANC);
+  doc.text('SUITE DU PARCOURS DE CETTE DEMANDE', MARGE + 4, y + 4.5);
+
+  doc.setFontSize(7.5);
   doc.setFont('helvetica', 'normal');
-  doc.setTextColor(...GRIS);
-  doc.text('1. Le magasin écrit la demande dans le logiciel et imprime ce document.', MARGE + 4, debut + 12);
-  doc.text('2. Le commercial vérifie chaque ligne avec le magasin, puis vise le document ci-dessus.', MARGE + 4, debut + 17);
-  doc.text('3. Le document visé est transmis au service import, qui décide du lancement.', MARGE + 4, debut + 22);
+  doc.setTextColor(...ESTOMPE);
+  doc.text('1. Le magasin écrit la demande dans le logiciel et imprime ce document.', MARGE + 4, y + 12);
+  doc.text('2. Le commercial vérifie chaque ligne avec le magasin, puis vise le document ci-dessus.', MARGE + 4, y + 17);
+  doc.text('3. Le magasin envoie alors la demande visée, et le service import décide du lancement.', MARGE + 4, y + 22);
 
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(...AMBRE);
-  doc.text(
-    "Une demande n'engage aucune commande tant qu'elle n'a pas été validée par le service import.",
-    MARGE + 4, debut + 27,
-  );
-}
-
-/** Numérotation de toutes les pages, une fois le document terminé. */
-function numeroterPages(doc: jsPDF, largeur: number, hauteurPage: number): void {
-  const total = doc.getNumberOfPages();
-  for (let page = 1; page <= total; page++) {
-    doc.setPage(page);
-    doc.setFontSize(7);
-    doc.setFont('helvetica', 'normal');
-    doc.setTextColor(...GRIS_CLAIR);
-    doc.text(`Page ${page} / ${total}`, largeur / 2, hauteurPage - 8, { align: 'center' });
-    doc.setFontSize(6);
-    doc.text(
-      "LEBTEX SARL AU — Demande d'import : à vérifier avec le commercial avant transmission au service import",
-      largeur / 2, hauteurPage - 4, { align: 'center' },
-    );
-  }
+  doc.text("Une demande n'engage aucune commande tant que le service import ne l'a pas lancée.",
+    MARGE + 4, y + 27);
 }
 
 /** Nom de fichier sans caractère qui fâche un explorateur Windows. */
@@ -329,23 +327,17 @@ function nomFichier(magasin: string, uneSeule: boolean): string {
 }
 
 /**
- * Imprime une demande d'import, ou toutes celles affichées à l'écran.
- * Les demandes de plusieurs magasins se regroupent par magasin : le commercial vise magasin par
- * magasin, et le service import reçoit des lignes qui ont toutes le même interlocuteur.
+ * Construit le document, sans le télécharger : séparé pour être relu hors du navigateur.
  */
-export function exportDemandesImportPDF(
+export async function construireDemandesImportPDF(
   demandes: DemandeImportAImprimer[],
   options: OptionsDemandeImportPDF = {},
-): void {
+): Promise<{ doc: jsPDF; fichier: string }> {
   const liste = (demandes || []).filter(Boolean);
-  if (liste.length === 0) {
-    alert("Aucune demande à imprimer.");
-    return;
-  }
-
   const { categories = [], generalCategories = [], sousTitre } = options;
 
-  // Regroupement par magasin, dans l'ordre d'apparition à l'écran.
+  // Regroupement par magasin, dans l'ordre d'apparition à l'écran : le commercial vise magasin
+  // par magasin, et le service import reçoit des lignes qui ont toutes le même interlocuteur.
   const parMagasin = new Map<string, DemandeImportAImprimer[]>();
   for (const demande of liste) {
     const magasin = (demande.magasin || '').trim() || 'Magasin non précisé';
@@ -357,22 +349,44 @@ export function exportDemandesImportPDF(
   const magasinEnTete = groupes.length === 1 ? groupes[0][0] : 'Plusieurs magasins';
 
   const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
-  const largeur = doc.internal.pageSize.getWidth();
-  const hauteur = doc.internal.pageSize.getHeight();
 
-  let y = enTete(doc, sousTitre, largeur);
-  y = encartsIdentite(doc, y, largeur, magasinEnTete, liste.length);
-
-  groupes.forEach(([magasin, demandesDuMagasin], index) => {
-    if (groupes.length > 1) {
-      if (index > 0) y += 6;
-      y = titreMagasin(doc, y, magasin, demandesDuMagasin.length);
-    }
-    y = tableauDemandes(doc, demandesDuMagasin, y, categories, generalCategories);
+  let y = await enTeteDocument(doc, {
+    titre: "Demande d'import",
+    sousTitre,
+    mentions: [`${liste.length} demande${liste.length > 1 ? 's' : ''} · à vérifier avec le commercial`],
   });
+  y = encartsIdentite(doc, y, magasinEnTete, liste.length);
 
-  blocProcessus(doc, y, largeur, hauteur);
-  numeroterPages(doc, largeur, hauteur);
+  let numero = 0;
+  for (const [magasin, demandesDuMagasin] of groupes) {
+    if (groupes.length > 1) {
+      y = reserver(doc, y + 2, 20);
+      y = titreSection(doc, y, `${magasin} — ${demandesDuMagasin.length} demande${demandesDuMagasin.length > 1 ? 's' : ''}`);
+      y += 2;
+    }
+    for (const demande of demandesDuMagasin) {
+      numero += 1;
+      y = carteDemande(doc, demande, numero, y, categories, generalCategories);
+    }
+  }
 
-  doc.save(nomFichier(magasinEnTete, liste.length === 1));
+  blocProcessus(doc, y);
+  piedDeDocument(doc, "Demande d'import — à viser par le commercial");
+
+  return { doc, fichier: nomFichier(magasinEnTete, liste.length === 1) };
+}
+
+/**
+ * Imprime une demande d'import, ou toutes celles affichées à l'écran.
+ */
+export async function exportDemandesImportPDF(
+  demandes: DemandeImportAImprimer[],
+  options: OptionsDemandeImportPDF = {},
+): Promise<void> {
+  if ((demandes || []).filter(Boolean).length === 0) {
+    alert("Aucune demande à imprimer.");
+    return;
+  }
+  const { doc, fichier } = await construireDemandesImportPDF(demandes, options);
+  doc.save(fichier);
 }

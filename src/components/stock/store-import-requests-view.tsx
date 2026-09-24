@@ -3,26 +3,37 @@
 import React, { useMemo, useState } from 'react';
 import {
   Send, Plus, Search, X, ClipboardList, Factory, Store as StoreIcon,
-  Palette, Ruler, Sparkles, Clock, Printer,
+  Palette, Ruler, Sparkles, Clock, Printer, PenLine, Trash2, BadgeCheck,
 } from 'lucide-react';
+import { doc, updateDoc, deleteDoc, serverTimestamp, writeBatch } from 'firebase/firestore';
+import { useFirestore } from '@/firebase';
+import { useToast } from '@/hooks/use-toast';
+import { useConfirm } from '@/hooks/use-confirm';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import AddOrderModal from '@/components/add-order-modal';
 import { getArticleFrenchName } from '@/lib/product-name-utils';
 import { exportDemandesImportPDF } from '@/lib/pdf-demande-import';
+import { etapeDemande, champsEnvoiAuCommercial } from '@/lib/demande-magasin';
 
 /**
- * Demandes de nouveaux produits envoyées par les magasins au service import.
+ * Demandes de nouveaux produits écrites par les magasins.
  *
- * Une demande est un article `TO_ORDER` créé depuis /stock avec `requestSource: 'STORE'` : il
- * apparaît tel quel dans « Besoins » de /gestion. Côté magasin, le suivi s'arrête à deux étapes :
- * « Envoyée » tant que l'import ne l'a pas lancée, puis « Commandée » pendant quelques jours avant
- * de disparaître — la suite (transit, arrivage) se suit dans la page Arrivages.
- * Aucun prix ni fournisseur n'est affiché ici.
+ * Une demande est un article `TO_ORDER` créé depuis /stock avec `requestSource: 'STORE'`. Le
+ * suivi tient en trois étapes, et c'est le magasin qui déclenche la deuxième :
  *
- * Le papier compte autant que l'écran : une demande s'imprime (src/lib/pdf-demande-import.ts),
- * se fait viser par le commercial, et c'est ce document visé qui part au service import. Le
- * bouton d'impression est donc présent sur chaque demande et sur la liste affichée.
+ *   1. « Brouillon »  — elle n'appartient qu'au magasin. Personne ne la voit dans /gestion.
+ *                       C'est le moment où on l'imprime et où le commercial la relit.
+ *   2. « Envoyée »    — le magasin a cliqué sur « Envoyer au service commercial ». Elle apparaît
+ *                       alors dans les Besoins de /gestion.
+ *   3. « Commandée »  — le service import l'a lancée ; elle reste affichée quelques jours, puis
+ *                       la suite (transit, arrivage) se suit dans la page Arrivages.
+ *
+ * Avant, la demande partait à l'import à la seconde où le formulaire était validé : le commercial
+ * découvrait des lignes que personne n'avait relues, et le magasin ne pouvait plus rien corriger.
+ *
+ * Le papier compte autant que l'écran : une demande s'imprime (src/lib/pdf-demande-import.ts) et
+ * se fait viser avant d'être envoyée. Aucun prix ni fournisseur n'est affiché ici.
  */
 
 interface StoreImportRequestsViewProps {
@@ -39,29 +50,46 @@ interface StoreImportRequestsViewProps {
   readOnly?: boolean;
 }
 
-type Stage = 'SENT' | 'ORDERED';
+type Stage = 'DRAFT' | 'SENT' | 'ORDERED';
 
 /** Durée pendant laquelle une demande commandée reste affichée au magasin. */
 const ORDERED_VISIBLE_DAYS = 5;
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 const STAGES: Record<Stage, { label: string; icon: any; cls: string; bar: string }> = {
-  SENT:    { label: "Envoyée à l'import", icon: Send,    cls: 'bg-stone-100 text-stone-700 border-stone-200', bar: 'bg-stone-400' },
-  ORDERED: { label: 'Commandée',          icon: Factory, cls: 'bg-emerald-50 text-emerald-800 border-emerald-200', bar: 'bg-emerald-500' },
+  DRAFT:   { label: 'Brouillon',          icon: PenLine,   cls: 'bg-amber-50 text-amber-800 border-amber-200',       bar: 'bg-amber-400' },
+  SENT:    { label: 'Envoyée',            icon: Send,      cls: 'bg-stone-100 text-stone-700 border-stone-200',      bar: 'bg-stone-400' },
+  ORDERED: { label: 'Commandée',          icon: Factory,   cls: 'bg-emerald-50 text-emerald-800 border-emerald-200', bar: 'bg-emerald-500' },
 };
 
 /**
- * Le parcours réel d'une demande, rappelé en trois lignes. L'étape du milieu est celle qu'on
- * oubliait : sans document visé par le commercial, le service import reçoit des lignes que
- * personne n'a relues.
+ * Le parcours réel d'une demande. L'étape du milieu est celle qu'on oubliait : sans document visé
+ * par le commercial, le service import reçoit des lignes que personne n'a relues.
  */
 const ETAPES_DEMANDE = [
-  'Le magasin écrit la demande ici.',
-  "On l'imprime, le commercial la vérifie et la vise.",
-  'Le document visé part au service import.',
+  'Le magasin écrit la demande : elle reste ici, en brouillon.',
+  "On l'imprime et le commercial la vérifie ligne à ligne, puis la vise.",
+  "Le magasin l'envoie : le service import la reçoit et décide du lancement.",
 ];
 
 const fmtQty = (n: any) => (Number(n) || 0).toLocaleString('fr-FR', { maximumFractionDigits: 3 });
+
+/**
+ * Hors ligne, une écriture Firestore ne se résout JAMAIS : elle reste en attente dans le cache
+ * local jusqu'au retour du réseau. Sans ce garde-fou, le bouton restait sur « Envoi… » et tout
+ * l'écran était gelé — le magasin, lui, croyait sa demande partie.
+ */
+async function avecDelai<T>(promesse: Promise<T>, secondes = 20): Promise<T> {
+  return Promise.race([
+    promesse,
+    new Promise<T>((_, rejeter) => setTimeout(() => rejeter(new Error('timeout')), secondes * 1000)),
+  ]);
+}
+
+/** Le message à afficher quand une écriture n'a pas été confirmée. */
+const messageEchec = (e: any) => e?.message === 'timeout'
+  ? "Pas de réponse du serveur. Vérifiez la connexion, puis regardez l'état de la demande avant de recommencer."
+  : (e?.message || 'Réessayez.');
 
 /** Timestamp Firestore, {seconds}, Date ou chaîne YYYY-MM-DD → millisecondes (0 si absent). */
 function toMs(v: any): number {
@@ -96,6 +124,10 @@ export default function StoreImportRequestsView({
   const [modalOpen, setModalOpen] = useState(false);
   const [filter, setFilter] = useState<Filter>('ALL');
   const [search, setSearch] = useState('');
+  const [enCours, setEnCours] = useState<string | null>(null);
+  const firestore = useFirestore();
+  const { toast } = useToast();
+  const confirm = useConfirm();
 
   const storeName = (id?: string | null) => stores.find((s: any) => s.id === id)?.name || id || '';
 
@@ -104,7 +136,11 @@ export default function StoreImportRequestsView({
     return (articles || [])
       .filter((a: any) => a.requestSource === 'STORE' && (seesAllStores || a.requestedByStore === storeId))
       .map((a: any) => {
-        const stage: Stage = (a.status || 'TO_ORDER') === 'TO_ORDER' ? 'SENT' : 'ORDERED';
+        // Le statut de l'article ne dit que ce que l'import en a fait ; l'étape du magasin, elle,
+        // vit dans son propre champ — un brouillon reste un TO_ORDER que personne n'a encore vu.
+        const stage: Stage = etapeDemande(a) === 'DRAFT'
+          ? 'DRAFT'
+          : (a.status || 'TO_ORDER') === 'TO_ORDER' ? 'SENT' : 'ORDERED';
         const orderedAt = stage === 'ORDERED' ? orderedAtMs(a) : 0;
         const daysLeft = stage === 'ORDERED'
           ? Math.ceil((orderedAt + ORDERED_VISIBLE_DAYS * DAY_MS - now) / DAY_MS)
@@ -116,15 +152,18 @@ export default function StoreImportRequestsView({
         };
       })
       // Une demande commandée ne reste visible que quelques jours, puis sort de la liste.
-      .filter(r => r.stage === 'SENT' || (r.orderedAt > 0 && (r.daysLeft ?? 0) > 0))
+      .filter(r => r.stage !== 'ORDERED' || (r.orderedAt > 0 && (r.daysLeft ?? 0) > 0))
       .sort((x, y) => {
-        if (x.stage !== y.stage) return x.stage === 'SENT' ? -1 : 1;
+        // Les brouillons d'abord : ce sont les seuls sur lesquels le magasin a encore la main.
+        const rang: Record<Stage, number> = { DRAFT: 0, SENT: 1, ORDERED: 2 };
+        if (x.stage !== y.stage) return rang[x.stage] - rang[y.stage];
         return (y.orderedAt || y.requestedAt) - (x.orderedAt || x.requestedAt);
       });
   }, [articles, seesAllStores, storeId, categories, generalCategories]);
 
   const counts = useMemo(() => ({
     ALL: requests.length,
+    DRAFT: requests.filter(r => r.stage === 'DRAFT').length,
     SENT: requests.filter(r => r.stage === 'SENT').length,
     ORDERED: requests.filter(r => r.stage === 'ORDERED').length,
   }), [requests]);
@@ -140,6 +179,101 @@ export default function StoreImportRequestsView({
   }, [requests, filter, search]);
 
   const canRequest = Boolean(storeId && adminUid && !readOnly);
+  /** Les brouillons de la liste AFFICHÉE : c'est exactement ce que le bouton groupé enverra. */
+  const brouillonsAffiches = useMemo(() => visible.filter(l => l.stage === 'DRAFT'), [visible]);
+
+  /**
+   * Envoie la demande au service commercial. C'est le geste qui la fait sortir du magasin : elle
+   * apparaît dès lors dans les Besoins de /gestion, où le commercial la confirme et où le service
+   * import décide du lancement. On demande confirmation parce que le retour en arrière n'existe
+   * pas de ce côté-ci de l'écran.
+   */
+  const envoyerAuCommercial = async (ligne: typeof visible[number]) => {
+    if (!firestore || !adminUid || enCours) return;
+    const ok = await confirm({
+      title: 'Envoyer au service commercial ?',
+      description: `« ${ligne.frName} » quittera le magasin et apparaîtra dans les besoins de l'import.\n\n`
+        + `Imprime-la et fais-la viser avant, si ce n'est pas déjà fait : c'est le document visé qui compte.`,
+      confirmLabel: 'Envoyer',
+    });
+    if (!ok) return;
+    setEnCours(ligne.a.id);
+    try {
+      await avecDelai(updateDoc(
+        doc(firestore, 'users', adminUid, 'articles', ligne.a.id),
+        champsEnvoiAuCommercial(serverTimestamp()) as any,
+      ));
+      toast({
+        title: 'Demande envoyée',
+        description: `« ${ligne.frName} » est partie au service commercial.`,
+      });
+    } catch (e: any) {
+      console.error('[demandes] envoi impossible :', e);
+      toast({ variant: 'destructive', title: 'Envoi non confirmé', description: messageEchec(e) });
+    } finally {
+      setEnCours(null);
+    }
+  };
+
+  /**
+   * Envoie d'un coup tous les brouillons affichés. Une demande ventilée par couleurs s'écrit en
+   * plusieurs documents, un par groupe de prix : sans ce bouton, le magasin doit cliquer sur
+   * chacun, et il en oublie un.
+   */
+  const envoyerTousLesBrouillons = async () => {
+    if (!firestore || !adminUid || enCours) return;
+    const brouillons = brouillonsAffiches;
+    if (brouillons.length === 0) return;
+    const ok = await confirm({
+      title: `Envoyer ${brouillons.length} demande${brouillons.length > 1 ? 's' : ''} au service commercial ?`,
+      description: brouillons.map(l => `· ${l.frName}`).join('\n')
+        + `\n\nElles quitteront le magasin et apparaîtront dans les besoins de l'import.`,
+      confirmLabel: 'Tout envoyer',
+    });
+    if (!ok) return;
+    setEnCours('TOUS');
+    try {
+      const lot = writeBatch(firestore);
+      for (const ligne of brouillons) {
+        lot.update(
+          doc(firestore, 'users', adminUid, 'articles', ligne.a.id),
+          champsEnvoiAuCommercial(serverTimestamp()) as any,
+        );
+      }
+      await avecDelai(lot.commit());
+      toast({
+        title: `${brouillons.length} demande${brouillons.length > 1 ? 's' : ''} envoyée${brouillons.length > 1 ? 's' : ''}`,
+        description: 'Le service commercial les voit maintenant.',
+      });
+    } catch (e: any) {
+      console.error('[demandes] envoi groupé impossible :', e);
+      toast({ variant: 'destructive', title: 'Envoi non confirmé', description: messageEchec(e) });
+    } finally {
+      setEnCours(null);
+    }
+  };
+
+  /** Supprime un brouillon. Seul un brouillon : une demande envoyée ne s'efface plus d'ici. */
+  const supprimerBrouillon = async (ligne: typeof visible[number]) => {
+    if (!firestore || !adminUid || enCours) return;
+    const ok = await confirm({
+      title: 'Supprimer ce brouillon ?',
+      description: `« ${ligne.frName} » sera effacée. Personne ne l'a encore vue : rien d'autre ne bouge.`,
+      confirmLabel: 'Supprimer',
+      variant: 'destructive',
+    });
+    if (!ok) return;
+    setEnCours(ligne.a.id);
+    try {
+      await avecDelai(deleteDoc(doc(firestore, 'users', adminUid, 'articles', ligne.a.id)));
+      toast({ title: 'Brouillon supprimé' });
+    } catch (e: any) {
+      console.error('[demandes] suppression impossible :', e);
+      toast({ variant: 'destructive', title: 'Suppression non confirmée', description: messageEchec(e) });
+    } finally {
+      setEnCours(null);
+    }
+  };
 
   /**
    * Imprime le document que le commercial va viser. On n'envoie que ce qui est déjà à l'écran :
@@ -155,7 +289,10 @@ export default function StoreImportRequestsView({
         justification: a.notes,
       })),
       { categories, generalCategories, sousTitre },
-    );
+    ).catch((e: any) => {
+      console.error('[demandes] impression impossible :', e);
+      toast({ variant: 'destructive', title: 'Impression impossible', description: e?.message || 'Réessayez.' });
+    });
   };
 
   return (
@@ -170,9 +307,11 @@ export default function StoreImportRequestsView({
               Demandes <span className="text-amber-400">d'Import</span>
             </h2>
             <p className="text-stone-400 text-xs mt-2 max-w-lg">
-              Un produit manque ou n'existe pas encore ? Envoyez une demande au service import.
-              Elle reste « Envoyée » jusqu'à ce que l'import la commande, puis « Commandée »
-              pendant {ORDERED_VISIBLE_DAYS} jours.
+              Un produit manque ou n'existe pas encore ? Écrivez la demande : elle reste en
+              <span className="text-amber-400 font-black"> brouillon</span>, le temps de l'imprimer et de
+              la faire viser par le commercial. C'est <span className="text-white font-black">vous</span> qui
+              l'envoyez ensuite. Une fois commandée par l'import, elle reste affichée
+              {' '}{ORDERED_VISIBLE_DAYS} jours.
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2 shrink-0">
@@ -183,6 +322,17 @@ export default function StoreImportRequestsView({
                 title="Imprimer les demandes affichées, pour les faire viser par le commercial"
               >
                 <Printer className="w-4 h-4" /> Imprimer la liste
+              </Button>
+            )}
+            {canRequest && brouillonsAffiches.length > 0 && (
+              <Button
+                onClick={envoyerTousLesBrouillons}
+                disabled={enCours !== null}
+                className="bg-white/10 hover:bg-white/20 text-white border border-white/20 font-black uppercase text-[11px] tracking-widest px-5 h-12 rounded-2xl gap-2 disabled:opacity-50"
+                title="Envoyer tous les brouillons affichés au service commercial"
+              >
+                <BadgeCheck className="w-4 h-4" />
+                {enCours === 'TOUS' ? 'Envoi…' : `Envoyer les brouillons (${brouillonsAffiches.length})`}
               </Button>
             )}
             {canRequest && (
@@ -198,8 +348,8 @@ export default function StoreImportRequestsView({
 
         {/* Étapes du suivi, et parcours du document */}
         <div className="relative z-10 flex flex-col lg:flex-row gap-3 mt-6">
-          <div className="grid grid-cols-2 gap-3 lg:w-80 shrink-0">
-            {(['SENT', 'ORDERED'] as Stage[]).map(st => {
+          <div className="grid grid-cols-3 gap-3 lg:w-96 shrink-0">
+            {(['DRAFT', 'SENT', 'ORDERED'] as Stage[]).map(st => {
               const conf = STAGES[st];
               const Icon = conf.icon;
               return (
@@ -233,6 +383,7 @@ export default function StoreImportRequestsView({
         <div className="flex gap-2 flex-wrap">
           {([
             ['ALL', 'Toutes'],
+            ['DRAFT', 'Brouillons'],
             ['SENT', 'Envoyées'],
             ['ORDERED', 'Commandées'],
           ] as [Filter, string][]).map(([key, label]) => (
@@ -327,7 +478,7 @@ export default function StoreImportRequestsView({
                         </span>
                       )}
                     </div>
-                    {/* Le document à faire viser par le commercial avant l'envoi au service import. */}
+                    {/* Le document à faire viser par le commercial avant l'envoi. */}
                     <button
                       onClick={() => imprimer([ligne], `Demande du ${fmtDate(requestedAt)} — ${frName}`)}
                       title="Imprimer cette demande pour la faire viser par le commercial"
@@ -336,12 +487,37 @@ export default function StoreImportRequestsView({
                       <Printer className="w-4 h-4" />
                       <span className="hidden lg:inline">Imprimer</span>
                     </button>
+                    {/* Un brouillon appartient encore au magasin : il peut l'envoyer ou l'effacer. */}
+                    {stage === 'DRAFT' && canRequest && (
+                      <>
+                        <button
+                          onClick={() => envoyerAuCommercial(ligne)}
+                          disabled={enCours !== null}
+                          title="Envoyer cette demande au service commercial"
+                          className="h-10 px-4 rounded-xl bg-stone-900 text-white hover:bg-stone-800 disabled:opacity-50 transition-colors inline-flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest shrink-0"
+                        >
+                          <BadgeCheck className="w-4 h-4" />
+                          <span className="hidden lg:inline">
+                            {enCours === a.id ? 'Envoi…' : 'Envoyer au commercial'}
+                          </span>
+                        </button>
+                        <button
+                          onClick={() => supprimerBrouillon(ligne)}
+                          disabled={enCours !== null}
+                          title="Supprimer ce brouillon"
+                          className="h-10 w-10 rounded-xl border-2 border-stone-200 text-stone-400 hover:border-red-300 hover:text-red-600 disabled:opacity-50 transition-colors inline-flex items-center justify-center shrink-0"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </>
+                    )}
                   </div>
                 </div>
 
-                {/* Avancement : deux étapes */}
+                {/* Avancement : brouillon, envoyée, commandée */}
                 <div className="flex gap-1 mt-3">
                   <div className={`h-1.5 flex-1 rounded-full ${conf.bar}`} />
+                  <div className={`h-1.5 flex-1 rounded-full ${stage === 'DRAFT' ? 'bg-stone-100' : conf.bar}`} />
                   <div className={`h-1.5 flex-1 rounded-full ${stage === 'ORDERED' ? conf.bar : 'bg-stone-100'}`} />
                 </div>
               </div>

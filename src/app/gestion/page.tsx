@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useMemo, useEffect } from 'react';
+import { estBrouillonMagasin } from '@/lib/demande-magasin';
 import { ViewType } from '@/lib/types';
 import { isLocalMarketPurchaseArticle } from '@/lib/local-purchase';
 import DashboardView from '@/components/dashboard-view';
@@ -250,7 +251,8 @@ function StaffCostSaleApp({ adminUid, auth, firestore }: { adminUid: string; aut
       getDocs(collection(firestore, 'users', adminUid, 'generalCategories')),
     ])
       .then(([artSnap, facSnap, catSnap, genCatSnap]) => {
-        setArticles(artSnap.docs.map((d: any) => ({ id: d.id, ...d.data() })).filter((a: any) => !isLocalMarketPurchaseArticle(a)));
+        setArticles(artSnap.docs.map((d: any) => ({ id: d.id, ...d.data() }))
+          .filter((a: any) => !isLocalMarketPurchaseArticle(a) && !estBrouillonMagasin(a)));
         setFactures(facSnap.docs.map((d: any) => ({ id: d.id, ...d.data() })));
         setSubCategories(catSnap.docs.map((d: any) => ({ id: d.id, ...d.data() })));
         setGeneralCategories(genCatSnap.docs.map((d: any) => ({ id: d.id, ...d.data() })));
@@ -342,7 +344,8 @@ function ClientPortalView({
       getDocs(collection(firestore, 'users', adminUid, 'categories')),
     ])
       .then(([artSnap, facSnap, catSnap]) => {
-        setArticles(artSnap.docs.map((d: any) => ({ id: d.id, ...d.data() })).filter((a: any) => !isLocalMarketPurchaseArticle(a)));
+        setArticles(artSnap.docs.map((d: any) => ({ id: d.id, ...d.data() }))
+          .filter((a: any) => !isLocalMarketPurchaseArticle(a) && !estBrouillonMagasin(a)));
         setFactures(facSnap.docs.map((d: any) => ({ id: d.id, ...d.data() })));
         setCategories(catSnap.docs.map((d: any) => ({ id: d.id, ...d.data() })));
         setLoading(false);
@@ -450,7 +453,9 @@ function AdminApp() {
   const factures = rawFactures || [];
   // Les achats du marché local (créés depuis /stock, ex: "dépannage" chez un vendeur local)
   // ne sont pas des arrivages import — ils ne doivent jamais apparaître dans /gestion.
-  const rawArticles_ = (rawArticles || []).filter((a: any) => !isLocalMarketPurchaseArticle(a));
+  // Un brouillon de demande magasin n'est pas encore un besoin : il attend d'etre imprime, vise
+  // par le commercial, puis envoye depuis /stock. Tant qu'il ne l'est pas, /gestion ne le voit pas.
+  const rawArticles_ = (rawArticles || []).filter((a: any) => !isLocalMarketPurchaseArticle(a) && !estBrouillonMagasin(a));
   // Enrich articles with facture dates → computes effective status (TRANSIT/CUSTOMS/STOCK) automatically
   const articles = useEnrichedArticles(rawArticles_, factures);
   const generalCategories = rawGenCats || [];

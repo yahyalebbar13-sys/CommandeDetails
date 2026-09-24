@@ -132,3 +132,12 @@ export function precisionsLigne(source: any): string[] {
     .map(v => String(v ?? '').trim())
     .filter(v => v && v.toLowerCase() !== 'various');
 }
+
+/**
+ * Une valeur de variante prete a imprimer : « various » est la marque interne d'un article
+ * ventile, jamais une couleur ni une taille. L'imprimer revient a annoncer au magasinier, ou au
+ * client, une marchandise qui n'existe pas.
+ */
+export function valeurImprimable(valeur: unknown, defaut = ''): string {
+  return precisionsLigne({ color: valeur })[0] ?? defaut;
+}

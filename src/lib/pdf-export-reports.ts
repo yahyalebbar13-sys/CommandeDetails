@@ -1,18 +1,14 @@
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import type { CheckRemittance } from '@/lib/types';
-import { precisionsLigne, qualiteDeLArticle, specificationsArticle } from '@/lib/specification-produit';
+import { precisionsLigne, qualiteDeLArticle, specificationsArticle, valeurImprimable } from '@/lib/specification-produit';
+import {
+  MARGE, HAUTEUR_PIED, NAVY, ESTOMPE, FOND, STYLES_TABLEAU,
+  enTeteDocument, piedDeDocument,
+} from '@/lib/pdf-charte-lebtex';
 
 const fmt = (n: number) => n.toLocaleString('fr-MA', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
-/**
- * Une valeur de colonne (couleur, taille) passée par le filtre commun à tous les documents :
- * « various » est la marque interne d'un article ventilé, pas une couleur. Sur un bon de
- * transfert, l'imprimer revient à annoncer au magasinier une marchandise qui n'existe pas.
- * (Le nom du champ importe peu ici : precisionsLigne applique le même filtre aux trois.)
- */
-const valeurImprimable = (valeur: unknown, defaut = ''): string =>
-  precisionsLigne({ color: valeur })[0] ?? defaut;
 
 /**
  * Les caractéristiques techniques d'une ligne, lues dans le modèle de sa famille (GSM et largeur
@@ -41,44 +37,28 @@ interface PDFReportOptions {
 /**
  * Génère et télécharge un rapport PDF avec en-tête LEBTEX, tableau et pied de page.
  */
-export function exportReportPDF(options: PDFReportOptions) {
+/**
+ * Construit le document sans le telecharger : les documents du magasin se relisent en test, hors
+ * navigateur, plutot que sur la parole du developpeur.
+ */
+export async function construireReportPDF(options: PDFReportOptions): Promise<{ doc: jsPDF; fichier: string } | null> {
   const { title, subtitle, columns, data, footer, landscape = false, summaryRows } = options;
 
   if (data.length === 0) {
     alert('Aucune donnée à exporter.');
-    return;
+    return null;
   }
 
   const doc = new jsPDF({ orientation: landscape ? 'landscape' : 'portrait', unit: 'mm', format: 'a4' });
   const pageWidth = doc.internal.pageSize.getWidth();
 
-  // ── En-tête LEBTEX ──
-  doc.setFillColor(28, 25, 23); // stone-900
-  doc.rect(0, 0, pageWidth, 32, 'F');
-  doc.setTextColor(255, 255, 255);
-  doc.setFontSize(18);
-  doc.setFont('helvetica', 'bold');
-  doc.text('LEBTEX', 14, 15);
-  doc.setFontSize(8);
-  doc.setTextColor(168, 162, 158); // stone-400
-  doc.text('Mercerie, fils à coudre, fermetures à glissière', 14, 22);
-  doc.setFontSize(7);
-  doc.text(`Généré le ${new Date().toLocaleDateString('fr-FR')} à ${new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}`, pageWidth - 14, 15, { align: 'right' });
+  // Logo, titre et filet doré : la même en-tête que les documents de /gestion.
+  const startY = await enTeteDocument(doc, {
+    titre: title,
+    sousTitre: subtitle,
+    mentions: [`Édité le ${new Date().toLocaleDateString('fr-FR')} à ${new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}`],
+  });
 
-  // ── Titre du rapport ──
-  doc.setTextColor(28, 25, 23);
-  doc.setFontSize(14);
-  doc.setFont('helvetica', 'bold');
-  doc.text(title, 14, 44);
-  if (subtitle) {
-    doc.setFontSize(9);
-    doc.setTextColor(120, 113, 108);
-    doc.text(subtitle, 14, 51);
-  }
-
-  const startY = subtitle ? 56 : 50;
-
-  // ── Tableau principal ──
   autoTable(doc, {
     startY,
     head: [columns.map(c => c.header)],
@@ -86,75 +66,79 @@ export function exportReportPDF(options: PDFReportOptions) {
       const val = row[c.dataKey];
       return val != null ? String(val) : '';
     })),
-    headStyles: {
-      fillColor: [28, 25, 23],
-      textColor: [255, 255, 255],
-      fontStyle: 'bold',
-      fontSize: 7,
-      cellPadding: 3,
-    },
-    bodyStyles: {
-      fontSize: 7,
-      cellPadding: 2.5,
-      textColor: [28, 25, 23],
-    },
-    alternateRowStyles: {
-      fillColor: [250, 250, 249],
-    },
+    ...STYLES_TABLEAU,
+    styles: { ...STYLES_TABLEAU.styles, fontSize: 7.5, valign: 'top' },
+    headStyles: { ...STYLES_TABLEAU.headStyles, fontSize: 7 },
     columnStyles: columns.reduce((acc, col, i) => {
       if (col.width) acc[i] = { cellWidth: col.width };
       return acc;
     }, {} as Record<number, any>),
-    margin: { left: 14, right: 14 },
-    didDrawPage: (hookData: any) => {
-      // Numéro de page en pied
-      const pageH = doc.internal.pageSize.getHeight();
-      doc.setFontSize(7);
-      doc.setTextColor(168, 162, 158);
-      doc.text(`Page ${hookData.pageNumber}`, pageWidth / 2, pageH - 8, { align: 'center' });
-    },
+    // Le bandeau de pied de page est dessiné à la fin : on lui réserve sa hauteur.
+    margin: { left: MARGE, right: MARGE, bottom: HAUTEUR_PIED },
   });
 
   // ── Résumé ──
   if (summaryRows && summaryRows.length > 0) {
     const finalY = (doc as any).lastAutoTable?.finalY || startY + 20;
     let y = finalY + 10;
-    doc.setFillColor(250, 250, 249);
-    doc.roundedRect(14, y - 4, pageWidth - 28, summaryRows.length * 7 + 8, 3, 3, 'F');
+    const hauteur = summaryRows.length * 7 + 8;
+    if (y + hauteur > doc.internal.pageSize.getHeight() - HAUTEUR_PIED) {
+      doc.addPage();
+      y = MARGE + 4;
+    }
+    doc.setFillColor(...FOND);
+    doc.roundedRect(MARGE, y - 4, pageWidth - 2 * MARGE, hauteur, 2, 2, 'F');
     doc.setFontSize(8);
     summaryRows.forEach(row => {
-      doc.setTextColor(120, 113, 108);
+      doc.setTextColor(...ESTOMPE);
       doc.setFont('helvetica', 'normal');
-      doc.text(row.label, 20, y + 2);
-      doc.setTextColor(28, 25, 23);
+      doc.text(row.label, MARGE + 6, y + 2);
+      doc.setTextColor(...NAVY);
       doc.setFont('helvetica', 'bold');
-      doc.text(row.value, pageWidth - 20, y + 2, { align: 'right' });
+      doc.text(row.value, pageWidth - MARGE - 6, y + 2, { align: 'right' });
       y += 7;
     });
   }
 
-  // ── Footer ──
+  // La mention de fin (visas du bon de transfert, avertissement d'un bon de commande) se pose
+  // SOUS le contenu, pas dans le bandeau : certaines font trois lignes de long et se seraient
+  // écrasées sur la pagination.
   if (footer) {
-    const pageH = doc.internal.pageSize.getHeight();
-    doc.setFontSize(6);
-    doc.setTextColor(168, 162, 158);
-    doc.text(footer, pageWidth / 2, pageH - 14, { align: 'center' });
+    const finY = (doc as any).lastAutoTable?.finalY || startY;
+    let y = Math.max(finY + 14, doc.internal.pageSize.getHeight() - HAUTEUR_PIED - 14);
+    const largeurUtile = pageWidth - 2 * MARGE;
+    doc.setFontSize(7);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(...ESTOMPE);
+    const lignes = doc.splitTextToSize(footer, largeurUtile) as string[];
+    if (y + lignes.length * 4 > doc.internal.pageSize.getHeight() - HAUTEUR_PIED) {
+      doc.addPage();
+      y = MARGE + 6;
+    }
+    lignes.forEach((ligne, i) => doc.text(ligne, pageWidth / 2, y + i * 4, { align: 'center' }));
   }
 
-  // ── Télécharger ──
-  const filename = `${title.replace(/\s+/g, '-').toLowerCase()}-${new Date().toISOString().split('T')[0]}.pdf`;
-  doc.save(filename);
+  piedDeDocument(doc, title);
+
+  const fichier = `${title.replace(/\s+/g, '-').toLowerCase()}-${new Date().toISOString().split('T')[0]}.pdf`;
+  return { doc, fichier };
+}
+
+/** Le meme document, telecharge. */
+export async function exportReportPDF(options: PDFReportOptions) {
+  const rendu = await construireReportPDF(options);
+  if (rendu) rendu.doc.save(rendu.fichier);
 }
 
 /**
  * Export des mouvements de stock en PDF
  */
-export function exportMovementsPDF(movements: any[], customTitle?: string, customSubtitle?: string) {
+export async function exportMovementsPDF(movements: any[], customTitle?: string, customSubtitle?: string) {
   const totalIN = movements.filter(m => m.type === 'IN').reduce((s, m) => s + (m.quantity || 0), 0);
   const totalOUT = movements.filter(m => m.type === 'OUT').reduce((s, m) => s + (m.quantity || 0), 0);
   const net = totalIN - totalOUT;
 
-  exportReportPDF({
+  return exportReportPDF({
     title: customTitle || 'Rapport des Mouvements de Stock',
     subtitle: customSubtitle || `${movements.length} mouvement${movements.length > 1 ? 's' : ''} enregistré${movements.length > 1 ? 's' : ''}`,
     landscape: true,
@@ -196,7 +180,7 @@ export function exportMovementsPDF(movements: any[], customTitle?: string, custo
 /**
  * Export Portefeuille Chèques, Traites & Impayés en PDF
  */
-export function exportChequesPDF(payments: any[], stats?: any) {
+export async function exportChequesPDF(payments: any[], stats?: any) {
   const impayes = payments.filter(p => p.status === 'REJECTED');
   const pending = payments.filter(p => !p.status || p.status === 'PENDING');
   const cleared = payments.filter(p => p.status === 'CLEARED');
@@ -205,7 +189,7 @@ export function exportChequesPDF(payments: any[], stats?: any) {
   const pendingSum = pending.reduce((s, p) => s + (p.amount || 0), 0);
   const clearedSum = cleared.reduce((s, p) => s + (p.amount || 0), 0);
 
-  exportReportPDF({
+  return exportReportPDF({
     title: 'Portefeuille Chèques & Effets / Impayés',
     subtitle: `${payments.length} titre(s) — Bilan de trésorerie au ${new Date().toLocaleDateString('fr-FR')}`,
     landscape: true,
@@ -220,9 +204,9 @@ export function exportChequesPDF(payments: any[], stats?: any) {
     ],
     data: payments.map(p => {
       let statusLabel = 'En portefeuille';
-      if (p.status === 'REJECTED') statusLabel = '⚠️ IMPAYÉ / REJETÉ';
-      else if (p.status === 'CLEARED') statusLabel = '✅ Encaissé';
-      else if (p.dueDate && new Date(p.dueDate) < new Date()) statusLabel = '⏳ Échéance dépassée';
+      if (p.status === 'REJECTED') statusLabel = 'IMPAYÉ / REJETÉ';
+      else if (p.status === 'CLEARED') statusLabel = 'ENCAISSÉ';
+      else if (p.dueDate && new Date(p.dueDate) < new Date()) statusLabel = 'ÉCHÉANCE DÉPASSÉE';
 
       return {
         type: p.method === 'TRAITE' ? 'LCN / Traite' : 'Chèque',
@@ -235,9 +219,9 @@ export function exportChequesPDF(payments: any[], stats?: any) {
       };
     }),
     summaryRows: [
-      { label: `⚠️ Impayés Rejetés (${impayes.length} chèque${impayes.length > 1 ? 's' : ''})`, value: `${impayesSum.toLocaleString('fr-MA', { minimumFractionDigits: 2 })} MAD` },
-      { label: `⏳ En Portefeuille (${pending.length} titre${pending.length > 1 ? 's' : ''})`, value: `${pendingSum.toLocaleString('fr-MA', { minimumFractionDigits: 2 })} MAD` },
-      { label: `✅ Encaissés (${cleared.length} titre${cleared.length > 1 ? 's' : ''})`, value: `${clearedSum.toLocaleString('fr-MA', { minimumFractionDigits: 2 })} MAD` },
+      { label: `Impayés rejetés (${impayes.length} chèque${impayes.length > 1 ? 's' : ''})`, value: `${impayesSum.toLocaleString('fr-MA', { minimumFractionDigits: 2 })} MAD` },
+      { label: `En portefeuille (${pending.length} titre${pending.length > 1 ? 's' : ''})`, value: `${pendingSum.toLocaleString('fr-MA', { minimumFractionDigits: 2 })} MAD` },
+      { label: `Encaissés (${cleared.length} titre${cleared.length > 1 ? 's' : ''})`, value: `${clearedSum.toLocaleString('fr-MA', { minimumFractionDigits: 2 })} MAD` },
       { label: 'Total Global Portefeuille', value: `${(impayesSum + pendingSum + clearedSum).toLocaleString('fr-MA', { minimumFractionDigits: 2 })} MAD` },
     ],
     footer: 'LEBTEX SARL AU — Bilan Portefeuille Commercial & Recouvrement',
@@ -247,12 +231,12 @@ export function exportChequesPDF(payments: any[], stats?: any) {
 /**
  * Export des factures en PDF
  */
-export function exportInvoicesPDF(invoices: any[]) {
+export async function exportInvoicesPDF(invoices: any[]) {
   const totalHT = invoices.reduce((s, i) => s + (i.totalAfterDiscount || 0), 0);
   const totalPaid = invoices.reduce((s, i) => s + (i.paidAmount || 0), 0);
   const totalDue = invoices.reduce((s, i) => s + (i.remainingBalance || 0), 0);
 
-  exportReportPDF({
+  return exportReportPDF({
     title: 'Rapport des Factures',
     subtitle: `${invoices.length} factures`,
     landscape: true,
@@ -284,54 +268,9 @@ export function exportInvoicesPDF(invoices: any[]) {
 }
 
 /**
- * Export du stock en PDF
- */
-export function exportStockPDF(stockItems: any[], categories: any[] = [], generalCategories: any[] = []) {
-  const totalValue = stockItems.reduce((s, i) => s + (i.totalValue || 0), 0);
-  const totalQty = stockItems.reduce((s, i) => s + (i.currentQty || 0), 0);
-
-  exportReportPDF({
-    title: 'État du Stock',
-    subtitle: `${stockItems.length} articles — ${new Date().toLocaleDateString('fr-FR')}`,
-    landscape: true,
-    columns: [
-      { header: 'Produit', dataKey: 'name' },
-      { header: 'Qualité', dataKey: 'quality', width: 22 },
-      { header: 'Couleur', dataKey: 'color', width: 22 },
-      { header: 'Taille', dataKey: 'size', width: 16 },
-      { header: 'Caractéristiques', dataKey: 'specs', width: 60 },
-      { header: 'Qté', dataKey: 'qty', width: 14 },
-      { header: 'Seuil', dataKey: 'min', width: 14 },
-      { header: 'Prix achat', dataKey: 'cost', width: 20 },
-      { header: 'Valeur', dataKey: 'value', width: 22 },
-      { header: 'Prix vente', dataKey: 'sell', width: 20 },
-    ],
-    // Une ligne de stock est déjà une variante (une couleur, une qualité ou une taille) : elle
-    // s'imprime avec ce qui la distingue, puis avec les caractéristiques de sa famille.
-    data: stockItems.map(item => ({
-      name: item.productName || '',
-      quality: qualiteDeLArticle(item) || '—',
-      color: valeurImprimable(item.color, '—'),
-      size: valeurImprimable(item.size, '—'),
-      specs: caracteristiques(item, categories, generalCategories) || '—',
-      qty: item.currentQty || 0,
-      min: item.minThreshold || '—',
-      cost: `${fmt(item.purchasePricePerUnit || 0)}`,
-      value: `${fmt(item.totalValue || 0)}`,
-      sell: item.sellingPrice ? fmt(item.sellingPrice) : '—',
-    })),
-    summaryRows: [
-      { label: 'Total articles', value: String(totalQty) },
-      { label: 'Valeur totale du stock', value: `${fmt(totalValue)} MAD` },
-    ],
-    footer: 'LEBTEX SARL AU — Rapport généré automatiquement',
-  });
-}
-
-/**
  * Bilan Hebdomadaire des Ventes du Vendredi (Prix, MT, N° Bon, Mode de Règlement, À Crédit)
  */
-export function exportFridaySalesPDF(invoices: any[], payments: any[] = [], periodLabel?: string) {
+export async function exportFridaySalesPDF(invoices: any[], payments: any[] = [], periodLabel?: string) {
   const totalTTC = invoices.reduce((s, i) => s + (i.totalAfterDiscount || 0), 0);
   const totalPaid = invoices.reduce((s, i) => s + (i.paidAmount || 0), 0);
   const totalCredit = invoices.reduce((s, i) => s + (i.remainingBalance || 0), 0);
@@ -345,7 +284,7 @@ export function exportFridaySalesPDF(invoices: any[], payments: any[] = [], peri
     }
   });
 
-  exportReportPDF({
+  return exportReportPDF({
     title: 'Bilan Hebdomadaire des Ventes & Règlements (Point du Vendredi)',
     subtitle: periodLabel || `${invoices.length} bon(s) de commande — Semaine du ${new Date().toLocaleDateString('fr-FR')}`,
     landscape: true,
@@ -383,9 +322,9 @@ export function exportFridaySalesPDF(invoices: any[], payments: any[] = [], peri
       }).join(' | ');
 
       let statusStr = 'À Crédit';
-      if (inv.status === 'PAID') statusStr = '✅ Réglé';
-      else if (inv.status === 'PENDING') statusStr = '⏳ Chèque en attente';
-      else if (inv.status === 'PARTIAL') statusStr = '⚠️ Partiel';
+      if (inv.status === 'PAID') statusStr = 'RÉGLÉ';
+      else if (inv.status === 'PENDING') statusStr = 'CHÈQUE EN ATTENTE';
+      else if (inv.status === 'PARTIAL') statusStr = 'PARTIEL';
       else if (inv.remainingBalance > 0) statusStr = '🔴 À Crédit';
 
       return {
@@ -412,16 +351,16 @@ export function exportFridaySalesPDF(invoices: any[], payments: any[] = [], peri
 /**
  * Export du Bon de Transfert inter-magasins / entrepôts
  */
-export function exportTransferOrderPDF(order: any, stores: any[], categories: any[] = [], generalCategories: any[] = []) {
+export async function exportTransferOrderPDF(order: any, stores: any[], categories: any[] = [], generalCategories: any[] = []) {
   const getStoreName = (id: string) => stores.find(s => s.id === id)?.name || id;
   const fromName = getStoreName(order.fromStore);
   const toName = getStoreName(order.toStore);
   const totalSentQty = (order.items || []).reduce((s: number, i: any) => s + (i.sentQty || 0), 0);
   const totalReceivedQty = (order.items || []).reduce((s: number, i: any) => s + (i.receivedQty || 0), 0);
 
-  exportReportPDF({
+  return exportReportPDF({
     title: `Bon de Transfert Inter-Magasins N° BT-${(order.id || '').slice(0, 8).toUpperCase()}`,
-    subtitle: `Trajet : ${fromName} ➔ ${toName} | Date : ${order.date ? new Date(order.date).toLocaleDateString('fr-FR') : new Date().toLocaleDateString('fr-FR')}`,
+    subtitle: `Trajet : ${fromName} vers ${toName} | Date : ${order.date ? new Date(order.date).toLocaleDateString('fr-FR') : new Date().toLocaleDateString('fr-FR')}`,
     columns: [
       { header: 'N°', dataKey: 'num', width: 10 },
       { header: 'Désignation Produit', dataKey: 'productName' },
@@ -453,7 +392,7 @@ export function exportTransferOrderPDF(order: any, stores: any[], categories: an
       { label: 'Nombre de références transférées', value: `${(order.items || []).length} réf.` },
       { label: 'Total unités expédiées', value: `${totalSentQty} pcs` },
       ...(order.status === 'VALIDATED' ? [{ label: 'Total unités reçues et validées', value: `${totalReceivedQty} pcs` }] : []),
-      { label: 'Statut du transfert', value: order.status === 'VALIDATED' ? '✅ VALIDÉ & EN STOCK' : '⏳ EN TRANSIT' },
+      { label: 'Statut du transfert', value: order.status === 'VALIDATED' ? 'VALIDÉ ET EN STOCK' : 'EN TRANSIT' },
     ],
     footer: 'LEBTEX SARL AU — Visa Expéditeur : [                    ]    Visa Chauffeur / Transporteur : [                    ]    Visa Réceptionnaire : [                    ]',
   });
@@ -469,7 +408,7 @@ export function exportTransferOrderPDF(order: any, stores: any[], categories: an
  *
  * Aucun prix d'achat n'y figure : ce document se prépare et se remet en magasin.
  */
-export function exportSaleOrderPDF(
+export async function exportSaleOrderPDF(
   order: any,
   categories: any[] = [],
   generalCategories: any[] = [],
@@ -486,7 +425,7 @@ export function exportSaleOrderPDF(
     : new Date().toLocaleDateString('fr-FR');
   const client = order?.clientName || 'Comptoir';
 
-  exportReportPDF({
+  return exportReportPDF({
     title: `Bon de Commande N° ${reference}`,
     subtitle: [
       `Client : ${client}${options.clientPhone ? ` (${options.clientPhone})` : ''}`,

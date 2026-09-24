@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useMemo, useEffect } from 'react';
+import { estBrouillonMagasin } from '@/lib/demande-magasin';
 import { ViewType } from '@/lib/types';
 import DashboardView from '@/components/dashboard-view';
 import FacturesView from '@/components/factures-view';
@@ -245,7 +246,7 @@ function StaffCostSaleApp({ adminUid, auth, firestore }: { adminUid: string; aut
       getDocs(collection(firestore, 'users', adminUid, 'generalCategories')),
     ])
       .then(([artSnap, facSnap, catSnap, genCatSnap]) => {
-        setArticles(artSnap.docs.map((d: any) => ({ id: d.id, ...d.data() })));
+        setArticles(artSnap.docs.map((d: any) => ({ id: d.id, ...d.data() })).filter((a: any) => !estBrouillonMagasin(a)));
         setFactures(facSnap.docs.map((d: any) => ({ id: d.id, ...d.data() })));
         setSubCategories(catSnap.docs.map((d: any) => ({ id: d.id, ...d.data() })));
         setGeneralCategories(genCatSnap.docs.map((d: any) => ({ id: d.id, ...d.data() })));
@@ -340,7 +341,8 @@ function ClientPortalView({
       getDocs(collection(firestore, 'users', adminUid, 'stockMovements')),
     ])
       .then(([artSnap, facSnap, catSnap, movSnap]) => {
-        const _articles = artSnap.docs.map((d: any) => ({ id: d.id, ...d.data() }));
+        const _articles = artSnap.docs.map((d: any) => ({ id: d.id, ...d.data() }))
+          .filter((a: any) => !estBrouillonMagasin(a));
         const _categories = catSnap.docs.map((d: any) => ({ id: d.id, ...d.data() }));
         const _movements = movSnap.docs.map((d: any) => ({ id: d.id, ...d.data() }));
         
@@ -439,7 +441,8 @@ function AdminApp() {
   const { data: rawPayments } = useCollection(paymentsRef); // no loading spinner — loads silently
 
   const factures = rawFactures || [];
-  const rawArticles_ = rawArticles || [];
+  // Meme regle que /gestion : un brouillon de demande magasin n'est pas encore un besoin.
+  const rawArticles_ = (rawArticles || []).filter((a: any) => !estBrouillonMagasin(a));
   // Enrich articles with facture dates → computes effective status (TRANSIT/CUSTOMS/STOCK) automatically
   const articles = useEnrichedArticles(rawArticles_, factures);
   const generalCategories = rawGenCats || [];

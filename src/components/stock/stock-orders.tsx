@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useMemo } from 'react';
+import { valeurImprimable } from '@/lib/specification-produit';
 import { Search, Eye, ArrowRight, Printer, X, CheckCircle2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -93,7 +94,7 @@ export default function StockOrders({ orders, clients, onUpdateStatus, onConvert
     </div>
     <table><thead><tr><th>Produit</th><th>Couleur</th><th>Taille</th><th>Qté</th><th>Prix unit.</th><th>Total</th></tr></thead>
     <tbody>${order.items.map(i => `<tr>
-      <td><strong>${i.productName}</strong></td><td>${i.color || '—'}</td><td>${i.size || '—'}</td>
+      <td><strong>${i.productName}</strong></td><td>${valeurImprimable(i.color, '—')}</td><td>${valeurImprimable(i.size, '—')}</td>
       <td>${i.qty} ${i.unitOfMeasure}</td><td>${fmt$(i.unitPrice)}</td><td>${fmt$(i.totalPrice)}</td>
     </tr>`).join('')}</tbody></table>
     <div style="text-align:right">

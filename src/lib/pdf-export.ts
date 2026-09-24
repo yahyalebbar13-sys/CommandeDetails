@@ -8,6 +8,7 @@ import {
   type LigneSpecification,
 } from '@/lib/specification-produit';
 import { breakdownRowQuantity, libelleFixe } from '@/lib/warehouse-locations';
+import { addPdfLogoHeader } from './pdf-charte-lebtex';
 
 // ── Décrire un article sur un document ─────────────────────────────────────
 /**
@@ -245,82 +246,11 @@ export function detailsArticle(
   return lignes;
 }
 
-// ── Shared logo helper ─────────────────────────────────────────────────────
-export async function addPdfLogoHeader(
-  doc: any,
-  x: number, y: number,
-  w = 36, h = 18,
-  invertToWhite = false
-): Promise<void> {
-  return new Promise<void>(resolve => {
-    const img = new Image();
-    img.crossOrigin = 'anonymous';
-    img.src = '/logo.png';
-    img.onload = () => {
-      try {
-        // Le logo source fait 1536×1024 px : intégré tel quel, jsPDF le stocke en pixels bruts
-        // (~6 Mo par PDF). On le ramène à une résolution d'impression — ~12 px/mm, soit plus de
-        // 300 dpi à la taille affichée — et on compresse le flux.
-        const targetW = Math.max(1, Math.min(img.width, Math.round(w * 12)));
-        const scale = targetW / img.width;
-        const targetH = Math.max(1, Math.round(img.height * scale));
-
-        if (invertToWhite) {
-          const canvas = document.createElement('canvas');
-          canvas.width = targetW;
-          canvas.height = targetH;
-          const ctx = canvas.getContext('2d');
-          if (ctx) {
-            ctx.drawImage(img, 0, 0, targetW, targetH);
-            const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-            const data = imageData.data;
-            for (let i = 0; i < data.length; i += 4) {
-              const r = data[i], g = data[i + 1], b = data[i + 2];
-              const brightness = (r + g + b) / 3;
-              // Original alpha
-              const alpha = data[i + 3] / 255;
-              // New alpha: transparent if bright, opaque if dark
-              const newAlpha = (255 - brightness) * alpha;
-              
-              data[i] = 255; // R
-              data[i + 1] = 255; // G
-              data[i + 2] = 255; // B
-              data[i + 3] = newAlpha; // A
-            }
-            ctx.putImageData(imageData, 0, 0);
-            doc.addImage(canvas.toDataURL('image/png'), 'PNG', x, y, w, h, undefined, 'FAST');
-          } else {
-            doc.addImage(img, 'PNG', x, y, w, h, undefined, 'FAST');
-          }
-        } else {
-          const canvas = document.createElement('canvas');
-          canvas.width = targetW;
-          canvas.height = targetH;
-          const ctx = canvas.getContext('2d');
-          if (ctx) {
-            ctx.drawImage(img, 0, 0, targetW, targetH);
-            doc.addImage(canvas.toDataURL('image/png'), 'PNG', x, y, w, h, undefined, 'FAST');
-          } else {
-            doc.addImage(img, 'PNG', x, y, w, h, undefined, 'FAST');
-          }
-        }
-      } catch (_) {}
-      resolve();
-    };
-    img.onerror = () => {
-      // Texte fallback si l'image ne charge pas
-      doc.setTextColor(invertToWhite ? 255 : 15, invertToWhite ? 255 : 23, invertToWhite ? 255 : 42); 
-      doc.setFontSize(16);
-      doc.setFont('helvetica', 'bold');
-      doc.text('LEBTEX', x, y + 8);
-      doc.setFontSize(7);
-      doc.setFont('helvetica', 'normal');
-      doc.setTextColor(196, 160, 98);
-      doc.text('TEXTILE IMPORT', x, y + 13);
-      resolve();
-    };
-  });
-}
+// ── Logo partagé ──────────────────────────────────────────────────────────
+// Il vit dans la charte (src/lib/pdf-charte-lebtex.ts), avec le reste de l'identité
+// imprimée : /stock a besoin du même logo sans pouvoir importer ce module-ci.
+// Réexporté ici pour les documents qui l'importaient déjà de cette adresse.
+export { addPdfLogoHeader } from './pdf-charte-lebtex';
 
 export async function exportFacturePDF(facture: any, articles: any[]) {
   const { default: jsPDF } = await import('jspdf');
