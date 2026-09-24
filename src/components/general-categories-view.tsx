@@ -7,10 +7,10 @@ import { Input } from '@/components/ui/input';
 import {
   Layers, Plus, Trash2, ArrowRight, FolderSearch, PlusCircle,
   Truck, DollarSign, TrendingUp, Package, Search, BarChart3,
-  ArrowRightLeft, Pencil, Sparkles, AlertTriangle, Lock, SlidersHorizontal
+  ArrowRightLeft, Pencil, Sparkles, AlertTriangle, Lock, SlidersHorizontal, ImagePlus
 } from 'lucide-react';
 import { useUser, useFirestore, setDocumentNonBlocking, deleteDocumentNonBlocking, updateDocumentNonBlocking } from '@/firebase';
-import { deleteField, doc } from 'firebase/firestore';
+import { collection, deleteField, doc, getDocs, updateDoc } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { GeneralCategory, Category } from '@/lib/types';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
@@ -22,6 +22,7 @@ import { QUALITIES_FIELD_BY_SPEC, SPEC_BADGES, countQualities, detectSpecType } 
 import { useLignesLogistiques } from '@/hooks/use-lignes-logistiques';
 import { LIBELLE_SPEC, cleLigne, couleurDeLigne, type LigneLogistique, type SpecType } from '@/lib/lignes-logistiques';
 import { libelleUnite } from '@/lib/unites-pole';
+import { designsAEnregistrer } from '@/lib/designs-curseurs';
 import { BadgeSpec, ChampsUnitesPole, ChoixLigne, ChoixSpec, PastilleLigne, estNouvelleLigne } from '@/components/pole-ligne-unites';
 
 interface GeneralCategoriesViewProps {
@@ -271,6 +272,45 @@ export default function GeneralCategoriesView({ articles = [], generalCategories
     }
   };
 
+  /**
+   * Curseurs : les anciens designs du catalogue (sous-collection `designs` de chaque catégorie)
+   * n'ont jamais été enregistrés comme qualités — les commandes et /stock ne les proposent pas.
+   * On les ajoute aux qualités de leur catégorie, pour toute la ligne d'un coup, sans doublon
+   * (même référence ou même photo qu'une qualité existante de la catégorie ou du pôle).
+   */
+  const [designsEnCours, setDesignsEnCours] = useState<string | null>(null);
+  const enregistrerDesignsDeLaLigne = async (ligne: LigneLogistique) => {
+    if (!user || !firestore || designsEnCours) return;
+    setDesignsEnCours(ligne.nom);
+    try {
+      const polesDeLaLigne = new Set(ligne.poles);
+      const categories = subCategories.filter(c => c.generalCategoryId && polesDeLaLigne.has(c.generalCategoryId));
+      let ajoutes = 0;
+      const touchees: string[] = [];
+      for (const c of categories) {
+        const snap = await getDocs(collection(firestore, 'users', user.uid, 'categories', c.id, 'designs'));
+        if (snap.empty) continue;
+        const pole = generalCategories.find(g => g.id === c.generalCategoryId);
+        const siennes: any[] = Array.isArray(c.sliderQualities) ? c.sliderQualities : [];
+        const aAjouter = designsAEnregistrer(snap.docs.map(d => ({ id: d.id, ...d.data() })), [...siennes, ...(pole?.sliderQualities || [])]);
+        if (!aAjouter.length) continue;
+        await updateDoc(doc(firestore, 'users', user.uid, 'categories', c.id), { sliderQualities: [...siennes, ...aAjouter] });
+        ajoutes += aAjouter.length;
+        touchees.push(c.name);
+      }
+      toast(ajoutes
+        ? {
+            title: `✅ ${ajoutes} ancien${ajoutes > 1 ? 's' : ''} design${ajoutes > 1 ? 's' : ''} enregistré${ajoutes > 1 ? 's' : ''} comme qualité${ajoutes > 1 ? 's' : ''}`,
+            description: `${touchees.length} catégorie${touchees.length > 1 ? 's' : ''} : ${touchees.join(', ')}`,
+          }
+        : { title: 'Rien à enregistrer', description: `Les designs de la ligne ${ligne.nom} sont déjà tous des qualités.` });
+    } catch (err: any) {
+      toast({ variant: 'destructive', title: 'Enregistrement interrompu', description: err?.message });
+    } finally {
+      setDesignsEnCours(null);
+    }
+  };
+
   // Max value for relative bar width
   const maxValue = useMemo(() => {
     return Math.max(...Object.values(groupStats).map((s: any) => s.totalValue || 0), 1);
@@ -517,6 +557,18 @@ export default function GeneralCategoriesView({ articles = [], generalCategories
                             >
                               <SlidersHorizontal className="w-2.5 h-2.5" /> Spécifications de la ligne
                             </button>
+                            {l.specType === 'slider' && (
+                              <button
+                                type="button"
+                                disabled={designsEnCours !== null}
+                                onClick={() => enregistrerDesignsDeLaLigne(l)}
+                                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full border border-blue-200 bg-blue-50 text-[9px] font-black uppercase tracking-widest text-blue-700 hover:border-blue-400 transition-colors disabled:opacity-40"
+                                title="Ajouter aux qualités les anciens designs du catalogue de chaque catégorie de la ligne"
+                              >
+                                <ImagePlus className="w-2.5 h-2.5" />
+                                {designsEnCours === l.nom ? 'Enregistrement…' : 'Anciens designs → qualités'}
+                              </button>
+                            )}
                             {l.polesAHarmoniser.length > 0 && (
                               <span className="inline-flex items-center gap-1.5 pl-2 pr-1 py-0.5 rounded-full bg-amber-100 border border-amber-300 text-[9px] font-black uppercase tracking-widest text-amber-800">
                                 <AlertTriangle className="w-2.5 h-2.5" /> {l.polesAHarmoniser.length} pôle(s) à harmoniser

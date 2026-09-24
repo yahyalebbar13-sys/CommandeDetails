@@ -8,13 +8,14 @@ import {
   Clock, ArrowRight, Trash2, Pencil,
   Container, UserCircle2,
   Maximize, Palette, ChevronDown, ChevronUp, Package,
-  Building2, Tag, Layers, Sparkles
+  Building2, Tag, Layers, Sparkles, Search, X
 } from 'lucide-react';
 import ValidateOrderModal from './validate-order-modal';
 import { useUser, useFirestore, deleteDocumentNonBlocking } from '@/firebase';
 import { doc } from 'firebase/firestore';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { useToast } from '@/hooks/use-toast';
+import { commandeCorrespond } from '@/lib/recherche-commandes';
 
 interface PendingOrdersViewProps {
   articles: any[];
@@ -33,6 +34,7 @@ export default function PendingOrdersView({ articles, factures, generalCategorie
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
   const [activeTab, setActiveTab] = useState<'mine' | 'clients'>('mine');
   const [deleteConfirm, setDeleteConfirm] = useState<{open: boolean; id?: string; name?: string}>({open: false});
+  const [recherche, setRecherche] = useState('');
 
   const pendingOrders = useMemo(() => {
     return articles
@@ -40,8 +42,15 @@ export default function PendingOrdersView({ articles, factures, generalCategorie
       .sort((a, b) => new Date(b.orderDate).getTime() - new Date(a.orderDate).getTime());
   }, [articles]);
 
-  const myOrders = useMemo(() => pendingOrders.filter(o => !(o.isPreorder && o.clientName)), [pendingOrders]);
-  const clientOrders = useMemo(() => pendingOrders.filter(o => o.isPreorder && o.clientName), [pendingOrders]);
+  // La recherche s'applique aux deux onglets : leurs compteurs disent ce qui reste.
+  const trouvees = useMemo(() => {
+    if (!recherche.trim()) return pendingOrders;
+    const nomDuPole = new Map<string, string>((generalCategories || []).map((gc: any) => [gc.id, `${gc.name || ''} ${gc.nameFR || ''}`]));
+    return pendingOrders.filter(o => commandeCorrespond(o, recherche, nomDuPole.get(o.generalCategoryId)));
+  }, [pendingOrders, recherche, generalCategories]);
+
+  const myOrders = useMemo(() => trouvees.filter(o => !(o.isPreorder && o.clientName)), [trouvees]);
+  const clientOrders = useMemo(() => trouvees.filter(o => o.isPreorder && o.clientName), [trouvees]);
   const activeOrders = activeTab === 'mine' ? myOrders : clientOrders;
 
   // Grouping logic: Container first, then Supplier
@@ -378,13 +387,44 @@ export default function PendingOrdersView({ articles, factures, generalCategorie
         </button>
       </div>
 
+      {/* ─── Recherche ─── */}
+      <div className="relative">
+        <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-stone-300" />
+        <input
+          type="text"
+          enterKeyHint="search"
+          value={recherche}
+          onChange={e => setRecherche(e.target.value)}
+          placeholder="Rechercher : produit, fournisseur, conteneur, client, qualité, couleur, taille…"
+          aria-label="Rechercher une commande en production"
+          className="w-full h-12 pl-11 pr-11 bg-white border border-stone-200 rounded-2xl text-[12px] font-bold text-stone-700 placeholder:text-stone-300 focus:outline-none focus:ring-2 focus:ring-amber-200 shadow-sm"
+        />
+        {recherche && (
+          <button
+            type="button"
+            onClick={() => setRecherche('')}
+            aria-label="Effacer la recherche"
+            className="absolute right-3 top-1/2 -translate-y-1/2 p-1.5 rounded-lg text-stone-400 hover:text-stone-700 hover:bg-stone-100"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        )}
+      </div>
+      {recherche.trim() && (
+        <p className="-mt-5 text-[10px] font-black text-stone-400 uppercase tracking-widest">
+          {trouvees.length} commande{trouvees.length > 1 ? 's' : ''} sur {pendingOrders.length} · {activeOrders.length} dans cet onglet
+        </p>
+      )}
+
       {/* ─── Contenu ─── */}
       {activeOrders.length === 0 ? (
         <Card className="border-none shadow-xl rounded-2xl overflow-hidden">
           <CardContent className="py-20 text-center text-stone-300 font-black uppercase text-[10px] tracking-widest">
-            {activeTab === 'mine'
-              ? 'Aucune commande personnelle en production.'
-              : 'Aucune commande client en production.'}
+            {recherche.trim()
+              ? `Aucune commande ne correspond à « ${recherche.trim()} » dans cet onglet.`
+              : activeTab === 'mine'
+                ? 'Aucune commande personnelle en production.'
+                : 'Aucune commande client en production.'}
           </CardContent>
         </Card>
       ) : (

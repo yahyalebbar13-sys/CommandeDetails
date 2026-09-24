@@ -88,6 +88,7 @@ import { computeReorderAlert, formatReorderBadge } from '@/lib/reorder-utils';
 import type { OrderScheduleSeason } from '@/lib/reorder-utils';
 import { useLignesLogistiques } from '@/hooks/use-lignes-logistiques';
 import { LIBELLE_SPEC, type SpecType } from '@/lib/lignes-logistiques';
+import { designsAEnregistrer, memeQualiteCurseur } from '@/lib/designs-curseurs';
 import { libelleUnite } from '@/lib/unites-pole';
 import { ChoixLigne, ChampsUnitesPole, PastilleLigne, estNouvelleLigne } from './pole-ligne-unites';
 
@@ -774,7 +775,7 @@ export default function CategoriesView({
           const url = await getDownloadURL(task.snapshot.ref);
           
           const existingSQ = Array.isArray(currentCategoryObj.sliderQualities) ? [...currentCategoryObj.sliderQualities] : [];
-          const idx = existingSQ.findIndex((q: any) => q.label === qualityItem.label || (q.size === qualityItem.size && q.sliderWeightG === qualityItem.sliderWeightG));
+          const idx = existingSQ.findIndex((q: any) => memeQualiteCurseur(q, qualityItem));
           if (idx >= 0) {
             existingSQ[idx] = { ...existingSQ[idx], imageUrl: url };
           } else {
@@ -889,7 +890,9 @@ export default function CategoriesView({
 
     const idx = existingList.findIndex((q: any) => {
       if (q === originalQuality) return true;
-      if (q.label && originalQuality.label && q.label.toLowerCase() === originalQuality.label.toLowerCase()) return true;
+      // Deux références : elles seules décident. Les comparaisons de champs ci-dessous
+      // confondaient les qualités sans taille ni poids (anciens designs de curseurs).
+      if (q.label && originalQuality.label) return q.label.trim().toLowerCase() === originalQuality.label.trim().toLowerCase();
       if (type === 'slider' && q.size === originalQuality.size && q.sliderWeightG === originalQuality.sliderWeightG) return true;
       if (type === 'thread' && q.coneWeightG === originalQuality.coneWeightG && q.threadWeightG === originalQuality.threadWeightG && q.lengthPerPiece === originalQuality.lengthPerPiece) return true;
       if (type === 'zipper' && q.length === originalQuality.length && q.zipperType === originalQuality.zipperType && q.slider === originalQuality.slider) return true;
@@ -905,6 +908,7 @@ export default function CategoriesView({
     delete cleanedQuality.totalValue;
     delete cleanedQuality.suppliers;
     delete cleanedQuality.__poleId;
+    delete cleanedQuality.__ancienDesign;
 
     if (idx >= 0) {
       existingList[idx] = cleanedQuality;
@@ -952,6 +956,35 @@ export default function CategoriesView({
     }
   };
 
+  // Les anciens designs du catalogue (sous-collection `designs`) s'affichent parmi les qualités
+  // du curseur, mais les formulaires de commande et /stock ne lisent que `sliderQualities` :
+  // on les y enregistre pour de bon (cf. lib/designs-curseurs.ts).
+  const [enregistrementDesigns, setEnregistrementDesigns] = useState(false);
+  const enregistrerAnciensDesigns = async () => {
+    if (!user || !firestore || !currentCategoryObj || enregistrementDesigns) return;
+    const pole = generalCategories.find(g => g.id === (selectedGeneralCategoryId || currentCategoryObj.generalCategoryId));
+    const siennes: any[] = Array.isArray(currentCategoryObj.sliderQualities) ? currentCategoryObj.sliderQualities : [];
+    const aAjouter = designsAEnregistrer(categoryDesigns, [...siennes, ...(pole?.sliderQualities || [])]);
+    if (!aAjouter.length) {
+      toast({ title: 'Rien à enregistrer', description: 'Tous les designs sont déjà des qualités.' });
+      return;
+    }
+    setEnregistrementDesigns(true);
+    try {
+      const liste = [...siennes, ...aAjouter];
+      await updateDoc(doc(firestore, 'users', user.uid, 'categories', currentCategoryObj.id), { sliderQualities: liste });
+      setCustomsForm(p => ({ ...p, sliderQualities: liste }));
+      toast({
+        title: `✅ ${aAjouter.length} design${aAjouter.length > 1 ? 's' : ''} enregistré${aAjouter.length > 1 ? 's' : ''} comme qualité${aAjouter.length > 1 ? 's' : ''}`,
+        description: aAjouter.map(q => q.label).join(' · '),
+      });
+    } catch (err: any) {
+      toast({ variant: 'destructive', title: 'Enregistrement impossible', description: err.message });
+    } finally {
+      setEnregistrementDesigns(false);
+    }
+  };
+
   const handleDeleteQualityFromTable = async (quality: any, type: 'slider' | 'thread' | 'zipper' | 'fabric' | 'tape' | 'accessory') => {
     if (!user || !firestore || !currentCategoryObj) return;
     const catId = currentCategoryObj.id;
@@ -979,7 +1012,9 @@ export default function CategoriesView({
 
     const updatedList = existingList.filter((q: any) => {
       if (q === quality) return false;
-      if (q.label && quality.label && q.label.toLowerCase() === quality.label.toLowerCase()) return false;
+      // Deux références : elles seules décident (sinon supprimer un modèle sans taille ni
+      // poids emportait tous les autres dans le même cas).
+      if (q.label && quality.label) return q.label.trim().toLowerCase() !== quality.label.trim().toLowerCase();
       if (type === 'slider' && q.size === quality.size && q.sliderWeightG === quality.sliderWeightG && q.imageUrl === quality.imageUrl) return false;
       if (type === 'thread' && q.coneWeightG === quality.coneWeightG && q.threadWeightG === quality.threadWeightG && q.lengthPerPiece === quality.lengthPerPiece) return false;
       if (type === 'zipper' && q.length === quality.length && q.zipperType === quality.zipperType && q.slider === quality.slider) return false;
@@ -3031,6 +3066,8 @@ export default function CategoriesView({
                 sliderWeightG: d.sliderWeightG,
                 pcsPerBag: d.pcsPerBag,
                 bagsPerCarton: d.bagsPerCarton,
+                // Affiché ici, mais pas encore une qualité : invisible des commandes et de /stock.
+                __ancienDesign: true,
               });
             }
           });
@@ -3039,6 +3076,7 @@ export default function CategoriesView({
           const qualities = rawQualities.filter((q, idx, arr) => 
             arr.findIndex(x => (x.label && x.label === q.label) || (x.imageUrl && x.imageUrl === q.imageUrl)) === idx
           );
+          const nbAnciensDesigns = qualities.filter(q => q.__ancienDesign).length;
 
           // Compute order stats per quality
           const qualityStats = qualities.map(q => {
@@ -3086,6 +3124,23 @@ export default function CategoriesView({
                   <Plus className="w-3 h-3 mr-1" /> Configurer Qualités / Designs
                 </Button>
               </CardHeader>
+              {nbAnciensDesigns > 0 && (
+                <div className="flex flex-wrap items-center justify-between gap-3 px-6 py-3 bg-amber-50 border-b border-amber-100">
+                  <p className="text-[11px] font-bold text-amber-800 leading-relaxed">
+                    {nbAnciensDesigns} ancien{nbAnciensDesigns > 1 ? 's' : ''} design{nbAnciensDesigns > 1 ? 's' : ''} du catalogue
+                    {nbAnciensDesigns > 1 ? ' ne sont' : ' n’est'} pas encore enregistré{nbAnciensDesigns > 1 ? 's' : ''} comme
+                    qualité{nbAnciensDesigns > 1 ? 's' : ''} : les commandes et le stock ne {nbAnciensDesigns > 1 ? 'les' : 'le'} proposent pas.
+                  </p>
+                  <Button
+                    size="sm"
+                    onClick={enregistrerAnciensDesigns}
+                    disabled={enregistrementDesigns}
+                    className="h-8 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-[9px] font-black uppercase tracking-widest px-4"
+                  >
+                    {enregistrementDesigns ? <Loader2 className="w-3 h-3 animate-spin" /> : `Enregistrer comme qualité${nbAnciensDesigns > 1 ? 's' : ''}`}
+                  </Button>
+                </div>
+              )}
               <CardContent className="p-0">
                 <div className="overflow-x-auto">
                   <Table>
@@ -3110,6 +3165,11 @@ export default function CategoriesView({
                             <div className="flex flex-col">
                               <span className="text-[10px] font-black text-stone-800 uppercase tracking-tighter">{pt.label}</span>
                               {pt.nameFR && <span className="text-[8px] font-bold text-blue-600 uppercase mt-0.5">{pt.nameFR}</span>}
+                              {pt.__ancienDesign && (
+                                <span className="mt-1 w-fit text-[7px] font-black text-amber-700 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded-full uppercase tracking-widest">
+                                  Ancien design · pas encore une qualité
+                                </span>
+                              )}
                             </div>
                           </TableCell>
                           <TableCell className="text-center py-2">

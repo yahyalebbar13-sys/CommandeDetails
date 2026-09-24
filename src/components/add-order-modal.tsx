@@ -1,6 +1,7 @@
 
 "use client";
 
+import { memeQualiteCurseur } from '@/lib/designs-curseurs';
 import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import { CHAMP_ETAPE } from '@/lib/demande-magasin';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -436,7 +437,8 @@ export function AddOrderForm({
     ];
     return raw
       .filter((q: any) => Boolean(q && (q.label || q.size || q.sliderWeightG || q.pcsPerBag || q.bagsPerCarton || q.imageUrl || q.nameFR)))
-      .filter((q, idx, arr) => arr.findIndex(x => x.label === q.label || (x.size === q.size && x.sliderWeightG === q.sliderWeightG && x.imageUrl === q.imageUrl)) === idx);
+      // Même modèle = même référence ; sans référence, même taille/poids/photo (cf. memeQualiteCurseur).
+      .filter((q, idx, arr) => arr.findIndex(x => x === q || memeQualiteCurseur(x, q)) === idx);
   }, [formData.categoryId, selectedGenCatId, subCategories, generalCategories]);
 
   const tapeQualities = useMemo(() => {

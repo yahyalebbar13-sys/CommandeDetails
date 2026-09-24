@@ -1,6 +1,7 @@
 
 "use client";
 
+import { memeQualiteCurseur } from '@/lib/designs-curseurs';
 import React, { useState, useMemo, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
@@ -484,7 +485,8 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
     ];
     return raw
       .filter((q: any) => Boolean(q && (q.label || q.size || q.sliderWeightG || q.pcsPerBag || q.bagsPerCarton || q.imageUrl || q.nameFR)))
-      .filter((q, idx, arr) => arr.findIndex(x => x.label === q.label || (x.size === q.size && x.sliderWeightG === q.sliderWeightG && x.imageUrl === q.imageUrl)) === idx);
+      // Même modèle = même référence ; sans référence, même taille/poids/photo (cf. memeQualiteCurseur).
+      .filter((q, idx, arr) => arr.findIndex(x => x === q || memeQualiteCurseur(x, q)) === idx);
   }, [formData?.categoryId, formData?.generalCategoryId, selectedGenCatId, subCategories, generalCategories]);
 
   const tapeQualities = useMemo(() => {
