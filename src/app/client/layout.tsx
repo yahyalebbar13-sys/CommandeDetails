@@ -4,8 +4,8 @@ import { Toaster } from '@/components/ui/toaster';
 // NOTE: NO FirebaseClientProvider here — the client portal uses its own isolated Firebase app
 
 export const metadata: Metadata = {
-  title: 'StockVue — Espace Client',
-  description: 'Portail client sécurisé pour consulter vos précommandes.',
+  title: 'LEBTEX — Espace client',
+  description: 'Suivez vos commandes LEBTEX, de la fabrication à la livraison.',
   manifest: '/client-manifest.json',
   appleWebApp: {
     capable: true,

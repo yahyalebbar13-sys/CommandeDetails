@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { ClientPortalApp } from '@/components/client-portal-app';
 import { getArticleFrenchName } from '@/lib/product-name-utils';
+import { phraseEtape, titreEtape } from '@/lib/statut-client';
 import { Input } from '@/components/ui/input';
 import { Loader2, Lock, LogOut, ShieldCheck, ArrowRight, RefreshCw, Ship, X, Sparkles } from 'lucide-react';
 
@@ -64,11 +65,11 @@ export default function ClientPortalPage() {
           setState({ status: 'portal', clientName: data.clientName, adminUid: data.adminUid });
         } else {
           await signOut(auth);
-          setState({ status: 'error', message: "Ce compte n'est pas autorisé pour le portail client." });
+          setState({ status: 'error', message: "Ce compte n'a pas accès à l'espace client. Contactez votre commercial LEBTEX." });
         }
       } catch {
         await signOut(auth);
-        setState({ status: 'error', message: "Erreur de vérification. Veuillez réessayer." });
+        setState({ status: 'error', message: "Impossible de vérifier votre accès. Vérifiez votre connexion internet, puis réessayez." });
       }
     });
     return () => unsub();
@@ -104,7 +105,7 @@ export default function ClientPortalPage() {
     const { adminUid } = state as { status: 'portal'; clientName: string; adminUid: string };
     const db = dbRef.current;
     if (!adminUid || adminUid.length < 10 || adminUid.includes('/')) {
-      setState({ status: 'error', message: 'Configuration invalide. Contactez votre administrateur.' });
+      setState({ status: 'error', message: 'Votre accès est mal configuré. Contactez votre commercial LEBTEX.' });
       return;
     }
     setDataLoading(true);
@@ -129,8 +130,9 @@ export default function ClientPortalPage() {
                 reg.active?.postMessage({
                   type: 'SHOW_NOTIFICATION',
                   payload: {
-                    title: `Mise à jour : ${frTitle || na.name || na.categoryId || 'Commande'}`,
-                    body: `Le statut est passé à : ${na.status}`,
+                    // Jamais le code interne (« PI ») : l'étape, dite comme au client.
+                    title: `${titreEtape(na.status)} : ${frTitle || na.name || na.categoryId || 'votre commande'}`,
+                    body: phraseEtape(na.status),
                   }
                 });
               });
@@ -172,7 +174,7 @@ export default function ClientPortalPage() {
     try {
       await signInWithEmailAndPassword(authRef.current, email, password);
     } catch {
-      setLoginError("Identifiants invalides. Veuillez réessayer.");
+      setLoginError("Adresse e-mail ou mot de passe incorrect.");
     } finally {
       setLoginLoading(false);
     }
@@ -219,8 +221,8 @@ export default function ClientPortalPage() {
           )}
         </div>
         <div className="text-center">
-          <p className="text-stone-700 font-black text-sm uppercase tracking-widest">Initialisation</p>
-          <p className="text-stone-400 text-xs font-medium mt-1">Connexion sécurisée en cours...</p>
+          <p className="text-stone-700 font-black text-sm uppercase tracking-widest">Connexion</p>
+          <p className="text-stone-400 text-xs font-medium mt-1">Vérification de votre accès…</p>
         </div>
       </div>
     );
@@ -274,23 +276,23 @@ export default function ClientPortalPage() {
           {/* Center content */}
           <div className="relative z-10 space-y-8">
             <div>
-              <p className="text-[#c4a062] text-[11px] font-black uppercase tracking-[0.3em] mb-4">Portail Client Exclusif</p>
+              <p className="text-[#c4a062] text-[11px] font-black uppercase tracking-[0.3em] mb-4">Espace client</p>
               <h1 className="text-5xl font-black text-white leading-tight">
                 Suivez vos<br/>
                 <span style={{ color: '#c4a062' }}>commandes</span><br/>
                 en temps réel.
               </h1>
               <p className="text-white/40 mt-6 font-medium leading-relaxed max-w-sm">
-                Accédez à l'ensemble de vos précommandes, statuts de livraison et informations logistiques depuis un espace sécurisé et dédié.
+                Toutes vos commandes chez LEBTEX au même endroit : où en est chacune, et quand elle arrive.
               </p>
             </div>
 
             {/* Feature pills */}
             <div className="flex flex-col gap-3">
               {[
-                { icon: '🚢', label: 'Suivi en transit & douanes' },
-                { icon: '📦', label: 'Statut de vos articles en temps réel' },
-                { icon: '📅', label: 'Dates d\'arrivée prévisionnelles' },
+                { icon: '🏭', label: 'De la fabrication à la livraison' },
+                { icon: '📅', label: "Dates d'arrivée à jour" },
+                { icon: '🚢', label: 'Le navire sur la carte' },
               ].map((f, i) => (
                 <div key={i} className="flex items-center gap-3 bg-white/5 border border-white/10 rounded-xl px-4 py-3 backdrop-blur-sm">
                   <span className="text-lg">{f.icon}</span>
@@ -312,13 +314,13 @@ export default function ClientPortalPage() {
           <div className="w-full max-w-sm space-y-8">
             {/* Mobile logo */}
             <div className="lg:hidden text-center">
-              <p className="text-white font-black text-2xl tracking-wider">LEBTEX</p>
-              <p className="text-[#c4a062] text-[10px] font-bold uppercase tracking-[0.25em] mt-1">Portail Client</p>
+              <p className="text-stone-900 font-black text-2xl tracking-wider">LEBTEX</p>
+              <p className="text-[#a8845a] text-[10px] font-bold uppercase tracking-[0.25em] mt-1">Espace client</p>
             </div>
 
             <div>
               <h2 className="text-2xl font-black text-stone-900 tracking-tight">Connexion</h2>
-              <p className="text-stone-400 text-sm mt-1">Entrez vos identifiants pour accéder à vos suivis.</p>
+              <p className="text-stone-500 text-sm mt-1">Utilisez l'adresse e-mail et le mot de passe que nous vous avons communiqués.</p>
             </div>
 
             {loginError && (
@@ -331,13 +333,14 @@ export default function ClientPortalPage() {
             <form onSubmit={handleLogin} className="space-y-5">
               <div className="space-y-4">
                 <div className="space-y-1.5">
-                  <label className="text-[10px] font-black text-stone-900 uppercase tracking-widest ml-1">Email professionnel</label>
+                  <label className="text-[10px] font-black text-stone-900 uppercase tracking-widest ml-1">Adresse e-mail</label>
                   <Input
                     type="email"
                     required
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    placeholder="client@entreprise.com"
+                    autoComplete="email"
+                    placeholder="vous@entreprise.com"
                     className="h-12 bg-stone-50 border-stone-200 focus-visible:ring-[#c4a062]"
                   />
                 </div>
@@ -350,6 +353,7 @@ export default function ClientPortalPage() {
                     required
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
+                    autoComplete="current-password"
                     placeholder="••••••••"
                     className="h-12 bg-stone-50 border-stone-200 focus-visible:ring-[#c4a062]"
                   />
@@ -358,19 +362,19 @@ export default function ClientPortalPage() {
               <button
                 type="submit"
                 disabled={loginLoading}
-                className="w-full h-13 rounded-xl font-black uppercase text-sm tracking-widest flex items-center justify-center gap-2 transition-all active:scale-[0.98] disabled:opacity-50"
+                className="w-full h-12 rounded-xl font-black uppercase text-sm tracking-widest flex items-center justify-center gap-2 transition-all active:scale-[0.98] disabled:opacity-50"
                 style={{ background: 'linear-gradient(135deg, #c4a062, #a8845a)', color: '#0f172a' }}
               >
                 {loginLoading ? (
                   <Loader2 className="w-5 h-5 animate-spin" />
                 ) : (
-                  <>Accéder à Mon Espace <ArrowRight className="w-4 h-4" /></>
+                  <>Se connecter <ArrowRight className="w-4 h-4" /></>
                 )}
               </button>
             </form>
 
-            <p className="text-center text-white/20 text-[10px] font-bold uppercase tracking-[0.2em] flex items-center justify-center gap-2">
-              <Lock className="w-3 h-3" /> Connexion chiffrée — Données confidentielles
+            <p className="text-center text-stone-400 text-[10px] font-bold uppercase tracking-[0.2em] flex items-center justify-center gap-2">
+              <Lock className="w-3 h-3" /> Connexion chiffrée · vos données restent confidentielles
             </p>
           </div>
         </div>
@@ -391,11 +395,11 @@ export default function ClientPortalPage() {
                 <Sparkles className="w-5 h-5 text-emerald-100" />
               </div>
               <div>
-                <p className="font-bold text-sm">Installez l'application LEBTEX</p>
+                <p className="font-bold text-sm">Installez l'espace client sur votre téléphone</p>
                 <p className="text-xs text-emerald-100 mt-0.5">
                   {isIOS 
-                    ? "Appuyez sur 'Partager' puis 'Sur l'écran d'accueil' pour recevoir les notifications."
-                    : "Accédez rapidement à vos commandes et recevez des notifications en direct."}
+                    ? "Touchez « Partager » puis « Sur l'écran d'accueil » : vous serez prévenu à chaque étape de vos commandes."
+                    : "Retrouvez vos commandes en un geste, et soyez prévenu à chaque étape."}
                 </p>
               </div>
             </div>
@@ -428,7 +432,7 @@ export default function ClientPortalPage() {
           </div>
           <div className="text-center">
             <p className="text-stone-700 font-black text-sm uppercase tracking-widest">Chargement de vos commandes</p>
-            <p className="text-stone-400 text-xs font-medium mt-1">Récupération des données en cours...</p>
+            <p className="text-stone-400 text-xs font-medium mt-1">Un instant…</p>
           </div>
         </div>
       ) : dataError ? (
@@ -437,8 +441,8 @@ export default function ClientPortalPage() {
             <div className="w-16 h-16 bg-red-50 rounded-2xl flex items-center justify-center mx-auto mb-5">
               <span className="text-3xl">⚠️</span>
             </div>
-            <p className="text-stone-900 font-black text-sm uppercase tracking-widest mb-2">Erreur de chargement</p>
-            <p className="text-stone-400 text-xs font-medium leading-relaxed">Vérifiez votre connexion et rechargez la page.</p>
+            <p className="text-stone-900 font-black text-sm uppercase tracking-widest mb-2">Vos commandes n'ont pas pu être chargées</p>
+            <p className="text-stone-400 text-xs font-medium leading-relaxed">Vérifiez votre connexion internet, puis rechargez la page.</p>
             <button
               onClick={() => window.location.reload()}
               className="mt-6 w-full h-11 rounded-xl font-black text-[11px] uppercase tracking-widest flex items-center justify-center gap-2 text-white transition-all"
