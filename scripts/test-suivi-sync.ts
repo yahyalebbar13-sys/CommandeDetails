@@ -148,6 +148,52 @@ async function main() {
     check('abonnés repris', ecrit?.suivi?.abonnes?.[0]?.email === 'client@exemple.com');
   }
 
+  console.log('\n── Première date annoncée par la compagnie : relevée une fois, puis gardée ──');
+  {
+    // Premier passage : la compagnie annonce ETA_COMPAGNIE. La date saisie au
+    // bureau (ETA_DOSSIER) n'est PAS l'annonce initiale.
+    const db = faireDb();
+    await appliquerShipment(db, UID, '26HD1004', { id: '26HD1004', arrivalDate: ETA_DOSSIER }, shipmentEnMer);
+    const premier = db.ecritures[0]?.donnees?.suivi;
+    check('relevée au premier passage', premier?.etaInitiale === ETA_COMPAGNIE, `→ ${premier?.etaInitiale}`);
+
+    // Plus tard, la compagnie repousse : la date du dossier suit, l'initiale reste.
+    const repousse = {
+      ...shipmentEnMer,
+      checked_at: `${jour(0)} 06:00:00`,
+      route: {
+        ...shipmentEnMer.route,
+        port_of_discharge: { ...shipmentEnMer.route.port_of_discharge, date_of_discharge: `${CORRECTION}T09:00:00+01:00` },
+      },
+    };
+    const db2 = faireDb();
+    await appliquerShipment(db2, UID, '26HD1004', { id: '26HD1004', arrivalDate: ETA_COMPAGNIE, suivi: premier }, repousse);
+    const second = db2.ecritures[0]?.donnees;
+    check('la date du dossier suit le report', second?.arrivalDate === CORRECTION, `→ ${second?.arrivalDate}`);
+    check('l’annonce initiale n’a pas bougé', second?.suivi?.etaInitiale === ETA_COMPAGNIE, `→ ${second?.suivi?.etaInitiale}`);
+
+    // Suivi ouvert avant l'introduction du champ : relevée à la lecture suivante.
+    const db3 = faireDb();
+    await appliquerShipment(db3, UID, '26HD1004',
+      { id: '26HD1004', arrivalDate: ETA_DOSSIER, suivi: { shipmentId: 1001, reference: 'MEDUXY123456' } }, shipmentEnMer);
+    check('ancien suivi : relevée au passage suivant', db3.ecritures[0]?.donnees?.suivi?.etaInitiale === ETA_COMPAGNIE);
+
+    // Pas encore de date chez la compagnie : rien d'inventé.
+    const db4 = faireDb();
+    await appliquerShipment(db4, UID, '26HD1004', { id: '26HD1004', arrivalDate: ETA_DOSSIER }, shipmentNeuf);
+    check('sans date annoncée : pas d’annonce initiale', !('etaInitiale' in (db4.ecritures[0]?.donnees?.suivi || {})));
+
+    // Numéro corrigé : un autre conteneur repart de sa propre première annonce.
+    const ancien = { shipmentId: 999, reference: 'MSCU1234565', etaInitiale: jour(12) };
+    const db5 = faireDb();
+    await appliquerShipment(db5, UID, '26HD1004', { id: '26HD1004', arrivalDate: ETA_DOSSIER, suivi: ancien }, shipmentEnMer);
+    check('autre conteneur : nouvelle annonce initiale', db5.ecritures[0]?.donnees?.suivi?.etaInitiale === ETA_COMPAGNIE,
+      `→ ${db5.ecritures[0]?.donnees?.suivi?.etaInitiale}`);
+    const db6 = faireDb();
+    await appliquerShipment(db6, UID, '26HD1004', { id: '26HD1004', arrivalDate: ETA_DOSSIER, suivi: ancien }, shipmentNeuf);
+    check('autre conteneur encore sans date : l’ancienne annonce est effacée', db6.ecritures[0]?.donnees?.suivi?.etaInitiale === null);
+  }
+
   console.log('\n── Une date retouchée à la main suit quand même la compagnie ──');
   {
     const dossier = {

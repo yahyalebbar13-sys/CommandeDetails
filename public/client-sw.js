@@ -1,5 +1,6 @@
 // ─── LEBTEX Client Service Worker ─────────────────────────────────────
-const CACHE_NAME = 'client-portal-v1';
+// v2 : l'étape « activate » efface le cache v1, qui a pu garder des réponses d'API.
+const CACHE_NAME = 'client-portal-v2';
 const ASSETS_TO_CACHE = [
   '/client',
   '/client-manifest.json',
@@ -27,6 +28,11 @@ self.addEventListener('activate', (event) => {
 
 // Fetch — network-first, fallback to cache
 self.addEventListener('fetch', (event) => {
+  const url = new URL(event.request.url);
+  // Jamais de données par client en cache : les réponses d'API (commandes,
+  // demandes…) resteraient lisibles sur l'appareil après déconnexion, et
+  // /api/client/* contient « /client ». Idem pour tout autre domaine.
+  if (url.pathname.startsWith('/api/') || url.origin !== self.location.origin) return;
   if (!event.request.url.includes('/client') || event.request.method !== 'GET') return;
   event.respondWith(
     fetch(event.request)

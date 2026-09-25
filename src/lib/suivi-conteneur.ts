@@ -80,6 +80,15 @@ export type SuiviConteneur = {
   majLe: string;
   /** Dernière date d'arrivée que NOUS avons inscrite dans le dossier (cf. suivi-sync.ts). */
   dateAppliquee?: string;
+  /**
+   * yyyy-mm-dd — première date d'arrivée annoncée par la COMPAGNIE pour ce
+   * suivi, relevée une fois puis jamais retouchée (cf. suivi-sync.ts). C'est
+   * elle que l'espace client compare à la date du moment pour dire « repoussé
+   * de N jours » ; une date tapée à la main au bureau n'y entre jamais.
+   * Absente sur les suivis ouverts avant son introduction, jusqu'à leur
+   * prochaine lecture (qui relève alors la date annoncée à ce moment-là).
+   */
+  etaInitiale?: string;
   /** Obsolète : la date de la compagnie s'applique toujours. Effacée à chaque synchronisation. */
   dateProposee?: string;
   /** Clés des changements déjà annoncés — évite de prévenir deux fois du même. */

@@ -29,6 +29,28 @@ export type AdminCheck =
   | { ok: false; response: NextResponse };
 
 /**
+ * Identité VÉRIFIÉE portée par le jeton Firebase de la requête, ou null.
+ * Partagée avec la garde de l'espace client (cf. require-client.ts).
+ */
+export async function lireJetonFirebase(req: Request): Promise<{ uid: string; email: string } | null> {
+  const match = /^Bearer\s+(.+)$/i.exec(req.headers.get('authorization') || '');
+  if (!match) return null;
+  try {
+    const { payload } = await jwtVerify(match[1], FIREBASE_JWKS, {
+      algorithms: ['RS256'],
+      issuer: `https://securetoken.google.com/${PROJECT_ID}`,
+      audience: PROJECT_ID,
+    });
+    const nowSec = Math.floor(Date.now() / 1000);
+    const authTime = Number(payload.auth_time);
+    if (typeof payload.sub !== 'string' || !payload.sub || !Number.isFinite(authTime) || authTime > nowSec + 60) return null;
+    return { uid: payload.sub, email: typeof payload.email === 'string' ? payload.email : '' };
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Vérifie que l'appelant est l'administrateur (même règle que /gestion : l'espace
  * admin n'est ouvert qu'au compte ADMIN_EMAIL) et renvoie son identité VÉRIFIÉE —
  * à utiliser plutôt que tout uid fourni dans le corps de la requête.

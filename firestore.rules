@@ -23,6 +23,21 @@ service cloud.firestore {
       return isOwner(userId) || isCommercial();
     }
 
+    // Le compte « staff » (employé) lit les données de l'admin grâce à son
+    // document clientAccess (role: 'staff'). Les CLIENTS, eux, ne lisent plus
+    // rien directement : l'espace client passe par /api/client/*, qui ne leur
+    // renvoie que leurs propres commandes, sans prix d'achat ni fournisseur.
+    function isStaffOf(userId) {
+      return isSignedIn()
+        && exists(/databases/$(database)/documents/clientAccess/$(request.auth.uid))
+        && get(/databases/$(database)/documents/clientAccess/$(request.auth.uid)).data.role == 'staff'
+        && get(/databases/$(database)/documents/clientAccess/$(request.auth.uid)).data.adminUid == userId;
+    }
+
+    function isAdminEmail() {
+      return isSignedIn() && request.auth.token.email == 'yahya.lebbar13@gmail.com';
+    }
+
     // ── Isolation par magasin ─────────────────────────────────────────────────
     // Résout le document storeAccess du compte appelant (email brut, email en
     // minuscule, ou uid — mêmes variantes que isCommercial() pour compatibilité
@@ -121,20 +136,17 @@ service cloud.firestore {
         allow write: if hasWriteAccess(userId);
       }
 
-      // categories: owner can write; a valid client whose clientAccess.adminUid == userId can read
+      // categories: owner can write; staff can read (clients go through /api/client/*)
       match /categories/{id} {
         allow read: if hasAccess(userId)
-          || (isSignedIn() && exists(/databases/$(database)/documents/clientAccess/$(request.auth.uid))
-              && get(/databases/$(database)/documents/clientAccess/$(request.auth.uid)).data.adminUid == userId);
+          || isStaffOf(userId);
         allow write: if hasWriteAccess(userId);
       }
 
       // designs: sub-collection of categories — same access as parent category
-      // (owner writes; valid client can read for portal display)
       match /categories/{catId}/designs/{designId} {
         allow read: if hasAccess(userId)
-          || (isSignedIn() && exists(/databases/$(database)/documents/clientAccess/$(request.auth.uid))
-              && get(/databases/$(database)/documents/clientAccess/$(request.auth.uid)).data.adminUid == userId);
+          || isStaffOf(userId);
         allow write: if hasWriteAccess(userId);
       }
 
@@ -144,19 +156,17 @@ service cloud.firestore {
         allow write: if hasWriteAccess(userId);
       }
 
-      // articles: owner can write; a valid client whose clientAccess.adminUid == userId can read
+      // articles: owner can write; staff can read (clients go through /api/client/*)
       match /articles/{id} {
         allow read: if hasAccess(userId)
-          || (isSignedIn() && exists(/databases/$(database)/documents/clientAccess/$(request.auth.uid))
-              && get(/databases/$(database)/documents/clientAccess/$(request.auth.uid)).data.adminUid == userId);
+          || isStaffOf(userId);
         allow write: if hasWriteAccess(userId);
       }
 
-      // factures: owner can write; a valid client whose clientAccess.adminUid == userId can read
+      // factures: owner can write; staff can read (clients go through /api/client/*)
       match /factures/{id} {
         allow read: if hasAccess(userId)
-          || (isSignedIn() && exists(/databases/$(database)/documents/clientAccess/$(request.auth.uid))
-              && get(/databases/$(database)/documents/clientAccess/$(request.auth.uid)).data.adminUid == userId);
+          || isStaffOf(userId);
         allow write: if hasWriteAccess(userId);
       }
 
@@ -297,21 +307,24 @@ service cloud.firestore {
       // Client reads their own access doc
       allow get: if isSignedIn() && request.auth.uid == clientUid;
 
-      // Admin can LIST to find clients by clientName (needed for email notifications)
-      allow list: if isSignedIn();
+      // Admin only can LIST (notifications by clientName) — a client listing
+      // this collection would read every other client's name, e-mail and phone.
+      allow list: if isAdminEmail();
 
-      // Admin creates/updates: the writer must be the adminUid stored in the document
-      allow create: if isSignedIn()
+      // Admin creates/updates: the writer must be THE admin account and the
+      // adminUid stored in the document (anyone can sign up on the shop: without
+      // the e-mail check, anyone could create their own "client" access).
+      allow create: if isAdminEmail()
         && request.resource.data.adminUid == request.auth.uid
         && request.resource.data.keys().hasAll(['clientName', 'adminUid', 'email', 'createdAt']);
 
-      allow update: if isSignedIn()
+      allow update: if isAdminEmail()
         // The EXISTING document's adminUid must match the requester (prevents client from hijacking)
         && resource.data.adminUid == request.auth.uid
         // The NEW document must keep the same adminUid (cannot be changed)
         && request.resource.data.adminUid == resource.data.adminUid;
 
-      allow delete: if isSignedIn() && resource.data.adminUid == request.auth.uid;
+      allow delete: if isAdminEmail() && resource.data.adminUid == request.auth.uid;
     }
 
     // ── E-Commerce Shop Collections ────────────────────────────────────────────

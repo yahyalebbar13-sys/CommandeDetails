@@ -22,14 +22,14 @@ import DPView from '@/components/dp-view';
 import ReconciliationView from '@/components/reconciliation-view';
 import DevisPIView from '@/components/devis-pi-view';
 import EmailsView from '@/components/emails-view';
+import DemandesClientsView from '@/components/demandes-clients-view';
 import { ClientProfitabilityView } from '@/components/client-profitability-view';
 
-import { ClientDetailView } from '@/components/suppliers-view';
 import { Button } from '@/components/ui/button';
 import {
   LogOut, Loader2, Layers, Plus, Database,
   LayoutDashboard, ClipboardList, Factory, Truck,
-  Anchor, UserCheck, Menu, Timer, Calculator, Package, ShieldOff, ShoppingCart, FileCheck, Table2, TrendingUp, ReceiptText, ChevronDown, Mail, History
+  Anchor, UserCheck, Menu, Timer, Calculator, ShieldOff, ShoppingCart, FileCheck, Table2, TrendingUp, ReceiptText, ChevronDown, Mail, History, Inbox
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useUser, useFirebase, useCollection, useMemoFirebase } from '@/firebase';
@@ -183,19 +183,33 @@ export default function StockVueApp() {
   if (role.kind === 'staff') return (
     <StaffCostSaleApp adminUid={role.adminUid} auth={auth} firestore={firestore} />
   );
-  if (role.kind === 'client') {
-    return (
-      <ClientPortalView
-        clientName={role.clientName}
-        adminUid={role.adminUid}
-        auth={auth}
-        firestore={firestore}
-      />
-    );
-  }
+  // ③ Client : son espace est /client, qui passe par le serveur (/api/client/*).
+  // Ici, rien n'est lu dans la base pour lui : on l'y envoie tout de suite.
+  if (role.kind === 'client') return <RedirectionEspaceClient />;
 
   // ④ No access page — never shown to admin by mistake
   return <NoAccessView auth={auth} />;
+}
+
+// ─── Redirection vers l'espace client ─────────────────────────────────────────
+// Un client qui se connecte ici (même projet Firebase) ne doit jamais charger
+// les données de l'administrateur : l'ancien portail lisait en direct tous les
+// articles, dossiers, catégories et mouvements de stock. On le renvoie vers
+// /client sans rien lire.
+function RedirectionEspaceClient() {
+  useEffect(() => {
+    window.location.replace('/client');
+  }, []);
+
+  return (
+    <div className="min-h-screen flex flex-col items-center justify-center gap-4 bg-[#F9F6F0] p-4 text-center">
+      <Loader2 className="animate-spin text-indigo-500 w-10 h-10" />
+      <p className="text-stone-500 text-sm font-bold">Redirection vers votre espace client…</p>
+      <a href="/client" className="text-xs font-bold text-indigo-600 underline underline-offset-4">
+        Accéder à votre espace client
+      </a>
+    </div>
+  );
 }
 
 // ─── No Access Page ───────────────────────────────────────────────────────────
@@ -310,113 +324,17 @@ function StaffCostSaleApp({ adminUid, auth, firestore }: { adminUid: string; aut
   );
 }
 
-// ─── Client Portal ────────────────────────────────────────────────────────────
-function ClientPortalView({
-  clientName,
-  adminUid,
-  auth,
-  firestore,
-}: {
-  clientName: string;
-  adminUid: string;
-  auth: any;
-  firestore: any;
-}) {
-  const [articles, setArticles] = useState<any[]>([]);
-  const [factures, setFactures] = useState<any[]>([]);
-  const [categories, setCategories] = useState<any[]>([]);
-  const [stockItems, setStockItems] = useState<any[]>([]);
-  const [movements, setMovements] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    if (!firestore || !adminUid) return;
-    // Validate adminUid looks like a real Firebase UID before fetching
-    if (adminUid.length < 10) return;
-    setLoading(true);
-    Promise.all([
-      getDocs(collection(firestore, 'users', adminUid, 'articles')),
-      getDocs(collection(firestore, 'users', adminUid, 'factures')),
-      getDocs(collection(firestore, 'users', adminUid, 'categories')),
-      getDocs(collection(firestore, 'users', adminUid, 'stockMovements')),
-    ])
-      .then(([artSnap, facSnap, catSnap, movSnap]) => {
-        const _articles = artSnap.docs.map((d: any) => ({ id: d.id, ...d.data() }))
-          .filter((a: any) => !estBrouillonMagasin(a));
-        const _categories = catSnap.docs.map((d: any) => ({ id: d.id, ...d.data() }));
-        const _movements = movSnap.docs.map((d: any) => ({ id: d.id, ...d.data() }));
-        
-        const _factures = facSnap.docs.map((d: any) => ({ id: d.id, ...d.data() }));
-        setArticles(_articles);
-        setFactures(_factures);
-        setCategories(_categories);
-        
-        // Compute real stock items
-        const computedStock = computeStockItems(_articles, _movements, _categories, 'ALL', false, 'ADMIN', [], '', [], _factures);
-        setStockItems(computedStock);
-        setMovements(_movements);
-        
-        setLoading(false);
-      })
-      .catch(() => setLoading(false));
-  }, [adminUid, firestore]);
-
-  return (
-    <div className="min-h-screen flex flex-col bg-[#F9F6F0] font-sans">
-      <nav className="bg-white border-b border-stone-200 sticky top-0 z-50 shadow-sm">
-        <div className="max-w-[1400px] mx-auto px-6 h-16 flex justify-between items-center">
-          <div className="flex items-center gap-3">
-            <div className="inline-flex items-center justify-center w-8 h-8 bg-indigo-600 rounded-lg">
-              <Package className="w-4 h-4 text-white" />
-            </div>
-            <span className="text-lg font-black tracking-tighter text-stone-900 uppercase">
-              STOCK<span className="text-indigo-600">VUE</span>
-            </span>
-            <div className="h-5 w-px bg-stone-200 mx-2" />
-            <span className="text-[10px] font-black text-stone-400 uppercase tracking-widest">Espace Client</span>
-          </div>
-          <div className="flex items-center gap-3">
-            <div className="hidden sm:flex items-center gap-2 bg-indigo-50 border border-indigo-100 rounded-full px-4 py-1.5">
-              <div className="w-2 h-2 bg-indigo-500 rounded-full animate-pulse" />
-              <span className="text-[10px] font-black text-indigo-700 uppercase tracking-widest">{clientName}</span>
-            </div>
-            <Button variant="ghost" size="icon" onClick={() => signOut(auth)}
-              className="text-stone-400 hover:text-red-600 h-9 w-9 rounded-xl hover:bg-red-50 transition-colors">
-              <LogOut className="w-4 h-4" />
-            </Button>
-          </div>
-        </div>
-      </nav>
-
-      <main className="flex-grow max-w-[1400px] mx-auto px-6 py-8 w-full">
-        {loading ? (
-          <div className="flex flex-col items-center justify-center py-40 space-y-6">
-            <Loader2 className="animate-spin text-indigo-500 w-12 h-12" />
-            <p className="text-stone-400 font-black uppercase tracking-[0.3em] text-[10px]">Chargement de vos commandes...</p>
-          </div>
-        ) : (
-          <div className="fade-in">
-            <ClientDetailView clientName={clientName} articles={articles} factures={factures} categories={categories} isPortal />
-          </div>
-        )}
-      </main>
-
-      <footer className="border-t border-stone-200 bg-white py-4">
-        <div className="max-w-[1400px] mx-auto px-6 flex justify-between items-center text-stone-400 text-[9px] font-black uppercase tracking-[0.2em]">
-          <p>© 2024 STOCKVUE — PORTAIL CLIENT PRIVÉ</p>
-          <span className="text-stone-300">Accès Sécurisé</span>
-        </div>
-      </footer>
-    </div>
-  );
-}
-
 // ─── Admin Dashboard ──────────────────────────────────────────────────────────
+// Les onglets de l'application, plus ceux propres à cet écran.
+type OngletAdmin = ViewType | 'demandes-clients';
+
 function AdminApp() {
   const { user } = useUser();
   const { auth, firestore } = useFirebase();
-  const [activeTab, setActiveTab] = useState<ViewType>('dashboard');
-  const [previousTab, setPreviousTab] = useState<ViewType | null>(null);
+  const [activeTab, setActiveTab] = useState<OngletAdmin>('dashboard');
+  const [previousTab, setPreviousTab] = useState<OngletAdmin | null>(null);
+  // Demandes envoyées depuis l'espace client et pas encore prises en charge (pastille du menu).
+  const [demandesNouvelles, setDemandesNouvelles] = useState(0);
   const [selectedFactureId, setSelectedFactureId] = useState<string | null>(null);
   const [selectedGeneralCategoryId, setSelectedGeneralCategoryId] = useState<string | null>(null);
   const [selectedCategoryName, setSelectedCategoryName] = useState<string | null>(null);
@@ -479,6 +397,7 @@ function AdminApp() {
     ],
     [
       { id: 'devis-pi',  label: 'Devis Client', icon: ReceiptText },
+      { id: 'demandes-clients', label: 'Demandes clients', icon: Inbox },
       { id: 'suppliers', label: 'Partenaires',  icon: UserCheck },
       { id: 'emails',    label: 'Emails',       icon: Mail },
       { id: 'data',      label: 'Data Lab',     icon: Database },
@@ -511,6 +430,9 @@ function AdminApp() {
               onClick={() => { setPreviousTab(null); setActiveTab(id); if (id === 'factures') setSelectedFactureId(null); if (id === 'general-categories') setSelectedGeneralCategoryId(null); setIsMobileMenuOpen(false); }}>
               <Icon className={vertical ? 'w-4 h-4' : 'w-3.5 h-3.5'} />
               <span className={`truncate uppercase font-black tracking-wider ${vertical ? 'text-[11px]' : 'text-[10px]'}`}>{label}</span>
+              {id === 'demandes-clients' && demandesNouvelles > 0 && (
+                <span aria-label={`${demandesNouvelles} nouvelle${demandesNouvelles > 1 ? 's' : ''}`} className={`ml-auto inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full text-[9px] font-black ${activeTab === id ? 'bg-white/25 text-white' : 'bg-rose-500 text-white'}`}>{demandesNouvelles}</span>
+              )}
             </Button>
           ))}
         </React.Fragment>
@@ -573,7 +495,7 @@ function AdminApp() {
           <div className="flex items-center gap-4">
             <Sheet open={isMobileMenuOpen} onOpenChange={setIsMobileMenuOpen}>
               <SheetTrigger asChild>
-                <Button variant="ghost" size="icon" className="xl:hidden -ml-2 text-stone-900"><Menu className="w-6 h-6" /></Button>
+                <Button variant="ghost" size="icon" className="xl:hidden -ml-2 text-stone-900 relative"><Menu className="w-6 h-6" />{demandesNouvelles > 0 && <span className="absolute top-1.5 right-1.5 w-2.5 h-2.5 rounded-full bg-rose-500 ring-2 ring-white" aria-hidden />}</Button>
               </SheetTrigger>
               <SheetContent side="left" className="w-72 bg-white p-0 border-r border-stone-100">
                 <SheetHeader className="bg-stone-900 p-6 text-left">
@@ -625,7 +547,7 @@ function AdminApp() {
               <ToOrderView articles={articles} factures={factures} onEdit={setEditingArticle} />
             </div>
             <div className={activeTab === 'pending' ? 'block animate-in fade-in' : 'hidden'}>
-              <PendingOrdersView articles={articles} factures={factures} onEdit={setEditingArticle} />
+              <PendingOrdersView articles={articles} factures={factures} generalCategories={generalCategories} onEdit={setEditingArticle} />
             </div>
             <div className={activeTab === 'timeline' ? 'block animate-in fade-in' : 'hidden'}>
               <TimelineView articles={articles} factures={factures} onNavigateToFacture={(id) => { setPreviousTab(activeTab); setSelectedFactureId(id); setActiveTab('factures'); setIsMobileMenuOpen(false); }} />
@@ -649,7 +571,7 @@ function AdminApp() {
               <DPView articles={articles} factures={factures} subCategories={subCategories} generalCategories={generalCategories} />
             </div>
             <div className={activeTab === 'reconciliation' ? 'block animate-in fade-in' : 'hidden'}>
-              <ReconciliationView factures={factures} />
+              <ReconciliationView factures={factures} articles={articles} subCategories={subCategories} generalCategories={generalCategories} />
             </div>
             <div className={activeTab === 'devis-pi' ? 'block animate-in fade-in' : 'hidden'}>
               <DevisPIView articles={articles} factures={factures} categories={subCategories} />
@@ -665,6 +587,10 @@ function AdminApp() {
             </div>
             <div className={activeTab === 'emails' ? 'block animate-in fade-in' : 'hidden'}>
               <EmailsView />
+            </div>
+            {/* Toujours montée : elle se rafraîchit chaque minute et tient la pastille du menu à jour. */}
+            <div className={activeTab === 'demandes-clients' ? 'block animate-in fade-in' : 'hidden'}>
+              <DemandesClientsView actif={activeTab === 'demandes-clients'} onNouvelles={setDemandesNouvelles} />
             </div>
           </div>
         )}

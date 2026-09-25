@@ -118,6 +118,18 @@ export async function appliquerShipment(
   // laisser (une fusion Firestore la garderait sinon pour toujours).
   suivi.dateProposee = null as unknown as undefined;
 
+  // Première date annoncée par la compagnie : relevée une fois, puis gardée
+  // telle quelle — c'est l'étalon du « repoussé de N jours » côté client. Un
+  // autre conteneur (numéro corrigé) repart de sa propre première annonce.
+  const memeSuivi = Number(precedent?.shipmentId) === suivi.shipmentId;
+  const etaInitiale = (memeSuivi ? precedent?.etaInitiale : undefined) || nouvelleDate;
+  if (etaInitiale) {
+    suivi.etaInitiale = etaInitiale;
+  } else if (precedent?.etaInitiale) {
+    // Celle de l'ancien conteneur ne vaut plus ; la fusion la garderait sinon.
+    suivi.etaInitiale = null as unknown as undefined;
+  }
+
   // Les alertes déjà parties restent inscrites : c'est ce registre, et non
   // l'état du suivi, qui décide de ce qu'il reste à annoncer.
   const dejaNotifie: string[] = Array.isArray(precedent?.notifie) ? precedent!.notifie! : [];
