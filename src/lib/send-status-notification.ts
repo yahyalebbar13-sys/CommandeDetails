@@ -45,14 +45,18 @@ async function resolveClientContact(
   const q = query(clientAccessRef, where('adminUid', '==', adminUid));
   const snap = await getDocs(q);
 
-  const matchDoc = snap.docs.find((d) => {
-    const stored = (d.data().clientName || '').toLowerCase().trim();
-    return (
-      stored === clientNameLower ||
-      stored.includes(clientNameLower) ||
-      clientNameLower.includes(stored)
-    );
-  });
+  // Le nom exact d'abord ; l'approché (« adil » ↔ « adil el bhira ») seulement à
+  // défaut, jamais sur un nom vide ou trop court, ni sur un compte d'employé.
+  const comptes = snap.docs.filter((d) => d.data().role !== 'staff');
+  const nomDe = (d: any) => String(d.data().clientName || '').toLowerCase().trim();
+  const matchDoc =
+    comptes.find((d) => nomDe(d) === clientNameLower) ||
+    (clientNameLower.length >= 3
+      ? comptes.find((d) => {
+          const stored = nomDe(d);
+          return stored.length >= 3 && (stored.includes(clientNameLower) || clientNameLower.includes(stored));
+        })
+      : undefined);
 
   if (matchDoc) {
     const data = matchDoc.data();
@@ -155,8 +159,8 @@ export async function sendStatusNotification(params: NotifyParams & { channel?: 
       const msg = buildWhatsAppMessage(params, newStatusLabel);
       const phone = whatsappPhone.replace(/\D/g, '');
       const url = `https://wa.me/${phone}?text=${encodeURIComponent(msg)}`;
-      if (typeof window !== 'undefined') window.open(url, '_blank');
-      whatsappSent = true;
+      // Une fenêtre bloquée par le navigateur (pas de clic récent) n'est pas un envoi.
+      whatsappSent = typeof window !== 'undefined' && Boolean(window.open(url, '_blank'));
     }
 
     // ── Email ─────────────────────────────────────────────────────────────────
@@ -178,6 +182,9 @@ export async function sendStatusNotification(params: NotifyParams & { channel?: 
     }
 
     if (whatsappSent || emailSent) return { ok: true, email: email || undefined };
+    if ((channel === 'whatsapp' || channel === 'both') && whatsappPhone) {
+      return { ok: false, error: 'Fenêtre WhatsApp bloquée par le navigateur.' };
+    }
     console.warn(`[Notification] FAILED: Aucun canal configuré (email ou numéro WhatsApp manquant).`);
     return { ok: false, error: 'Aucun canal configuré (email ou numéro WhatsApp manquant).' };
   } catch (err: any) {
