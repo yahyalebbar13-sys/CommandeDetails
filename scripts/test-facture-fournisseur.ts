@@ -236,6 +236,15 @@ check('rapprochement non fiable : pas de codeFournisseur', !('codeFournisseur' i
 const douteux = construirePlan({ ...facture, lignes: [{ ...facture.lignes[1], montant: 5000 }] }, { 1: 'plast5b' }, candidats, DOSSIER.id, { appliquerPrix: true });
 check('montant incohérent : pas de prix', douteux.articles[0].prix === null);
 
+// Règles du métier : PL sous la commande = partiel (le reste en production) ; un peu plus = tout passe, surplus compris.
+const petitManque = construirePlan({ ...facture, lignes: [{ ...facture.lignes[0], quantite: 99000, montant: 2851.2 }] }, { 0: 'plast5' }, candidats, DOSSIER.id, { appliquerPrix: false });
+check('PL à 99 % de la commande : partiel proposé', petitManque.articles[0].mode === 'partiel' && petitManque.articles[0].reste === 1000);
+check('PL un peu au-dessus : tout passe avec le surplus', P('plast5').mode === 'solde' && P('plast5').quantite === 101500);
+check('seules les commandes en production (et le dossier) sont proposées',
+  articlesCandidats([...articles, art('orphelin', { name: 'A/L SLIDER FOR NYLON ZIPPER', status: 'SHIPPED', factureId: '', quantity: 1 })], DOSSIER).every(a => a.id !== 'orphelin'));
+const repartiPeu = construirePlan({ ...facture, lignes: [{ ...ligneCouleurs, quantite: 99000 }] }, { 2: 'coul' }, [couleurs], DOSSIER.id, { appliquerPrix: true });
+check('réparti en couleurs, 99 % : bloqué (à fractionner)', repartiPeu.articles[0].bloque);
+
 // Unité ambiguë (yard réel ou compté comme un mètre) et expédition partielle : bloqué.
 const tissu = art('tissu', { name: 'POLYESTER FABRIC', quantity: 1000, unitOfMeasure: 'm', purchasePricePerUnit: 0.5 });
 const ligneTissu = { ...lg('yds', 500, '100Y/roll'), index: 0, titre: 'Polyester Fabric', poidsNet: 11, volume: 0.1 };

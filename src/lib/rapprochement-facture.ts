@@ -254,8 +254,8 @@ function codeArticle(a: any): string | null {
 
 const fournisseurDe = (x: { supplierId?: string }) => String(x?.supplierId || '').trim().toUpperCase();
 
-/** En production (PI) ou parti sans dossier (fractionnement), pas encore dans un dossier. */
-const attendUnDossier = (a: any) => !a?.factureId && ['PI', 'SHIPPED', 'TRANSIT'].includes(statutEnBase(a));
+/** Une commande en production (PI), pas encore dans un dossier : la seule qu'un packing list fait partir. */
+const attendUnDossier = (a: any) => !a?.factureId && statutEnBase(a) === 'PI';
 
 /**
  * Le fournisseur du dossier n'a aucun article en attente sous ce nom : le nom
@@ -567,6 +567,9 @@ export type OptionsPlan = {
 
 const arrondi = (n: number, d: number) => Math.round(n * 10 ** d) / 10 ** d;
 
+/** En deçà, un écart de quantité n'est qu'un arrondi, pas une expédition partielle. */
+const TOLERANCE_ARRONDI = 0.005;
+
 /** Écart de quantité qu'une mise à jour d'un article déjà au dossier corrige seule. */
 const TOLERANCE_MAJ = 0.02;
 
@@ -652,6 +655,8 @@ export function construirePlan(
     // Un article resté « PI » avec le n° du dossier n'est pas encore passé : il passe.
     const dejaDansDossier = a.factureId === dossierId && !['PI', 'TO_ORDER'].includes(statutEnBase(a));
     const ecart = quantite != null && qteArticle > 0 ? Math.abs(1 - quantite / qteArticle) : Infinity;
+    // Moins que la commande (au-delà d'un arrondi) : une partie seulement part. Un peu plus : tout part, avec le surplus.
+    const sousLaCommande = !dejaDansDossier && quantite != null && quantite < qteArticle * (1 - TOLERANCE_ARRONDI);
     const couvre = ecart <= TOLERANCE_QUANTITE;
 
     let modesPossibles: ModePassage[];
@@ -659,9 +664,10 @@ export function construirePlan(
     if (dejaDansDossier) {
       modesPossibles = ['maj'];
       propose = 'maj';
-    } else if (quantite != null && quantite < qteArticle && !plusieursLignes && !ambigue) {
-      modesPossibles = ['solde', 'partiel'];
-      propose = quantite >= qteArticle * 0.9 ? 'solde' : 'partiel';
+    } else if (sousLaCommande && !plusieursLignes && !ambigue) {
+      // Le PL ne porte qu'une partie de la commande : le reste reste en production.
+      modesPossibles = ['partiel', 'solde'];
+      propose = 'partiel';
     } else {
       modesPossibles = ['solde'];
       propose = 'solde';
@@ -669,10 +675,8 @@ export function construirePlan(
     const voulu = options.modes?.[id];
     const mode = voulu && modesPossibles.includes(voulu) ? voulu : propose;
 
-    // Expédition partielle d'un article réparti : à fractionner par couleur, à la main.
     // Expédition partielle qu'on ne sait pas découper : article réparti en
     // couleurs, ou unité ambiguë (yard réel ou compté comme un mètre).
-    const sousLaCommande = !dejaDansDossier && quantite != null && quantite < qteArticle * (1 - TOLERANCE_QUANTITE);
     const partielAmbigu = sousLaCommande && ambigue && !plusieursLignes;
     const partielReparti = (sousLaCommande && plusieursLignes) || partielAmbigu;
     const bloque = partielReparti && !options.forces?.[id];

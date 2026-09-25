@@ -114,7 +114,8 @@ function Contenu({ dossier, articles, fermer, envoi, setEnvoi }: {
   const [manuels, setManuels] = useState<Set<number>>(new Set());
   const [modes, setModes] = useState<Record<string, ModePassage>>({});
   const [forces, setForces] = useState<Record<string, boolean>>({});
-  const [appliquerPrix, setAppliquerPrix] = useState(true);
+  // Les prix sont saisis à la commande : on n'y touche que si on le demande.
+  const [appliquerPrix, setAppliquerPrix] = useState(false);
   const [majFret, setMajFret] = useState(false);
   const [prevenir, setPrevenir] = useState(true);
   const [confirmations, setConfirmations] = useState<Record<string, boolean>>({});
@@ -386,38 +387,16 @@ function Contenu({ dossier, articles, fermer, envoi, setEnvoi }: {
       {!lecture ? (
         // ── Étape 1 : le document ─────────────────────────────────────────────
         <div className="flex-1 overflow-y-auto p-6 space-y-5">
-          <label
-            htmlFor="fichier-facture-fournisseur"
-            onDragOver={e => { e.preventDefault(); setSurvol(true); }}
-            onDragLeave={() => setSurvol(false)}
-            onDrop={e => { e.preventDefault(); setSurvol(false); const f = e.dataTransfer.files?.[0]; if (f) lireFichier(f); }}
-            className={`block cursor-pointer rounded-2xl border-2 border-dashed p-10 text-center transition-colors focus-within:ring-2 focus-within:ring-amber-400 ${survol ? 'border-amber-500 bg-amber-50' : 'border-stone-300 bg-stone-50 hover:bg-stone-100'}`}
-          >
-            {chargement
-              ? <Loader2 className="w-8 h-8 mx-auto text-stone-400 animate-spin" />
-              : <Upload className="w-8 h-8 mx-auto text-stone-400" />}
-            <span className="mt-3 block text-sm font-black text-stone-800 uppercase tracking-tight">Dépose l'Excel du fournisseur, ou clique pour le choisir</span>
-            <span className="mt-1 block text-[11px] text-stone-500">
-              Le classeur « {dossier.id}+INV.xlsx » : l'onglet INV donne les prix, l'onglet PL les poids et volumes.
-            </span>
-            <input
-              id="fichier-facture-fournisseur"
-              type="file"
-              accept=".xlsx,.xls,.xlsm"
-              className="sr-only"
-              onChange={e => { const f = e.target.files?.[0]; if (f) lireFichier(f); e.target.value = ''; }}
-            />
-          </label>
-
           <div className="space-y-2">
             <p className="text-[10px] font-black uppercase tracking-widest text-stone-500 flex items-center gap-2">
-              <ClipboardPaste className="w-3.5 h-3.5" /> Ou colle le tableau copié depuis Excel
+              <ClipboardPaste className="w-3.5 h-3.5" /> Colle le packing list (PL) copié depuis Excel
             </p>
             <Textarea
               value={collage}
               onChange={e => setCollage(e.target.value)}
-              placeholder={'Dans Excel, sélectionne depuis « INVOICE NO. » (pour le n° de facture) jusqu’à la ligne TOTAL — onglet PL, et INV pour les prix —, copie, colle ici.'}
-              className="min-h-[140px] font-mono text-[11px]"
+              placeholder={'Dans l’onglet PL, sélectionne depuis « INVOICE NO. » (pour le n° de facture) jusqu’à la ligne TOTAL, copie, colle ici.'}
+              className="min-h-[220px] font-mono text-[11px]"
+              autoFocus
             />
             <div className="flex justify-end">
               <Button
@@ -429,6 +408,29 @@ function Contenu({ dossier, articles, fermer, envoi, setEnvoi }: {
               </Button>
             </div>
           </div>
+
+          <label
+            htmlFor="fichier-facture-fournisseur"
+            onDragOver={e => { e.preventDefault(); setSurvol(true); }}
+            onDragLeave={() => setSurvol(false)}
+            onDrop={e => { e.preventDefault(); setSurvol(false); const f = e.dataTransfer.files?.[0]; if (f) lireFichier(f); }}
+            className={`block cursor-pointer rounded-2xl border-2 border-dashed p-5 text-center transition-colors focus-within:ring-2 focus-within:ring-amber-400 ${survol ? 'border-amber-500 bg-amber-50' : 'border-stone-300 bg-stone-50 hover:bg-stone-100'}`}
+          >
+            {chargement
+              ? <Loader2 className="w-8 h-8 mx-auto text-stone-400 animate-spin" />
+              : <Upload className="w-8 h-8 mx-auto text-stone-400" />}
+            <span className="mt-2 block text-xs font-black text-stone-800 uppercase tracking-tight">Ou dépose l'Excel du fournisseur, ou clique pour le choisir</span>
+            <span className="mt-1 block text-[11px] text-stone-500">
+              Le classeur « {dossier.id}+INV.xlsx » : l'onglet INV donne les prix, l'onglet PL les poids et volumes.
+            </span>
+            <input
+              id="fichier-facture-fournisseur"
+              type="file"
+              accept=".xlsx,.xls,.xlsm"
+              className="sr-only"
+              onChange={e => { const f = e.target.files?.[0]; if (f) lireFichier(f); e.target.value = ''; }}
+            />
+          </label>
 
           {erreur && (
             <div role="alert" className="p-3 rounded-xl border border-red-200 bg-red-50 text-red-700 text-xs font-bold flex gap-2">
