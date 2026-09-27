@@ -176,6 +176,8 @@ export interface CartItem {
     variantId?: string;
   };
   maxStock: number;
+  /** Sur une ligne de commande : prix unitaire réellement facturé (prix de gros compris). */
+  unitPrice?: number;
 }
 
 export type OrderStatus =
@@ -217,6 +219,12 @@ export interface ShopOrder {
   notes?: string;
   trackingNotes?: TrackingNote[];
   whatsappSent?: boolean;
+  /** Note de l'équipe, jamais montrée au client. */
+  noteInterne?: string;
+  /** Raison d'une annulation, gardée pour soi (le client ne voit que « Commande annulée »). */
+  motifAnnulation?: string;
+  /** Posé par /api/shop/commandes/alerte : l'e-mail « nouvelle commande » est parti. */
+  alerteEnvoyeeLe?: any;
   createdAt?: any;
   updatedAt?: any;
 }
@@ -225,6 +233,8 @@ export interface TrackingNote {
   status: OrderStatus;
   message: string;
   timestamp: any;
+  /** E-mail de qui a changé le statut (admin). */
+  auteur?: string;
 }
 
 export interface ShopCoupon {

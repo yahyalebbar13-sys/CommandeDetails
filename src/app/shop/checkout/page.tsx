@@ -426,6 +426,9 @@ export default function CheckoutPage() {
               productName: item.productName || 'Produit',
               productImage: item.productImage || '/placeholder.png',
               price: item.price || 0,
+              // Prix réellement facturé (prix de gros compris), calculé comme le
+              // sous-total du panier : somme(unitPrice × quantité) = subtotal.
+              unitPrice: Number(getCartItemUnitPrice(item, productQtyMap[item.productId])) || 0,
               quantity: item.quantity || 1,
               variant: cleanVariant && Object.keys(cleanVariant).length > 0 ? cleanVariant : null,
               maxStock: item.maxStock ?? 99,
@@ -449,6 +452,16 @@ export default function CheckoutPage() {
           localStorage.setItem('lebtex_last_order_number', orderNumber);
         } catch { /* ignore localStorage errors (private browsing, quota) */ }
 
+        // Prévient le commerçant par e-mail. Sans await et sans suite en cas
+        // d'échec : l'alerte ne doit jamais retarder ni faire échouer la commande.
+        // keepalive laisse partir la requête même si la page change aussitôt.
+        fetch('/api/shop/commandes/alerte', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id: docRef.id }),
+          keepalive: true,
+        }).catch(() => {});
+
         // IMPORTANT: redirect FIRST, then clear cart
         // If we clearCart first, items.length === 0 causes the component to unmount before navigation
         setOrderSuccess(true);
@@ -462,7 +475,7 @@ export default function CheckoutPage() {
         setIsSubmitting(false);
       }
     },
-    [form, items, subtotal, clearCart, router]
+    [form, items, subtotal, productQtyMap, clearCart, router]
   );
 
   if (items.length === 0 && !orderSuccess) return null;

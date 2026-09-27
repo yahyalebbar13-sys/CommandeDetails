@@ -6,6 +6,7 @@ import { initializeApp, getApps, getApp } from 'firebase/app';
 import { getFirestore, doc, getDoc } from 'firebase/firestore';
 import { firebaseConfig } from '@/firebase/config';
 import { formatPrice, buildWhatsAppLink, getDeliveryDays } from '@/lib/shop-utils';
+import { detailsVariante, prixUnitaireLigne, totalLigne, varianteLisible } from '@/lib/commandes-boutique';
 
 const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
 const db = getFirestore(app);
@@ -50,11 +51,17 @@ export default function ConfirmationPage({ params }: { params: Promise<{ id: str
     );
   }
 
+  // Le message WhatsApp reprend le prix réellement facturé et la variante complète
+  // (buildWhatsAppLink ne lit que la couleur et la taille : on lui passe tout dans « color »).
   const whatsappLink = buildWhatsAppLink(
     order.orderNumber,
     order.total,
     order.shippingAddress?.fullName || '',
-    order.items,
+    (order.items || []).map((item: any) => ({
+      ...item,
+      price: prixUnitaireLigne(item),
+      variant: varianteLisible(item.variant) ? { color: varianteLisible(item.variant) } : undefined,
+    })),
     order.shippingAddress,
     order.deliveryFee,
     order.subtotal,
@@ -62,7 +69,7 @@ export default function ConfirmationPage({ params }: { params: Promise<{ id: str
   const deliveryDays = order.shippingAddress?.city ? getDeliveryDays(order.shippingAddress.city) : '3-5 jours';
   const steps = [
     { icon: CheckCircle, title: 'Commande reçue', desc: 'Votre commande a été enregistrée.', status: 'done' },
-    { icon: Phone, title: 'Confirmation (sous 2h)', desc: 'Notre équipe vous contactera pour confirmer.', status: 'current' },
+    { icon: Phone, title: 'Confirmation (sous 2h)', desc: 'Nous vous appelons pour confirmer la commande et l’adresse.', status: 'current' },
     { icon: Package, title: 'Préparation', desc: 'Votre commande sera préparée avec soin.', status: 'pending' },
     { icon: Truck, title: 'Expédition', desc: `Délai estimé : ${deliveryDays}`, status: 'pending' },
     { icon: MapPin, title: 'Livraison', desc: 'Livraison à votre adresse, paiement en cash.', status: 'pending' },
@@ -78,8 +85,8 @@ export default function ConfirmationPage({ params }: { params: Promise<{ id: str
           <div className="scale-in w-20 h-20 bg-[#10B981] rounded-full flex items-center justify-center mx-auto mb-5 shadow-lg shadow-green-200">
             <CheckCircle className="w-10 h-10 text-white" strokeWidth={2.5} />
           </div>
-          <h1 className="text-3xl font-black text-[#1A1A1A] mb-2" style={{ fontFamily: 'Outfit, sans-serif' }}>Commande Confirmée ! 🎉</h1>
-          <p className="text-[#6B6B6B] mb-4">Merci {order.shippingAddress?.fullName} ! Votre commande a bien été reçue.</p>
+          <h1 className="text-3xl font-black text-[#1A1A1A] mb-2" style={{ fontFamily: 'Outfit, sans-serif' }}>Commande reçue !</h1>
+          <p className="text-[#6B6B6B] mb-4">Merci {order.shippingAddress?.fullName} ! Nous vous appelons sous 2h pour la confirmer avec vous.</p>
           <div className="inline-flex items-center gap-2 bg-[#0F0F0F] text-white px-5 py-2.5 rounded-full">
             <span className="text-[#D4A843] text-xs font-black uppercase tracking-widest">N° Commande</span>
             <span className="font-black text-base tracking-wider">{order.orderNumber}</span>
@@ -118,10 +125,16 @@ export default function ConfirmationPage({ params }: { params: Promise<{ id: str
                 {item.productImage && <img src={item.productImage} alt={item.productName} loading="lazy" decoding="async" className="w-12 h-12 rounded-xl object-cover border border-[#E8E4DF]" />}
                 <div className="flex-1 min-w-0">
                   <p className="font-semibold text-sm text-[#1A1A1A] truncate">{item.productName}</p>
-                  {item.variant?.color && <p className="text-xs text-[#6B6B6B]">Couleur: {item.variant.color}</p>}
-                  <p className="text-xs text-[#6B6B6B]">Qté: {item.quantity}</p>
+                  {detailsVariante(item.variant).map(d => (
+                    <p key={d.libelle} className="text-xs text-[#6B6B6B]">{d.libelle} : {d.valeur}</p>
+                  ))}
+                  <p className="text-xs text-[#6B6B6B]">
+                    Qté : {item.quantity}{prixUnitaireLigne(item) > 0 && ` × ${formatPrice(prixUnitaireLigne(item))}`}
+                  </p>
                 </div>
-                <p className="font-black text-[#1A1A1A] text-sm shrink-0">{formatPrice(item.price * item.quantity)}</p>
+                <p className="font-black text-[#1A1A1A] text-sm shrink-0">
+                  {prixUnitaireLigne(item) > 0 ? formatPrice(totalLigne(item)) : <span className="text-xs text-[#6B6B6B] font-semibold">Prix à confirmer</span>}
+                </p>
               </div>
             ))}
           </div>

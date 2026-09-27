@@ -1130,7 +1130,8 @@ export default function ProductPage({ params }: { params: Promise<{ id: string }
       productNameAr: product.nameAr,
       productImage: product.images?.[0] || '',
       price: currentPrice,
-      originalPrice: product.price,
+      // Le panier facture originalPrice (getCartItemUnitPrice) : celui de la variante choisie, pas celui du produit.
+      originalPrice: currentPrice,
       wholesalePrice: product.wholesalePrice,
       minOrderQty: product.minOrderQty,
       quantity: qty,

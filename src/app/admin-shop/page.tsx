@@ -43,6 +43,8 @@ import { SHOP_PRODUCTS_DATA, SHOP_CATEGORIES } from '@/lib/shop-products-data';
 import type { ShopProduct } from '@/lib/shop-types';
 import type { ProductOverride } from '@/contexts/shop-products-context';
 import { useShopProducts } from '@/contexts/shop-products-context';
+import { totalLigne } from '@/lib/commandes-boutique';
+import { CoqueAdmin } from './_coque/coque-admin';
 import {
   LayoutDashboard,
   Package,
@@ -662,7 +664,7 @@ function MetricCard({
       </div>
       <p className="text-2xl font-bold text-white mb-1">{value}</p>
       <p className="text-xs text-gray-400 font-medium">{title}</p>
-      {sub && <p className="text-xs text-gray-600 mt-0.5">{sub}</p>}
+      {sub && <p className="text-xs text-gray-400 mt-0.5">{sub}</p>}
     </div>
   );
 }
@@ -1621,6 +1623,8 @@ interface AggregatedClient {
   email: string | null;
   city: string;
   totalOrders: number;
+  /** Commandes ni annulées ni retournées : les seules qui comptent dans les montants. */
+  commandesValables: number;
   totalSpent: number;
   lastOrderDate: any;
   lastOrderStatus: OrderStatus;
@@ -1628,7 +1632,10 @@ interface AggregatedClient {
 }
 
 // ─── Clients View ─────────────────────────────────────────────────────────────
-function ClientsView({ orders }: { orders: ShopOrder[] }) {
+/** Annulée ou revenue : rien n'a été vendu, elle ne compte pas dans les montants. */
+const commandeValable = (o: ShopOrder) => o.status !== 'cancelled' && o.status !== 'returned';
+
+function ClientsView({ orders, onOuvrirCommande }: { orders: ShopOrder[]; onOuvrirCommande?: (id: string) => void }) {
   const [search, setSearch] = useState('');
   const [sortBy, setSortBy] = useState<'orders' | 'spent' | 'recent'>('recent');
   const [selectedClient, setSelectedClient] = useState<AggregatedClient | null>(null);
@@ -1641,9 +1648,13 @@ function ClientsView({ orders }: { orders: ShopOrder[] }) {
       if (!phone) continue;
       const cleanPhone = phone.replace(/[\s\-]/g, '');
       const existing = map.get(cleanPhone);
+      const valable = commandeValable(order);
       if (existing) {
         existing.totalOrders += 1;
-        existing.totalSpent += order.total || 0;
+        if (valable) {
+          existing.commandesValables += 1;
+          existing.totalSpent += order.total || 0;
+        }
         existing.orders.push(order);
         // Keep the latest order info
         const existDate = existing.lastOrderDate?.toDate?.() || new Date(0);
@@ -1662,7 +1673,8 @@ function ClientsView({ orders }: { orders: ShopOrder[] }) {
           email: order.customerEmail || null,
           city: order.shippingAddress?.city || '—',
           totalOrders: 1,
-          totalSpent: order.total || 0,
+          commandesValables: valable ? 1 : 0,
+          totalSpent: valable ? order.total || 0 : 0,
           lastOrderDate: order.createdAt,
           lastOrderStatus: order.status,
           orders: [order],
@@ -1702,7 +1714,7 @@ function ClientsView({ orders }: { orders: ShopOrder[] }) {
   // Stats
   const totalClients = clients.length;
   const totalRevenue = clients.reduce((s, c) => s + c.totalSpent, 0);
-  const repeatClients = clients.filter((c) => c.totalOrders > 1).length;
+  const repeatClients = clients.filter((c) => c.commandesValables > 1).length;
   const topCity = clients.reduce((acc, c) => {
     acc[c.city] = (acc[c.city] || 0) + 1;
     return acc;
@@ -1727,8 +1739,9 @@ function ClientsView({ orders }: { orders: ShopOrder[] }) {
           color="#D4A843"
         />
         <MetricCard
-          title="Chiffre d'affaires"
+          title="Montant commandé"
           value={formatPrice(totalRevenue)}
+          sub="hors annulées et retours"
           icon={<DollarSign className="w-5 h-5" />}
           color="#10B981"
         />
@@ -1760,7 +1773,7 @@ function ClientsView({ orders }: { orders: ShopOrder[] }) {
         >
           <option value="recent">Plus récent</option>
           <option value="orders">Plus de commandes</option>
-          <option value="spent">Plus gros CA</option>
+          <option value="spent">Plus gros montant</option>
         </select>
       </div>
 
@@ -1782,7 +1795,7 @@ function ClientsView({ orders }: { orders: ShopOrder[] }) {
             <div className="col-span-2">Téléphone</div>
             <div className="col-span-2">Ville</div>
             <div className="col-span-1 text-center">Cmd</div>
-            <div className="col-span-2 text-right">Total dépensé</div>
+            <div className="col-span-2 text-right">Montant commandé</div>
             <div className="col-span-2 text-right">Dernière cmd</div>
           </div>
 
@@ -1903,10 +1916,14 @@ function ClientsView({ orders }: { orders: ShopOrder[] }) {
                 </div>
                 <div className="bg-[#1A1A1A] rounded-xl p-3 border border-white/5 text-center">
                   <p className="text-xl font-bold text-[#D4A843]">{formatPrice(selectedClient.totalSpent)}</p>
-                  <p className="text-[10px] text-gray-500 uppercase tracking-wider mt-0.5">Total</p>
+                  <p className="text-[10px] text-gray-500 uppercase tracking-wider mt-0.5">Hors annulées</p>
                 </div>
                 <div className="bg-[#1A1A1A] rounded-xl p-3 border border-white/5 text-center">
-                  <p className="text-xl font-bold text-white">{formatPrice(Math.round(selectedClient.totalSpent / selectedClient.totalOrders))}</p>
+                  <p className="text-xl font-bold text-white">
+                    {selectedClient.commandesValables > 0
+                      ? formatPrice(Math.round(selectedClient.totalSpent / selectedClient.commandesValables))
+                      : '—'}
+                  </p>
                   <p className="text-[10px] text-gray-500 uppercase tracking-wider mt-0.5">Panier moy.</p>
                 </div>
               </div>
@@ -1947,7 +1964,7 @@ function ClientsView({ orders }: { orders: ShopOrder[] }) {
                   Historique des commandes ({selectedClient.orders.length})
                 </h3>
                 <div className="space-y-2.5">
-                  {selectedClient.orders
+                  {[...selectedClient.orders]
                     .sort((a, b) => {
                       const da = a.createdAt?.toDate?.() || new Date(0);
                       const db2 = b.createdAt?.toDate?.() || new Date(0);
@@ -1965,9 +1982,17 @@ function ClientsView({ orders }: { orders: ShopOrder[] }) {
                       const oLabel = ORDER_STATUS_LABELS[order.status] || order.status;
                       const itemCount = order.items?.reduce((s, i) => s + i.quantity, 0) || 0;
                       return (
-                        <div
+                        <button
+                          type="button"
                           key={order.id}
-                          className="bg-[#1A1A1A] rounded-xl p-4 border border-white/5"
+                          disabled={!onOuvrirCommande || !order.id}
+                          onClick={() => {
+                            if (!onOuvrirCommande || !order.id) return;
+                            setSelectedClient(null);
+                            onOuvrirCommande(order.id);
+                          }}
+                          title="Ouvrir la commande"
+                          className="block w-full text-left bg-[#1A1A1A] rounded-xl p-4 border border-white/5 enabled:hover:border-white/20 transition-colors"
                         >
                           <div className="flex items-center justify-between mb-2">
                             <div className="flex items-center gap-2">
@@ -1995,7 +2020,7 @@ function ClientsView({ orders }: { orders: ShopOrder[] }) {
                                   <span className="text-gray-500 truncate max-w-[200px]">
                                     {item.quantity}× {item.productName}
                                   </span>
-                                  <span className="text-gray-400">{formatPrice(item.price * item.quantity)}</span>
+                                  <span className="text-gray-400">{formatPrice(totalLigne(item))}</span>
                                 </div>
                               ))}
                               {order.items.length > 3 && (
@@ -2005,7 +2030,7 @@ function ClientsView({ orders }: { orders: ShopOrder[] }) {
                               )}
                             </div>
                           )}
-                        </div>
+                        </button>
                       );
                     })}
                 </div>
@@ -4699,10 +4724,6 @@ function PublishButton() {
 export default function AdminShopPage() {
   const [user, setUser] = useState<User | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
-  const [orders, setOrders] = useState<ShopOrder[]>([]);
-  const [loadingOrders, setLoadingOrders] = useState(false);
-  const [activeNav, setActiveNav] = useState('dashboard');
-  const [lastRefreshed, setLastRefreshed] = useState<Date | null>(null);
 
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, (u) => {
@@ -4711,26 +4732,6 @@ export default function AdminShopPage() {
     });
     return () => unsub();
   }, []);
-
-  // Real-time listener for orders — new orders appear automatically
-  useEffect(() => {
-    if (!user || user.email !== ADMIN_EMAIL) return;
-    setLoadingOrders(true);
-    const q = query(
-      collection(db, 'shop_orders'),
-      orderBy('createdAt', 'desc')
-    );
-    const unsub = onSnapshot(q, (snap) => {
-      const data = snap.docs.map((d) => ({ id: d.id, ...d.data() } as ShopOrder));
-      setOrders(data);
-      setLastRefreshed(new Date());
-      setLoadingOrders(false);
-    }, (err) => {
-      console.error('Error listening to orders:', err);
-      setLoadingOrders(false);
-    });
-    return () => unsub();
-  }, [user]);
 
   // Loading
   if (authLoading) {
@@ -4750,93 +4751,21 @@ export default function AdminShopPage() {
   // Wrong user
   if (user.email !== ADMIN_EMAIL) return <AccessDenied />;
 
-  // Render dashboard
-  const totalOrders = orders.length;
-  const pendingCount = orders.filter((o) => o.status === 'pending').length;
-
+  // Commandes (écoute en direct, alertes, fiche), tableau de bord, navigation et
+  // en-tête : la coque (./_coque). Ici ne restent que la connexion et les écrans
+  // Produits, Catégories, Clients et Catalogue.
   return (
-    <div className="min-h-screen bg-[#0F0F0F] flex">
-      {/* Sidebar */}
-      <Sidebar activeNav={activeNav} onNav={setActiveNav} />
-
-      {/* Main content */}
-      <div className="flex-1 flex flex-col min-w-0">
-        {/* Top bar */}
-        <header className="h-16 bg-[#0F0F0F] border-b border-white/5 flex items-center justify-between px-6 sticky top-0 z-10 flex-shrink-0">
-          <div>
-            <h1 className="text-white font-bold text-base capitalize">{activeNav}</h1>
-            {lastRefreshed && (
-              <p className="text-gray-600 text-xs">
-                Actualisé à{' '}
-                {lastRefreshed.toLocaleTimeString('fr-MA', {
-                  hour: '2-digit',
-                  minute: '2-digit',
-                })}
-              </p>
-            )}
-          </div>
-
-          <div className="flex items-center gap-3">
-            <PublishButton />
-            {/* Pending badge */}
-            {pendingCount > 0 && (
-              <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-amber-500/10 border border-amber-500/20">
-                <AlertCircle className="w-3.5 h-3.5 text-amber-400" />
-                <span className="text-amber-400 text-xs font-semibold">
-                  {pendingCount} en attente
-                </span>
-              </div>
-            )}
-
-            {/* Live indicator */}
-            <div className="flex items-center gap-2 px-3 py-2 rounded-lg border border-green-500/20 text-green-400 text-xs font-medium">
-              <span className="relative flex h-2 w-2">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
-                <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
-              </span>
-              En direct
-            </div>
-
-            {/* User info + logout */}
-            <div className="flex items-center gap-3 pl-3 border-l border-white/10">
-              <div className="w-8 h-8 rounded-lg bg-[#C8102E] flex items-center justify-center text-white text-xs font-bold">
-                {(user.displayName || user.email || 'A').charAt(0).toUpperCase()}
-              </div>
-              <div className="hidden sm:block">
-                <p className="text-white text-xs font-medium">{user.displayName || 'Admin'}</p>
-                <p className="text-gray-600 text-[10px]">{user.email}</p>
-              </div>
-              <button
-                onClick={() => signOut(auth)}
-                className="p-2 rounded-lg text-gray-500 hover:text-red-400 hover:bg-red-500/10 transition-all"
-                title="Se déconnecter"
-              >
-                <LogOut className="w-4 h-4" />
-              </button>
-            </div>
-          </div>
-        </header>
-
-        {/* Content area */}
-        <main className="flex-1 p-6 overflow-auto">
-          {loadingOrders && orders.length === 0 ? (
-            <div className="flex items-center justify-center min-h-[400px] gap-3">
-              <Loader2 className="w-8 h-8 animate-spin text-[#C8102E]" />
-              <p className="text-gray-500 text-sm">Chargement des commandes…</p>
-            </div>
-          ) : (
-            <>
-              {activeNav === 'dashboard' && <DashboardView orders={orders} />}
-              {activeNav === 'commandes' && <CommandesView orders={orders} />}
-              {activeNav === 'produits' && <ProduitsView />}
-              {activeNav === 'categories' && <CategoriesView />}
-              {activeNav === 'clients' && <ClientsView orders={orders} />}
-              {activeNav === 'catalogue' && <CatalogueAdminView />}
-            </>
-          )}
-        </main>
-      </div>
-    </div>
+    <CoqueAdmin
+      db={db}
+      user={user}
+      onDeconnexion={() => signOut(auth)}
+      ecrans={{
+        produits: () => <ProduitsView />,
+        categories: () => <CategoriesView />,
+        catalogue: () => <CatalogueAdminView />,
+        clients: ({ orders, onOuvrirCommande }) => <ClientsView orders={orders} onOuvrirCommande={onOuvrirCommande} />,
+      }}
+    />
   );
 }
 

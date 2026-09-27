@@ -367,14 +367,24 @@ service cloud.firestore {
 
     // shop_orders: anyone can create (guest checkout), owner & admin can read/update
     match /shop_orders/{orderId} {
-      // Anyone can create an order (guest + logged-in customers)
-      allow create: if true;
+      // Anyone can create an order (guest + logged-in customers), but only a NEW
+      // one: « en attente », sans rien de ce que seule l'équipe écrit (suivi,
+      // alerte), et avec la forme minimale que l'admin sait afficher.
+      allow create: if request.resource.data.status == 'pending'
+        && !request.resource.data.keys().hasAny(['trackingNotes', 'noteInterne', 'motifAnnulation',
+             'alerteEnvoyeeLe', 'alerteReserveeLe', 'alerteSautee'])
+        && request.resource.data.customerName is string
+        && request.resource.data.items is list
+        && request.resource.data.items.size() > 0
+        && request.resource.data.items.size() <= 200
+        && request.resource.data.total is number;
       // Single order lookup (confirmation page, tracking)
       allow get: if true;
-      // Listing: admin can list all, logged-in customer can list their own orders, or limited queries
+      // Listing: admin can list all, a logged-in customer lists their own orders.
+      // (« || request.query.limit <= 20 » retiré le 27/09/2026 : il laissait
+      // n'importe qui lister toutes les commandes, 20 par 20 — noms, téléphones, adresses.)
       allow list: if (isSignedIn() && request.auth.token.email == 'yahya.lebbar13@gmail.com')
-        || (isSignedIn() && request.auth.token.email != null && resource.data.customerEmail == request.auth.token.email)
-        || request.query.limit <= 20;
+        || (isSignedIn() && request.auth.token.email != null && resource.data.customerEmail == request.auth.token.email);
       // Admin can update (change order status etc.)
       allow update: if isSignedIn() && request.auth.token.email == 'yahya.lebbar13@gmail.com';
       // Admin can delete

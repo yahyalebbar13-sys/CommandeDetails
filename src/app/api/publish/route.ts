@@ -1,8 +1,14 @@
 import { NextResponse } from 'next/server';
+import { requireAdmin } from '@/lib/require-admin';
 
 export const dynamic = 'force-dynamic';
 
-export async function POST() {
+// Relance le déploiement Vercel (donc la mise en ligne du catalogue) : réservé à
+// l'administrateur. Seul appelant : le bouton « Publier » de /admin-shop.
+export async function POST(req: Request) {
+  const refus = await requireAdmin(req);
+  if (refus) return refus;
+
   try {
     const deployHookUrl = process.env.VERCEL_DEPLOY_HOOK_URL;
     
