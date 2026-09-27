@@ -113,7 +113,7 @@ export default function ExportBonCommande({ article, supplierProfile }: ExportBo
     doc.text("31 Rue 65, Lot. Al Hamd Ain-Chock", MX + 4, y + 17);
     doc.text("Casablanca, Morocco", MX + 4, y + 21.5);
     doc.text("Tel: +212 6 61 10 15 60", MX + 4, y + 26);
-    doc.text("Contact.lebtex@gmail.com", MX + 4, y + 30);
+    doc.text("lebtexsarlau@gmail.com", MX + 4, y + 30);
 
     // TO — Supplier
     const toX = MX + colW + 6;
@@ -474,7 +474,7 @@ export default function ExportBonCommande({ article, supplierProfile }: ExportBo
       doc.setFont("helvetica", "normal");
       doc.setTextColor(...MUTED);
       doc.text("LEBTEX TEXTILE IMPORT  |  31 Rue 65, Lot. Al Hamd Ain-Chock, Casablanca, Morocco", W / 2, H - 14.5, { align: "center" });
-      doc.text("Tel: +212 6 61 10 15 60  |  Email: Contact.lebtex@gmail.com  |  Tax ID: 34011181  |  ICE: 003823212000094", W / 2, H - 11, { align: "center" });
+      doc.text("Tel: +212 6 61 10 15 60  |  Email: lebtexsarlau@gmail.com  |  Tax ID: 34011181  |  ICE: 003823212000094", W / 2, H - 11, { align: "center" });
 
       doc.setFillColor(...NAVY);
       doc.rect(0, H - 8, W, 8, "F");

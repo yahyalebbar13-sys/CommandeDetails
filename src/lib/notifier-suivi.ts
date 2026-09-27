@@ -43,7 +43,7 @@ async function envoyerTelegram(texte: string): Promise<void> {
 }
 
 async function envoyerEmail(objet: string, html: string): Promise<void> {
-  const gmailUser = process.env.GMAIL_USER || 'yahya.lebbar13@gmail.com';
+  const gmailUser = process.env.GMAIL_USER || 'lebtexsarlau@gmail.com';
   const appPass = (process.env.GMAIL_APP_PASSWORD || '').replace(/\s/g, '');
   if (!appPass) return;
 

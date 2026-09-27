@@ -7,11 +7,12 @@
 //
 // La note interne, le motif d'annulation et « qui a fait quoi » ne sont pas dans
 // la commande (lisible par le client) : la fiche les lit à part (actions.lireInterne).
+// Les confirmations envoyées par e-mail au client aussi (actions.envoyerEmailConfirmation).
 
 import { useCallback, useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react';
 import {
   AlertTriangle, ArrowLeft, Check, ChevronDown, ClipboardCopy, FileDown, History, Loader2,
-  Mail, MapPin, MessageCircle, Package, Phone, ReceiptText, RefreshCw, StickyNote, Truck, User, X,
+  Mail, MapPin, MessageCircle, Package, Phone, ReceiptText, RefreshCw, Send, StickyNote, Truck, User, X,
 } from 'lucide-react';
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger,
@@ -25,8 +26,11 @@ import {
   lienWhatsAppClient, lignesCollentAuSousTotal, lignesSansPrix, messageConfirmation, messageStatut, msDe,
   nombreArticles, prixUnitaireLigne, STATUTS_SENSIBLES, telephonesCommande, telLisible, totalLigne,
 } from '@/lib/commandes-boutique';
+import { emailDuClient } from '@/lib/alerte-commande-boutique';
+import { EMAIL_LEBTEX, statutPermetConfirmation } from '@/lib/email-confirmation-client';
 import type { ActionsCommandes, InfosInternes } from './actions-commandes';
 import { BoiteAnnulation, BoiteStatutSensible } from './boites-confirmation';
+import { BoiteEmailConfirmation, libelleEmailClient, type ResultatEnvoi } from './boite-email-confirmation';
 import {
   BadgeStatut, BOUTON_APPEL, BOUTON_SECONDAIRE, BOUTON_WHATSAPP, copierTexte, ImageArticle,
 } from './elements';
@@ -49,6 +53,18 @@ const ANNULABLE: OrderStatus[] = ['pending', 'confirmed', 'processing', 'shipped
  */
 const PAUSE_MIN_MS = 1000;
 const PAUSE_MAX_MS = 6000;
+/** La ligne « e-mail envoyé » reste mise en évidence ce temps-là après un envoi réussi. */
+const EVIDENCE_ENVOI_MS = 5000;
+
+/** Un e-mail parti chez le client, tel que la fiche l'affiche. */
+interface EnvoiAffiche {
+  envoyeA: string;
+  le: string;
+  /** Adresse de l'administrateur, 'automatique', ou '' (pas encore relu). */
+  auteur: string;
+  /** Accusé de réception (commande en attente) plutôt que confirmation. */
+  accuse: boolean;
+}
 
 // ─── Petits morceaux ──────────────────────────────────────────────────────────
 
@@ -218,6 +234,77 @@ export function FicheCommande({
   const messageDuMoment = messageWhatsAppDuMoment(o, maintenant);
   const historique = useMemo(() => historiqueClient(o, orders), [o, orders]);
   const [tousLesPrecedents, setTousLesPrecedents] = useState(false);
+
+  // ─── E-mail au client (accusé de réception, puis confirmation) ─────────────
+  const [boiteEmailOuverte, setBoiteEmailOuverte] = useState(false);
+  /** Envoyé d'ici : affiché tout de suite, sans attendre la relecture du serveur. */
+  const [envoiLocal, setEnvoiLocal] = useState<EnvoiAffiche | null>(null);
+  const [envoiEnEvidence, setEnvoiEnEvidence] = useState(false);
+  useEffect(() => {
+    if (!envoiEnEvidence) return;
+    const t = window.setTimeout(() => setEnvoiEnEvidence(false), EVIDENCE_ENVOI_MS);
+    return () => window.clearTimeout(t);
+  }, [envoiEnEvidence]);
+  const envoyerEmail = actions.envoyerEmailConfirmation?.bind(actions);
+  // Le bouton : une adresse sans surprise, une commande pas encore livrée ni annulée, et l'action disponible.
+  const peutEnvoyerEmail = !!email && !!emailDuClient(o) && statutPermetConfirmation(o.status) && !!envoyerEmail;
+  // Confirmations envoyées d'ici, et accusé de réception automatique envoyé à la commande.
+  const emailsEnvoyes: EnvoiAffiche[] = (Array.isArray(interne?.emailsClient) ? interne!.emailsClient : [])
+    .filter(e => (e?.type === 'confirmation' || e?.type === 'reception') && !Number.isNaN(Date.parse(e.le)))
+    .map(e => ({ envoyeA: e.a, le: e.le, auteur: e.auteur || '', accuse: e.type === 'reception' || e.statut === 'pending' }));
+  if (envoiLocal && !emailsEnvoyes.some(e => Date.parse(e.le) === Date.parse(envoiLocal.le))) {
+    emailsEnvoyes.push(envoiLocal);
+  }
+  const dernierEnvoi = emailsEnvoyes.reduce<EnvoiAffiche | null>(
+    (d, e) => (!d || Date.parse(e.le) > Date.parse(d.le) ? e : d), null,
+  );
+  // « Renvoyer » seulement si un e-mail du même genre est déjà parti (un accusé n'est pas une confirmation).
+  const dejaEnvoyeMemeGenre = emailsEnvoyes.some(e => e.accuse === (o.status === 'pending'));
+  // Tant que la trace n'est pas lue, on ne sait pas si un e-mail est déjà parti.
+  const traceEmailsLue = etatInterne === 'pret';
+  /** « aujourd'hui à 14:05 », « hier à 09:12 », « le 25/09/2026 à 10:00 ». */
+  const quandEnvoye = (le: string) => {
+    const q = dateHeure(le, maintenant);
+    return /^\d/.test(q) ? `le ${q}` : q;
+  };
+  const texteDernierEnvoi = (d: EnvoiAffiche) => {
+    const auto = d.auteur === 'automatique';
+    return `${d.accuse ? 'Accusé de réception envoyé' : 'Confirmation envoyée'}${auto ? ' automatiquement' : ''} par e-mail `
+      + `${quandEnvoye(d.le)}${!auto && d.auteur ? ` par ${d.auteur}` : ''}`
+      + `${d.envoyeA && d.envoyeA !== email ? ` à ${d.envoyeA}` : ''}`
+      + `${emailsEnvoyes.length > 1 ? ` (${emailsEnvoyes.length} e-mails envoyés)` : ''}`;
+  };
+
+  function emailEnvoye(r: ResultatEnvoi) {
+    const accuse = (r.statut ?? oRef.current.status) === 'pending';
+    if (!monte.current) {
+      // Fiche déjà fermée : le message à l'écran est le seul moyen de le dire.
+      toast({
+        title: `E-mail envoyé à ${r.envoyeA}`,
+        description: `${accuse ? 'Accusé de réception' : 'Confirmation'} de la commande ${oRef.current.orderNumber}.`,
+        className: 'border-white/15 bg-[#1A1A1A] text-gray-100',
+      });
+      return;
+    }
+    // Fiche ouverte : la ligne verte suffit. Pas de message à l'écran, qui
+    // effacerait l'avis « Nouvelle commande » (un seul message à la fois).
+    setEnvoiLocal({ envoyeA: r.envoyeA, le: r.le, auteur: '', accuse });
+    setEnvoiEnEvidence(true);
+    setBoiteEmailOuverte(false);
+    // Relit la trace notée côté serveur (qui l'a envoyé, et les envois d'autres appareils).
+    void chargerInterne();
+  }
+
+  async function envoyerDepuisLaBoite(forcer: boolean): Promise<ResultatEnvoi> {
+    if (!envoyerEmail) throw new Error('Envoi d’e-mails indisponible.');
+    try {
+      return await envoyerEmail(oRef.current, forcer ? { forcer: true } : undefined);
+    } catch (e) {
+      // Refusé, ou peut-être parti : la trace dit si un e-mail est noté entre-temps.
+      if (monte.current) void chargerInterne();
+      throw e;
+    }
+  }
 
   // ─── Note interne ───────────────────────────────────────────────────────────
   const noteServeur = interne?.noteInterne ?? '';
@@ -518,6 +605,47 @@ export function FicheCommande({
                 <span>{o.customerEmail.trim()} <span className="text-xs text-gray-400">(adresse e-mail douteuse)</span></span>
               </p>
             ) : null}
+            {email && (peutEnvoyerEmail || dernierEnvoi) && (
+              <div className="space-y-2" aria-live="polite">
+                {dernierEnvoi && (
+                  <p
+                    className={cn(
+                      'flex items-start gap-2 rounded-lg text-sm text-emerald-300 transition-colors duration-700',
+                      envoiEnEvidence && '-mx-2 bg-emerald-500/15 px-2 py-1.5 text-emerald-200',
+                    )}
+                  >
+                    <Check className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
+                    <span className="min-w-0 break-words">{texteDernierEnvoi(dernierEnvoi)}</span>
+                  </p>
+                )}
+                {peutEnvoyerEmail && (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => setBoiteEmailOuverte(true)}
+                      // Le temps de lire la trace (souvent moins d'une seconde) : sinon « Envoyer » alors qu'un e-mail est peut-être déjà parti.
+                      disabled={etatInterne === 'chargement'}
+                      className={cn(BOUTON_SECONDAIRE, 'w-full sm:w-auto')}
+                    >
+                      {etatInterne === 'chargement' ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <Send className="h-4 w-4" aria-hidden />}
+                      {libelleEmailClient(o.status, dejaEnvoyeMemeGenre)}
+                    </button>
+                    {etatInterne === 'chargement' && (
+                      <p className="text-sm text-gray-400">Vérification des e-mails déjà envoyés…</p>
+                    )}
+                    {!traceEmailsLue && etatInterne !== 'chargement' && (
+                      <p className="flex items-start gap-2 text-sm text-amber-200">
+                        <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
+                        <span>
+                          Impossible de vérifier si un e-mail est déjà parti pour cette commande. Avant d’envoyer, regardez
+                          dans les « Messages envoyés » de {EMAIL_LEBTEX}.
+                        </span>
+                      </p>
+                    )}
+                  </>
+                )}
+              </div>
+            )}
           </div>
 
           {o.status === 'pending' && telephones.length > 0 && (
@@ -782,6 +910,19 @@ export function FicheCommande({
         onFermer={() => setAConfirmer(null)}
         onConfirmer={s => { setAConfirmer(null); void changer(s); }}
       />
+      {envoyerEmail && email && (
+        <BoiteEmailConfirmation
+          commande={o}
+          emailClient={email}
+          ouverte={boiteEmailOuverte}
+          dejaEnvoyee={dejaEnvoyeMemeGenre}
+          maintenant={maintenant}
+          envoyer={envoyerDepuisLaBoite}
+          // Après un refus ou un « peut-être parti », la fiche relit la trace des envois.
+          onFermer={() => { setBoiteEmailOuverte(false); void chargerInterne(); }}
+          onEnvoye={emailEnvoye}
+        />
+      )}
     </article>
   );
 }

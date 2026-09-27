@@ -756,7 +756,7 @@ export async function exportCoutRevientSimplePDF(
     doc.setFont('helvetica', 'normal');
     doc.setTextColor(...TEXT_MUTED);
     doc.text('LEBTEX TEXTILE IMPORT - 31 Rue 65 Lotissement Al Hamd Ain-Chock-Casablanca-Maroc', pageW / 2, pageH - 22, { align: 'center' });
-    doc.text('Tel: +212 522 25 77 78 / +212 522 31 62 88 - Email: Contact.lebtex@gmail.com', pageW / 2, pageH - 18, { align: 'center' });
+    doc.text('Tel: +212 522 25 77 78 / +212 522 31 62 88 - Email: lebtexsarlau@gmail.com', pageW / 2, pageH - 18, { align: 'center' });
     doc.text('Patente: 34011181 - R.C: 704617 - I.F: 68814237 - ICE: 003823212000094', pageW / 2, pageH - 14, { align: 'center' });
 
     doc.setFillColor(...NAVY);
@@ -951,7 +951,7 @@ export async function exportCoutVenteSimplePDF(
     doc.setFont('helvetica', 'normal');
     doc.setTextColor(...TEXT_MUTED);
     doc.text('LEBTEX TEXTILE IMPORT - 31 Rue 65 Lotissement Al Hamd Ain-Chock-Casablanca-Maroc', pageW / 2, pageH - 22, { align: 'center' });
-    doc.text('Tel: +212 522 25 77 78 / +212 522 31 62 88 - Email: Contact.lebtex@gmail.com', pageW / 2, pageH - 18, { align: 'center' });
+    doc.text('Tel: +212 522 25 77 78 / +212 522 31 62 88 - Email: lebtexsarlau@gmail.com', pageW / 2, pageH - 18, { align: 'center' });
     doc.text('Patente: 34011181 - R.C: 704617 - I.F: 68814237 - ICE: 003823212000094', pageW / 2, pageH - 14, { align: 'center' });
 
     doc.setFillColor(...NAVY);
@@ -1165,7 +1165,7 @@ export async function exportDossierArticlesPDF(
     doc.setFont('helvetica', 'normal');
     doc.setTextColor(...TEXT_MUTED);
     doc.text('LEBTEX TEXTILE IMPORT - 31 Rue 65 Lotissement Al Hamd Ain-Chock-Casablanca-Maroc', pageW / 2, pageH - 22, { align: 'center' });
-    doc.text('Tel: +212 522 25 77 78 / +212 522 31 62 88 - Email: Contact.lebtex@gmail.com', pageW / 2, pageH - 18, { align: 'center' });
+    doc.text('Tel: +212 522 25 77 78 / +212 522 31 62 88 - Email: lebtexsarlau@gmail.com', pageW / 2, pageH - 18, { align: 'center' });
     doc.text('Patente: 34011181 - R.C: 704617 - I.F: 68814237 - ICE: 003823212000094', pageW / 2, pageH - 14, { align: 'center' });
 
     doc.setFillColor(...NAVY);
@@ -1557,7 +1557,7 @@ export async function exportDPPDF(
     doc.setFont('helvetica', 'normal');
     doc.setTextColor(...TEXT_MUTED);
     doc.text('LEBTEX TEXTILE IMPORT - 31 Rue 65 Lotissement Al Hamd Ain-Chock-Casablanca-Maroc', pageW / 2, pageH - 24, { align: 'center' });
-    doc.text('Tel: +212 522 25 77 78 / +212 522 31 62 88 - Email: Contact.lebtex@gmail.com', pageW / 2, pageH - 20, { align: 'center' });
+    doc.text('Tel: +212 522 25 77 78 / +212 522 31 62 88 - Email: lebtexsarlau@gmail.com', pageW / 2, pageH - 20, { align: 'center' });
     doc.text('Patente: 34011181 - R.C: 704617 - I.F: 68814237 - ICE: 003823212000094', pageW / 2, pageH - 16, { align: 'center' });
 
     doc.setFillColor(...NAVY);
@@ -2054,7 +2054,7 @@ export async function exportClientDossierPDF(
     doc.setFont("helvetica", "normal");
     doc.setTextColor(...TEXT_MUTED);
     doc.text("LEBTEX TEXTILE IMPORT - 31 Rue 65 Lotissement Al Hamd Ain-Chock-Casablanca-Maroc", pageW / 2, pageH - 24, { align: "center" });
-    doc.text("Tel : 05 22 25 77 78 / 05 22 31 62 88 - Fax : 05 22 58 03 46 - Portable : 06 61 10 15 60 - Email : Contact.lebtex@gmail.com", pageW / 2, pageH - 20, { align: "center" });
+    doc.text("Tel : 05 22 25 77 78 / 05 22 31 62 88 - Fax : 05 22 58 03 46 - Portable : 06 61 10 15 60 - Email : lebtexsarlau@gmail.com", pageW / 2, pageH - 20, { align: "center" });
     doc.text("Patente : 34011181 - R.C : 704617 - I.F : 68814237 - ICE : 003823212000094", pageW / 2, pageH - 16, { align: "center" });
 
     doc.setFillColor(...NAVY);
@@ -2154,7 +2154,7 @@ export async function exportDevisClientPIPDF(params: {
   doc.text('31 Rue 65, Lot. Al Hamd Ain-Chock', MX + 4, y + 17);
   doc.text('Casablanca, Maroc', MX + 4, y + 21.5);
   doc.text('Tél : +212 6 61 10 15 60', MX + 4, y + 26);
-  doc.text('Contact.lebtex@gmail.com', MX + 4, y + 30);
+  doc.text('lebtexsarlau@gmail.com', MX + 4, y + 30);
 
   // TO — Client
   const toX = MX + colW + 6;
@@ -2492,7 +2492,7 @@ export async function exportDevisClientPIPDF(params: {
     doc.line(MX, H - 18, W - MX, H - 18);
     doc.setFontSize(6.3); doc.setFont('helvetica', 'normal'); doc.setTextColor(...MUTED);
     doc.text('LEBTEX TEXTILE IMPORT  |  31 Rue 65, Lot. Al Hamd Ain-Chock, Casablanca, Maroc', W / 2, H - 14.5, { align: 'center' });
-    doc.text('Tél : +212 6 61 10 15 60  |  Email : Contact.lebtex@gmail.com  |  Patente : 34011181  |  ICE : 003823212000094', W / 2, H - 11, { align: 'center' });
+    doc.text('Tél : +212 6 61 10 15 60  |  Email : lebtexsarlau@gmail.com  |  Patente : 34011181  |  ICE : 003823212000094', W / 2, H - 11, { align: 'center' });
     doc.setFillColor(...NAVY); doc.rect(0, H - 8, W, 8, 'F');
     doc.setFillColor(...GOLD); doc.rect(0, H - 8, 4, 8, 'F');
     doc.setFontSize(6.5); doc.setFont('helvetica', 'normal'); doc.setTextColor(148, 163, 184);
@@ -2581,7 +2581,7 @@ export async function exportBesoinsPDF(
       doc.setFont('helvetica', 'normal');
       doc.setTextColor(...MUTED);
       doc.text('LEBTEX TEXTILE IMPORT  |  31 Rue 65, Lot. Al Hamd Ain-Chock, Casablanca, Maroc', W / 2, H - 14.5, { align: 'center' });
-      doc.text('Tél : +212 5 22 25 77 78  |  Email : Contact.lebtex@gmail.com', W / 2, H - 11, { align: 'center' });
+      doc.text('Tél : +212 5 22 25 77 78  |  Email : lebtexsarlau@gmail.com', W / 2, H - 11, { align: 'center' });
       doc.setFillColor(...NAVY); doc.rect(0, H - 8, W, 8, 'F');
       doc.setFillColor(...GOLD); doc.rect(0, H - 8, 4, 8, 'F');
       doc.setFontSize(6.5); doc.setTextColor(148, 163, 184);
@@ -3225,7 +3225,7 @@ export async function exportBaseOrderPDF(order: any) {
   doc.text("31 Rue 65, Lot. Al Hamd Ain-Chock", MX + 4, y + 17);
   doc.text("Casablanca, Morocco", MX + 4, y + 21.5);
   doc.text("Tel: +212 6 61 10 15 60", MX + 4, y + 26);
-  doc.text("Contact.lebtex@gmail.com", MX + 4, y + 30);
+  doc.text("lebtexsarlau@gmail.com", MX + 4, y + 30);
 
   // TO — Supplier
   const toX = MX + colW + 6;

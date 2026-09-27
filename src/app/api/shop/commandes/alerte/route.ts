@@ -18,13 +18,21 @@
 // L'e-mail part APRÈS la réponse (after) : un Gmail lent ne retarde jamais le
 // client. `alerteEnvoyeeLe` n'est posé qu'une fois l'e-mail vraiment parti.
 // La réponse est la même dans tous les cas acceptés : { ok: true }.
+//
+// Le client qui a laissé son e-mail reçoit en même temps un accusé de réception
+// (« Nous avons bien reçu votre commande »), soumis aux mêmes garde-fous : un
+// seul par commande, commande toute récente, même plafond. Son adresse vient de
+// la commande enregistrée, jamais de la requête. Il est noté dans
+// shop_orders_interne/{id}.emailsClient, que la fiche de l'admin affiche.
 
 import { NextResponse, after } from 'next/server';
 import nodemailer from 'nodemailer';
-import { FieldValue } from 'firebase-admin/firestore';
+import { FieldValue, Timestamp } from 'firebase-admin/firestore';
 import { dbAdmin } from '@/lib/firebase-admin-serveur';
 import { dateDe } from '@/lib/commandes-boutique';
 import { emailAlertesEnPause, emailDuClient, emailNouvelleCommande } from '@/lib/alerte-commande-boutique';
+import { emailConfirmationClient } from '@/lib/email-confirmation-client';
+import { normaliserCommande } from '@/app/admin-shop/_commandes/normaliser-commande';
 import type { ShopOrder } from '@/lib/shop-types';
 
 export const runtime = 'nodejs';
@@ -145,11 +153,23 @@ export async function POST(req: Request) {
   }
 
   const commande = issue.commande;
+  const emailClient = emailDuClient(commande);
   lancerApresReponse(async () => {
-    await envoyerEmail(emailNouvelleCommande(commande, `${SITE}/admin-shop?commande=${commande.id}`), emailDuClient(commande));
+    await envoyerEmail(emailNouvelleCommande(commande, `${SITE}/admin-shop?commande=${commande.id}`), { replyTo: emailClient });
     // Seulement maintenant : l'e-mail est vraiment parti.
     await dbAdmin().collection('shop_orders').doc(commande.id).update({ alerteEnvoyeeLe: FieldValue.serverTimestamp() });
   }, `commande ${id}`);
+
+  // Accusé de réception au client : envoi à part, l'échec de l'un n'empêche pas l'autre.
+  if (emailClient) {
+    lancerApresReponse(async () => {
+      // Même commande remise d'aplomb que l'aperçu de la fiche : même e-mail.
+      await envoyerEmail(emailConfirmationClient(normaliserCommande(commande.id, commande)), { a: emailClient, expediteur: 'LEBTEX' });
+      await dbAdmin().collection('shop_orders_interne').doc(commande.id).set({
+        emailsClient: FieldValue.arrayUnion({ type: 'reception', a: emailClient, le: Timestamp.now(), auteur: 'automatique' }),
+      }, { merge: true });
+    }, `accusé de réception ${id}`);
+  }
   return ok();
 }
 
@@ -164,11 +184,18 @@ function lancerApresReponse(tache: () => Promise<void>, quoi: string) {
   }
 }
 
-async function envoyerEmail(e: { sujet: string; html: string; texte: string }, replyTo?: string | null) {
-  const gmailUser = (process.env.GMAIL_USER || '').trim();
+/**
+ * Sans `a` : au commerçant (ALERTE_COMMANDES_EMAIL, sinon la boîte du site).
+ * Avec `a` : au client ; ses réponses reviennent alors à la boîte du site.
+ */
+async function envoyerEmail(
+  e: { sujet: string; html: string; texte: string },
+  { a, replyTo, expediteur = 'LEBTEX — Boutique' }: { a?: string; replyTo?: string | null; expediteur?: string } = {},
+) {
+  const gmailUser = (process.env.GMAIL_USER || 'lebtexsarlau@gmail.com').trim();
   const appPass = (process.env.GMAIL_APP_PASSWORD || '').replace(/\s/g, '');
-  if (!gmailUser || !appPass) throw new Error('GMAIL_USER ou GMAIL_APP_PASSWORD absent');
-  const destinataire = (process.env.ALERTE_COMMANDES_EMAIL || '').trim() || gmailUser;
+  if (!appPass) throw new Error('GMAIL_APP_PASSWORD absent');
+  const destinataire = a || (process.env.ALERTE_COMMANDES_EMAIL || '').trim() || gmailUser;
 
   const transporter = nodemailer.createTransport({
     host: 'smtp.gmail.com', port: 587, secure: false,
@@ -177,7 +204,7 @@ async function envoyerEmail(e: { sujet: string; html: string; texte: string }, r
     connectionTimeout: 5000, greetingTimeout: 5000, socketTimeout: 10000,
   });
   await transporter.sendMail({
-    from: `"LEBTEX — Boutique" <${gmailUser}>`,
+    from: `"${expediteur}" <${gmailUser}>`,
     to: destinataire,
     ...(replyTo ? { replyTo } : {}),
     subject: e.sujet,

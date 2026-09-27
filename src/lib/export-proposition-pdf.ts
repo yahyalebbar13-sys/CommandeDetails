@@ -206,7 +206,7 @@ export async function exportPropositionFournisseurPDF(
     doc.setFont('helvetica', 'normal');
     doc.setTextColor(...TEXT_MUTED);
     doc.text('LEBTEX TEXTILE IMPORT — 31 Rue 65 Lotissement Al Hamd Ain-Chock, Casablanca, Morocco', pageW / 2, pageH - 24, { align: 'center' });
-    doc.text('Tel: +212 522 25 77 78  /  +212 522 31 62 88  —  Email: Contact.lebtex@gmail.com', pageW / 2, pageH - 19, { align: 'center' });
+    doc.text('Tel: +212 522 25 77 78  /  +212 522 31 62 88  —  Email: lebtexsarlau@gmail.com', pageW / 2, pageH - 19, { align: 'center' });
     doc.text('Patente: 34011181  —  R.C: 704617  —  I.F: 68814237  —  ICE: 003823212000094', pageW / 2, pageH - 14, { align: 'center' });
     doc.setFillColor(...NAVY);
     doc.rect(0, pageH - 10, pageW, 10, 'F');
@@ -423,7 +423,7 @@ export async function exportPriceProposalPDF(
     doc.setFontSize(8);
     doc.setFont('helvetica', 'normal');
     doc.setTextColor(...TEXT_MUTED);
-    doc.text('Please complete and return this document to: Contact.lebtex@gmail.com', mX, sigY);
+    doc.text('Please complete and return this document to: lebtexsarlau@gmail.com', mX, sigY);
 
     const sigLineY = sigY + 18;
     doc.setFontSize(7.5);
@@ -445,7 +445,7 @@ export async function exportPriceProposalPDF(
     doc.setFont('helvetica', 'normal');
     doc.setTextColor(...TEXT_MUTED);
     doc.text('LEBTEX TEXTILE IMPORT — 31 Rue 65 Lotissement Al Hamd Ain-Chock, Casablanca, Morocco', pageW / 2, pageH - 24, { align: 'center' });
-    doc.text('Tel: +212 522 25 77 78  /  +212 522 31 62 88  —  Email: Contact.lebtex@gmail.com', pageW / 2, pageH - 19, { align: 'center' });
+    doc.text('Tel: +212 522 25 77 78  /  +212 522 31 62 88  —  Email: lebtexsarlau@gmail.com', pageW / 2, pageH - 19, { align: 'center' });
     doc.text('Patente: 34011181  —  R.C: 704617  —  I.F: 68814237  —  ICE: 003823212000094', pageW / 2, pageH - 14, { align: 'center' });
     doc.setFillColor(...NAVY);
     doc.rect(0, pageH - 10, pageW, 10, 'F');

@@ -112,7 +112,7 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ success: true, sent: false, reason: 'Aucune alerte à envoyer.' });
     }
 
-    const gmailUser = process.env.GMAIL_USER || 'yahya.lebbar13@gmail.com';
+    const gmailUser = process.env.GMAIL_USER || 'lebtexsarlau@gmail.com';
     const appPass = (process.env.GMAIL_APP_PASSWORD || '').replace(/\s/g, '');
     if (!appPass) {
       return NextResponse.json({ error: 'GMAIL_APP_PASSWORD manquant' }, { status: 500 });

@@ -166,7 +166,7 @@ export function piedDeDocument(doc: jsPDF, mention: string): void {
     doc.setTextColor(...ESTOMPE);
     doc.text('LEBTEX TEXTILE IMPORT  |  31 Rue 65, Lot. Al Hamd Ain-Chock, Casablanca, Maroc',
       largeur / 2, hauteur - 14.5, { align: 'center' });
-    doc.text('Tél : +212 5 22 25 77 78  |  Email : Contact.lebtex@gmail.com',
+    doc.text('Tél : +212 5 22 25 77 78  |  Email : lebtexsarlau@gmail.com',
       largeur / 2, hauteur - 11, { align: 'center' });
 
     doc.setFillColor(...NAVY);

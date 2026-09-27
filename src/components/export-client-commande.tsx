@@ -96,7 +96,7 @@ export default function ExportClientCommande({ article }: ExportClientCommandePr
     doc.text("31 Rue 65, Lot. Al Hamd Ain-Chock", MX + 4, y + 17);
     doc.text("Casablanca, Maroc", MX + 4, y + 21.5);
     doc.text("Tél : +212 6 61 10 15 60", MX + 4, y + 26);
-    doc.text("Contact.lebtex@gmail.com", MX + 4, y + 30);
+    doc.text("lebtexsarlau@gmail.com", MX + 4, y + 30);
 
     // TO — Client (right)
     const toX = MX + colW + 6;
@@ -447,7 +447,7 @@ export default function ExportClientCommande({ article }: ExportClientCommandePr
       doc.setFont("helvetica", "normal");
       doc.setTextColor(...MUTED);
       doc.text("LEBTEX TEXTILE IMPORT  |  31 Rue 65, Lot. Al Hamd Ain-Chock, Casablanca, Maroc", W / 2, H - 14.5, { align: "center" });
-      doc.text("Tél : +212 6 61 10 15 60  |  Email : Contact.lebtex@gmail.com  |  Patente : 34011181  |  ICE : 003823212000094", W / 2, H - 11, { align: "center" });
+      doc.text("Tél : +212 6 61 10 15 60  |  Email : lebtexsarlau@gmail.com  |  Patente : 34011181  |  ICE : 003823212000094", W / 2, H - 11, { align: "center" });
 
       doc.setFillColor(...NAVY);
       doc.rect(0, H - 8, W, 8, "F");

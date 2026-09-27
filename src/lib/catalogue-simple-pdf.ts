@@ -159,7 +159,7 @@ export async function generateSimpleCataloguePDF(
   doc.setDrawColor(...C.silk); doc.setLineWidth(0.3);
   doc.line(ML + 30, PH - 32, PW - MR - 30, PH - 32);
   doc.setFont('helvetica','normal'); doc.setFontSize(7); doc.setTextColor(...C.gray);
-  doc.text('contact@lebtex.ma  ·  +212 760 998 347  ·  lebtex.ma', PW/2, PH - 25, { align:'center' });
+  doc.text('lebtexsarlau@gmail.com  ·  +212 760 998 347  ·  lebtex.ma', PW/2, PH - 25, { align:'center' });
 
   onProgress?.(5, 'Chargement images…');
 
@@ -428,7 +428,7 @@ export async function generateSimpleCataloguePDF(
 
   const contacts = [
     { lbl: 'Téléphone',  val: '+212 760 998 347' },
-    { lbl: 'Email',      val: 'contact@lebtex.ma' },
+    { lbl: 'Email',      val: 'lebtexsarlau@gmail.com' },
     { lbl: 'Magasin 1',  val: 'Boulevard Haïfa, Casablanca' },
     { lbl: 'Magasin 2',  val: 'Derb Omar, Casablanca' },
   ];
