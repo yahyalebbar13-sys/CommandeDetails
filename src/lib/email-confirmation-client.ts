@@ -12,7 +12,7 @@
 // est ouverte à tous) : chaque valeur est échappée avant d'entrer dans le HTML.
 
 import type { OrderStatus, ShopOrder } from './shop-types';
-import { formatPrice } from './shop-utils';
+import { formatPrice, getDeliveryDays } from './shop-utils';
 import {
   dateDe, dateHeure, detailsVariante, lignesCollentAuSousTotal, lignesSansPrix, prixUnitaireLigne, telLisible,
   telephonesCommande, totalLigne, varianteLisible, type LigneCommande,
@@ -73,9 +73,28 @@ const titreBloc = (t: string) =>
 const bloc = (contenu: string, fond = '#ffffff') =>
   `<tr><td style="background:${fond};padding:20px 24px;border-top:1px solid ${COULEUR.trait}">${contenu}</td></tr>`;
 
+// ─── Délai de livraison annoncé ──────────────────────────────────────────────
+// Le commerçant le choisit dans la boîte d'envoi (« 24-48h », « 2-3 jours ») ;
+// il arrive au serveur dans la requête : une ligne, courte, sans caractère de contrôle.
+
+const DELAI_MAX = 30;
+
+export function delaiLivraisonNettoye(v: unknown): string {
+  return typeof v === 'string' ? surUneLigne(v, DELAI_MAX) : '';
+}
+
+/** Le délai habituel pour la ville de livraison (barème de la boutique), à proposer par défaut. */
+export function delaiLivraisonParDefaut(o: Pick<ShopOrder, 'shippingAddress'>): string {
+  return getDeliveryDays(String(o.shippingAddress?.city ?? ''));
+}
+
 // ─── E-mail ───────────────────────────────────────────────────────────────────
 
-export function emailConfirmationClient(o: ShopOrder): { sujet: string; html: string; texte: string } {
+export function emailConfirmationClient(
+  o: ShopOrder,
+  options: { delaiLivraison?: string } = {},
+): { sujet: string; html: string; texte: string } {
+  const delai = delaiLivraisonNettoye(options.delaiLivraison);
   const moment = momentDe(o.status);
   const numero = String(o.orderNumber ?? '').trim();
   const nom = String(o.customerName || o.shippingAddress?.fullName || '').trim();
@@ -120,9 +139,13 @@ export function emailConfirmationClient(o: ShopOrder): { sujet: string; html: st
   const livraisonEtPaiement = moment === 'recue'
     ? [
       'Nous vous appelons d’abord pour confirmer la commande et l’adresse de livraison.',
+      ...(delai ? [`Une fois la commande confirmée, la livraison est prévue sous ${delai}.`] : []),
       'Ensuite, notre société de livraison vous appellera avant de passer. Le paiement se fait en espèces à la réception du colis.',
     ]
-    : ['Notre société de livraison vous appellera avant de passer. Le paiement se fait en espèces à la réception du colis.'];
+    : [
+      ...(delai ? [`La livraison est prévue sous ${delai}.`] : []),
+      'Notre société de livraison vous appellera avant de passer. Le paiement se fait en espèces à la réception du colis.',
+    ];
 
   const question = 'Pour toute question, répondez simplement à cet e-mail.';
   const signature = `L’équipe LEBTEX — ${SITE_LISIBLE} — ${EMAIL_LEBTEX}`;

@@ -67,9 +67,9 @@ export function getDeliveryFee(city: string): number {
 export function getDeliveryDays(city: string): string {
   const cityLower = city.toLowerCase().trim();
   if (cityLower.includes('casablanca') || cityLower.includes('casa')) return DELIVERY_ZONES.casablanca.days;
-  if (cityLower.includes('rabat') || cityLower.includes('salé')) return DELIVERY_ZONES.rabat.days;
+  if (cityLower.includes('rabat') || cityLower.includes('salé') || cityLower.includes('sale')) return DELIVERY_ZONES.rabat.days;
   if (cityLower.includes('marrakech')) return DELIVERY_ZONES.marrakech.days;
-  if (cityLower.includes('fès') || cityLower.includes('fes') || cityLower.includes('meknès')) return DELIVERY_ZONES.fes.days;
+  if (cityLower.includes('fès') || cityLower.includes('fes') || cityLower.includes('meknès') || cityLower.includes('meknes')) return DELIVERY_ZONES.fes.days;
   if (cityLower.includes('tanger')) return DELIVERY_ZONES.tanger.days;
   if (cityLower.includes('agadir')) return DELIVERY_ZONES.agadir.days;
   if (cityLower.includes('oujda')) return DELIVERY_ZONES.oujda.days;

@@ -69,7 +69,7 @@ export interface ActionsCommandes {
    * Refus « un e-mail est parti (ou part) il y a moins de 2 min » : ErreurConfirmationRecente ;
    * `forcer` renvoie quand même. `peutEtreFait` : l'e-mail est peut-être parti.
    */
-  envoyerEmailConfirmation?(o: ShopOrder, options?: { forcer?: boolean }): Promise<EmailEnvoye>;
+  envoyerEmailConfirmation?(o: ShopOrder, options?: { forcer?: boolean; delai?: string }): Promise<EmailEnvoye>;
 }
 
 /** Sans réponse du serveur au-delà, on le dit plutôt que de laisser un bouton tourner sans fin. */
@@ -197,7 +197,7 @@ export function actionsFirestore(_db: Firestore, _auteur: string): ActionsComman
       let reponse: { envoyeA?: unknown; le?: unknown; statut?: unknown } | null;
       try {
         reponse = await envoyer<{ envoyeA?: unknown; le?: unknown; statut?: unknown }>(
-          { id: idDe(o), action: 'email-confirmation', ...(options?.forcer ? { forcer: true } : {}) },
+          { id: idDe(o), action: 'email-confirmation', ...(options?.forcer ? { forcer: true } : {}), ...(options?.delai?.trim() ? { delai: options.delai.trim() } : {}) },
           DELAI_ENVOI_EMAIL_MS,
         );
       } catch (e) {

@@ -13,7 +13,7 @@ import { AlertTriangle, Info, Loader2, Send } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import type { ShopOrder } from '@/lib/shop-types';
 import { dateHeure } from '@/lib/commandes-boutique';
-import { EMAIL_LEBTEX, emailConfirmationClient } from '@/lib/email-confirmation-client';
+import { EMAIL_LEBTEX, delaiLivraisonParDefaut, emailConfirmationClient } from '@/lib/email-confirmation-client';
 import { ErreurConfirmationRecente, ErreurEnregistrement, type EmailEnvoye } from './actions-commandes';
 
 type Etat =
@@ -44,24 +44,35 @@ export function BoiteEmailConfirmation({
   /** Un e-mail du même genre (accusé ou confirmation) est déjà parti : on parle de « renvoyer ». */
   dejaEnvoyee: boolean;
   maintenant: number;
-  envoyer: (forcer: boolean) => Promise<ResultatEnvoi>;
+  envoyer: (options: { forcer: boolean; delai: string }) => Promise<ResultatEnvoi>;
   onFermer: () => void;
   onEnvoye: (r: ResultatEnvoi) => void;
 }) {
   const { toast } = useToast();
   const idMessage = useId();
   const [etat, setEtat] = useState<Etat>({ cas: 'repos' });
+  // Délai annoncé au client : celui du barème pour sa ville, modifiable (« 24-48h »…) ; vide = pas de délai dans l'e-mail.
+  const [delai, setDelai] = useState('');
+  const idDelai = useId();
   const verrou = useRef(false);
   const monte = useRef(true);
   useEffect(() => { monte.current = true; return () => { monte.current = false; }; }, []);
 
   useEffect(() => {
-    if (ouverte) setEtat({ cas: 'repos' });
+    if (ouverte) {
+      setEtat({ cas: 'repos' });
+      setDelai(delaiLivraisonParDefaut(commande));
+    }
+    // Pré-rempli à l'ouverture seulement : ce que tape le commerçant n'est pas écrasé par une mise à jour de la commande.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ouverte]);
 
   // Le texte exact qui partira : le serveur le reconstruit depuis la commande, remise
   // d'aplomb par le même normaliserCommande que celle affichée ici.
-  const apercu = useMemo(() => (ouverte ? emailConfirmationClient(commande) : null), [ouverte, commande]);
+  const apercu = useMemo(
+    () => (ouverte ? emailConfirmationClient(commande, { delaiLivraison: delai }) : null),
+    [ouverte, commande, delai],
+  );
   const enEnvoi = etat.cas === 'envoi';
 
   async function lancer(forcer: boolean) {
@@ -69,7 +80,7 @@ export function BoiteEmailConfirmation({
     verrou.current = true;
     setEtat({ cas: 'envoi' });
     try {
-      const r = await envoyer(forcer);
+      const r = await envoyer({ forcer, delai });
       // Même si la fiche s'est fermée entre-temps : le parent affiche le message de réussite.
       onEnvoye(r);
     } catch (e) {
@@ -134,6 +145,19 @@ export function BoiteEmailConfirmation({
                 <dt className="text-gray-400">Objet</dt>
                 <dd className="min-w-0 break-words text-gray-100" dir="auto">{apercu.sujet}</dd>
               </dl>
+
+              <label htmlFor={idDelai} className="mt-4 block text-sm font-semibold text-gray-200">Délai de livraison annoncé</label>
+              <input
+                id={idDelai}
+                type="text"
+                value={delai}
+                onChange={e => setDelai(e.target.value)}
+                maxLength={30}
+                disabled={enEnvoi}
+                placeholder="ex. 24-48h — laisser vide pour ne pas en parler"
+                className="mt-1.5 h-11 w-full rounded-xl border border-white/15 bg-[#141414] px-3 text-base text-gray-100 placeholder:text-gray-400 focus:border-white/40 focus:outline-none disabled:opacity-60 sm:text-sm"
+              />
+              <p className="mt-1 text-xs text-gray-400">L’e-mail dira « la livraison est prévue sous … ».</p>
 
               <p className="mt-4 text-sm font-semibold text-gray-200" id={idMessage}>Message</p>
               <pre

@@ -5,7 +5,7 @@
 //   npx tsx scripts/test-email-confirmation-client.ts --apercu <chemin.html>
 
 import { writeFileSync } from 'node:fs';
-import { EMAIL_LEBTEX, echecEnvoiGmail, emailConfirmationClient, statutPermetConfirmation } from '../src/lib/email-confirmation-client';
+import { EMAIL_LEBTEX, delaiLivraisonNettoye, delaiLivraisonParDefaut, echecEnvoiGmail, emailConfirmationClient, statutPermetConfirmation } from '../src/lib/email-confirmation-client';
 import type { OrderStatus, ShopOrder } from '../src/lib/shop-types';
 
 let pass = 0;
@@ -244,6 +244,26 @@ const autre = echecEnvoiGmail(erreurSmtp('EMESSAGE', 'Message failed: 552 5.3.4'
 check('autre refus : code cité, pas de mot de passe', !autre.incertain && autre.message.includes('EMESSAGE 552') && !/mot de passe/.test(autre.message), autre.message);
 const piegeCode = echecEnvoiGmail(erreurSmtp('<b>X</b>', 'x'));
 check('code nettoyé', !piegeCode.message.includes('<'), piegeCode.message);
+
+console.log('\n── Délai de livraison annoncé ──');
+{
+  const confirmee = emailConfirmationClient(commande({ status: 'processing' }), { delaiLivraison: '24-48h' });
+  check('confirmée : délai dans le texte', confirmee.texte.includes('La livraison est prévue sous 24-48h.'), confirmee.texte);
+  check('confirmée : délai dans le HTML', confirmee.html.includes('La livraison est prévue sous 24-48h.'));
+  const recue = emailConfirmationClient(commande({ status: 'pending' }), { delaiLivraison: '24-48h' });
+  check('en attente : délai après confirmation', recue.texte.includes('Une fois la commande confirmée, la livraison est prévue sous 24-48h.'));
+  const sans = emailConfirmationClient(commande({ status: 'processing' }));
+  check('sans délai : rien d’annoncé', !sans.texte.includes('prévue sous'));
+  const vide = emailConfirmationClient(commande({ status: 'processing' }), { delaiLivraison: '   ' });
+  check('délai vide : rien d’annoncé', !vide.texte.includes('prévue sous'));
+  check('délai nettoyé : une seule ligne', !delaiLivraisonNettoye('24h\nBcc: x@y.z').includes('\n'));
+  check('délai borné à 30 caractères', delaiLivraisonNettoye('x'.repeat(80)).length <= 30);
+  check('délai non texte ignoré', delaiLivraisonNettoye(42) === '' && delaiLivraisonNettoye(undefined) === '');
+  const piege = emailConfirmationClient(commande({ status: 'processing' }), { delaiLivraison: '<b>2 j</b>' });
+  check('délai échappé dans le HTML', !piege.html.includes('<b>2 j</b>') && piege.html.includes('&lt;b&gt;'));
+  check('délai par défaut selon la ville (Rabat)', delaiLivraisonParDefaut({ shippingAddress: { city: 'Rabat' } } as any) === '1-2 jours', delaiLivraisonParDefaut({ shippingAddress: { city: 'Rabat' } } as any));
+  check('délai par défaut Casablanca', delaiLivraisonParDefaut({ shippingAddress: { city: 'Casablanca' } } as any) === '24-48h');
+}
 
 // ── Aperçu ──
 const i = process.argv.indexOf('--apercu');

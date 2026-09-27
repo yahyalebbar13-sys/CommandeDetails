@@ -295,10 +295,10 @@ export function FicheCommande({
     void chargerInterne();
   }
 
-  async function envoyerDepuisLaBoite(forcer: boolean): Promise<ResultatEnvoi> {
+  async function envoyerDepuisLaBoite({ forcer, delai }: { forcer: boolean; delai: string }): Promise<ResultatEnvoi> {
     if (!envoyerEmail) throw new Error('Envoi d’e-mails indisponible.');
     try {
-      return await envoyerEmail(oRef.current, forcer ? { forcer: true } : undefined);
+      return await envoyerEmail(oRef.current, { forcer, delai });
     } catch (e) {
       // Refusé, ou peut-être parti : la trace dit si un e-mail est noté entre-temps.
       if (monte.current) void chargerInterne();

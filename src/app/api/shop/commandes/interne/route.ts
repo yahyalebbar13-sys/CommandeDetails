@@ -17,7 +17,7 @@
 // GET  ?id=…                                   → { noteInterne, motifAnnulation, journal, emailsClient }
 // POST { id, action: 'statut', statut, depuis, motif? }
 // POST { id, action: 'note', note }
-// POST { id, action: 'email-confirmation', forcer? } → { ok, envoyeA, le, statut }
+// POST { id, action: 'email-confirmation', forcer?, delai? } → { ok, envoyeA, le, statut }
 //      échec : { error, incertain? } — `incertain` quand Gmail a coupé en plein envoi (peut-être parti).
 
 import { NextResponse } from 'next/server';
@@ -27,7 +27,7 @@ import { verifyAdmin } from '@/lib/require-admin';
 import { dbAdmin } from '@/lib/firebase-admin-serveur';
 import { MESSAGE_CLIENT } from '@/lib/commandes-boutique';
 import { emailDuClient } from '@/lib/alerte-commande-boutique';
-import { EMAIL_LEBTEX, echecEnvoiGmail, emailConfirmationClient, statutPermetConfirmation } from '@/lib/email-confirmation-client';
+import { EMAIL_LEBTEX, delaiLivraisonNettoye, echecEnvoiGmail, emailConfirmationClient, statutPermetConfirmation } from '@/lib/email-confirmation-client';
 import { ORDER_STATUS_LABELS, type OrderStatus } from '@/lib/shop-types';
 // Pur : la même remise d'aplomb que la fiche, pour que l'e-mail envoyé soit celui de l'aperçu.
 import { normaliserCommande } from '@/app/admin-shop/_commandes/normaliser-commande';
@@ -118,6 +118,7 @@ async function envoyerConfirmation(
   refInterne: DocumentReference,
   id: string,
   forcer: boolean,
+  delai: string,
   auteur: string,
 ): Promise<NextResponse> {
   const snap = await ref.get();
@@ -148,7 +149,7 @@ async function envoyerConfirmation(
   }
 
   // Construit avant de réserver : une commande illisible ne bloque pas les envois suivants.
-  const e = emailConfirmationClient(commande);
+  const e = emailConfirmationClient(commande, { delaiLivraison: delai });
 
   // Anti double clic, dans une transaction : deux appuis simultanés (ou deux
   // appareils) ne peuvent pas envoyer deux e-mails sans qu'on le demande.
@@ -202,7 +203,7 @@ async function envoyerConfirmation(
   const reponse = { ok: true, envoyeA: emailClient, le: le.toDate().toISOString(), statut };
   try {
     await refInterne.set({
-      emailsClient: FieldValue.arrayUnion({ type: 'confirmation', a: emailClient, le, auteur, statut }),
+      emailsClient: FieldValue.arrayUnion({ type: 'confirmation', a: emailClient, le, auteur, statut, ...(delai ? { delai } : {}) }),
       confirmationEnCoursLe: FieldValue.delete(),
     }, { merge: true });
   } catch (err: any) {
@@ -301,7 +302,7 @@ export async function POST(req: Request) {
 
     if (corps.action === 'email-confirmation') {
       try {
-        return await envoyerConfirmation(ref, refInterne, id, corps.forcer === true, auteur);
+        return await envoyerConfirmation(ref, refInterne, id, corps.forcer === true, delaiLivraisonNettoye(corps.delai), auteur);
       } catch (err: any) {
         // Tout ce qui lève ici arrive avant l'envoi (l'envoi et la trace ont leurs propres garde-fous).
         console.error('[shop/commandes/interne POST email-confirmation]', err?.code || err?.message || 'erreur');
