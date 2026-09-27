@@ -18,8 +18,8 @@ import { sendStatusNotification } from '@/lib/send-status-notification';
 import { computeEffectiveStatus } from '@/lib/status-utils';
 import { lireClasseurFacture, lireTexteColle, type LectureFacture, type LigneFacture } from '@/lib/facture-fournisseur';
 import {
-  articlesCandidats, changePrix, construirePlan, ecritures, evaluer, fournisseurSansArticle, proposer,
-  type Confiance, type ModePassage, type PlanArticle, type Proposition,
+  articlesCandidats, changePrix, construirePlan, ecritures, evaluer, fournisseurSansArticle, proposer, regrouperDetails,
+  type Confiance, type ModePassage, type PlanArticle, type Proposition, type RepartitionEcrite,
 } from '@/lib/rapprochement-facture';
 import { AlertTriangle, CheckCircle2, ClipboardPaste, FileSpreadsheet, Loader2, RotateCcw, Ship, Upload } from 'lucide-react';
 
@@ -109,6 +109,7 @@ function Contenu({ dossier, articles, fermer, envoi, setEnvoi }: {
   const [erreur, setErreur] = useState<string | null>(null);
   const [chargement, setChargement] = useState(false);
   const [collage, setCollage] = useState('');
+  const [collagePD, setCollagePD] = useState('');
   const [propositions, setPropositions] = useState<Proposition[]>([]);
   const [choix, setChoix] = useState<Record<number, string | null>>({});
   const [manuels, setManuels] = useState<Set<number>>(new Set());
@@ -117,6 +118,7 @@ function Contenu({ dossier, articles, fermer, envoi, setEnvoi }: {
   // Les prix sont saisis à la commande : on n'y touche que si on le demande.
   const [appliquerPrix, setAppliquerPrix] = useState(false);
   const [majFret, setMajFret] = useState(false);
+  const [majConditionnement, setMajConditionnement] = useState(true);
   const [prevenir, setPrevenir] = useState(true);
   const [confirmations, setConfirmations] = useState<Record<string, boolean>>({});
   const [survol, setSurvol] = useState(false);
@@ -209,6 +211,7 @@ function Contenu({ dossier, articles, fermer, envoi, setEnvoi }: {
     const partiels = enTransit.filter(p => p.mode === 'partiel').length;
     const majs = retenus.filter(p => p.mode === 'maj').length;
     const prixModifies = retenus.filter(p => changePrix(p, true)).length;
+    const conditionnements = retenus.filter(p => p.conditionnement).length;
     const clientsParCle = new Map<string, string>();
     const aPrevenir = enTransit.filter(p => clientReel(p.article.clientName));
     for (const p of aPrevenir) {
@@ -231,7 +234,7 @@ function Contenu({ dossier, articles, fermer, envoi, setEnvoi }: {
       poids += p.majPoidsNet ? p.poidsNet! : (Number(p.article.netWeight) || 0) * part;
       volume += p.majVolume ? p.volume! : (Number(p.article.cubicMeasurement) || 0) * part;
     }
-    return { enTransit: enTransit.length, partiels, majs, bloques, prixModifies, clients: [...clientsParCle.values()], notifies: aPrevenir.length, poids, volume };
+    return { enTransit: enTransit.length, partiels, majs, bloques, prixModifies, conditionnements, clients: [...clientsParCle.values()], notifies: aPrevenir.length, poids, volume };
   }, [plan, articles, dossier.id, planParArticle]);
 
   // Ce que l'utilisateur doit confirmer avant d'enregistrer.
@@ -277,6 +280,7 @@ function Contenu({ dossier, articles, fermer, envoi, setEnvoi }: {
         lecture,
         nomFichier,
         majFret,
+        majConditionnement,
       });
       for (let i = 0; i < ops.length; i += 450) {
         const lot = writeBatch(firestore);
@@ -324,7 +328,12 @@ function Contenu({ dossier, articles, fermer, envoi, setEnvoi }: {
     const echecs: string[] = [];
     for (const p of aPrevenir) {
       const a = p.article;
-      const couleur = Array.isArray(a.colorBreakdown) && a.colorBreakdown.length === 1 ? a.colorBreakdown[0]?.colorCode : a.color;
+      // Couleur et specs telles que l'import les écrit (PD, conditionnement), sinon celles de la fiche.
+      const repEnvoyee = p.repartitionEnvoyee?.champ === 'colorBreakdown' ? p.repartitionEnvoyee.lignes : null;
+      const couleur = p.couleurEnvoyee
+        ?? (repEnvoyee ? (repEnvoyee.length === 1 ? repEnvoyee[0].colorCode : 'various') : null)
+        ?? (Array.isArray(a.colorBreakdown) && a.colorBreakdown.length === 1 ? a.colorBreakdown[0]?.colorCode : a.color);
+      const specs = majConditionnement && p.conditionnement ? p.conditionnement.apres : a.specs;
       const r = await sendStatusNotification({
         firestore,
         adminUid: user.uid,
@@ -334,7 +343,7 @@ function Contenu({ dossier, articles, fermer, envoi, setEnvoi }: {
         newStatus,
         quantity: p.majQuantite && p.quantite != null ? p.quantite : Number(a.quantity),
         unitOfMeasure: a.unitOfMeasure,
-        specs: a.specs,
+        specs,
         color: couleur,
         size: a.size,
         estimatedProductionDelay: a.estimatedProductionDelay,
@@ -395,12 +404,21 @@ function Contenu({ dossier, articles, fermer, envoi, setEnvoi }: {
               value={collage}
               onChange={e => setCollage(e.target.value)}
               placeholder={'Dans l’onglet PL, sélectionne depuis « INVOICE NO. » (pour le n° de facture) jusqu’à la ligne TOTAL, copie, colle ici.'}
-              className="min-h-[220px] font-mono text-[11px]"
+              className="min-h-[180px] font-mono text-[11px]"
               autoFocus
+            />
+            <p className="pt-2 text-[10px] font-black uppercase tracking-widest text-stone-500 flex items-center gap-2">
+              <ClipboardPaste className="w-3.5 h-3.5" /> Et le packing details (PD), pour les couleurs et tailles
+            </p>
+            <Textarea
+              value={collagePD}
+              onChange={e => setCollagePD(e.target.value)}
+              placeholder={'Facultatif. Dans l’onglet PD, sélectionne tout (Ctrl+A), copie, colle ici.'}
+              className="min-h-[120px] font-mono text-[11px]"
             />
             <div className="flex justify-end">
               <Button
-                onClick={() => demarrer(lireTexteColle(collage), 'tableau collé')}
+                onClick={() => { const l = lireTexteColle(collage, collagePD); demarrer(l, l.aLesDetails ? 'PL + PD collés' : 'PL collé'); }}
                 disabled={!collage.trim()}
                 className="bg-stone-900 hover:bg-black text-white font-black uppercase text-[10px] tracking-widest h-10 rounded-xl px-6"
               >
@@ -450,6 +468,7 @@ function Contenu({ dossier, articles, fermer, envoi, setEnvoi }: {
                 {lecture.dateFacture && <Chip>{lecture.dateFacture}</Chip>}
                 <Chip ton={lecture.aLesPrix ? 'ok' : 'attention'}>{lecture.aLesPrix ? 'Prix lus (INV)' : 'Sans prix : rapprochement moins sûr'}</Chip>
                 <Chip ton={lecture.aLesPoids ? 'ok' : 'attention'}>{lecture.aLesPoids ? 'Poids et volumes lus (PL)' : 'Sans packing list : poids et volumes des fiches gardés'}</Chip>
+                {lecture.aLesDetails && <Chip ton="ok">Couleurs et tailles lues (PD) : {lecture.lignes.filter(l => l.details).length}/{lecture.lignes.length} lignes</Chip>}
                 <span className="text-stone-500">{lecture.lignes.length} {pl(lecture.lignes.length, 'ligne', 'lignes')}</span>
               </div>
               {repliFournisseur && (
@@ -500,6 +519,7 @@ function Contenu({ dossier, articles, fermer, envoi, setEnvoi }: {
                           plan={choisi ? planParArticle.get(choisi) : undefined}
                           dossierId={dossier.id}
                           appliquerPrix={appliquerPrix}
+                          majConditionnement={majConditionnement}
                           choisir={choisir}
                           changerMode={changerMode}
                           forcer={forcer}
@@ -540,6 +560,12 @@ function Contenu({ dossier, articles, fermer, envoi, setEnvoi }: {
                   <label className="flex items-center gap-2 cursor-pointer">
                     <input type="checkbox" checked={appliquerPrix} onChange={e => setAppliquerPrix(e.target.checked)} />
                     Prix d'achat au prix de la facture ({bilan.prixModifies} {pl(bilan.prixModifies, 'changement', 'changements')})
+                  </label>
+                )}
+                {bilan.conditionnements > 0 && (
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input type="checkbox" checked={majConditionnement} onChange={e => setMajConditionnement(e.target.checked)} />
+                    Conditionnement du PL sur les fiches ({bilan.conditionnements} {pl(bilan.conditionnements, 'changement', 'changements')})
                   </label>
                 )}
                 {lecture.fret != null && (
@@ -589,7 +615,7 @@ function Chip({ children, ton }: { children: React.ReactNode; ton?: 'ok' | 'atte
 // ── Une ligne de la facture ─────────────────────────────────────────────────
 
 const LigneTableau = memo(function LigneTableau({
-  ligne, proposition, choisi, manuel, article, optionsTous, libelles, plan, dossierId, appliquerPrix, choisir, changerMode, forcer,
+  ligne, proposition, choisi, manuel, article, optionsTous, libelles, plan, dossierId, appliquerPrix, majConditionnement, choisir, changerMode, forcer,
 }: {
   ligne: LigneFacture;
   proposition: Proposition | undefined;
@@ -602,6 +628,7 @@ const LigneTableau = memo(function LigneTableau({
   plan: PlanArticle | undefined;
   dossierId: string;
   appliquerPrix: boolean;
+  majConditionnement: boolean;
   choisir: (index: number, id: string | null) => void;
   changerMode: (articleId: string, mode: ModePassage) => void;
   forcer: (articleId: string, v: boolean) => void;
@@ -627,6 +654,15 @@ const LigneTableau = memo(function LigneTableau({
       <td className="px-3 py-2">
         <div className="font-mono font-bold text-stone-800"><span className="text-stone-400 mr-1">{ligne.index + 1}.</span>{ligne.code || '—'}</div>
         {ligne.spec && <div className="text-stone-500">{ligne.spec}</div>}
+        {ligne.details && (() => {
+          // Une variante par couleur et taille, comme dans « Ce qui sera fait ».
+          const v = regrouperDetails(ligne.details).map(d => `${[d.couleur, d.taille].filter(Boolean).join(' ') || '—'} ${nf(d.quantite, 3)}`);
+          return (
+            <div className="mt-0.5 text-[10px] font-bold text-violet-700" title={v.join('\n')}>
+              {v.slice(0, 6).join(' · ')}{v.length > 6 ? ` · +${v.length - 6}` : ''}
+            </div>
+          );
+        })()}
       </td>
       <td className="px-2 py-2 text-right whitespace-nowrap">
         <div className="font-black text-stone-900">{nf(ligne.quantite, 3)} <span className="font-normal text-stone-400">{ligne.unite}</span></div>
@@ -681,16 +717,29 @@ const LigneTableau = memo(function LigneTableau({
             {plan.avertissements.map((w, i) => <div key={i} className="text-amber-700 font-bold">{w}</div>)}
           </div>
         ) : (
-          <Effet plan={plan} appliquerPrix={appliquerPrix} changerMode={changerMode} forcer={forcer} />
+          <Effet plan={plan} appliquerPrix={appliquerPrix} majConditionnement={majConditionnement} changerMode={changerMode} forcer={forcer} />
         )}
       </td>
     </tr>
   );
 });
 
-function Effet({ plan: p, appliquerPrix, changerMode, forcer }: {
+/** Les champs chiffrés du conditionnement, dits pour l'écran. */
+const NOMS_CHAMPS: Record<string, string> = {
+  pcsPerBag: 'pcs/sac', bagsPerCarton: 'sacs/carton', pcsPerBox: 'pcs/boîte', boxPerCarton: 'boîtes/carton',
+  rollsPerCarton: 'rouleaux/carton', packagingPerBag: 'rouleaux/sac', pcsPerCtn: 'pcs/carton', rollLength: 'longueur/rouleau',
+};
+
+/** « black 30 000, nickel 20 000 » — les six premières variantes. */
+function decrireRepartition(r: RepartitionEcrite) {
+  const textes = r.lignes.map(l => `${l.colorCode ?? l.size ?? l.designRef ?? l.quality ?? '?'} ${nf(Number(l.rolls ?? l.quantity), 3)}`);
+  return textes.slice(0, 6).join(', ') + (textes.length > 6 ? `, +${textes.length - 6}` : '');
+}
+
+function Effet({ plan: p, appliquerPrix, majConditionnement, changerMode, forcer }: {
   plan: PlanArticle;
   appliquerPrix: boolean;
+  majConditionnement: boolean;
   changerMode: (id: string, m: ModePassage) => void;
   forcer: (id: string, v: boolean) => void;
 }) {
@@ -702,6 +751,17 @@ function Effet({ plan: p, appliquerPrix, changerMode, forcer }: {
   if (changePrix(p, appliquerPrix)) changements.push(`prix ${nf(Number(a.purchasePricePerUnit), 5)} → ${nf(p.prix, 5)} $`);
   if (p.majPoidsNet && Number(a.netWeight) !== p.poidsNet) changements.push(`N.W. ${nf(Number(a.netWeight) || 0)} → ${nf(p.poidsNet)} kg`);
   if (p.majVolume && Number(a.cubicMeasurement) !== p.volume) changements.push(`CBM ${nf(Number(a.cubicMeasurement) || 0, 3)} → ${nf(p.volume, 3)}`);
+  if (!p.bloque && p.repartitionEnvoyee) {
+    changements.push(`${p.mode === 'partiel' ? 'part en transit' : 'répartition'} : ${decrireRepartition(p.repartitionEnvoyee)}`);
+    if (p.mode === 'partiel' && p.repartitionRestante) changements.push(`reste en production : ${decrireRepartition(p.repartitionRestante)}`);
+  }
+  if (!p.bloque && p.couleurEnvoyee) changements.push(`couleur : ${p.couleurEnvoyee}`);
+  if (!p.bloque && majConditionnement && p.conditionnement) {
+    changements.push(`conditionnement : ${p.conditionnement.avant.trim() || '—'} → ${p.conditionnement.apres}`);
+    for (const [champ, n] of Object.entries(p.conditionnement.champs)) {
+      changements.push(`${NOMS_CHAMPS[champ] || champ} ${nf(Number(a[champ]) || 0, 3)} → ${nf(n, 3)}`);
+    }
+  }
   const abandonne = p.quantite != null && p.quantite < qa ? qa - p.quantite : 0;
   const forcable = p.partielReparti;
 
@@ -728,7 +788,9 @@ function Effet({ plan: p, appliquerPrix, changerMode, forcer }: {
               onClick={() => changerMode(a.id, m)}
               className={`px-2 py-0.5 rounded-md border text-[9px] font-black uppercase tracking-wide ${p.mode === m ? 'bg-stone-900 text-white border-stone-900' : 'bg-white text-stone-600 border-stone-200 hover:bg-stone-50'}`}
             >
-              {m === 'solde' ? (abandonne ? `Solder (${nf(abandonne, 3)} abandonnés)` : 'Tout passer') : 'Garder le reste en production'}
+              {m === 'solde'
+                ? (p.resteDecoupe ? `Solder (${decrireRepartition(p.resteDecoupe)} abandonnés)` : abandonne ? `Solder (${nf(abandonne, 3)} abandonnés)` : 'Tout passer')
+                : 'Garder le reste en production'}
             </button>
           ))}
         </div>

@@ -256,6 +256,136 @@ const autreDossier = { id: 'JR0001', supplierId: 'JASON' };
 check('fournisseur sans article : candidats stricts vides', articlesCandidats(articles, autreDossier).length === 0);
 check('fournisseur sans article : liste à la main élargie', articlesCandidats(articles, autreDossier, true).length > 0);
 
+console.log('\n── Packing details (couleurs, tailles, conditionnement) ──');
+const textePD = [
+  'PACKING DETAILS OF 26MH999001',
+  'YAHI-99',
+  '43-24 13# No.5 A/L Slider with Decorative Puller for Plastic Zipper 4.3g/pc',
+  '6573-5140 500pcs/bag 10bags/carton',
+  ['COLOR', 'QTY(PCS)', 'CTNS'].join(T),
+  ['BLACK', '102000', '21'].join(T),
+  '',
+  '43-51 28# No.5 A/L Slider with Decorative Puller for Nylon Zipper 5g/pc',
+  '6570-5216 500pcs/bag 10bags/carton',
+  '6570-5216B 500pcs/bag 10bags/carton',
+  ['COLOR', 'QTY(PCS)', 'CTNS'].join(T),
+  ['NICKLE', '150000', '30'].join(T),
+  ['BLACK NICKLE', '52000', '10'].join(T),
+  ['BLACK', '50000', '10'].join(T),
+  ['TOTAL', '252000', '50'].join(T),
+].join('\r\n');
+const lpd = lireTexteColle(colle, textePD);
+const detail = (i: number) => (lpd.lignes[i].details || []).map(d => `${d.couleur}:${d.quantite}`).join(',');
+check('PD : une couleur pour 43-24', detail(0) === 'BLACK:102000', detail(0));
+check('PD : un bloc pour deux lignes, rempli dans l’ordre', detail(1) === 'NICKLE:150000,BLACK NICKLE:52000' && detail(2) === 'BLACK:50000', `${detail(1)} | ${detail(2)}`);
+check('PD : ligne sans bloc laissée sans détail', !lpd.lignes[3].details);
+check('PD : n° de facture lu dans « PACKING DETAILS OF »', lpd.numeroFacture === '26MH999001' && lpd.aLesDetails);
+const pdFaux = textePD.replace('52000', '99000');
+check('PD : sommes fausses → pas de détail, avertissement', !lireTexteColle(colle, pdFaux).lignes[1].details && lireTexteColle(colle, pdFaux).avertissements.some(a => /Packing details/.test(a)));
+
+// Une commande répartie en couleurs, expédiée en partie : découpée couleur par couleur.
+const reparti = art('rep', {
+  name: 'A/L SLIDER FOR NYLON ZIPPER', size: 'NO5', quantity: 250000, purchasePricePerUnit: 0.03,
+  colorBreakdown: [{ colorCode: 'nickel', rolls: 150000 }, { colorCode: 'black nickel', rolls: 60000 }, { colorCode: 'gold', rolls: 40000 }],
+});
+const ligneRep = { ...lpd.lignes[1] };
+const planRep = construirePlan({ ...lpd, lignes: [ligneRep] }, { [ligneRep.index]: 'rep' }, [reparti], DOSSIER.id, { appliquerPrix: false });
+const pr = planRep.articles[0];
+check('répartition découpée : partiel proposé, pas bloqué', pr.mode === 'partiel' && !pr.bloque, JSON.stringify(pr.avertissements));
+check('répartition découpée : part et reste par couleur',
+  JSON.stringify(pr.repartitionEnvoyee?.lignes.map(l => [l.colorCode, l.rolls])) === JSON.stringify([['nickel', 150000], ['black nickel', 52000]])
+  && JSON.stringify(pr.repartitionRestante?.lignes.map(l => [l.colorCode, l.rolls])) === JSON.stringify([['black nickel', 8000], ['gold', 40000]]),
+  JSON.stringify([pr.repartitionEnvoyee, pr.repartitionRestante]));
+const opsRep = ecritures(planRep.articles, { dossier: DOSSIER, maintenant: 0, nouvelId: () => 'partie', appliquerPrix: false, lecture: lpd, nomFichier: '', majFret: false });
+const partie = opsRep.find(o => o.id === 'partie')!.data;
+const resteRep = opsRep.find(o => o.id === 'rep')!.data;
+check('écritures : la part en transit porte ses couleurs', partie.quantity === 202000 && partie.colorBreakdown.length === 2 && partie.color === 'various' && partie.status === 'SHIPPED');
+check('écritures : le reste en production porte les siennes', resteRep.quantity === 48000 && resteRep.colorBreakdown.length === 2 && !('status' in resteRep));
+
+// Une commande sans répartition : la part expédiée prend celle du PD.
+const simple = art('simple', { name: 'A/L SLIDER FOR NYLON ZIPPER', size: 'NO5', quantity: 200000, purchasePricePerUnit: 0.03, color: 'various' });
+const planSimple = construirePlan({ ...lpd, lignes: [ligneRep] }, { [ligneRep.index]: 'simple' }, [simple], DOSSIER.id, { appliquerPrix: false });
+const opsSimple = ecritures(planSimple.articles, { dossier: DOSSIER, maintenant: 0, nouvelId: () => 'x', appliquerPrix: false, lecture: lpd, nomFichier: '', majFret: false });
+const ecritSimple = opsSimple.find(o => o.id === 'simple')!.data;
+check('sans répartition : celle du PD, en minuscules, sans « NICKLE »',
+  JSON.stringify(ecritSimple.colorBreakdown) === JSON.stringify([{ colorCode: 'nickel', rolls: 150000 }, { colorCode: 'black nickel', rolls: 52000 }]) && ecritSimple.quantity === 202000,
+  JSON.stringify(ecritSimple));
+
+// Conditionnement différent : seuls les « …/bag », « …/carton » changent, les champs chiffrés suivent.
+const emballe = art('emb', { name: 'A/L SLIDER FOR PLASTIC ZIPPER', size: 'NO5', quantity: 102000, purchasePricePerUnit: 0.03, specs: 'Packs:500pcs/bag 20bags/carton', bagsPerCarton: 20, pcsPerCtn: 10000 });
+const planEmb = construirePlan({ ...lpd, lignes: [lpd.lignes[0]] }, { 0: 'emb' }, [emballe], DOSSIER.id, { appliquerPrix: false });
+const cond = planEmb.articles[0].conditionnement;
+check('conditionnement : texte gardé, jeton remplacé à sa place', cond?.apres === 'Packs:500pcs/bag 10bags/carton', cond?.apres);
+check('conditionnement : champs chiffrés', cond?.champs.bagsPerCarton === 10 && cond?.champs.pcsPerCtn === 5000, JSON.stringify(cond?.champs));
+const opsEmb = ecritures(planEmb.articles, { dossier: DOSSIER, maintenant: 0, nouvelId: () => 'x', appliquerPrix: false, lecture: lpd, nomFichier: '', majFret: false, majConditionnement: true });
+check('conditionnement : écrit si coché', opsEmb[0].data.specs === 'Packs:500pcs/bag 10bags/carton' && opsEmb[0].data.bagsPerCarton === 10);
+const opsEmbNon = ecritures(planEmb.articles, { dossier: DOSSIER, maintenant: 0, nouvelId: () => 'x', appliquerPrix: false, lecture: lpd, nomFichier: '', majFret: false, majConditionnement: false });
+check('conditionnement : rien si décoché', !('specs' in opsEmbNon[0].data));
+
+// La couleur du PD départage deux commandes jumelles (même modèle, sans prix).
+const jumellesCouleur = [
+  art('noir', { name: 'A/L SLIDER FOR NYLON ZIPPER', size: 'NO5', color: 'black', quantity: 50000, purchasePricePerUnit: 0.03, designRef: '6570-5216' }),
+  art('nick', { name: 'A/L SLIDER FOR NYLON ZIPPER', size: 'NO5', color: 'nickel', quantity: 50000, purchasePricePerUnit: 0.03, designRef: '6570-5216' }),
+];
+const ligneNoire = { ...lpd.lignes[2], quantite: 50000 };
+const pjc = proposer({ ...lpd, lignes: [ligneNoire] }, jumellesCouleur, DOSSIER.id);
+check('PD : la couleur départage les jumelles', pjc[0].articleId === 'noir' && pjc[0].confiance === 'sure', `${pjc[0].articleId} ${pjc[0].confiance}`);
+
+console.log('\n── PD : non-régressions de la relecture ──');
+const plUneLigne = (ref: string, titre: string, code: string, qte: string, unite: string) => [
+  ['DESCRIPTION OF GOODS', '', '', '', '', 'QUANTITY', '', 'PKG.', 'N.W.', 'G.W.', 'MEAS.'].join(T),
+  ligne(`${ref} ${titre}`),
+  ligne(`${code} 1doz/box 10box/carton`, qte, unite, '10', '100,00', '110,00', '1,00'),
+].join('\r\n');
+// 19 couleurs = 2900 doz, puis une petite de 10 : la ligne de 2910 les prend toutes.
+const rangs20 = Array.from({ length: 19 }, (_, i) => [`B${300 + i}`, String(i === 0 ? 2900 * 12 - 18 * 1800 : 1800), '10'].join(T));
+const pd20 = ['14-3 Thread', '6004-0478 1doz/box', ['COLOR', 'QTY(PCS)', 'CTNS'].join(T), ...rangs20, ['B379', '120', '1'].join(T)].join('\r\n');
+const l20 = lireTexteColle(plUneLigne('14-3', 'Thread', '6004-0478', '2910', 'doz'), pd20).lignes[0];
+check('PD : une petite dernière couleur n’est pas laissée de côté', (l20.details || []).length === 20 && proche((l20.details || []).reduce((s, d) => s + d.quantite, 0), 2910, 0.01));
+// Deux lignes de même quantité, PD dans l'autre ordre : les couleurs ne s'échangent pas.
+const plDeux = [
+  ['DESCRIPTION OF GOODS', '', '', '', '', 'QUANTITY', '', 'PKG.', 'N.W.', 'G.W.', 'MEAS.'].join(T),
+  ligne('16-6 No.8 N/L Slider black nickel'), ligne('6570-8079 500pcs/bag', '50000', 'pcs.', '10', '100,00', '110,00', '0,20'),
+  ligne('16-7 No.8 N/L Slider nickel'), ligne('6570-8080 500pcs/bag', '50000', 'pcs.', '10', '100,00', '110,00', '0,20'),
+].join('\r\n');
+const pdInverse = ['16-6 No.8 N/L Slider black nickel', '16-7 No.8 N/L Slider nickel', ['COLOR', 'QTY(PCS)', 'CTNS'].join(T), ['NICKLE', '50000', '10'].join(T), ['BLACK NICKLE', '50000', '10'].join(T)].join('\r\n');
+const lDeux = lireTexteColle(plDeux, pdInverse).lignes;
+const c0 = lDeux[0].details?.[0]?.couleur, c1 = lDeux[1].details?.[0]?.couleur;
+check('PD : pas d’échange black nickel / nickel', (c0 === 'BLACK NICKLE' && c1 === 'NICKLE') || (!c0 && !c1), `${c0} | ${c1}`);
+
+// Même couleur sur deux lignes de la fiche : tout part, rien de fantôme ne reste.
+const double = art('dbl', { name: 'A/L SLIDER FOR NYLON ZIPPER', size: 'NO5', quantity: 100000, purchasePricePerUnit: 0.03,
+  colorBreakdown: [{ colorCode: 'black', rolls: 60000, priceOverride: '0.03' }, { colorCode: 'black', rolls: 40000, priceOverride: '0.031' }] });
+const lDbl = { ...lg('pcs.', 100000), index: 0, titre: 'A/L Slider for Nylon Zipper No.5', details: [{ couleur: 'BLACK', taille: '', quantite: 100000 }], poidsNet: 300, volume: 1 };
+const pDbl = construirePlan({ ...lx, lignes: [lDbl] }, { 0: 'dbl' }, [double], DOSSIER.id, { appliquerPrix: false }).articles[0];
+check('couleur en double sur la fiche : solde, deux lignes remplies', pDbl.mode === 'solde' && !pDbl.resteDecoupe
+  && JSON.stringify(pDbl.repartitionEnvoyee?.lignes.map(r => r.rolls)) === '[60000,40000]', JSON.stringify([pDbl.mode, pDbl.repartitionEnvoyee, pDbl.resteDecoupe]));
+// Écarts de 1 à 2 % par couleur, total atteint : solde proposé (le surplus compense).
+const deuxCouleurs = art('dc', { name: 'A/L SLIDER FOR NYLON ZIPPER', size: 'NO5', quantity: 100000, purchasePricePerUnit: 0.03,
+  colorBreakdown: [{ colorCode: 'black', rolls: 50000 }, { colorCode: 'nickel', rolls: 50000 }] });
+const lDc = { ...lDbl, quantite: 100500, details: [{ couleur: 'BLACK', taille: '', quantite: 49200 }, { couleur: 'NICKEL', taille: '', quantite: 51300 }] };
+const pDc = construirePlan({ ...lx, lignes: [lDc] }, { 0: 'dc' }, [deuxCouleurs], DOSSIER.id, { appliquerPrix: false }).articles[0];
+check('écarts minimes par couleur : solde proposé', pDc.mode === 'solde' && pDc.quantite === 100500, `${pDc.mode} ${pDc.quantite}`);
+// Répartition créée : sa somme est la quantité écrite.
+const sansRep = art('sr', { name: 'A/L SLIDER FOR NYLON ZIPPER', size: 'NO5', quantity: 100000, purchasePricePerUnit: 0.03, color: 'various' });
+const lSr = { ...lDbl, details: [{ couleur: 'BLACK', taille: '', quantite: 60000.4 }, { couleur: 'WHITE', taille: '', quantite: 39999.9 }] };
+const pSr = construirePlan({ ...lx, lignes: [lSr] }, { 0: 'sr' }, [sansRep], DOSSIER.id, { appliquerPrix: false }).articles[0];
+check('répartition créée : somme = quantité', proche(pSr.repartitionEnvoyee!.lignes.reduce((s, r) => s + r.rolls, 0), pSr.quantite!, 1e-9), JSON.stringify(pSr.repartitionEnvoyee));
+// Une fiche répartie par taille et un PD qui ne donne que la couleur : pas de fausse pénalité.
+const parTaille = art('pt', { name: 'KNITTING ELASTIC TAPE', quantity: 244, unitOfMeasure: 'kg', purchasePricePerUnit: 1.8, color: 'white', sizeBreakdown: [{ size: '25MM', quantity: 244 }] });
+const lPt = { ...lg('kg', 244), index: 0, titre: 'Knitting Elastic Tape', details: [{ couleur: 'WHITE', taille: '', quantite: 244 }], poidsNet: 244, volume: 1 };
+const ePt = proposer({ ...lx, lignes: [lPt] }, [parTaille], DOSSIER.id)[0].classement[0];
+check('répartition par taille, PD en couleur : pas de pénalité', !ePt.raisons.some(r => /absentes/.test(r)) && ePt.preuves.includes('couleur'), JSON.stringify(ePt));
+// Conditionnement : les jetons que le PL ne redit pas restent ; « 1,000pcs/bag » vaut 1000.
+const fil = art('fil', { name: 'EMBROIDERY THREAD', quantity: 100, unitOfMeasure: 'doz', purchasePricePerUnit: 5, specs: '4400y/cone 1doz/box 5box/carton' });
+const lFil = { ...lg('doz', 100, '120D/2,1doz/box 10box/carton'), index: 0, titre: 'Embroidery Thread', poidsNet: 10, volume: 1 };
+const cFil = construirePlan({ ...lx, lignes: [lFil] }, { 0: 'fil' }, [fil], DOSSIER.id, { appliquerPrix: false }).articles[0].conditionnement;
+check('conditionnement : « 4400y/cone » gardé, « 5box » → « 10box »', cFil?.apres === '4400y/cone 1doz/box 10box/carton', cFil?.apres);
+const mille = art('mille', { name: 'A/L SLIDER FOR NYLON ZIPPER', quantity: 100000, purchasePricePerUnit: 0.03, specs: '500pcs/bag', pcsPerBag: 500 });
+const lMille = { ...lg('pcs.', 100000, '1,000pcs/bag 10bags/carton'), index: 0, titre: 'Slider', poidsNet: 10, volume: 1 };
+const cMille = construirePlan({ ...lx, lignes: [lMille] }, { 0: 'mille' }, [mille], DOSSIER.id, { appliquerPrix: false }).articles[0].conditionnement;
+check('conditionnement : « 1,000pcs/bag » = 1000', cMille?.champs.pcsPerBag === 1000 && /1000pcs\/bag/.test(cMille.apres), JSON.stringify(cMille));
+
 console.log('\n── Lecture : cas limites ──');
 // Quantité absente d'un côté : la fusion INV/PL se fait quand même (par position).
 const plSansQte = pl.map(r => [...r]);

@@ -41,6 +41,21 @@ export type LigneFacture = {
   poidsBrut: number | null;
   /** Volume total de la ligne, m³ (onglet PL). */
   volume: number | null;
+  /**
+   * Répartition lue dans le packing details (onglet PD) : couleurs, tailles,
+   * dans l'unité de la ligne. Absente sans PD ou si ses quantités ne
+   * retombent pas sur celle de la ligne.
+   */
+  details?: Detail[];
+};
+
+/** Une variante expédiée : « BLACK NICKEL · 50 000 », « WHITE 25MM · 244 kg ». */
+export type Detail = {
+  couleur: string;
+  taille: string;
+  quantite: number;
+  /** Le modèle ou code de la colonne STYLE / ITEM NO. — jamais pris pour une couleur. */
+  modele?: string;
 };
 
 export type TotauxFacture = {
@@ -67,6 +82,8 @@ export type LectureFacture = {
   aLesPoids: boolean;
   /** La somme des lignes ne retombe pas sur le total du document (poids ou volume). */
   totauxIncoherents: boolean;
+  /** Un packing details a donné les couleurs ou tailles d'au moins une ligne. */
+  aLesDetails: boolean;
   /** Ce qui cloche, dit pour l'utilisateur. */
   avertissements: string[];
 };
@@ -301,7 +318,10 @@ function lireEntete(grille: Cellule[][]) {
     grille.slice(0, 5).map(r => r.map(texte).find(c => /CO\.?,?\s*LTD|INDUSTRY|TRADING/i.test(c))).find(Boolean) || '';
   return {
     fournisseur,
-    numeroFacture: valeurApres(/^INVOICE NO\.?:?/i).toUpperCase(),
+    numeroFacture: (valeurApres(/^INVOICE NO\.?:?/i)
+      // « PACKING DETAILS OF 26MH114221 » en tête du PD.
+      || grille.slice(0, 5).map(r => r.map(texte).map(c => c.match(/^PACKING DETAILS OF\s+(\S+)/i)?.[1]).find(Boolean)).find(Boolean)
+      || '').toUpperCase(),
     numeroCommande: valeurApres(/^ORDER NO\.?:?$/i),
     dateFacture: valeurApres(/^DATE:?$/i),
   };
@@ -406,7 +426,7 @@ function assembler(grilles: { nom: string; grille: Cellule[][]; format: Format }
   const vide = {
     ...entete, lignes: [], fret: null, frets: [],
     totaux: { colis: null, poidsNet: null, poidsBrut: null, volume: null, montant: null },
-    aLesPrix: false, aLesPoids: false, totauxIncoherents: false,
+    aLesPrix: false, aLesPoids: false, totauxIncoherents: false, aLesDetails: false,
   };
   if (!factures.length && !packings.length) {
     return {
@@ -423,6 +443,21 @@ function assembler(grilles: { nom: string; grille: Cellule[][]; format: Format }
   const pl = packings[0]?.t;
 
   const lignes = fusionner(inv?.lignes || [], pl?.lignes || [], avertissements).map((l, index) => ({ ...l, index }));
+
+  // Couleurs et tailles du packing details, quand il est là (onglet PD ou collage).
+  const blocs = grilles.flatMap(g => lireBlocsDetails(g.grille, g.format));
+  const avecDetails = blocs.length ? rattacherDetails(lignes, blocs, avertissements) : 0;
+  const debutDe = (g: { grille: Cellule[][] }) => g.grille.slice(0, 5).flatMap(r => r.map(texte));
+  const numeroPD = grilles.flatMap(debutDe).map(c => c.match(/^PACKING DETAILS OFs+(S+)/i)?.[1]).find(Boolean)?.toUpperCase();
+  const pdFourni = grilles.some(g => g.nom === 'packing details' || /^PD/i.test(g.nom)) || Boolean(numeroPD);
+  if (pdFourni && !blocs.length) {
+    avertissements.push('Packing details : aucun tableau COLOR / SIZE reconnu — couleurs et tailles non lues.');
+  } else if (pdFourni && !avecDetails) {
+    avertissements.push('Packing details lu mais rattaché à aucune ligne du PL (titres ou codes différents ?) — couleurs et tailles non lues.');
+  }
+  if (numeroPD && entete.numeroFacture && numeroPD !== entete.numeroFacture) {
+    avertissements.push(`Le packing details est celui de la facture ${numeroPD}, le PL celui de la facture ${entete.numeroFacture}.`);
+  }
   const totaux: TotauxFacture = {
     colis: pl?.totaux.colis ?? null,
     poidsNet: pl?.totaux.poidsNet ?? null,
@@ -459,11 +494,264 @@ function assembler(grilles: { nom: string; grille: Cellule[][]; format: Format }
     aLesPrix: Boolean(inv?.aLesPrix || pl?.aLesPrix),
     aLesPoids: Boolean(pl?.aLesPoids),
     totauxIncoherents,
+    aLesDetails: avecDetails > 0,
     avertissements,
   };
 }
 
 const arrondir = (n: number) => Math.round(n * 100) / 100;
+
+// ── Packing details (onglet PD) : couleurs, tailles par ligne ────────────────
+//
+//   16-5 No.5 N/L Slider … gold          ← titres (une ou plusieurs lignes du PL)
+//   6573-5015 ,5000pcs/carton            ← codes
+//   COLOR | QTY(PCS) | CTNS | CTN NO#    ← en-tête (COLOR, SIZE, STYLE…)
+//   GOLD  | 50000    | 10   | 1-10       ← une variante
+//   TOTAL | 200000   | 40
+
+type UniteDetail = 'pc' | 'doz' | 'gross' | 'set' | 'm' | 'yd' | 'roll' | 'kg' | 'bag' | 'card' | 'qty';
+
+/** L'unité d'une colonne du PD ; null pour ce qui n'est pas une quantité (cartons, n° de carton, commentaires). */
+function uniteColonne(entete: string): UniteDetail | null {
+  const s = entete.toUpperCase().replace(/[\s（）]/g, '');
+  if (!s || /CTN|NO#|COMMENT|\/ROLL|NO\.|REMARK/.test(s)) return null;
+  if (/PCS|NUM|PIECE/.test(s)) return 'pc';
+  if (/DOZ/.test(s)) return 'doz';
+  if (/GROSS/.test(s)) return 'gross';
+  if (/SET/.test(s)) return 'set';
+  if (/YARD|YDS/.test(s)) return 'yd';
+  if (/MET|MTS/.test(s)) return 'm';
+  if (/ROLL/.test(s)) return 'roll';
+  if (/KG/.test(s)) return 'kg';
+  if (/BAG/.test(s)) return 'bag';
+  if (/CARD/.test(s)) return 'card';
+  if (/^QTY/.test(s)) return 'qty';
+  return null;
+}
+
+/** L'unité d'une ligne du PL, dans le vocabulaire du PD. */
+function uniteLigne(u: string): UniteDetail | null {
+  const s = String(u || '').toLowerCase().replace(/[.\s]/g, '');
+  if (/^(pcs?|pieces?|piece)$/.test(s)) return 'pc';
+  if (/^doz/.test(s)) return 'doz';
+  if (/^gross/.test(s)) return 'gross';
+  if (/^sets?$/.test(s)) return 'set';
+  if (/^(yds?|yards?)$/.test(s)) return 'yd';
+  if (/^(m|mts|meters?|metres?)$/.test(s)) return 'm';
+  if (/^rolls?$/.test(s)) return 'roll';
+  if (/^kgs?$/.test(s)) return 'kg';
+  if (/^(bags?|box(es)?)$/.test(s)) return 'bag';
+  if (/^cards?$/.test(s)) return 'card';
+  return null;
+}
+
+const PIECES: Partial<Record<UniteDetail, number>> = { pc: 1, set: 1, doz: 12, gross: 144 };
+
+/** Combien d'unités de la ligne dans une unité du PD (12 pièces = 1 douzaine). */
+function facteurDetail(de: UniteDetail, vers: UniteDetail | null): number | null {
+  if (!vers || de === vers || de === 'qty') return de === 'qty' || de === vers ? 1 : null;
+  if (PIECES[de] && PIECES[vers]) return PIECES[de]! / PIECES[vers]!;
+  if (de === 'm' && vers === 'yd') return 1 / 0.9144;
+  if (de === 'yd' && vers === 'm') return 0.9144;
+  return null;
+}
+
+type RangDetail = { style: string; couleur: string; taille: string; valeurs: { unite: UniteDetail; valeur: number }[] };
+type BlocDetails = { refs: string[]; codes: string[]; rangs: RangDetail[] };
+type ColonnesDetails = { couleur: number; taille: number; style: number; quantites: { i: number; unite: UniteDetail }[] };
+
+function enteteDetails(r: Cellule[]): ColonnesDetails | null {
+  const c = r.map(x => texte(x).toUpperCase());
+  const idx = (re: RegExp) => c.findIndex(x => re.test(x));
+  const couleur = idx(/^COLOU?RS?$/);
+  const taille = idx(/^SIZES?$/);
+  const style = idx(/^(STYLE|ITEM ?NO\.?#?|ITEM|CODE)$/);
+  if (couleur < 0 && taille < 0 && style < 0) return null;
+  const quantites = c
+    .map((x, i) => ({ i, unite: [couleur, taille, style].includes(i) ? null : uniteColonne(x) }))
+    .filter((q): q is { i: number; unite: UniteDetail } => q.unite != null);
+  return quantites.length ? { couleur, taille, style, quantites } : null;
+}
+
+/** Les blocs d'un packing details, dans l'ordre du document. */
+function lireBlocsDetails(grille: Cellule[][], format: Format): BlocDetails[] {
+  const blocs: BlocDetails[] = [];
+  let colonnes: ColonnesDetails | null = null;
+  let precedent: RangDetail | null = null;
+  // Le bloc en cours : le dernier ouvert. Un titre ou un code après des variantes en ouvre un autre.
+  const courant = (ouvrir: boolean): BlocDetails => {
+    const dernier = blocs[blocs.length - 1];
+    if (dernier && !(ouvrir && dernier.rangs.length)) return dernier;
+    const b: BlocDetails = { refs: [], codes: [], rangs: [] };
+    blocs.push(b);
+    return b;
+  };
+
+  // Un PL collé avec le PD : ses lignes (de « DESCRIPTION OF GOODS » à TOTAL) ne sont pas des blocs.
+  let dansLePL = false;
+  for (const r of grille) {
+    const cellules = r.map(texte);
+    const premier = cellules.find(Boolean) ?? '';
+    if (trouverColonnes(r)) { dansLePL = true; colonnes = null; continue; }
+    if (dansLePL) {
+      if (cellules.some(x => RE_TOTAL.test(x)) || /^PACKED IN/i.test(premier)) dansLePL = false;
+      continue;
+    }
+    if (!premier) { colonnes = null; continue; }
+    const entete = enteteDetails(r);
+    if (entete) { courant(false); colonnes = entete; precedent = null; continue; }
+    if (colonnes) {
+      if (cellules.some(x => RE_TOTAL.test(x))) { colonnes = null; continue; }
+      const cols: ColonnesDetails = colonnes;
+      const valeurs = cols.quantites
+        .map(q => ({ unite: q.unite, valeur: lireNombre(r[q.i], format) }))
+        .filter((v): v is { unite: UniteDetail; valeur: number } => v.valeur != null);
+      if (valeurs.length) {
+        let rang: RangDetail = {
+          style: cols.style >= 0 ? cellules[cols.style] || '' : '',
+          couleur: cols.couleur >= 0 ? cellules[cols.couleur] || '' : '',
+          taille: cols.taille >= 0 ? cellules[cols.taille] || '' : '',
+          valeurs,
+        };
+        // Suite sans libellé (« | | 20000 ») : même variante que la ligne d'au-dessus.
+        if (precedent) rang = { style: rang.style || precedent.style, couleur: rang.couleur || precedent.couleur, taille: rang.taille || precedent.taille, valeurs };
+        courant(false).rangs.push(rang);
+        precedent = rang;
+        continue;
+      }
+      colonnes = null;
+    }
+    const code = premier.match(RE_CODE);
+    const titre = code ? null : premier.match(RE_TITRE);
+    if (titre) courant(true).refs.push(titre[1]);
+    else if (code) courant(true).codes.push(code[1].toUpperCase());
+  }
+  return blocs.filter(b => b.rangs.length);
+}
+
+/** La quantité d'une variante dans l'unité de la ligne (null si aucune colonne ne s'y ramène). */
+function quantiteDans(rang: RangDetail, ligne: LigneFacture): number | null {
+  const vers = uniteLigne(ligne.unite);
+  for (const v of [...rang.valeurs].sort((a, b) => Number(b.unite === vers) - Number(a.unite === vers))) {
+    const k = facteurDetail(v.unite, vers);
+    if (k != null) return v.valeur * k;
+  }
+  // Une seule colonne de quantité, d'unité inconnue de la ligne : on la prend telle quelle.
+  return rang.valeurs.length === 1 && !vers ? rang.valeurs[0].valeur : null;
+}
+
+const egal = (a: number, b: number) => Math.abs(a - b) <= Math.max(0.011, Math.abs(b) * 0.005);
+
+/** Pour comparer des couleurs écrites différemment : « Black Nickle » = « BLACK NICKEL ». */
+export const cleTexte = (t: string) => t.toUpperCase().replace(/NICKLE/g, 'NICKEL').replace(/[^0-9A-Z]+/g, ' ').trim();
+
+/**
+ * Rattache chaque bloc du PD aux lignes du PL qu'il détaille : par le code
+ * quand le bloc en porte un par variante, sinon dans l'ordre, une ligne après
+ * l'autre, tant que les quantités retombent juste. Rien n'est rattaché si
+ * les sommes ne correspondent pas.
+ */
+function rattacherDetails(lignes: LigneFacture[], blocs: BlocDetails[], avertissements: string[]): number {
+  let rattachees = 0;
+  const echecs: string[] = [];
+  for (const bloc of blocs) {
+    const parRef = lignes.filter(l =>
+      (l.ref && bloc.refs.includes(l.ref)) || (!bloc.refs.length && l.code && bloc.codes.includes(l.code)));
+    const parCodeEcrit = bloc.refs.length && bloc.codes.length ? parRef.filter(l => bloc.codes.includes(l.code)) : [];
+    const cibles = parCodeEcrit.length ? parCodeEcrit : parRef;
+    if (!cibles.length || cibles.some(l => l.quantite == null)) continue;
+    // Codes tapés de travers dans le PD (« 6620·-0212 ») : chiffres, lettres et tiret seulement.
+    const codeRang = (r: RangDetail) => r.style.toUpperCase().replace(/[^0-9A-Z-]/g, '').match(RE_CODE)?.[1] ?? null;
+    const sansSuffixe = (x: string) => x.replace(/[A-Z]+$/, '');
+    const parCode = bloc.rangs.every(r => codeRang(r));
+    // Le code exact d'abord ; sans son suffixe (6621-0243 pour 6621-0243B) seulement s'il est absent du bloc.
+    const codesDuBloc = new Set(bloc.rangs.map(codeRang));
+    const memeCode = (r: RangDetail, l: LigneFacture) =>
+      !parCode || codeRang(r) === l.code || (!codesDuBloc.has(l.code) && sansSuffixe(codeRang(r)!) === sansSuffixe(l.code));
+    const motsDe = (t: string) => new Set(cleTexte(t).split(' ').filter(Boolean));
+    const motsLigne = new Map(cibles.map(l => [l, motsDe(`${l.titre} ${l.spec}`)]));
+    const dims = ['couleur', 'taille'] as const;
+    const motsDim = Object.fromEntries(dims.map(k => [k, new Set(bloc.rangs.flatMap(r => [...motsDe(r[k])]))])) as Record<'couleur' | 'taille', Set<string>>;
+    const contredit = (m: Map<LigneFacture, RangDetail[]>) => cibles.length > 1 && cibles.some(l => dims.some(k => {
+      const propres = [...motsLigne.get(l)!].filter(w => motsDim[k].has(w) && !cibles.every(l2 => motsLigne.get(l2)!.has(w)));
+      // une rangée qui porte une autre valeur dans cette dimension contredit la ligne ; une rangée vide ne dit rien
+      return propres.length > 0 && (m.get(l) || []).some(r => r[k] && !propres.some(w => motsDe(r[k]).has(w)));
+    }));
+    const retombe = (m: Map<LigneFacture, RangDetail[]>) => !contredit(m) && new Set([...m.values()].flat()).size === bloc.rangs.length && [...m.values()].flat().length === bloc.rangs.length && cibles.every(l => {
+      const qs = (m.get(l) || []).map(r => quantiteDans(r, l));
+      return qs.length > 0 && qs.every(q => q != null) && egal(qs.reduce<number>((s2, q) => s2 + q!, 0), l.quantite!);
+    });
+
+    // 1. Par le code porté par chaque variante (colonne STYLE / ITEM NO.).
+    const parLeCode = () => new Map(cibles.map(l => {
+      const exacts = bloc.rangs.filter(r => codeRang(r) === l.code);
+      return [l, exacts.length ? exacts : bloc.rangs.filter(r => memeCode(r, l))] as [LigneFacture, RangDetail[]];
+    }));
+    // 2. Par la couleur écrite sur la ligne (« …28L white ») ; le reste à la
+    //    seule ligne qui n'en dit rien (« 20S/3,color »).
+    const parLaCouleur = () => {
+      const m = new Map<LigneFacture, RangDetail[]>();
+      const libres = new Set(bloc.rangs);
+      const muettes: LigneFacture[] = [];
+      for (const l of cibles) {
+        const t = ` ${cleTexte(`${l.titre} ${l.spec}`)} `;
+        const rangs = [...libres].filter(r => memeCode(r, l) && r.couleur && t.includes(` ${cleTexte(r.couleur)} `));
+        if (!rangs.length) { muettes.push(l); continue; }
+        // la plus longue couleur l'emporte : NICKEL est dans BLACK NICKEL
+        for (const r of [...rangs]) if (rangs.some(r2 => r2 !== r && cleTexte(r2.couleur) !== cleTexte(r.couleur) && ` ${cleTexte(r2.couleur)} `.includes(` ${cleTexte(r.couleur)} `))) rangs.splice(rangs.indexOf(r), 1);
+        m.set(l, rangs);
+        rangs.forEach(r => libres.delete(r));
+      }
+      if (muettes.length === 1 && m.size) m.set(muettes[0], [...libres].filter(r => memeCode(r, muettes[0])));
+      return m;
+    };
+    // 3. Dans l'ordre : les variantes remplissent une ligne, puis la suivante.
+    const dansLOrdre = () => {
+      const m = new Map<LigneFacture, RangDetail[]>();
+      let i = 0;
+      for (const l of cibles) {
+        const pris: RangDetail[] = [];
+        let cumul = 0;
+        while (i < bloc.rangs.length) {
+          const q = quantiteDans(bloc.rangs[i], l);
+          if (q == null) break;
+          if (pris.length && Math.abs(cumul + q - l.quantite!) >= Math.abs(cumul - l.quantite!)) break;
+          pris.push(bloc.rangs[i]);
+          cumul += q;
+          i++;
+        }
+        m.set(l, pris);
+      }
+      return m;
+    };
+    // La première lecture dont toutes les sommes retombent juste l'emporte.
+    const essais = [...(parCode ? [parLeCode] : []), parLaCouleur, dansLOrdre];
+    const affectation = essais.map(e => e()).find(retombe) ?? new Map<LigneFacture, RangDetail[]>();
+    for (const l of cibles) {
+      const rangs = affectation.get(l) || [];
+      const quantites = rangs.map(r => quantiteDans(r, l));
+      const total = quantites.reduce<number>((s, q) => s + (q ?? NaN), 0);
+      if (!rangs.length || !Number.isFinite(total) || !egal(total, l.quantite!)) {
+        echecs.push([l.ref, l.code].filter(Boolean).join(' '));
+        continue;
+      }
+      l.details = rangs.map((r, k) => ({
+        couleur: r.couleur,
+        taille: r.taille,
+        quantite: Math.round(quantites[k]! * 1000) / 1000,
+        ...(r.style ? { modele: r.style } : {}),
+      }));
+      rattachees++;
+    }
+  }
+  const faits = new Set(lignes.filter(l => l.details).map(l => [l.ref, l.code].filter(Boolean).join(' ')));
+  const echecsRestants = echecs.filter(e => !faits.has(e));
+  echecs.length = 0; echecs.push(...echecsRestants);
+  if (echecs.length) {
+    avertissements.push(`Packing details : quantités qui ne retombent pas sur le PL pour ${echecs.slice(0, 6).join(', ')}${echecs.length > 6 ? '…' : ''} — couleurs et tailles non lues pour ces lignes.`);
+  }
+  return rattachees;
+}
 
 /** Onglets d'origine seulement : « INV (2) », « PL(2) » sont des copies retouchées. */
 const estCopie = (nom: string) => /\(\s*\d+\s*\)\s*$/.test(nom);
@@ -478,11 +766,18 @@ export function lireClasseurFacture(wb: WorkBook, utils: typeof import('xlsx').u
   return assembler(grilles);
 }
 
-/** Lit un tableau copié depuis Excel et collé (colonnes séparées par des tabulations). */
-export function lireTexteColle(textelibre: string): LectureFacture {
-  const grille: Cellule[][] = textelibre
-    .replace(/\r/g, '')
-    .split('\n')
-    .map(l => l.split('\t'));
-  return assembler([{ nom: 'collage', grille, format: detecterFormat(grille.flat()) }]);
+const enGrille = (t: string): Cellule[][] => t.replace(/\r/g, '').split('\n').map(l => l.split('\t'));
+
+/**
+ * Lit un tableau copié depuis Excel et collé (colonnes séparées par des
+ * tabulations) : le packing list, et en option le packing details.
+ */
+export function lireTexteColle(textelibre: string, details = ''): LectureFacture {
+  const morceaux = [
+    { nom: 'collage', grille: enGrille(textelibre) },
+    { nom: 'packing details', grille: details.trim() ? enGrille(details) : [] },
+  ];
+  // Un seul format pour les deux : les poids décimaux du PL tranchent pour le PD.
+  const format = detecterFormat(morceaux.flatMap(m => m.grille.flat()));
+  return assembler(morceaux.filter(m => m.grille.length).map(m => ({ ...m, format })));
 }

@@ -11,7 +11,7 @@
  * Tout est pur : le composant applique les écritures dans un seul lot Firestore.
  */
 
-import type { LectureFacture, LigneFacture } from './facture-fournisseur';
+import { cleTexte, type Detail, type LectureFacture, type LigneFacture } from './facture-fournisseur';
 
 // ── Unités ───────────────────────────────────────────────────────────────────
 
@@ -164,6 +164,7 @@ export function normaliser(s: string): string {
     .replace(/\b([ANP])\s*\/\s*L\b/g, ' $1/L ')
     .replace(/\bNO\.?\s*(\d{1,2})\b/g, ' NO$1 ')
     .replace(/\bALUMINUM\b/g, 'ALUMINIUM')
+    .replace(/NICKLE/g, 'NICKEL')
     .replace(/\bNYGUARD|NYGURADE\b/g, 'NYLON')
     .replace(/\bPOLYSTER\b/g, 'POLYESTER')
     .replace(/(\d)\s*#/g, '$1# ')
@@ -229,6 +230,65 @@ export function repartition(a: any): { champ: string; qte: string; lignes: any[]
 }
 
 const statutEnBase = (a: any) => a?.rawStatus ?? a?.status;
+
+/** Une couleur, sans les mots qui ne la changent pas : « Paint black » = « BLACK ». */
+const cleCouleur = (c: string) => cleTexte(String(c || '').replace(/([A-Za-z])(?=\d)|(\d)(?=[A-Za-z])/g, '$1$2 '))
+  .replace(/\b(PAINT|PAINTED|DYED|COLOU?R)\b/g, ' ').replace(/\s+/g, ' ').trim();
+
+/** Le libellé d'une ligne de répartition, pour le comparer au PD. */
+function cleRangee(champ: string, r: any): string {
+  const v = champ === 'colorBreakdown' ? r?.colorCode : champ === 'sizeBreakdown' ? r?.size : champ === 'designBreakdown' ? r?.designRef : r?.quality;
+  return cleCouleur(String(v ?? ''));
+}
+
+/**
+ * Ce qu'une variante du PD désigne pour cette répartition, dans la même
+ * dimension : la taille pour une répartition par taille ou qualité, la couleur
+ * pour une répartition par couleur ou design. Vide si le PD ne la donne pas.
+ */
+function cleVariante(champ: string, d: Detail): string {
+  return cleCouleur(champ === 'sizeBreakdown' || champ === 'qualityBreakdown' ? d.taille : d.couleur);
+}
+
+const contient = (a: string, b: string) => ` ${a} `.includes(` ${b} `);
+
+/**
+ * Les lignes de répartition de chaque variante du PD. Même libellé d'abord
+ * (plusieurs lignes possibles). Sinon, la seule ligne qui contient l'autre
+ * (« A1001 WHITE » ↔ « WHITE »), à condition qu'aucune autre variante ne la
+ * prenne et que ce qui les sépare ne soit pas une couleur (« BLACK NICKEL »
+ * n'est pas « BLACK »). `exacte` dit comment elle a été trouvée.
+ */
+function associer(champ: string, lignes: any[], variantes: Detail[]): { rangs: number[]; exacte: boolean }[] {
+  const cles = lignes.map(r => cleRangee(champ, r));
+  const ks = variantes.map(d => cleVariante(champ, d));
+  const exacts = ks.map(k => (k ? cles.flatMap((c, i) => (c === k ? [i] : [])) : []));
+  const prises = new Set(exacts.flat());
+  const approches = ks.map((k, j) => {
+    if (!k || exacts[j].length) return -1;
+    const proches = cles.flatMap((c, i) => (c && (contient(c, k) || contient(k, c)) ? [i] : []));
+    if (proches.length !== 1 || prises.has(proches[0])) return -1;
+    const [court, long] = cles[proches[0]].length < k.length ? [cles[proches[0]], k] : [k, cles[proches[0]]];
+    const ecart = long.split(' ').filter(w => !court.split(' ').includes(w));
+    return ecart.some(w => COULEURS.includes(w)) ? -1 : proches[0];
+  });
+  return ks.map((_, j) => (exacts[j].length
+    ? { rangs: exacts[j], exacte: true }
+    : approches[j] >= 0 && approches.filter(x => x === approches[j]).length === 1
+      ? { rangs: [approches[j]], exacte: false }
+      : { rangs: [], exacte: false }));
+}
+
+const LARGE = /^(VARIOUS|MULTI|MIX|MIXED|ASSORTED)$/;
+
+/**
+ * Les couleurs écrites dans le champ couleur de la fiche, qui en porte parfois
+ * plusieurs (« various x black x white ») ; `ouvert` quand « various » y figure.
+ */
+function couleursFiche(c: unknown): { couleurs: Set<string>; ouvert: boolean } {
+  const parts = String(c || '').split(/\s+x\s+|[,/&+]|\s+et\s+|\s+and\s+/i).map(cleCouleur).filter(Boolean);
+  return { couleurs: new Set(parts.filter(p => !LARGE.test(p))), ouvert: parts.some(p => LARGE.test(p)) };
+}
 
 const codeDans = (v: unknown) => String(v || '').toUpperCase().match(RE_CODE_ARTICLE)?.[0] ?? null;
 
@@ -296,7 +356,7 @@ export type Evaluation = {
    * `modele` du catalogue, `prix` à 2 % près, `signature` (mêmes poids et
    * volume déjà dans le dossier). Sans preuve, jamais « sûr ».
    */
-  preuves: ('code' | 'modele' | 'prix' | 'signature')[];
+  preuves: ('code' | 'modele' | 'prix' | 'signature' | 'couleur')[];
 };
 
 const ecartRelatif = (a: number, b: number) => (b === 0 ? (a === 0 ? 0 : Infinity) : Math.abs(a - b) / Math.abs(b));
@@ -320,7 +380,9 @@ function presque(a: string, b: string): boolean {
 
 export function evaluer(ligne: LigneFacture, article: any, dossierId: string): Evaluation {
   const texteLigne = `${ligne.titre} ${ligne.spec}`;
-  const tl = traits(`${texteLigne} ${ligne.code}`);
+  const variantes = ligne.details || [];
+  // Les couleurs et tailles du PD comptent comme si elles étaient écrites sur la ligne.
+  const tl = traits(`${texteLigne} ${ligne.code} ${variantes.map(d => `${d.couleur} ${d.taille}`).join(' ')}`);
   const texteArticle = [article.name, article.categoryId !== article.name ? article.categoryId : '', article.size, article.specs].filter(Boolean).join(' ');
   const ta = traits(texteArticle);
   const raisons: string[] = [];
@@ -356,11 +418,40 @@ export function evaluer(ligne: LigneFacture, article: any, dossierId: string): E
     if (proche) score += 12;
     else { score -= 20; raisons.push('dimension différente'); }
   }
-  // Couleur : seulement si la fiche en a une précise.
-  const couleursArticle = COULEURS.filter(c => normaliser(article.color || '').includes(` ${c} `));
-  if (couleursArticle.length && tl.couleurs.length) {
-    if (couleursArticle.every(c => tl.couleurs.includes(c))) score += 6;
-    else if (!couleursArticle.some(c => tl.couleurs.includes(c))) { score -= 8; raisons.push('couleur différente'); }
+  // Couleur. Avec le PD, elle se lit variante par variante ; sinon dans le texte.
+  const rep = repartition(article);
+  let couleurNotee = false;
+  if (variantes.length && rep && variantes.some(d => cleVariante(rep.champ, d))) {
+    // Répartition déjà sur la fiche, dans la même dimension que le PD : la part
+    // du PD qu'on y retrouve (même libellé : plein ; approché : moitié), chaque
+    // ligne ne comptant que jusqu'à sa quantité + 15 %.
+    const total = variantes.reduce((s, d) => s + d.quantite, 0);
+    const assoc = associer(rep.champ, rep.lignes, variantes);
+    const retrouve = variantes.reduce((s, d, j) => {
+      const plafond = assoc[j].rangs.reduce((t, i) => t + (Number(rep.lignes[i]?.[rep.qte]) || 0), 0) * 1.15;
+      return s + Math.min(d.quantite, plafond) * (assoc[j].exacte ? 1 : 0.5);
+    }, 0);
+    const part = total > 0 ? retrouve / total : 0;
+    if (part >= 0.99) { score += 12; preuves.push('couleur'); couleurNotee = true; }
+    else if (part >= 0.5) score += 6;
+    else if (part === 0) { score -= 8; raisons.push('variantes du PD absentes de la fiche'); }
+  }
+  if (!couleurNotee && variantes.length && variantes.every(d => d.couleur) && couleursFiche(article.color).couleurs.size) {
+    // Couleur de la fiche : identique (+), voisine (« RAW WHITE » / « WHITE » : neutre), différente (−).
+    const { couleurs, ouvert } = couleursFiche(article.color);
+    const liste = [...couleurs];
+    const etats = variantes.map(d => {
+      const k = cleCouleur(d.couleur);
+      return couleurs.has(k) ? 'meme' : liste.some(c => contient(c, k) || contient(k, c)) ? 'voisine' : 'autre';
+    });
+    if (etats.every(e => e === 'meme')) { score += 12; preuves.push('couleur'); }
+    else if (etats.every(e => e === 'autre') && !ouvert) { score -= 8; raisons.push(`couleur ${variantes[0].couleur} ≠ ${article.color}`); }
+  } else if (!variantes.length) {
+    const couleursArticle = COULEURS.filter(c => normaliser(article.color || '').includes(` ${c} `));
+    if (couleursArticle.length && tl.couleurs.length) {
+      if (couleursArticle.every(c => tl.couleurs.includes(c))) score += 6;
+      else if (!couleursArticle.some(c => tl.couleurs.includes(c))) { score -= 8; raisons.push('couleur différente'); }
+    }
   }
   // Code fournisseur relevé sur la fiche (« 6570-5391 » ↔ « 6570-5391A »).
   const sansSuffixe = (c: string) => c.replace(/[A-Z]+$/, '');
@@ -552,7 +643,28 @@ export type PlanArticle = {
   /** Le code de la ligne peut être noté sur la fiche (rapprochement sûr, probable ou choisi). */
   codeFiable: boolean;
   conversion: Conversion | null;
+  /** Couleurs et tailles expédiées (PD), dans l'unité de la fiche. */
+  variantes: Detail[] | null;
+  /** Répartition de la part qui part, et de celle qui reste en production (lues dans le PD). */
+  repartitionEnvoyee: RepartitionEcrite | null;
+  repartitionRestante: RepartitionEcrite | null;
+  /** Ce qui resterait, couleur par couleur, quel que soit le mode : « Solder » l'abandonne. */
+  resteDecoupe: RepartitionEcrite | null;
+  /** Une seule couleur au PD pour une fiche sans couleur précise. */
+  couleurEnvoyee: string | null;
+  /** Le conditionnement des lignes, quand il diffère de celui de la fiche. */
+  conditionnement: Conditionnement | null;
   avertissements: string[];
+};
+
+/** Une répartition à écrire telle quelle sur la fiche. */
+export type RepartitionEcrite = { champ: string; lignes: any[] };
+
+export type Conditionnement = {
+  avant: string;
+  apres: string;
+  /** Les champs chiffrés de la fiche à suivre (pcsPerBag, bagsPerCarton…). */
+  champs: Record<string, number>;
 };
 
 export type OptionsPlan = {
@@ -572,6 +684,145 @@ const TOLERANCE_ARRONDI = 0.005;
 
 /** Écart de quantité qu'une mise à jour d'un article déjà au dossier corrige seule. */
 const TOLERANCE_MAJ = 0.02;
+
+/** Le champ de quantité d'une répartition (« rolls » pour couleurs et designs). */
+const qteDe = (champ: string) => (champ === 'colorBreakdown' || champ === 'designBreakdown' ? 'rolls' : 'quantity');
+
+const libelleVariante = (v: Detail) => [v.couleur, v.taille].filter(Boolean).join(' ');
+
+/**
+ * Une couleur du PD telle qu'on l'écrit sur une fiche : les codes (A804, B360)
+ * tels quels, les mots en minuscules, sans la faute « NICKLE ».
+ */
+const couleurPourFiche = (c: string) => {
+  const t = c.trim().replace(/NICKLE/gi, 'nickel');
+  return /\d/.test(t) ? t : t.toLowerCase();
+};
+
+/**
+ * Les variantes du PD pour un article, regroupées (une couleur répétée sur
+ * plusieurs cartons n'en fait qu'une) et ramenées à l'unité de la fiche.
+ * null si une des lignes n'a pas de détail.
+ */
+function variantesDe(lignes: LigneFacture[], facteur: number): Detail[] | null {
+  if (!lignes.length || lignes.some(l => !l.details?.length)) return null;
+  return regrouperDetails(lignes.flatMap(l => l.details!), facteur);
+}
+
+/** Une variante par couleur et taille : les cartons d'une même couleur s'additionnent. */
+export function regrouperDetails(details: Detail[], facteur = 1): Detail[] {
+  const parCle = new Map<string, Detail>();
+  for (const d of details) {
+    const cle = `${cleCouleur(d.couleur)}|${cleTexte(d.taille)}`;
+    const deja = parCle.get(cle);
+    if (deja) deja.quantite += d.quantite * facteur;
+    else parCle.set(cle, { couleur: d.couleur, taille: d.taille, quantite: d.quantite * facteur });
+  }
+  return [...parCle.values()].map(d => ({ ...d, quantite: arrondi(d.quantite, 3) }));
+}
+
+// ── Conditionnement (« 500pcs/bag 10bags/carton ») ───────────────────────────
+
+const RE_CONDITIONNEMENT = /(\d+(?:\.\d+)?)\s*(PCS?|P|PIECES?|SETS?|YDS?|YARDS?|Y|MTS|METERS?|M|GROSS|DOZ|ROLLS?|BAGS?|BOX(?:ES)?|CARDS?|KGS?|BUNDLES?)\s*\/\s*(SACK\s*BAG|SACKBAG|POLYBAG|BAG|BOX|CARTON|CTN|ROLL|BOBBIN|CONE|CARD|BUNDLE|SAC)\b/gi;
+
+type JetonConditionnement = { cle: string; famille: string; brut: string; n: number; unite: string; contenant: string };
+
+/** Ce qu'on compte par contenant, pour ne remplacer qu'un jeton de même nature. */
+const FAMILLE: Record<string, string> = {
+  PCS: 'piece', SETS: 'piece', DOZ: 'piece', GROSS: 'piece', BAGS: 'sac', BOX: 'boite', ROLLS: 'rouleau',
+  Y: 'longueur', M: 'longueur', KG: 'poids', CARDS: 'carte', BUNDLES: 'botte',
+};
+
+/** Le texte prêt à lire : ponctuation chinoise ramenée, « 1,000pcs » = 1000, les autres virgules séparent. */
+const texteConditionnement = (t: string) => String(t || '')
+  .replace(/／/g, '/').replace(/，/g, ',').replace(/；/g, ';')
+  .replace(/\b(\d{1,3}),(\d{3})(?=\s*[A-Za-z]+\s*\/)/g, '$1$2')
+  .replace(/,/g, ' ');
+
+function jetonsConditionnement(t: string): JetonConditionnement[] {
+  const vus = new Set<string>();
+  const jetons: JetonConditionnement[] = [];
+  for (const m of texteConditionnement(t).matchAll(RE_CONDITIONNEMENT)) {
+    const n = Number(m[1]);
+    const u = m[2].toUpperCase();
+    const unite = /^PC|^PIECE|^P$/.test(u) ? 'PCS' : /^SET/.test(u) ? 'SETS' : /^Y/.test(u) ? 'Y' : /^M/.test(u) ? 'M'
+      : /^ROLL/.test(u) ? 'ROLLS' : /^BAG/.test(u) ? 'BAGS' : /^BOX/.test(u) ? 'BOX' : /^CARD/.test(u) ? 'CARDS'
+      : /^KG/.test(u) ? 'KG' : /^BUNDLE/.test(u) ? 'BUNDLES' : u;
+    const c = m[3].toUpperCase().replace(/\s+/g, '');
+    const contenant = c === 'CTN' ? 'CARTON' : c === 'SAC' ? 'SACKBAG' : c;
+    const cle = `${n}${unite}/${contenant}`;
+    if (vus.has(cle)) continue;
+    vus.add(cle);
+    jetons.push({ cle, famille: `${FAMILLE[unite] ?? unite}/${contenant}`, brut: m[0], n, unite, contenant });
+  }
+  return jetons;
+}
+
+/** Les champs chiffrés que la fiche tient déjà, et ce que le conditionnement leur donne. */
+const CHAMPS_CONDITIONNEMENT: { champ: string; unite: string[]; contenant: string[] }[] = [
+  { champ: 'pcsPerBag', unite: ['PCS', 'SETS'], contenant: ['BAG', 'POLYBAG'] },
+  { champ: 'bagsPerCarton', unite: ['BAGS'], contenant: ['CARTON'] },
+  { champ: 'pcsPerBox', unite: ['PCS', 'SETS'], contenant: ['BOX'] },
+  { champ: 'boxPerCarton', unite: ['BOX'], contenant: ['CARTON'] },
+  { champ: 'rollsPerCarton', unite: ['ROLLS'], contenant: ['CARTON'] },
+  { champ: 'packagingPerBag', unite: ['ROLLS'], contenant: ['BAG', 'SACKBAG', 'POLYBAG'] },
+  { champ: 'pcsPerCtn', unite: ['PCS', 'SETS'], contenant: ['CARTON'] },
+  { champ: 'rollLength', unite: ['M', 'Y'], contenant: ['ROLL'] },
+];
+
+/**
+ * Le conditionnement des lignes, s'il diffère de celui de la fiche. Les specs
+ * gardent leur texte : un « 20bags/carton » devient « 10bags/carton » à sa
+ * place, un jeton que la fiche n'avait pas s'ajoute à la fin, et les jetons
+ * que le PL ne redit pas (« 4400y/cone ») restent. Les champs chiffrés que la
+ * fiche tient déjà suivent.
+ */
+function conditionnementDe(a: any, lignes: LigneFacture[]): Conditionnement | null {
+  const parLigne = lignes.map(l => jetonsConditionnement(l.spec));
+  if (!parLigne[0].length) return null;
+  // Des lignes qui ne se conditionnent pas pareil : on ne choisit pas.
+  const cles = (j: JetonConditionnement[]) => j.map(x => x.cle).sort().join(' ');
+  if (new Set(parLigne.map(cles)).size > 1) return null;
+  const facture = parLigne[0];
+  const fiche = jetonsConditionnement(a.specs || '');
+
+  let apres = String(a.specs || '');
+  let change = false;
+  const ajouts: string[] = [];
+  for (const j of facture) {
+    const meme = fiche.find(x => x.famille === j.famille);
+    if (!meme) { ajouts.push(j.brut.replace(/\s+/g, '')); change = true; continue; }
+    if (meme.cle === j.cle) continue;
+    // Remplacé à sa place ; si le texte de la fiche ne le montre pas tel quel, ajouté à la fin.
+    if (apres.includes(meme.brut)) apres = apres.replace(meme.brut, j.brut.replace(/\s+/g, ''));
+    else ajouts.push(j.brut.replace(/\s+/g, ''));
+    change = true;
+  }
+  if (!change) return null;
+  apres = [apres.replace(/\s{2,}/g, ' ').replace(/[\s,;]+$/g, '').trim(), ...ajouts].filter(Boolean).join(' ');
+
+  const champs: Record<string, number> = {};
+  for (const { champ, unite, contenant } of CHAMPS_CONDITIONNEMENT) {
+    // Seulement les champs que la fiche tient déjà (une valeur à 0 est un calcul, pas une saisie).
+    if (a[champ] === undefined || a[champ] === null || a[champ] === '' || Number(a[champ]) === 0) continue;
+    const j = facture.find(x => unite.includes(x.unite) && contenant.includes(x.contenant));
+    // Longueur de rouleau : seulement dans l'unité que la fiche emploie déjà.
+    if (champ === 'rollLength' && j && String(a.rollLengthUnit || '').toLowerCase() !== (j.unite === 'Y' ? 'yds' : 'm')) continue;
+    let n = j?.n;
+    // Pièces par carton : sinon pièces par sac × sacs par carton.
+    if (n == null && champ === 'pcsPerCtn') {
+      const parSac = facture.find(x => ['PCS', 'SETS'].includes(x.unite) && x.contenant === 'BAG')?.n;
+      const sacs = facture.find(x => x.unite === 'BAGS' && x.contenant === 'CARTON')?.n;
+      if (parSac && sacs) n = parSac * sacs;
+    }
+    if (n != null && Number(a[champ]) !== n) champs[champ] = n;
+  }
+  // Rouleaux par carton, tenus égaux aux sacs par carton dans les fiches : ils suivent.
+  if (champs.bagsPerCarton != null && Number(a.rollsPerCarton) > 0 && Number(a.rollsPerCarton) === Number(a.bagsPerCarton) && champs.rollsPerCarton == null) {
+    champs.rollsPerCarton = champs.bagsPerCarton;
+  }
+  return { avant: String(a.specs || ''), apres, champs };
+}
 
 /**
  * Regroupe les lignes retenues par article et décide comment chacun passe :
@@ -659,15 +910,84 @@ export function construirePlan(
     const sousLaCommande = !dejaDansDossier && quantite != null && quantite < qteArticle * (1 - TOLERANCE_ARRONDI);
     const couvre = ecart <= TOLERANCE_QUANTITE;
 
+    // Couleurs et tailles du PD : de quoi découper la répartition de la fiche,
+    // ou en donner une à la part expédiée.
+    const variantes = !dejaDansDossier && conv && !ambigue ? variantesDe(lignes, conv.facteur) : null;
+    let repartitionEnvoyee: RepartitionEcrite | null = null;
+    let repartitionRestante: RepartitionEcrite | null = null;
+    let couleurEnvoyee: string | null = null;
+    // Tous les restes de couleur minimes (±5 % de chaque ligne) et le total atteint : rien ne reste vraiment.
+    let resteNegligeable = true;
+    if (variantes && rep && variantes.some(v => cleVariante(rep.champ, v))) {
+      const envoye = rep.lignes.map(() => 0);
+      const inconnues: string[] = [];
+      const assoc = associer(rep.champ, rep.lignes, variantes);
+      variantes.forEach((v, j) => {
+        const rangs = assoc[j].rangs;
+        if (!rangs.length) { inconnues.push(libelleVariante(v)); return; }
+        // Une couleur sur plusieurs lignes de la fiche : chacune se remplit dans l'ordre, le surplus sur la dernière.
+        let aPlacer = v.quantite;
+        rangs.forEach((i, k) => {
+          const place = k === rangs.length - 1 ? aPlacer : Math.min(aPlacer, Math.max(0, (Number(rep.lignes[i]?.[rep.qte]) || 0) - envoye[i]));
+          envoye[i] += place;
+          aPlacer -= place;
+        });
+      });
+      if (inconnues.length) {
+        avertissements.push(`Variantes du PD absentes de la fiche (${inconnues.slice(0, 4).join(', ')}${inconnues.length > 4 ? '…' : ''}) : répartition de la fiche non découpée.`);
+      } else {
+        repartitionEnvoyee = { champ: rep.champ, lignes: rep.lignes.flatMap((r, i) => (envoye[i] > 0 ? [{ ...r, [rep.qte]: arrondi(envoye[i], 3) }] : [])) };
+        const restes = rep.lignes.flatMap((r, i) => {
+          const q = Number(r[rep.qte]) || 0;
+          const reste = arrondi(q - envoye[i], 3);
+          if (reste > q * 0.05) resteNegligeable = false;
+          return reste > q * TOLERANCE_ARRONDI ? [{ ...r, [rep.qte]: reste }] : [];
+        });
+        repartitionRestante = restes.length ? { champ: rep.champ, lignes: restes } : null;
+        const somme = envoye.reduce((s, x) => s + x, 0);
+        if (somme < qteArticle * (1 - TOLERANCE_ARRONDI)) resteNegligeable = false;
+      }
+    } else if (variantes && variantes.length >= 2) {
+      // La fiche n'avait pas de répartition : la part expédiée prend celle du PD.
+      const couleurs = new Set(variantes.map(v => cleCouleur(v.couleur)).filter(Boolean));
+      const parTaille = couleurs.size < 2 && variantes.every(v => v.taille);
+      const qtes = variantes.map(v => v.quantite);
+      // Ses lignes font exactement la quantité écrite : l'écart d'arrondi (PD admis à 0,5 % près) va sur la plus grosse.
+      if (quantite != null) {
+        const ecartPD = arrondi(quantite - qtes.reduce((s, q) => s + q, 0), 3);
+        if (ecartPD !== 0) {
+          const i = qtes.indexOf(Math.max(...qtes));
+          qtes[i] = arrondi(qtes[i] + ecartPD, 3);
+          if (Math.abs(ecartPD) > quantite * 0.001) {
+            avertissements.push(`Le PD fait ${arrondi(quantite - ecartPD, 3)} ${u}, le PL ${quantite} : l'écart est reporté sur ${libelleVariante(variantes[i])}.`);
+          }
+        }
+      }
+      repartitionEnvoyee = parTaille
+        ? { champ: 'sizeBreakdown', lignes: variantes.map((v, i) => ({ size: v.taille, quantity: qtes[i] })) }
+        : { champ: 'colorBreakdown', lignes: variantes.map((v, i) => ({ colorCode: couleurPourFiche(libelleVariante(v)), rolls: qtes[i] })) };
+      const seule = variantes[0].couleur;
+      if (parTaille && seule && (!a.color || a.color === 'various')) couleurEnvoyee = couleurPourFiche(seule);
+    } else if (variantes && variantes.length === 1 && variantes[0].couleur && (!a.color || a.color === 'various')) {
+      couleurEnvoyee = couleurPourFiche(variantes[0].couleur);
+    }
+    // La répartition de la fiche est découpée d'après le PD : on sait quelles couleurs partent.
+    const decoupee = Boolean(repartitionEnvoyee && rep);
+    const totalEnvoye = repartitionEnvoyee ? arrondi(repartitionEnvoyee.lignes.reduce((s, r) => s + (Number(r[qteDe(repartitionEnvoyee!.champ)]) || 0), 0), 3) : null;
+    const totalRestant = repartitionRestante ? arrondi(repartitionRestante.lignes.reduce((s, r) => s + (Number(r[qteDe(repartitionRestante!.champ)]) || 0), 0), 3) : 0;
+    // Une répartition qu'on ne sait pas découper (pas de PD, ou couleurs inconnues).
+    const indecoupable = plusieursLignes && !decoupee;
+
     let modesPossibles: ModePassage[];
     let propose: ModePassage;
     if (dejaDansDossier) {
       modesPossibles = ['maj'];
       propose = 'maj';
-    } else if (sousLaCommande && !plusieursLignes && !ambigue) {
+    } else if (decoupee ? Boolean(repartitionRestante) : sousLaCommande && !plusieursLignes && !ambigue) {
       // Le PL ne porte qu'une partie de la commande : le reste reste en production.
+      // Des restes de couleur minimes, le total atteint : tout part (le surplus compense).
       modesPossibles = ['partiel', 'solde'];
-      propose = 'partiel';
+      propose = decoupee && resteNegligeable ? 'solde' : 'partiel';
     } else {
       modesPossibles = ['solde'];
       propose = 'solde';
@@ -676,9 +996,9 @@ export function construirePlan(
     const mode = voulu && modesPossibles.includes(voulu) ? voulu : propose;
 
     // Expédition partielle qu'on ne sait pas découper : article réparti en
-    // couleurs, ou unité ambiguë (yard réel ou compté comme un mètre).
+    // couleurs sans PD, ou unité ambiguë (yard réel ou compté comme un mètre).
     const partielAmbigu = sousLaCommande && ambigue && !plusieursLignes;
-    const partielReparti = (sousLaCommande && plusieursLignes) || partielAmbigu;
+    const partielReparti = (sousLaCommande && indecoupable) || partielAmbigu;
     const bloque = partielReparti && !options.forces?.[id];
     if (partielAmbigu) {
       avertissements.push(bloque
@@ -688,7 +1008,7 @@ export function construirePlan(
       avertissements.push(bloque
         ? `Partiel sur un article réparti en ${rep!.lignes.length} ${rep!.champ === 'colorBreakdown' ? 'couleurs' : 'variantes'} (${quantite} sur ${qteArticle} ${u}) : passe-le avec « Expédier » dans Production pour le fractionner, ou force le passage en entier.`
         : `Passé en entier malgré l'expédition partielle (${quantite} sur ${qteArticle} ${u}).`);
-    } else if (plusieursLignes && quantite != null && ecartRelatif(quantite, qteArticle) > 0.005) {
+    } else if (indecoupable && quantite != null && ecartRelatif(quantite, qteArticle) > 0.005) {
       avertissements.push(`Réparti en ${rep!.lignes.length} lignes (${rep!.champ === 'colorBreakdown' ? 'couleurs' : 'variantes'}) : quantité laissée à ${qteArticle}, à ajuster dans la fiche (facture : ${quantite}).`);
     }
     if (quantite != null && qteArticle > 0 && quantite > qteArticle * (1 + TOLERANCE_QUANTITE)) {
@@ -696,7 +1016,8 @@ export function construirePlan(
     }
 
     // Ce qu'on réécrit sur la fiche.
-    let majQuantite = quantite != null && !plusieursLignes && !ambigue && ecartRelatif(quantite, qteArticle) > 1e-9;
+    const quantiteEnvoyee = decoupee ? totalEnvoye : quantite;
+    let majQuantite = quantiteEnvoyee != null && !indecoupable && !ambigue && ecartRelatif(quantiteEnvoyee, qteArticle) > 1e-9;
     let majPoidsNet = poidsNet != null;
     let majVolume = volume != null;
     if (mode === 'maj') {
@@ -715,16 +1036,19 @@ export function construirePlan(
     if (poidsNet == null && mode !== 'maj') avertissements.push('Pas de poids net dans le document : celui de la fiche est gardé.');
     if (volume == null && mode !== 'maj') avertissements.push('Pas de volume dans le document : celui de la fiche est gardé.');
 
+    // Le conditionnement des lignes, s'il diffère de celui de la fiche.
+    const conditionnement = mode === 'maj' && !couvre ? null : conditionnementDe(a, lignes);
+
     plan.push({
       article: a,
       lignes,
-      quantite,
+      quantite: quantiteEnvoyee,
       poidsNet,
       volume,
       prix,
       mode,
       modesPossibles,
-      reste: mode === 'partiel' && quantite != null ? arrondi(qteArticle - quantite, 3) : 0,
+      reste: mode !== 'partiel' ? 0 : decoupee ? totalRestant : quantite != null ? arrondi(qteArticle - quantite, 3) : 0,
       couvre,
       majQuantite,
       majPoidsNet,
@@ -733,6 +1057,12 @@ export function construirePlan(
       partielReparti,
       codeFiable: !options.fiables || lignes.every(l => options.fiables!.has(l.index)),
       conversion: conv,
+      variantes,
+      repartitionEnvoyee: mode === 'maj' ? null : repartitionEnvoyee,
+      repartitionRestante: mode === 'partiel' ? repartitionRestante : null,
+      resteDecoupe: mode === 'maj' ? null : repartitionRestante,
+      couleurEnvoyee: mode === 'maj' ? null : couleurEnvoyee,
+      conditionnement,
       avertissements,
     });
   }
@@ -779,6 +1109,23 @@ function repartitionMiseAJour(a: any, quantite: number | null, nouveauPrix: numb
   return change ? { [rep.champ]: lignes } : {};
 }
 
+/**
+ * Une répartition lue dans le PD, prête à écrire : les prix de ligne égaux à
+ * l'ancien prix suivent le nouveau ; la couleur (ou la taille) de la fiche dit
+ * « various » dès qu'il y a plusieurs lignes, comme la fiche article le fait.
+ */
+function ecrireRepartition(r: RepartitionEcrite, ancienPrix: number, nouveauPrix: number | null): Record<string, any> {
+  const lignes = r.lignes.map(l => {
+    const po = l?.priceOverride;
+    if (nouveauPrix == null || po == null || po === '' || Math.abs(Number(po) - ancienPrix) > 1e-9) return l;
+    return { ...l, priceOverride: typeof po === 'string' ? String(nouveauPrix) : nouveauPrix };
+  });
+  const donnees: Record<string, any> = { [r.champ]: lignes };
+  if (r.champ === 'colorBreakdown') donnees.color = lignes.length === 1 ? lignes[0].colorCode : 'various';
+  if (r.champ === 'sizeBreakdown') donnees.size = lignes.length === 1 ? lignes[0].size : 'various';
+  return donnees;
+}
+
 /** Une répartition d'une seule couleur : la couleur de la fiche est ce code (comme « Expédier »). */
 function couleurNormalisee(a: any): Record<string, any> {
   const c = Array.isArray(a?.colorBreakdown) && a.colorBreakdown.length === 1 ? a.colorBreakdown[0]?.colorCode : null;
@@ -794,6 +1141,8 @@ export type ContexteEcritures = {
   lecture: Pick<LectureFacture, 'numeroFacture' | 'numeroCommande' | 'dateFacture' | 'fret'>;
   nomFichier: string;
   majFret: boolean;
+  /** Reporter le conditionnement des lignes (« 500pcs/bag 10bags/carton ») sur les fiches. */
+  majConditionnement?: boolean;
 };
 
 const refLignes = (lignes: LigneFacture[]) => [...new Set(lignes.map(l => [l.ref, l.code].filter(Boolean).join(' ')))].join(', ');
@@ -832,14 +1181,22 @@ export function ecritures(plan: PlanArticle[], ctx: ContexteEcritures): Ecriture
     const nouveauPrix = changePrix(p, ctx.appliquerPrix) ? p.prix : null;
     const prix = nouveauPrix != null ? { purchasePricePerUnit: nouveauPrix } : {};
     const quantite = p.majQuantite && p.quantite != null ? { quantity: p.quantite } : {};
-    const repartitionNeuve = repartitionMiseAJour(a, p.majQuantite ? p.quantite : null, nouveauPrix);
+    const ancienPrix = Number(a.purchasePricePerUnit) || 0;
+    // La répartition de la part qui part : celle du PD, sinon l'unique ligne ajustée.
+    const repartitionEnvoyee = p.repartitionEnvoyee
+      ? ecrireRepartition(p.repartitionEnvoyee, ancienPrix, nouveauPrix)
+      : repartitionMiseAJour(a, p.majQuantite ? p.quantite : null, nouveauPrix);
+    const couleur = p.couleurEnvoyee ? { color: p.couleurEnvoyee } : {};
+    const conditionnement = ctx.majConditionnement && p.conditionnement
+      ? { specs: p.conditionnement.apres, ...p.conditionnement.champs }
+      : {};
     const poids = {
       ...(p.majPoidsNet ? { netWeight: p.poidsNet } : {}),
       ...(p.majVolume ? { cubicMeasurement: p.volume } : {}),
     };
 
     if (p.mode === 'maj') {
-      const data: Record<string, any> = { ...traces, ...prix, ...quantite, ...repartitionNeuve };
+      const data: Record<string, any> = { ...traces, ...prix, ...quantite, ...repartitionMiseAJour(a, p.majQuantite ? p.quantite : null, nouveauPrix), ...conditionnement };
       if (p.majPoidsNet && Number(a.netWeight) !== p.poidsNet) data.netWeight = p.poidsNet;
       if (p.majVolume && Number(a.cubicMeasurement) !== p.volume) data.cubicMeasurement = p.volume;
       ops.push({ op: 'update', collection: 'articles', id: a.id, data });
@@ -855,7 +1212,10 @@ export function ecritures(plan: PlanArticle[], ctx: ContexteEcritures): Ecriture
     };
 
     if (p.mode === 'solde') {
-      ops.push({ op: 'update', collection: 'articles', id: a.id, data: { ...transit, ...poids, ...traces, ...prix, ...quantite, ...repartitionNeuve } });
+      ops.push({
+        op: 'update', collection: 'articles', id: a.id,
+        data: { ...transit, ...poids, ...traces, ...prix, ...quantite, ...repartitionEnvoyee, ...couleur, ...conditionnement },
+      });
       continue;
     }
 
@@ -863,7 +1223,7 @@ export function ecritures(plan: PlanArticle[], ctx: ContexteEcritures): Ecriture
     // garde le reste en production avec sa part des estimations poids / volume.
     const qte = p.quantite!;
     const qteArticle = Number(a.quantity) || 0;
-    const reste = arrondi(qteArticle - qte, 3);
+    const reste = p.reste;
     const originalOrderId = a.originalOrderId || a.id;
     const id = ctx.nouvelId();
     ops.push({
@@ -880,7 +1240,9 @@ export function ecritures(plan: PlanArticle[], ctx: ContexteEcritures): Ecriture
         ...traces,
         ...prix,
         quantity: qte,
-        ...repartitionMiseAJour(a, qte, nouveauPrix),
+        ...(p.repartitionEnvoyee ? repartitionEnvoyee : repartitionMiseAJour(a, qte, nouveauPrix)),
+        ...couleur,
+        ...conditionnement,
       },
     });
     ops.push({
@@ -892,8 +1254,8 @@ export function ecritures(plan: PlanArticle[], ctx: ContexteEcritures): Ecriture
         originalOrderId,
         netWeight: part(a.netWeight, reste, qteArticle, 2),
         cubicMeasurement: part(a.cubicMeasurement, reste, qteArticle, 3),
-        ...repartitionMiseAJour(a, reste, null),
         ...couleurNormalisee(a),
+        ...(p.repartitionRestante ? ecrireRepartition(p.repartitionRestante, ancienPrix, null) : repartitionMiseAJour(a, reste, null)),
         // Le reste en production ne fait pas partie du dossier.
         ...(a.factureId === ctx.dossier.id ? { factureId: '' } : {}),
       },
