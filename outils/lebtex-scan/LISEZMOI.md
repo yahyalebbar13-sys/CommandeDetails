@@ -18,6 +18,15 @@ client, paiement d'une facture) de piloter le scanner du PC de caisse.
 
 Le programme démarre ensuite tout seul avec Windows.
 
+## Impression directe
+
+L'installation pose aussi sur le Bureau un raccourci **« Lebtex Stock »** : il ouvre /stock dans
+Chrome (ou Edge) avec l'impression directe. Chaque bouton « Imprimer » part alors sur l'imprimante
+par défaut de Windows, sans fenêtre d'aperçu. Ouvrir /stock par ce raccourci, pas par un Chrome
+ordinaire. Ce navigateur a son propre profil : la permission « réseau local » s'y redonne une fois.
+Pour changer d'imprimante : Paramètres Windows → Imprimantes → définir par défaut (et décocher
+« Laisser Windows gérer mon imprimante par défaut »).
+
 ## Scanner une pièce
 
 Poser le chèque ou la LC face contre la vitre, calé dans le coin marqué d'une flèche. Seul le haut
