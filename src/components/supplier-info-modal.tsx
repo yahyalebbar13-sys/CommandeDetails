@@ -216,17 +216,28 @@ export default function SupplierInfoModal({ open, onOpenChange, supplierId, onSa
               Ces infos s'ajouteront automatiquement dans les bons de commande de ce fournisseur
             </p>
 
-            {/* Submit */}
-            <Button
-              onClick={handleSave}
-              disabled={saving}
-              className="w-full h-12 bg-stone-900 hover:bg-black text-white font-black uppercase tracking-widest rounded-xl gap-2 shadow-lg"
-            >
-              {saving
-                ? <><Loader2 className="w-4 h-4 animate-spin" /> Sauvegarde…</>
-                : <><Save className="w-4 h-4" /> Sauvegarder la fiche</>
-              }
-            </Button>
+            {/* Enregistrer, ou repartir sans rien changer */}
+            <div className="flex gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => onOpenChange(false)}
+                disabled={saving}
+                className="h-12 px-5 rounded-xl font-black uppercase tracking-widest text-xs border-stone-200 text-stone-500 hover:text-stone-900"
+              >
+                Annuler
+              </Button>
+              <Button
+                onClick={handleSave}
+                disabled={saving}
+                className="flex-1 h-12 bg-stone-900 hover:bg-black text-white font-black uppercase tracking-widest rounded-xl gap-2 shadow-lg"
+              >
+                {saving
+                  ? <><Loader2 className="w-4 h-4 animate-spin" /> Sauvegarde…</>
+                  : <><Save className="w-4 h-4" /> Sauvegarder la fiche</>
+                }
+              </Button>
+            </div>
           </div>
         )}
       </DialogContent>

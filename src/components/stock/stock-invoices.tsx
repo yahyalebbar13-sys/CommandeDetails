@@ -1,6 +1,8 @@
 "use client";
 
 import React, { useState, useMemo } from 'react';
+import { LOGO_B64 } from '@/lib/logo-b64';
+import { imprimerHtml, messageImpression, echapperHtml } from '@/lib/impression';
 import { valeurImprimable } from '@/lib/specification-produit';
 import { Search, Eye, Printer, CreditCard, X, Download, Mail, Send, Plus, Trash2, CheckCircle2, Camera, Calendar, Banknote, FileCheck, FileText, Landmark, MoreHorizontal, Undo2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -310,6 +312,17 @@ export default function StockInvoices({ invoices, clients, payments, onRecordPay
   };
 
   const printInvoice = (inv: Invoice) => {
+    try {
+      construireEtImprimerFacture(inv);
+    } catch (e: any) {
+      // Une donnée inattendue ne doit pas rendre le bouton muet : avant, l'exception partait
+      // pendant la construction du document et le clic ne faisait rien du tout.
+      console.error('[facture] impression impossible :', e);
+      toast({ variant: 'destructive', title: 'Impression impossible', description: messageImpression(e) });
+    }
+  };
+
+  const construireEtImprimerFacture = (inv: Invoice) => {
     const num = invoiceNumber(inv);
     const client = clients.find(c => c.id === inv.clientId);
     const tvaRate = inv.tvaRate ?? 20;
@@ -317,9 +330,7 @@ export default function StockInvoices({ invoices, clients, payments, onRecordPay
     const tvaAmount = inv.tvaAmount ?? (ht * tvaRate / 100);
     const ttc = inv.totalTTC ?? (ht + tvaAmount);
     const discountAmt = Math.max(0, (inv.totalAmount || 0) - (inv.totalAfterDiscount || 0));
-    const w = window.open('', '_blank');
-    if (!w) return;
-    w.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>${num}</title>
+    const html = (`<!DOCTYPE html><html><head><meta charset="utf-8"><title>${echapperHtml(num)}</title>
     <style>body{font-family:Arial,sans-serif;max-width:700px;margin:40px auto;color:#1c1917}
     h1{font-size:28px;font-weight:900;text-transform:uppercase;letter-spacing:-0.05em}
     .header{display:flex;justify-content:space-between;align-items:start;border-bottom:3px solid #6d28d9;padding-bottom:20px;margin-bottom:20px}
@@ -336,28 +347,28 @@ export default function StockInvoices({ invoices, clients, payments, onRecordPay
     </style></head><body>
     <div class="header">
       <div>
-        <img src="${window.location.origin}/logo_lebtex.png" alt="LEBTEX" style="height: 120px; margin-bottom: 15px; display: block;" />
+        <img src="${LOGO_B64}" alt="LEBTEX" style="height: 120px; margin-bottom: 15px; display: block;" />
         <div class="label" style="color:#6d28d9;font-size:10px">BON DE COMMANDE</div>
-        <h1>${num}</h1>
+        <h1>${echapperHtml(num)}</h1>
         <span class="badge ${inv.status === 'PAID' ? 'paid' : inv.status === 'PARTIAL' ? 'partial' : 'unpaid'}">
-          ${STATUS_BADGE[inv.status].label}
+          ${echapperHtml(STATUS_BADGE[inv.status]?.label || inv.status || '')}
         </span>
       </div>
       <div style="text-align:right">
-        <div class="label">Date</div><strong>${inv.date}</strong>
-        ${inv.dueDate ? `<br><div class="label" style="margin-top:6px">Échéance</div><strong>${inv.dueDate}</strong>` : ''}
+        <div class="label">Date</div><strong>${echapperHtml(inv.date)}</strong>
+        ${inv.dueDate ? `<br><div class="label" style="margin-top:6px">Échéance</div><strong>${echapperHtml(inv.dueDate)}</strong>` : ''}
         <br><div class="label" style="margin-top:8px">Facturé à</div>
-        <strong style="font-size:14px">${inv.clientName || 'Anonyme'}</strong>
-        ${client?.ice ? `<br><div class="label" style="margin-top:4px">ICE</div><strong>${client.ice}</strong>` : ''}
-        ${client?.identifiantFiscal ? `<br><div class="label" style="margin-top:2px">IF</div><strong>${client.identifiantFiscal}</strong>` : ''}
+        <strong style="font-size:14px">${echapperHtml(inv.clientName || 'Anonyme')}</strong>
+        ${client?.ice ? `<br><div class="label" style="margin-top:4px">ICE</div><strong>${echapperHtml(client.ice)}</strong>` : ''}
+        ${client?.identifiantFiscal ? `<br><div class="label" style="margin-top:2px">IF</div><strong>${echapperHtml(client.identifiantFiscal)}</strong>` : ''}
       </div>
     </div>
     <table><thead><tr>
       <th>Produit</th><th>Couleur</th><th>Taille</th><th>Qté</th><th>Prix unit. HT</th><th>Total HT</th>
     </tr></thead>
-    <tbody>${inv.items.map(item => `<tr>
-      <td><strong>${item.productName}</strong></td><td>${valeurImprimable(item.color, '—')}</td><td>${valeurImprimable(item.size, '—')}</td>
-      <td>${item.qty} ${item.unitOfMeasure}</td><td>${fmt$(item.unitPrice)}</td><td><strong>${fmt$(item.totalPrice)}</strong></td>
+    <tbody>${(inv.items || []).map(item => `<tr>
+      <td><strong>${echapperHtml(item.productName)}</strong></td><td>${echapperHtml(valeurImprimable(item.color, '—'))}</td><td>${echapperHtml(valeurImprimable(item.size, '—'))}</td>
+      <td>${echapperHtml(item.qty)} ${echapperHtml(item.unitOfMeasure)}</td><td>${fmt$(item.unitPrice)}</td><td><strong>${fmt$(item.totalPrice)}</strong></td>
     </tr>`).join('')}</tbody></table>
     <div style="text-align:right;border-top:1px solid #e7e5e4;padding-top:12px">
       <div style="color:#78716c;margin-bottom:4px;font-size:12px">Sous-total HT : ${fmt$(inv.totalAmount)}</div>
@@ -375,8 +386,11 @@ export default function StockInvoices({ invoices, clients, payments, onRecordPay
     </div>
     <div class="footer">Document généré le ${new Date().toLocaleDateString('fr-FR')} · Merci pour votre confiance</div>
     </body></html>`);
-    w.document.close();
-    w.print();
+    imprimerHtml(html).catch(e => toast({
+      variant: 'destructive',
+      title: "Impression impossible",
+      description: messageImpression(e),
+    }));
   };
 
   return (
@@ -603,7 +617,8 @@ export default function StockInvoices({ invoices, clients, payments, onRecordPay
       <Dialog open={!!payInvoice} onOpenChange={o => !o && setPayInvoice(null)}>
         <DialogContent className="sm:max-w-2xl rounded-3xl border-none shadow-2xl p-0 overflow-hidden">
           <div className="bg-gradient-to-r from-emerald-800 to-teal-700 p-6 text-white">
-            <div className="flex items-center justify-between">
+            {/* pr-10 : la croix de fermeture occupe le coin haut-droit. */}
+            <div className="flex items-center justify-between pr-10">
               <div>
                 <DialogTitle className="text-lg font-black uppercase tracking-tight">Enregistrer un paiement</DialogTitle>
                 <p className="text-xs font-bold text-emerald-200 mt-1">

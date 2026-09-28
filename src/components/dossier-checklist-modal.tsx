@@ -228,6 +228,16 @@ export default function DossierChecklistModal({ open, onOpenChange, facture }: {
               {allOk ? 'Coût de Vente déverrouillé' : 'Coût de Vente verrouillé'}
             </span>
           </div>
+          {/* Les deux boutons restent un seul bloc : le pied est en justify-between, et un
+              troisième enfant y aurait poussé le témoin de verrouillage au milieu. */}
+          <div className="flex items-center gap-2">
+          <button
+            onClick={() => onOpenChange(false)}
+            disabled={saving}
+            className="px-4 h-9 rounded-xl text-[10px] font-black uppercase tracking-widest text-stone-400 hover:text-stone-900 transition-colors disabled:opacity-50"
+          >
+            Annuler
+          </button>
           <button
             onClick={handleSave}
             disabled={saving}
@@ -240,6 +250,7 @@ export default function DossierChecklistModal({ open, onOpenChange, facture }: {
               : <Save className="w-3.5 h-3.5" />}
             {savedOk ? 'Sauvegardé !' : 'Sauvegarder'}
           </button>
+          </div>
         </div>
       </DialogContent>
     </Dialog>

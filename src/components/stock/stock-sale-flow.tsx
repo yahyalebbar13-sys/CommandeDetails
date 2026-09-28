@@ -1,6 +1,8 @@
 "use client";
 
 import React, { useState, useMemo, useCallback } from 'react';
+import { LOGO_B64 } from '@/lib/logo-b64';
+import { imprimerHtml, messageImpression } from '@/lib/impression';
 import { valeurImprimable } from '@/lib/specification-produit';
 import {
   Users, ShoppingBag, ClipboardList, CheckCircle2,
@@ -974,9 +976,20 @@ export default function StockSaleFlow({
   };
 
   const printBonDeCommande = useCallback(() => {
-    const win = window.open('', '_blank', 'width=800,height=900');
-    if (!win) return;
-    const bcNum = `BC-${Date.now().toString(36).toUpperCase()}`;
+    try {
+      construireEtImprimerBonDeCommande();
+    } catch (e: any) {
+      console.error('[bon de commande] impression impossible :', e);
+      toast({ variant: 'destructive', title: 'Impression impossible', description: messageImpression(e) });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cart, selectedClient, paymentStatus, paymentLines, subTotal, discount, discountAmt, total, notes, preparedOrder]);
+
+  const construireEtImprimerBonDeCommande = () => {
+    // La référence du bon imprimé est celle de la commande enregistrée. Elle était régénérée à
+    // chaque clic : deux impressions du même bon portaient deux numéros, et aucun ne correspondait
+    // à ce qu'on retrouvait en base.
+    const bcNum = preparedOrder?.reference || `BC-${Date.now().toString(36).toUpperCase()}`;
     const dateStr = new Date().toLocaleDateString('fr-FR', { day: '2-digit', month: 'long', year: 'numeric' });
     const isFullCredit = paymentStatus === 'UNPAID';
     const validLines = isFullCredit ? [] : paymentLines.filter(l => (parseFloat(l.amount) || 0) > 0);
@@ -996,7 +1009,7 @@ export default function StockSaleFlow({
             return `${fmt$(parseFloat(l.amount))} MAD (${mLabel}${extra ? ' - ' + extra : ''})`;
           }).join(' + ');
 
-    win.document.write(`<!DOCTYPE html><html><head><title>Bon de Commande ${bcNum}</title>
+    const html = (`<!DOCTYPE html><html><head><meta charset="utf-8"><title>Bon de Commande ${escapeHtml(bcNum)}</title>
     <style>
       *{margin:0;padding:0;box-sizing:border-box}
       body{font-family:'Segoe UI',system-ui,sans-serif;padding:40px;color:#1c1917}
@@ -1025,7 +1038,7 @@ export default function StockSaleFlow({
       @media print{body{padding:20px}}
     </style></head><body>
     <div class="header">
-      <div class="logo"><img src="${window.location.origin}/logo_lebtex.png" alt="LEBTEX" style="height:80px;display:block" /></div>
+      <div class="logo"><img src="${LOGO_B64}" alt="LEBTEX" style="height:80px;display:block" /></div>
       <div class="doc-type"><h2>Bon de Commande</h2><p>${bcNum} &middot; ${dateStr}</p></div>
     </div>
     <div class="info-grid">
@@ -1044,9 +1057,12 @@ export default function StockSaleFlow({
     ${notes ? `<div style="margin-top:24px;background:#fafaf9;border:1px solid #e7e5e4;border-radius:12px;padding:16px"><h4 style="font-size:9px;font-weight:900;text-transform:uppercase;letter-spacing:2px;color:#a8a29e;margin-bottom:6px">Notes</h4><p style="font-size:12px;font-weight:600">${escapeHtml(notes)}</p></div>` : ''}
     <div class="footer"><p>Ce document est un bon de commande et ne constitue pas une facture officielle.</p><p style="margin-top:4px">LEBTEX</p></div>
     </body></html>`);
-    win.document.close();
-    setTimeout(() => win.print(), 400);
-  }, [cart, selectedClient, paymentStatus, paymentLines, subTotal, discount, discountAmt, total, notes]);
+    imprimerHtml(html).catch(e => toast({
+      variant: 'destructive',
+      title: "Impression impossible",
+      description: messageImpression(e),
+    }));
+  };
 
   // ── Succès : commande préparée (aucune sortie de stock, aucun encaissement) ──
   if (done && preparedOrder) return (

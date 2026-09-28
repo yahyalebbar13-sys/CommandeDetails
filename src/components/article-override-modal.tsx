@@ -38,7 +38,8 @@ export default function ArticleOverrideModal({ article, override, onSave, onClos
   const labelCls = "text-[9px] font-black text-stone-400 uppercase tracking-widest mb-1 block";
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onClose}>
+    // Le fond ne ferme pas : un clic a cote ne doit pas effacer une saisie.
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" />
       <div
         className="relative bg-stone-900 rounded-2xl shadow-2xl border border-stone-700 w-full max-w-lg"

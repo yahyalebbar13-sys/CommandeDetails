@@ -69,6 +69,23 @@ export async function addPdfLogoHeader(
 
     if (typeof Image === 'undefined' || typeof document === 'undefined') { secours(); return; }
 
+    // Si la requete du logo reste suspendue — ni succes, ni erreur, ce qui arrive sur un reseau
+    // qui pend — la promesse ne se resoudrait jamais et le bouton resterait sur « Preparation... »
+    // indefiniment. Passe ce delai, on ecrit le nom et on sort le document.
+    let rendu = false;
+    const finir = () => { if (!rendu) { rendu = true; resolve(); } };
+    const abandon = setTimeout(() => { if (!rendu) { rendu = true; secoursSansResoudre(); resolve(); } }, 3000);
+    const secoursSansResoudre = () => {
+      doc.setTextColor(...(inverserEnBlanc ? BLANC : NAVY));
+      doc.setFontSize(16);
+      doc.setFont('helvetica', 'bold');
+      doc.text('LEBTEX', x, y + 8);
+      doc.setFontSize(7);
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(...GOLD);
+      doc.text('TEXTILE IMPORT', x, y + 13);
+    };
+
     const img = new Image();
     img.crossOrigin = 'anonymous';
     img.src = '/logo.png';
@@ -85,7 +102,7 @@ export async function addPdfLogoHeader(
         canvas.width = largeurCible;
         canvas.height = hauteurCible;
         const ctx = canvas.getContext('2d');
-        if (!ctx) { doc.addImage(img, 'PNG', x, y, w, h, undefined, 'FAST'); resolve(); return; }
+        if (!ctx) { doc.addImage(img, 'PNG', x, y, w, h, undefined, 'FAST'); clearTimeout(abandon); finir(); return; }
 
         ctx.drawImage(img, 0, 0, largeurCible, hauteurCible);
         if (inverserEnBlanc) {
@@ -101,9 +118,10 @@ export async function addPdfLogoHeader(
         }
         doc.addImage(canvas.toDataURL('image/png'), 'PNG', x, y, w, h, undefined, 'FAST');
       } catch (_) { /* un logo raté ne doit pas empêcher le document de sortir */ }
-      resolve();
+      clearTimeout(abandon);
+      finir();
     };
-    img.onerror = secours;
+    img.onerror = () => { clearTimeout(abandon); if (!rendu) { rendu = true; secoursSansResoudre(); resolve(); } };
   });
 }
 

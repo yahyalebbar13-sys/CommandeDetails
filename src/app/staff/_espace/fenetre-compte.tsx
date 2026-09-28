@@ -70,7 +70,8 @@ export function FenetreCompte({ compte, intention, onFermer, onDeconnexion }: {
 
   return (
     <div className="fixed inset-0 z-[70] flex items-end justify-center md:items-center md:p-4" role="presentation">
-      <div className="absolute inset-0 bg-black/70" onClick={onFermer} aria-hidden />
+      {/* Le fond ne ferme pas : un clic a cote ne doit pas effacer une saisie. */}
+      <div className="absolute inset-0 bg-black/70" aria-hidden />
       <div
         ref={panneau}
         role="dialog"

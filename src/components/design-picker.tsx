@@ -169,7 +169,7 @@ export default function DesignPicker({ categoryName, subCategories, value, onCha
 
       {/* ── Modal Lightbox Preview Design ── */}
       <Dialog open={!!previewDesignImage} onOpenChange={open => { if (!open) setPreviewDesignImage(null); }}>
-        <DialogContent className="sm:max-w-md p-0 overflow-hidden bg-black/95 border border-white/10 shadow-2xl rounded-3xl text-white z-[9999]">
+        <DialogContent fermetureAuClicExterieur className="sm:max-w-md p-0 overflow-hidden bg-black/95 border border-white/10 shadow-2xl rounded-3xl text-white z-[9999]">
           <DialogHeader className="p-4 border-b border-white/10 flex flex-row items-center justify-between">
             <DialogTitle className="text-xs font-black uppercase tracking-wider text-stone-100 flex items-center gap-2">
               {previewDesignImage?.title || 'Aperçu du design'}

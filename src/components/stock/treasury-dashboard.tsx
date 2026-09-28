@@ -1488,7 +1488,7 @@ export default function TreasuryDashboard({
 
       {/* Modal View Scan */}
       <Dialog open={!!viewScan} onOpenChange={o => !o && setViewScan(null)}>
-        <DialogContent className="sm:max-w-2xl bg-stone-900 border-none p-0 overflow-hidden rounded-3xl">
+        <DialogContent fermetureAuClicExterieur className="sm:max-w-2xl bg-stone-900 border-none p-0 overflow-hidden rounded-3xl">
           <div className="p-4 border-b border-stone-800 flex justify-between items-center bg-black/50">
             <DialogTitle className="text-sm font-black text-white uppercase tracking-widest">
               Scan du Document

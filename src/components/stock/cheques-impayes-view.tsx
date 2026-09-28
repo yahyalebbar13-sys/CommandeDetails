@@ -2,7 +2,7 @@
 
 import React, { useState, useMemo } from 'react';
 import { 
-  CreditCard, AlertTriangle, CheckCircle2, Search, Filter, Printer,
+  CreditCard, AlertTriangle, CheckCircle2, Search, Filter,
   Eye, Phone, ArrowUpRight, RotateCcw, Calendar, Building2,
   FileText, Clock, AlertCircle, Sparkles, Check, X, ShieldAlert,
   Download, ArrowUpDown, ChevronDown, FileCheck, DollarSign
@@ -316,10 +316,10 @@ export default function ChequesImpayesView({
     }
   };
 
-  // Impression
-  const handlePrint = () => {
-    window.print();
-  };
+  // Il y avait ici un bouton « Imprimer » qui appelait window.print() : il envoyait à
+  // l'imprimante la page de l'application elle-même — et la feuille de style globale masque le
+  // corps de page à l'impression, donc il sortait une feuille blanche, à tous les coups.
+  // Le portefeuille s'imprime depuis son PDF, qui est le vrai document.
 
   return (
     <div className="space-y-6 animate-in fade-in duration-300 pb-12">
@@ -355,14 +355,6 @@ export default function ChequesImpayesView({
             >
               <Download className="w-4 h-4" />
               <span>Exporter PDF</span>
-            </Button>
-            <Button
-              onClick={handlePrint}
-              variant="outline"
-              className="bg-stone-800 hover:bg-stone-700 text-white border-stone-700 font-black text-xs uppercase px-4 h-11 rounded-2xl gap-2 shadow-sm"
-            >
-              <Printer className="w-4 h-4" />
-              <span>Imprimer</span>
             </Button>
           </div>
         </div>

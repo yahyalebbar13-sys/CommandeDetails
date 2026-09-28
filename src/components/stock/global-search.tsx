@@ -66,7 +66,7 @@ export default function GlobalSearch({ open, onOpenChange, stockItems, clients, 
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-xl rounded-3xl border-none shadow-2xl p-0 overflow-hidden top-[20%] translate-y-0">
+      <DialogContent fermetureAuClicExterieur className="sm:max-w-xl rounded-3xl border-none shadow-2xl p-0 overflow-hidden top-[20%] translate-y-0">
         <DialogTitle className="sr-only">Recherche globale</DialogTitle>
         <div className="flex items-center gap-3 px-5 py-4 border-b border-stone-100">
           <Search className="w-4 h-4 text-stone-400 shrink-0" />

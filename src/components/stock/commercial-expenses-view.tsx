@@ -1925,17 +1925,9 @@ export default function CommercialExpensesView({
 
       {/* ── Modal Visualisation Photo Reçu ── */}
       <Dialog open={!!previewImage} onOpenChange={() => setPreviewImage(null)}>
-        <DialogContent className="max-w-lg p-3 bg-stone-900 border-stone-800 rounded-3xl overflow-hidden">
+        <DialogContent fermetureAuClicExterieur className="max-w-lg p-3 bg-stone-900 border-stone-800 rounded-3xl overflow-hidden">
           <div className="flex justify-between items-center p-2 text-white">
             <DialogTitle className="text-sm font-black tracking-tight">Justificatif de la dépense</DialogTitle>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setPreviewImage(null)}
-              className="text-stone-400 hover:text-white h-7 w-7 p-0"
-            >
-              <X className="w-4 h-4" />
-            </Button>
           </div>
           {previewImage && (
             <div className="max-h-[75vh] overflow-auto rounded-2xl flex items-center justify-center bg-black/40 p-2">

@@ -1,6 +1,9 @@
 "use client";
 
 import React, { useState, useMemo } from 'react';
+import { LOGO_B64 } from '@/lib/logo-b64';
+import { useToast } from '@/hooks/use-toast';
+import { imprimerHtml, messageImpression, echapperHtml } from '@/lib/impression';
 import { valeurImprimable } from '@/lib/specification-produit';
 import { Search, Eye, ArrowRight, Printer, X, CheckCircle2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -27,6 +30,7 @@ const STATUS_BADGE: Record<SaleOrderStatus, { label: string; cls: string }> = {
 };
 
 export default function StockOrders({ orders, clients, onUpdateStatus, onConvertToInvoice, onNavigate }: StockOrdersProps) {
+  const { toast } = useToast();
   const [filterStatus, setFilterStatus] = useState<string>('all');
   const [filterMonth, setFilterMonth] = useState<string>('all');
   const [search, setSearch] = useState('');
@@ -68,11 +72,20 @@ export default function StockOrders({ orders, clients, onUpdateStatus, onConvert
   };
 
   const printOrder = (order: SaleOrder) => {
+    try {
+      construireEtImprimerBon(order);
+    } catch (e: any) {
+      // La construction du document peut lever sur une donnée inattendue : sans ce garde,
+      // l'exception partait avant l'impression et le clic restait muet.
+      console.error('[bon de commande] impression impossible :', e);
+      toast({ variant: 'destructive', title: 'Impression impossible', description: messageImpression(e) });
+    }
+  };
+
+  const construireEtImprimerBon = (order: SaleOrder) => {
     const num = orderNumber(order, 0);
     const discountAmt = Math.max(0, (order.totalAmount || 0) - (order.totalAfterDiscount || 0));
-    const w = window.open('', '_blank');
-    if (!w) return;
-    w.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>${num}</title>
+    const html = (`<!DOCTYPE html><html><head><meta charset="utf-8"><title>${echapperHtml(num)}</title>
     <style>body{font-family:Arial,sans-serif;max-width:700px;margin:40px auto;color:#1c1917}
     h1{font-size:24px;font-weight:900;text-transform:uppercase;letter-spacing:-0.05em}
     .header{display:flex;justify-content:space-between;align-items:start;border-bottom:3px solid #1c1917;padding-bottom:20px;margin-bottom:20px}
@@ -85,27 +98,30 @@ export default function StockOrders({ orders, clients, onUpdateStatus, onConvert
     </style></head><body>
     <div class="header">
       <div>
-        <img src="${window.location.origin}/logo_lebtex.png" alt="LEBTEX" style="height: 120px; margin-bottom: 15px; display: block;" />
+        <img src="${LOGO_B64}" alt="LEBTEX" style="height: 120px; margin-bottom: 15px; display: block;" />
         <div class="label">Bon de Commande</div>
-        <h1>${num}</h1>
+        <h1>${echapperHtml(num)}</h1>
       </div>
-      <div style="text-align:right"><div class="label">Date</div><strong>${order.date}</strong><br>
-      <div class="label" style="margin-top:8px">Client</div><strong>${order.clientName || 'Anonyme'}</strong></div>
+      <div style="text-align:right"><div class="label">Date</div><strong>${echapperHtml(order.date)}</strong><br>
+      <div class="label" style="margin-top:8px">Client</div><strong>${echapperHtml(order.clientName || 'Anonyme')}</strong></div>
     </div>
     <table><thead><tr><th>Produit</th><th>Couleur</th><th>Taille</th><th>Qté</th><th>Prix unit.</th><th>Total</th></tr></thead>
-    <tbody>${order.items.map(i => `<tr>
-      <td><strong>${i.productName}</strong></td><td>${valeurImprimable(i.color, '—')}</td><td>${valeurImprimable(i.size, '—')}</td>
-      <td>${i.qty} ${i.unitOfMeasure}</td><td>${fmt$(i.unitPrice)}</td><td>${fmt$(i.totalPrice)}</td>
+    <tbody>${(order.items || []).map(i => `<tr>
+      <td><strong>${echapperHtml(i.productName)}</strong></td><td>${echapperHtml(valeurImprimable(i.color, '—'))}</td><td>${echapperHtml(valeurImprimable(i.size, '—'))}</td>
+      <td>${echapperHtml(i.qty)} ${echapperHtml(i.unitOfMeasure)}</td><td>${fmt$(i.unitPrice)}</td><td>${fmt$(i.totalPrice)}</td>
     </tr>`).join('')}</tbody></table>
     <div style="text-align:right">
       ${discountAmt > 0 ? `<div style="color:#78716c;margin-bottom:4px">Remise${order.discount ? ` (${order.discount}%)` : ''}: -${fmt$(discountAmt)}</div>` : ''}
       <div class="total">Total: ${fmt$(order.totalAfterDiscount)}</div>
     </div>
-    ${order.notes ? `<div style="margin-top:20px;padding:12px;background:#f5f5f4;border-radius:8px"><div class="label">Notes</div><p>${order.notes}</p></div>` : ''}
+    ${order.notes ? `<div style="margin-top:20px;padding:12px;background:#f5f5f4;border-radius:8px"><div class="label">Notes</div><p>${echapperHtml(order.notes)}</p></div>` : ''}
     <div class="footer">Document généré le ${new Date().toLocaleDateString('fr-FR')}</div>
     </body></html>`);
-    w.document.close();
-    w.print();
+    imprimerHtml(html).catch(e => toast({
+      variant: 'destructive',
+      title: "Impression impossible",
+      description: messageImpression(e),
+    }));
   };
 
   return (

@@ -6773,7 +6773,7 @@ export default function CategoriesView({
 
       {/* ── Modal Lightbox Preview Design Image ── */}
       <Dialog open={!!previewImage} onOpenChange={open => { if (!open) setPreviewImage(null); }}>
-        <DialogContent className="sm:max-w-xl p-0 overflow-hidden bg-black/95 border border-white/10 shadow-2xl rounded-3xl text-white z-[100]">
+        <DialogContent fermetureAuClicExterieur className="sm:max-w-xl p-0 overflow-hidden bg-black/95 border border-white/10 shadow-2xl rounded-3xl text-white z-[100]">
           <DialogHeader className="p-4 border-b border-white/10 flex flex-row items-center justify-between">
             <DialogTitle className="text-xs font-black uppercase tracking-wider text-stone-100 flex items-center gap-2">
               <Sparkles className="w-3.5 h-3.5 text-amber-400" />

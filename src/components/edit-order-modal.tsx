@@ -2567,8 +2567,16 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
             >
               <Copy className="w-4 h-4" /> Dupliquer
             </Button>
-            <Button 
-              type="submit" 
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => onOpenChange(false)}
+              className="px-5 border-stone-200 text-stone-500 hover:text-stone-900 font-black uppercase text-[10px] tracking-widest h-14 rounded-xl"
+            >
+              Annuler
+            </Button>
+            <Button
+              type="submit"
               className="flex-1 bg-stone-900 hover:bg-black text-white font-black uppercase text-[10px] tracking-widest h-14 rounded-xl gap-2 shadow-lg shadow-stone-200"
             >
               <Save className="w-4 h-4" /> Sauvegarder
@@ -2578,7 +2586,7 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
 
         {/* ── Modal Lightbox Preview Slider/Design Image ── */}
         <Dialog open={!!previewSliderImage} onOpenChange={open => { if (!open) setPreviewSliderImage(null); }}>
-          <DialogContent className="sm:max-w-md p-0 overflow-hidden bg-black/95 border border-white/10 shadow-2xl rounded-3xl text-white z-[9999]">
+          <DialogContent fermetureAuClicExterieur className="sm:max-w-md p-0 overflow-hidden bg-black/95 border border-white/10 shadow-2xl rounded-3xl text-white z-[9999]">
             <DialogHeader className="p-4 border-b border-white/10 flex flex-row items-center justify-between">
               <DialogTitle className="text-xs font-black uppercase tracking-wider text-stone-100 flex items-center gap-2">
                 {previewSliderImage?.title || 'Aperçu du modèle / curseur'}

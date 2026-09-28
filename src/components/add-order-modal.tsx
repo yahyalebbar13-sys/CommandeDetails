@@ -2160,10 +2160,20 @@ export function AddOrderForm({
               <p className="text-[11px] font-bold text-red-700 leading-relaxed">{errors.ventilation}</p>
             </div>
           )}
+          <div className="flex gap-2 mt-1">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={onClose}
+            disabled={submitting}
+            className="h-13 px-5 rounded-xl font-black uppercase tracking-widest text-[11px] border-stone-200 text-stone-500 hover:text-stone-900"
+          >
+            Annuler
+          </Button>
           <Button
             type="submit"
             disabled={!isValid || submitting}
-            className={`w-full font-black uppercase tracking-widest h-13 rounded-xl gap-2 mt-1 shadow-lg transition-all ${
+            className={`flex-1 font-black uppercase tracking-widest h-13 rounded-xl gap-2 shadow-lg transition-all ${
               isValid
                 ? 'bg-stone-900 hover:bg-black text-white shadow-stone-200'
                 : 'bg-stone-200 text-stone-400 cursor-not-allowed shadow-none'
@@ -2173,12 +2183,13 @@ export function AddOrderForm({
             {isInventoryMode ? 'Ajouter à l\'inventaire' : isStoreRequest ? (submitting ? 'Enregistrement…' : 'Enregistrer la demande') : 'Enregistrer le besoin'}
             {isValid && <ChevronRight className="w-4 h-4 ml-auto opacity-50" />}
           </Button>
+          </div>
 
         </form>
 
       {/* ── Modal Lightbox Preview Slider/Design Image ── */}
       <Dialog open={!!previewSliderImage} onOpenChange={open => { if (!open) setPreviewSliderImage(null); }}>
-        <DialogContent className="sm:max-w-md p-0 overflow-hidden bg-black/95 border border-white/10 shadow-2xl rounded-3xl text-white z-[9999]">
+        <DialogContent fermetureAuClicExterieur className="sm:max-w-md p-0 overflow-hidden bg-black/95 border border-white/10 shadow-2xl rounded-3xl text-white z-[9999]">
           <DialogHeader className="p-4 border-b border-white/10 flex flex-row items-center justify-between">
             <DialogTitle className="text-xs font-black uppercase tracking-wider text-stone-100 flex items-center gap-2">
               {previewSliderImage?.title || 'Aperçu du modèle / curseur'}

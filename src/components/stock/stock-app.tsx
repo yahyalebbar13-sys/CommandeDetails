@@ -5,7 +5,7 @@ import {
   Loader2, LogOut, LayoutDashboard, List, ArrowLeftRight, Bell, Package,
   Boxes, ShoppingCart, TrendingUp, Users, ClipboardList, FileText, Anchor, Archive, CheckCircle2, Download, Truck, Store as StoreIcon,
   Settings, MapPin, Send, Home, AlertTriangle, Building2, Sparkles, Warehouse, CreditCard, Receipt, Search,
-  Calendar, Clock, Filter, Lock, RotateCcw, Globe, WifiOff, ChevronLeft, GraduationCap
+  Calendar, Clock, Filter, Lock, RotateCcw, Globe, WifiOff, ChevronLeft, GraduationCap, FlaskConical
 } from 'lucide-react';
 import { useUser, useFirebase, useCollection, useMemoFirebase } from '@/firebase';
 import { signOut } from 'firebase/auth';
@@ -48,6 +48,10 @@ import WarehouseLocationsView from './warehouse-locations-view';
 import { authedFetch } from '@/lib/authed-fetch';
 import { planifierChargement, listeAImprimer, type LigneChargement } from '@/lib/stock-formation';
 import { choisirCibles, devoirHtml, corrigeHtml } from '@/lib/devoir-formation';
+import {
+  planifierSimulation, estMouvementSimulation, noteSimulation, jourDuChargement, joursDepuis,
+  QUANTITE_PAR_LIGNE, DUREE_ESSAI_JOURS, MAX_LIGNES,
+} from '@/lib/stock-simulation';
 import { exportDevoirFormationPDF } from '@/lib/pdf-devoir-formation';
 import { Encadre, BoutonValider } from './ui-formulaire';
 import {
@@ -860,6 +864,11 @@ export default function StockApp() {
   // Stock de formation : chargement de quantités connues sur de vrais produits du catalogue,
   // pour faire travailler une nouvelle recrue. Effacé par « Reset Stock (0) » comme le reste.
   const [formationOpen, setFormationOpen] = useState(false);
+  // Stock de test : tout le catalogue, en quantité, sur les entrepôts, pour une semaine d'essai.
+  const [simulationOuverte, setSimulationOuverte] = useState(false);
+  const [simulationEnCours, setSimulationEnCours] = useState(false);
+  const [effacementSimulation, setEffacementSimulation] = useState(false);
+  const [avancementSimulation, setAvancementSimulation] = useState({ faites: 0, total: 0 });
   const [formationEnCours, setFormationEnCours] = useState(false);
   const [formationCharge, setFormationCharge] = useState(false);
   // Mot à recopier avant la remise à zéro : elle efface le fichier clients et tout l'historique
@@ -1220,6 +1229,55 @@ export default function StockApp() {
   // corrigé du devoir après coup. Aucun produit n'est créé, seulement des mouvements d'entrée.
   const lignesFormation: LigneChargement[] = useMemo(() => planifierChargement(articles), [articles]);
 
+  // ── Stock de test ──────────────────────────────────────────────────────
+  // Les entrepôts, et eux seuls : la marchandise arrive là, puis se transfère vers les magasins.
+  // C'est le chemin réel, et c'est ce qui rend la simulation honnête.
+  const entrepotsSimulation = useMemo(
+    () => stores.filter((st: any) => st.type === 'WAREHOUSE').map((st: any) => st.id as string),
+    [stores],
+  );
+  const planSimulation = useMemo(
+    // Le budget de lignes est un budget TOTAL : ce qui est déjà en base en fait partie. Sans
+    // cette soustraction, on tenait un plafond qu'on avait déjà dépassé.
+    () => planifierSimulation(articles, entrepotsSimulation, QUANTITE_PAR_LIGNE,
+      Math.max(0, MAX_LIGNES - allMovements.length)),
+    [articles, entrepotsSimulation, allMovements.length],
+  );
+  /** Les mouvements déjà posés par un stock de test : c'est par eux qu'on sait où on en est. */
+  const mouvementsSimulation = useMemo(
+    () => allMovements.filter((m: any) => estMouvementSimulation(m)),
+    [allMovements],
+  );
+  /**
+   * Les mouvements faits SUR les références du stock de test pendant l'essai, et qui ne portent
+   * pas sa marque : ventes, transferts, ajustements. Effacer le stock de test ne les retire pas —
+   * on ne saurait pas distinguer un vrai mouvement d'un mouvement d'essai sans se tromper — donc
+   * le stock de ces références passera en négatif. On le compte pour pouvoir le dire avant.
+   */
+  const mouvementsSurStockDeTest = useMemo(() => {
+    if (mouvementsSimulation.length === 0) return 0;
+    const jours = mouvementsSimulation.map(jourDuChargement).filter(Boolean) as string[];
+    const depuis = jours.sort()[0];
+    if (!depuis) return 0;
+    const references = new Set(mouvementsSimulation.map((m: any) => m.articleId));
+    return allMovements.filter((m: any) =>
+      !estMouvementSimulation(m) && references.has(m.articleId) && String(m.date || '') >= depuis
+    ).length;
+  }, [allMovements, mouvementsSimulation]);
+
+  const essaiEnCours = useMemo(() => {
+    if (mouvementsSimulation.length === 0) return null;
+    const jours = mouvementsSimulation.map(jourDuChargement).filter(Boolean) as string[];
+    const depuis = jours.sort()[0] || null;
+    const ecoules = depuis ? joursDepuis(depuis, toLocalDateStr(new Date())) : 0;
+    return {
+      lignes: mouvementsSimulation.length,
+      depuis,
+      ecoules,
+      expire: ecoules >= DUREE_ESSAI_JOURS,
+    };
+  }, [mouvementsSimulation]);
+
   // Les noms de lieux tels qu'ils apparaîtront dans le devoir imprimé : la recrue doit lire
   // « Derb Omar », pas « DERB_OMAR ».
   // Déjà chargé ? La réponse est dans les mouvements, pas dans l'état de la fenêtre : le patron
@@ -1337,6 +1395,190 @@ export default function StockApp() {
       toast({ variant: 'destructive', title: 'Erreur', description: e?.message || 'Chargement impossible.' });
     } finally {
       setFormationEnCours(false);
+    }
+  };
+
+  /**
+   * Pose le stock de test. Une écriture par variante et par entrepôt, en lots : chaque lot commité
+   * relance le calcul du stock de l'écran, d'où l'avertissement et l'avancement affiché.
+   */
+  const handleChargerSimulation = async () => {
+    if (!user || !firestore || planSimulation.lignes.length === 0) return;
+    const effectiveUid = adminUid || user.uid;
+    const aujourdhui = toLocalDateStr(new Date());
+
+    setSimulationEnCours(true);
+    setAvancementSimulation({ faites: 0, total: planSimulation.lignes.length });
+    try {
+      const movsColl = collection(firestore, 'users', effectiveUid, 'stockMovements');
+      const ecritures = planSimulation.lignes.map(l => () => cleanUndefined({
+        articleId:            l.article.id,
+        categoryId:           l.article.categoryId || null,
+        productName:          l.nom,
+        nameFR:               l.article.nameFR || null,
+        color:                l.variante.dimension === 'color' ? l.variante.label : (libelleFixe(l.article.color) || null),
+        size:                 l.variante.dimension === 'size' ? l.variante.label : (libelleFixe(l.article.size) || null),
+        quality:              l.variante.dimension === 'quality' ? l.variante.label : (libelleFixe(l.article.quality) || null),
+        unitOfMeasure:        uniteDeStock(poleDeLArticle(l.article, categories, generalCategories))
+                              || l.article.unitOfMeasure || 'unité',
+        type:                 'IN' as const,
+        // Jamais « ARRIVAGE » : ce motif fait rechercher l'article dans tout le catalogue pour
+        // chaque mouvement, et ferait entrer ce stock dans la logique des dossiers d'import.
+        reason:               'INVENTAIRE' as const,
+        storeId:              l.entrepot,
+        quantity:             l.quantite,
+        date:                 aujourdhui,
+        notes:                noteSimulation(aujourdhui, l.variante.label || undefined),
+        createdAt:            serverTimestamp(),
+      }));
+
+      for (let i = 0; i < ecritures.length; i += 450) {
+        const batch = writeBatch(firestore);
+        ecritures.slice(i, i + 450).forEach(faire => { batch.set(doc(movsColl), faire()); });
+        await batch.commit();
+        setAvancementSimulation({ faites: Math.min(i + 450, ecritures.length), total: ecritures.length });
+      }
+
+      logAudit(firestore, effectiveUid, {
+        action: 'STOCK_IN',
+        userId: user.uid,
+        userEmail: user.email || '',
+        entityType: 'stockMovement',
+        entityId: 'stock-simulation',
+        description: `Stock de test chargé · ${planSimulation.references} référence(s), `
+          + `${planSimulation.lignes.length} ligne(s) de stock, `
+          + `${planSimulation.unites.toLocaleString('fr-MA')} unité(s) sur ${entrepotsSimulation.length} entrepôt(s)`,
+        metadata: { references: planSimulation.references, lignes: planSimulation.lignes.length },
+      });
+
+      toast({
+        title: 'Stock de test chargé',
+        description: `${planSimulation.references} référence(s) en stock pour ${DUREE_ESSAI_JOURS} jours d'essai.`,
+      });
+    } catch (e: any) {
+      console.error('[simulation] chargement impossible :', e);
+      toast({ variant: 'destructive', title: 'Chargement impossible', description: e?.message || 'Réessayez.' });
+    } finally {
+      setSimulationEnCours(false);
+    }
+  };
+
+  /**
+   * Ce qu'il faut écrire pour annuler l'effet de la semaine d'essai sur les références du test :
+   * une ligne par (produit, variante, lieu) dont le solde a bougé.
+   *
+   * On ne touche pas aux mouvements eux-mêmes — une vente reste une vente, avec sa facture. On
+   * ajoute l'inverse de leur effet, exactement comme un ajustement d'inventaire.
+   */
+  const regularisationsDeLEssai = (): any[] => {
+    const jours = mouvementsSimulation.map(jourDuChargement).filter(Boolean) as string[];
+    const depuis = jours.sort()[0];
+    if (!depuis) return [];
+    const references = new Set(mouvementsSimulation.map((m: any) => m.articleId));
+    const cle = (m: any) => [
+      m.articleId,
+      String(m.quality || '').trim().toLowerCase(),
+      String(m.color || '').trim().toLowerCase(),
+      String(m.size || '').trim().toLowerCase(),
+      m.storeId || 'CHRIFA',
+    ].join('|');
+
+    const soldes = new Map<string, { modele: any; delta: number }>();
+    for (const m of allMovements as any[]) {
+      if (estMouvementSimulation(m)) continue;
+      if (!references.has(m.articleId)) continue;
+      if (String(m.date || '') < depuis) continue;
+      const quantite = Number(m.quantity) || 0;
+      // Un ajustement porte déjà son signe ; une entrée ajoute, une sortie retire.
+      const effet = m.type === 'OUT' ? -quantite : quantite;
+      if (effet === 0) continue;
+      const k = cle(m);
+      const existant = soldes.get(k);
+      if (existant) existant.delta += effet;
+      else soldes.set(k, { modele: m, delta: effet });
+    }
+
+    const aujourdhui = toLocalDateStr(new Date());
+    return Array.from(soldes.values())
+      .filter(({ delta }) => delta !== 0)
+      .map(({ modele, delta }) => ({
+        articleId:     modele.articleId,
+        categoryId:    modele.categoryId || null,
+        productName:   modele.productName || modele.nameFR || '',
+        nameFR:        modele.nameFR || null,
+        color:         modele.color || null,
+        size:          modele.size || null,
+        quality:       modele.quality || null,
+        unitOfMeasure: modele.unitOfMeasure || 'unité',
+        type:          'ADJUSTMENT' as const,
+        reason:        'INVENTAIRE' as const,
+        storeId:       modele.storeId || 'CHRIFA',
+        // L'inverse de ce que la semaine a fait à cette ligne.
+        quantity:      -delta,
+        date:          aujourdhui,
+        // Marque volontairement différente de celle du stock de test : sinon l'écran croirait
+        // qu'un essai est encore en place, et un second effacement les reprendrait.
+        notes:         `RÉGULARISATION STOCK DE TEST · effet de l'essai annulé`,
+      }));
+  };
+
+  /**
+   * Remet le stock d'avant l'essai.
+   *
+   * Supprimer les entrées du stock de test ne suffit pas : ce qui les a consommées pendant la
+   * semaine — ventes, transferts, comptages — porte d'autres notes et survivrait. L'entrepôt
+   * passerait en négatif, et le magasin de destination garderait des unités qui n'ont jamais
+   * existé. On écrit donc, pour chaque ligne touchée, un mouvement de régularisation qui annule
+   * l'effet de la semaine. Les documents eux-mêmes — factures, bons de transfert, sessions
+   * d'inventaire — ne sont pas touchés : ils restent dans l'historique.
+   */
+  const handleEffacerSimulation = async () => {
+    if (!user || !firestore || mouvementsSimulation.length === 0) return;
+    const effectiveUid = adminUid || user.uid;
+    setEffacementSimulation(true);
+    setAvancementSimulation({ faites: 0, total: mouvementsSimulation.length });
+    try {
+      const regularisations = regularisationsDeLEssai();
+      for (let i = 0; i < mouvementsSimulation.length; i += 450) {
+        const batch = writeBatch(firestore);
+        for (const mouvement of mouvementsSimulation.slice(i, i + 450)) {
+          batch.delete(doc(firestore, 'users', effectiveUid, 'stockMovements', (mouvement as any).id));
+        }
+        await batch.commit();
+        setAvancementSimulation({ faites: Math.min(i + 450, mouvementsSimulation.length), total: mouvementsSimulation.length });
+      }
+
+      // Les régularisations partent APRÈS les suppressions : si l'effacement s'interrompt, on
+      // préfère un stock incomplet à un stock corrigé deux fois.
+      const movsColl = collection(firestore, 'users', effectiveUid, 'stockMovements');
+      for (let i = 0; i < regularisations.length; i += 450) {
+        const batch = writeBatch(firestore);
+        for (const ligne of regularisations.slice(i, i + 450)) {
+          batch.set(doc(movsColl), cleanUndefined({ ...ligne, createdAt: serverTimestamp() }));
+        }
+        await batch.commit();
+      }
+      logAudit(firestore, effectiveUid, {
+        action: 'STOCK_ADJUSTMENT',
+        userId: user.uid,
+        userEmail: user.email || '',
+        entityType: 'stockMovement',
+        entityId: 'stock-simulation',
+        description: `Stock de test effacé · ${mouvementsSimulation.length} ligne(s) supprimée(s), `
+          + `${regularisations.length} régularisation(s)`,
+        metadata: { lignes: mouvementsSimulation.length, regularisations: regularisations.length },
+      });
+      toast({
+        title: 'Stock de test effacé',
+        description: regularisations.length > 0
+          ? `Le stock d'avant l'essai est rétabli · ${regularisations.length} ligne(s) régularisée(s).`
+          : "Le stock d'avant l'essai est rétabli.",
+      });
+    } catch (e: any) {
+      console.error('[simulation] effacement impossible :', e);
+      toast({ variant: 'destructive', title: 'Effacement impossible', description: e?.message || 'Réessayez.' });
+    } finally {
+      setEffacementSimulation(false);
     }
   };
 
@@ -2526,6 +2768,20 @@ export default function StockApp() {
               <ChevronLeft className="w-4 h-4 shrink-0" /> StockVue
             </a>
             {userRole === 'ADMIN' && (
+              <button onClick={() => setSimulationOuverte(true)}
+                title="Poser du stock sur tout le catalogue, pour une semaine d'essai grandeur nature"
+                className="w-full flex items-center gap-2.5 h-[34px] px-3 rounded-xl text-[11.5px] font-bold text-sky-400 hover:text-sky-300 hover:bg-sky-500/10 transition-colors">
+                <FlaskConical className="w-3.5 h-3.5 shrink-0" /> Stock de test
+                {essaiEnCours && (
+                  <span className={`ml-auto text-[9px] font-black px-1.5 py-0.5 rounded-md ${
+                    essaiEnCours.expire ? 'bg-amber-500/20 text-amber-300' : 'bg-sky-500/20 text-sky-300'
+                  }`}>
+                    {essaiEnCours.expire ? 'à effacer' : `J+${essaiEnCours.ecoules}`}
+                  </span>
+                )}
+              </button>
+            )}
+            {userRole === 'ADMIN' && (
               <button onClick={() => { setFormationCharge(false); setFormationOpen(true); }}
                 title="Charger un stock d'entraînement sur de vrais produits, pour former quelqu'un"
                 className="w-full flex items-center gap-2.5 h-[34px] px-3 rounded-xl text-[11.5px] font-bold text-emerald-400 hover:text-emerald-300 hover:bg-emerald-500/10 transition-colors">
@@ -3509,6 +3765,13 @@ export default function StockApp() {
               </div>
             </div>
           )}
+          {/* Une sortie neutre : les quatre boutons du dessus engagent tous une remise. */}
+          <div className="mt-4 flex justify-end">
+            <Button variant="ghost" onClick={() => setArbitrageModalOpen(false)}
+              className="rounded-xl text-xs font-bold text-stone-500 hover:text-stone-900">
+              Fermer
+            </Button>
+          </div>
         </DialogContent>
       </Dialog>
       {/* Modal de Confirmation Réinitialisation Stock (Mode Simulation) */}
@@ -3651,6 +3914,143 @@ export default function StockApp() {
               </BoutonValider>
             )}
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Stock de test ───────────────────────────────────────────────────
+          Tout le catalogue, en quantité, sur les entrepôts, pour une semaine d'essai. Et un
+          effacement qui ne retire QUE ce stock : le travail de la semaine reste. */}
+      <Dialog open={simulationOuverte} onOpenChange={o => { if (!simulationEnCours && !effacementSimulation) setSimulationOuverte(o); }}>
+        <DialogContent className="sm:max-w-2xl rounded-3xl p-6">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-2xl bg-sky-100 flex items-center justify-center text-sky-600 shrink-0">
+              <FlaskConical className="w-5 h-5" />
+            </div>
+            <div>
+              <DialogTitle className="text-base font-black text-stone-900">Stock de test</DialogTitle>
+              <DialogDescription className="text-[11px] font-semibold text-stone-500">
+                Tout le catalogue en quantité, pour {DUREE_ESSAI_JOURS} jours d'essai grandeur nature.
+              </DialogDescription>
+            </div>
+          </div>
+
+          <Encadre ton="info" className="mt-2">
+            Chaque référence reçoit <span className="font-black">{QUANTITE_PAR_LIGNE.toLocaleString('fr-MA')} unités par ligne
+            de stock</span> — par couleur, par qualité ou par taille — posées dans{' '}
+            <span className="font-black">un entrepôt, et deux pour une référence sur trois</span>. Rien ne part
+            directement en boutique : la marchandise se transfère, comme dans la vraie vie.
+            Aucun produit n'est créé, aucun prix n'est touché.
+          </Encadre>
+
+          {entrepotsSimulation.length === 0 ? (
+            <Encadre ton="attention" className="mt-3">
+              Aucun entrepôt n'est déclaré. Créez-en un dans <span className="font-black">Entrepôts</span> avant de
+              charger le stock de test : c'est de là que part la marchandise.
+            </Encadre>
+          ) : (
+            <div className="mt-3 grid grid-cols-2 sm:grid-cols-4 gap-2">
+              {[
+                ['Références', planSimulation.references.toLocaleString('fr-MA')],
+                ['Lignes de stock', planSimulation.lignes.length.toLocaleString('fr-MA')],
+                ['Unités posées', planSimulation.unites.toLocaleString('fr-MA')],
+                ['Entrepôts', String(entrepotsSimulation.length)],
+              ].map(([libelle, valeur]) => (
+                <div key={libelle} className="rounded-2xl border border-stone-200 bg-stone-50 px-3 py-2">
+                  <p className="text-[9px] font-black uppercase tracking-widest text-stone-400">{libelle}</p>
+                  <p className="text-[15px] font-black text-stone-900 tabular-nums">{valeur}</p>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {planSimulation.referencesEcartees > 0 && (
+            <Encadre ton="attention" className="mt-3">
+              {planSimulation.referencesEcartees.toLocaleString('fr-MA')} référence(s) ne seront pas chargées : au-delà
+              de {MAX_LIGNES.toLocaleString('fr-MA')} lignes de stock — mouvements déjà en base compris — l'écran
+              devient poussif : le calcul relit tous les mouvements pour chaque article. Les références chargées
+              sont les premières du catalogue.
+            </Encadre>
+          )}
+
+          {planSimulation.variantesEcartees > 0 && (
+            <p className="text-[10px] font-semibold text-stone-400 mt-2">
+              {planSimulation.variantesEcartees.toLocaleString('fr-MA')} variante(s) au-delà de la sixième ne
+              recevront pas de stock : elles resteront visibles à zéro.
+            </p>
+          )}
+
+          {essaiEnCours && (
+            <Encadre ton={essaiEnCours.expire ? 'attention' : 'astuce'} className="mt-3"
+              titre={essaiEnCours.expire ? "L'essai a dépassé la semaine" : 'Un stock de test est en place'}>
+              {essaiEnCours.lignes.toLocaleString('fr-MA')} ligne(s) posée(s)
+              {essaiEnCours.depuis ? ` le ${new Date(essaiEnCours.depuis).toLocaleDateString('fr-FR')}` : ''}
+              {' '}· {essaiEnCours.ecoules} jour(s). <span className="font-black">Ne rechargez pas</span> : les
+              quantités s'additionneraient. Effacez d'abord.
+            </Encadre>
+          )}
+
+          {essaiEnCours && mouvementsSurStockDeTest > 0 && (
+            <Encadre ton="astuce" className="mt-3" titre="Ce que l'effacement fera de la semaine">
+              {mouvementsSurStockDeTest.toLocaleString('fr-MA')} mouvement(s) ont été faits sur ces références depuis
+              le chargement — ventes, transferts, comptages. L'effacement retire les entrées du stock de test
+              <span className="font-black"> et annule leur effet sur les quantités</span>, ligne par ligne : sans
+              cela, l'entrepôt passerait en négatif et les magasins garderaient des unités qui n'ont jamais existé.
+              Les factures, bons de transfert et sessions d'inventaire, eux, restent dans l'historique.
+            </Encadre>
+          )}
+
+          {(simulationEnCours || effacementSimulation) && avancementSimulation.total > 0 && (
+            <div className="mt-3">
+              <div className="h-2 rounded-full bg-stone-100 overflow-hidden">
+                <div className="h-full bg-sky-500 transition-all"
+                  style={{ width: `${Math.round((avancementSimulation.faites / avancementSimulation.total) * 100)}%` }} />
+              </div>
+              <p className="text-[10px] font-bold text-stone-500 mt-1 tabular-nums">
+                {avancementSimulation.faites.toLocaleString('fr-MA')} / {avancementSimulation.total.toLocaleString('fr-MA')} lignes
+                {' '}· laissez cet onglet ouvert jusqu'à la fin
+              </p>
+            </div>
+          )}
+
+          <div className="mt-4 flex flex-col sm:flex-row gap-2">
+            <Button variant="ghost" onClick={() => setSimulationOuverte(false)}
+              disabled={simulationEnCours || effacementSimulation}
+              className="rounded-xl text-xs font-bold">
+              Annuler
+            </Button>
+            {essaiEnCours && (
+              <Button variant="outline" onClick={handleEffacerSimulation}
+                disabled={simulationEnCours || effacementSimulation}
+                className="rounded-xl text-xs font-black border-rose-200 text-rose-600 hover:bg-rose-50 gap-1.5">
+                <RotateCcw className="w-3.5 h-3.5" />
+                {effacementSimulation ? 'Effacement…' : 'Effacer le stock de test'}
+              </Button>
+            )}
+            <BoutonValider
+              onClick={handleChargerSimulation}
+              enCours={simulationEnCours}
+              libelleEnCours="Chargement…"
+              className="sm:ml-auto"
+              raisonDesactive={
+                entrepotsSimulation.length === 0 ? "Aucun entrepôt n'est déclaré."
+                : planSimulation.lignes.length === 0 ? 'Aucune référence à charger dans le catalogue.'
+                : essaiEnCours ? 'Effacez le stock de test en place avant d’en charger un autre.'
+                : null
+              }
+            >
+              Charger le stock de test
+            </BoutonValider>
+          </div>
+
+          <p className="text-[10px] font-semibold text-stone-400 mt-2">
+            Ce stock n'est pas rangé dans des emplacements : l'onglet Emplacements l'ignorera, et une sortie sur une
+            référence déjà adressée puisera dans ses racks.
+          </p>
+          <p className="text-[10px] font-semibold text-stone-400 mt-1">
+            L'effacement ramène le stock à ce qu'il était avant l'essai. Les documents de la semaine — factures,
+            bons de transfert, sessions d'inventaire — restent, contrairement à « Reset Stock (0) » qui efface
+            tout, y compris le fichier clients.
+          </p>
         </DialogContent>
       </Dialog>
 

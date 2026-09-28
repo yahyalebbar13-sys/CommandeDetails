@@ -561,7 +561,8 @@ function EditCategorieModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
+      {/* Le fond ne ferme pas : un clic a cote ne doit pas effacer une saisie. */}
+      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
       <div className="relative bg-[#1A1A1A] rounded-2xl border border-white/10 shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
         <div className="px-6 py-4 border-b border-white/10 flex items-center justify-between sticky top-0 bg-[#1A1A1A]">
           <h2 className="text-white font-bold text-base flex items-center gap-2">
@@ -2771,7 +2772,8 @@ function NouveauProduitModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
+      {/* Le fond ne ferme pas : un clic a cote ne doit pas effacer une saisie. */}
+      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
       <div className="relative bg-[#1A1A1A] rounded-2xl border border-white/10 shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
         {/* Header */}
         <div className="sticky top-0 bg-[#1A1A1A] px-6 py-4 border-b border-white/10 flex items-center justify-between z-10">
@@ -3302,7 +3304,8 @@ function NouvelleCategorieModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
+      {/* Le fond ne ferme pas : un clic a cote ne doit pas effacer une saisie. */}
+      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
       <div className="relative bg-[#1A1A1A] rounded-2xl border border-white/10 shadow-2xl w-full max-w-lg">
         <div className="px-6 py-4 border-b border-white/10 flex items-center justify-between">
           <h2 className="text-white font-bold text-base flex items-center gap-2">

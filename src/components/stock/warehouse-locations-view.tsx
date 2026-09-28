@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useMemo } from 'react';
+import { imprimerHtml, messageImpression } from '@/lib/impression';
 import {
   MapPin, Plus, Save, Trash2, QrCode, Grid3x3, Layers, Loader2,
   Wand2, Package, Ruler, Warehouse, X, Search, CheckCircle2, EyeOff,
@@ -537,16 +538,10 @@ export default function WarehouseLocationsView({
         }),
       })));
 
-      const win = window.open('', '_blank');
-      if (!win) {
-        toast({ variant: 'destructive', title: 'Fenêtre bloquée', description: "Autorise les pop-ups pour imprimer les étiquettes." });
-        return;
-      }
-
       const storeName = currentStore?.name || currentStoreId;
       const esc = (s: string) => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c] || c));
 
-      win.document.write(`<!DOCTYPE html>
+      const html = (`<!DOCTYPE html>
 <html lang="fr"><head><meta charset="utf-8">
 <title>Étiquettes ${esc(storeName)}${zoneCode ? ` — Zone ${esc(zoneCode)}` : ''}</title>
 <style>
@@ -574,11 +569,9 @@ ${labels.map(l => `  <div class="label">
   </div>`).join('\n')}
 </div>
 </body></html>`);
-      win.document.close();
-      win.focus();
-      setTimeout(() => win.print(), 400);
+      await imprimerHtml(html);
     } catch (e: any) {
-      toast({ variant: 'destructive', title: 'Erreur', description: e?.message || 'Génération des QR impossible.' });
+      toast({ variant: 'destructive', title: 'Impression impossible', description: messageImpression(e) });
     } finally {
       setBusy(false);
     }

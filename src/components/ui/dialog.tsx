@@ -29,14 +29,33 @@ const DialogOverlay = React.forwardRef<
 ))
 DialogOverlay.displayName = DialogPrimitive.Overlay.displayName
 
+interface DialogContentProps
+  extends React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content> {
+  /**
+   * Autorise la fermeture au clic à côté.
+   *
+   * Par défaut, une fenêtre ne se ferme PAS quand on clique à l'extérieur : dans ce logiciel, la
+   * plupart d'entre elles portent un formulaire, et perdre vingt champs parce que la souris a
+   * dérapé était le reproche numéro un du magasin. On ferme par la croix, par Échap, ou par le
+   * bouton Annuler.
+   *
+   * À n'activer que là où le clic extérieur EST le geste attendu : une photo agrandie, la palette
+   * de recherche, un aperçu qu'on referme d'un revers de souris. Jamais sur un formulaire.
+   */
+  fermetureAuClicExterieur?: boolean;
+}
+
 const DialogContent = React.forwardRef<
   React.ElementRef<typeof DialogPrimitive.Content>,
-  React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content>
->(({ className, children, ...props }, ref) => (
+  DialogContentProps
+>(({ className, children, fermetureAuClicExterieur, onInteractOutside, ...props }, ref) => (
   <DialogPortal>
     <DialogOverlay />
     <DialogPrimitive.Content
       ref={ref}
+      onInteractOutside={onInteractOutside ?? (evenement => {
+        if (!fermetureAuClicExterieur) evenement.preventDefault();
+      })}
       className={cn(
         "fixed left-[50%] top-[50%] z-50 grid w-full max-w-lg translate-x-[-50%] translate-y-[-50%] gap-4 border bg-background p-6 shadow-lg duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[state=closed]:slide-out-to-left-1/2 data-[state=closed]:slide-out-to-top-[48%] data-[state=open]:slide-in-from-left-1/2 data-[state=open]:slide-in-from-top-[48%] sm:rounded-lg max-h-[90vh] overflow-y-auto",
         className
@@ -45,8 +64,8 @@ const DialogContent = React.forwardRef<
       {...props}
     >
       {children}
-      <DialogPrimitive.Close className="absolute right-4 top-4 rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none data-[state=open]:bg-accent data-[state=open]:text-muted-foreground">
-        <X className="h-4 w-4" />
+      <DialogPrimitive.Close className="absolute right-3 top-3 z-10 rounded-full bg-white/90 p-1 text-stone-700 shadow-sm ring-1 ring-black/5 transition-colors hover:bg-white hover:text-stone-900 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none">
+        <X className="h-3.5 w-3.5" />
         <span className="sr-only">Close</span>
       </DialogPrimitive.Close>
     </DialogPrimitive.Content>

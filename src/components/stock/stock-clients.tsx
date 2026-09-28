@@ -1,6 +1,8 @@
 "use client";
 
 import React, { useState, useMemo } from 'react';
+import { LOGO_B64 } from '@/lib/logo-b64';
+import { imprimerHtml, messageImpression, echapperHtml } from '@/lib/impression';
 import { UserPlus, Search, Phone, Mail, FileText, CreditCard, ChevronLeft, Edit2, Check, X, Users, TrendingUp, Printer, Plus, Trash2, AlertCircle, CheckCircle2, Camera, Clock, Building2, Banknote, FileCheck, Landmark, MoreHorizontal } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -419,10 +421,17 @@ export default function StockClients({ clients, orders, invoices, payments, user
   const reglementAvecPapier = paymentLines.some(l => (parseFloat(l.amount) || 0) > 0 && estPapier(l.method));
 
   const printClientStatement = () => {
+    try {
+      construireEtImprimerReleve();
+    } catch (e: any) {
+      console.error('[releve client] impression impossible :', e);
+      toast({ variant: 'destructive', title: 'Impression impossible', description: messageImpression(e) });
+    }
+  };
+
+  const construireEtImprimerReleve = () => {
     if (!selected) return;
-    const w = window.open('', '_blank');
-    if (!w) return;
-    w.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>Relevé - ${selected.name}</title>
+    const html = (`<!DOCTYPE html><html><head><meta charset="utf-8"><title>Relevé - ${echapperHtml(selected.name)}</title>
     <style>body{font-family:Arial,sans-serif;max-width:800px;margin:40px auto;color:#1c1917}
     h1{font-size:24px;font-weight:900;text-transform:uppercase;letter-spacing:-0.05em;color:#3D2E17}
     .header{display:flex;justify-content:space-between;align-items:start;border-bottom:3px solid #CC8626;padding-bottom:20px;margin-bottom:20px}
@@ -435,22 +444,22 @@ export default function StockClients({ clients, orders, invoices, payments, user
     </style></head><body>
     <div class="header">
       <div>
-        <img src="${window.location.origin}/logo_lebtex.png" alt="LEBTEX" style="height: 120px; margin-bottom: 15px; display: block;" />
+        <img src="${LOGO_B64}" alt="LEBTEX" style="height: 120px; margin-bottom: 15px; display: block;" />
         <div class="label" style="color:#CC8626;font-size:10px">RELEVÉ DE COMPTE</div>
-        <h1>${selected.name}</h1>
+        <h1>${echapperHtml(selected.name)}</h1>
       </div>
       <div style="text-align:right;font-size:12px">
         <div class="label">Date du relevé</div><strong>${new Date().toLocaleDateString('fr-FR')}</strong><br><br>
-        ${selected.phone ? `Tél: ${selected.phone}<br>` : ''}
-        ${selected.address ? `${selected.address}<br>` : ''}
+        ${selected.phone ? `Tél: ${echapperHtml(selected.phone)}<br>` : ''}
+        ${selected.address ? `${echapperHtml(selected.address)}<br>` : ''}
       </div>
     </div>
     
     <h3 style="font-size:14px;color:#57534e;text-transform:uppercase;border-bottom:1px solid #e7e5e4;padding-bottom:5px">Historique des factures</h3>
     <table><thead><tr><th>Date</th><th>Facture N°</th><th>Statut</th><th style="text-align:right">Total</th><th style="text-align:right">Payé</th><th style="text-align:right">Reste dû</th></tr></thead>
-    <tbody>${selInvoices.sort((a,b)=>a.date.localeCompare(b.date)).map(i => `<tr>
-      <td>${i.date}</td><td><strong>${i.invoiceNumber || 'FAC-...'}</strong></td>
-      <td>${statusLabels[i.status] || i.status}</td>
+    <tbody>${(selInvoices || []).slice().sort((a,b)=>String(a.date).localeCompare(String(b.date))).map(i => `<tr>
+      <td>${echapperHtml(i.date)}</td><td><strong>${echapperHtml(i.invoiceNumber || 'FAC-...')}</strong></td>
+      <td>${echapperHtml(statusLabels[i.status] || i.status)}</td>
       <td style="text-align:right">${fmt$(i.totalAfterDiscount)}</td>
       <td style="text-align:right;color:#059669">${fmt$(i.paidAmount)}</td>
       <td style="text-align:right;font-weight:bold;color:${i.remainingBalance>0?'#dc2626':'#1c1917'}">${fmt$(i.remainingBalance)}</td>
@@ -463,8 +472,11 @@ export default function StockClients({ clients, orders, invoices, payments, user
     
     <div class="footer">Document généré automatiquement le ${new Date().toLocaleString('fr-FR')}</div>
     </body></html>`);
-    w.document.close();
-    w.print();
+    imprimerHtml(html).catch(e => toast({
+      variant: 'destructive',
+      title: "Impression impossible",
+      description: messageImpression(e),
+    }));
   };
 
   if (selected) return (
@@ -946,7 +958,8 @@ export default function StockClients({ clients, orders, invoices, payments, user
       <Dialog open={globalPaymentOpen} onOpenChange={setGlobalPaymentOpen}>
         <DialogContent className="sm:max-w-2xl rounded-3xl border-none shadow-2xl p-0 overflow-hidden">
           <div className="bg-gradient-to-r from-[#3D2E17] to-[#1E1B15] p-6 text-white">
-            <div className="flex items-center justify-between">
+            {/* pr-10 : la croix de fermeture occupe le coin haut-droit. */}
+            <div className="flex items-center justify-between pr-10">
               <div>
                 <DialogTitle className="text-lg font-black uppercase tracking-tight">Règlement du Solde Client</DialogTitle>
                 <p className="text-xs font-bold text-[#C9B89A] mt-1">Client : <span className="text-white uppercase font-black">{selected?.name}</span></p>
