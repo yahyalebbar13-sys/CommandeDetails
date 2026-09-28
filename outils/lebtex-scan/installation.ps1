@@ -70,7 +70,9 @@ if ($navigateur) {
   $profil = Join-Path $dossier 'navigateur'
   $stock = (New-Object -ComObject WScript.Shell).CreateShortcut($raccourciStock)
   $stock.TargetPath = $navigateur
-  $stock.Arguments = '--kiosk-printing --no-first-run --no-default-browser-check --user-data-dir="' + $profil + '" https://www.lebtex.ma/stock'
+  # --app : une fenêtre d'application sans barre d'adresse, comme l'application /stock installée
+  # depuis Chrome — mais celle-là, lancée sans l'option, affiche toujours la boîte d'impression.
+  $stock.Arguments = '--kiosk-printing --no-first-run --no-default-browser-check --user-data-dir="' + $profil + '" --app=https://www.lebtex.ma/stock'
   $stock.IconLocation = "$navigateur,0"
   $stock.Description = '/stock avec impression directe'
   $stock.Save()
