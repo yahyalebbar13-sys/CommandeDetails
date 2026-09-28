@@ -17,7 +17,8 @@ export function messageErreurLecture(err: unknown): string {
   const code = String((err as { code?: string })?.code || '').replace(/^firestore\//, '');
   switch (code) {
     case 'permission-denied':
-      return "La base refuse l'accès aux commandes. Déconnectez-vous puis reconnectez-vous ; si ça continue, les droits de la base sont à vérifier.";
+      // Lu aussi par l'équipe (/staff) : rien de technique, et une personne à prévenir.
+      return "Accès aux commandes refusé. Déconnectez-vous puis reconnectez-vous ; si ça continue, prévenez la personne qui gère le site.";
     case 'unauthenticated':
       return 'Votre session a expiré : reconnectez-vous pour voir les commandes.';
     case 'unavailable':

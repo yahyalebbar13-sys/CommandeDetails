@@ -38,6 +38,32 @@ service cloud.firestore {
       return isSignedIn() && request.auth.token.email == 'yahya.lebbar13@gmail.com';
     }
 
+    // (27/09/2026) Compte partagé de l'équipe boutique (espace /staff), à ne pas
+    // confondre avec l'ancien « staff » de /gestion ci-dessus (clientAccess).
+    // Claim posé par firebase-admin uniquement ; le document shop_meta/acces_equipe
+    // (fermé aux navigateurs) dit quel compte est en service et s'il est désactivé.
+    // Ne sert qu'à LISTER shop_orders. Mêmes garde-fous que verifyEquipe
+    // (src/lib/require-equipe.ts), le document n'étant lu qu'une fois.
+    function isEquipeLebtex() {
+      return isSignedIn()
+        && request.auth.token.get('staff', false) == true
+        && accesEquipeOuvert(get(/databases/$(database)/documents/shop_meta/acces_equipe).data);
+    }
+
+    // - le compte est celui du document, et l'accès n'est pas désactivé ;
+    // - la connexion (auth_time) date d'après le dernier changement de mot de
+    //   passe ou la dernière désactivation (valideApres, en secondes) : un ancien
+    //   téléphone ne liste plus les commandes, sans attendre l'heure de vie de
+    //   son jeton ; champ absent = accès fermé ;
+    // - l'adresse du compte est restée sur le domaine de l'équipe : un employé
+    //   qui la changerait depuis son navigateur perd l'accès aux commandes.
+    function accesEquipeOuvert(acces) {
+      return acces.get('uid', '') == request.auth.uid
+        && acces.get('desactive', true) == false
+        && request.auth.token.get('auth_time', 0) >= acces.get('valideApres', 9999999999)
+        && request.auth.token.get('email', '').matches('.*@equipe[.]lebtex[.]ma$');
+    }
+
     // ── Isolation par magasin ─────────────────────────────────────────────────
     // Résout le document storeAccess du compte appelant (email brut, email en
     // minuscule, ou uid — mêmes variantes que isCommercial() pour compatibilité
@@ -383,8 +409,15 @@ service cloud.firestore {
       // Listing: admin can list all, a logged-in customer lists their own orders.
       // (« || request.query.limit <= 20 » retiré le 27/09/2026 : il laissait
       // n'importe qui lister toutes les commandes, 20 par 20 — noms, téléphones, adresses.)
+      // (27/09/2026) L'équipe LEBTEX (espace /staff) liste aussi, en LECTURE seule :
+      // ses changements passent par /api/shop/commandes/interne. Le claim `staff`
+      // n'est posé que par firebase-admin (route /api/admin/acces-equipe) ; le
+      // compte doit en plus être CELUI désigné par shop_meta/acces_equipe et ne
+      // pas être désactivé — un ancien compte équipe garde son claim, pas l'accès.
+      // Placé en dernier : l'administrateur et les clients ne paient pas cette lecture.
       allow list: if (isSignedIn() && request.auth.token.email == 'yahya.lebbar13@gmail.com')
-        || (isSignedIn() && request.auth.token.email != null && resource.data.customerEmail == request.auth.token.email);
+        || (isSignedIn() && request.auth.token.email != null && resource.data.customerEmail == request.auth.token.email)
+        || isEquipeLebtex();
       // Admin can update (change order status etc.)
       allow update: if isSignedIn() && request.auth.token.email == 'yahya.lebbar13@gmail.com';
       // Admin can delete

@@ -6,7 +6,7 @@ export default function robots(): MetadataRoute.Robots {
       {
         userAgent: '*',
         allow: '/shop',
-        disallow: ['/admin-shop', '/gestion', '/api'],
+        disallow: ['/admin-shop', '/gestion', '/staff', '/api'],
       },
     ],
     sitemap: 'https://lebtex.ma/sitemap.xml',

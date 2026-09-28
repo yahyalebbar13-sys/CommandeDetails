@@ -3,7 +3,7 @@
 // ─── Navigation de l'admin boutique ──────────────────────────────────────────
 // Ordinateur : barre latérale fixe. Téléphone : barre du bas à 5 cases
 // (Commandes, Tableau, Produits, Clients, Plus) ; « Plus » ouvre un panneau avec
-// le reste (Catégories, Catalogue, la boutique, Publier, la déconnexion).
+// le reste (Catégories, Catalogue, Accès équipe, la boutique, Publier, la déconnexion).
 // Commandes vient en premier et porte la pastille du nombre à confirmer.
 
 import { useEffect, useRef, useState, type ReactNode } from 'react';
@@ -11,6 +11,7 @@ import {
   BookOpen,
   ExternalLink,
   Grid3X3,
+  KeyRound,
   LayoutDashboard,
   LogOut,
   MoreHorizontal,
@@ -31,10 +32,13 @@ const ICONES: Record<VueAdmin, (c: string) => ReactNode> = {
   categories: c => <Grid3X3 className={c} />,
   clients: c => <Users className={c} />,
   catalogue: c => <BookOpen className={c} />,
+  equipe: c => <KeyRound className={c} />,
 };
 
 /** Ordre du menu : le travail du jour d'abord. */
 const ORDRE: VueAdmin[] = ['commandes', 'tableau', 'produits', 'categories', 'clients', 'catalogue'];
+/** Section basse de la barre latérale : les réglages, qu'on ouvre rarement, loin du travail du jour. */
+const REGLAGES: VueAdmin[] = ['equipe'];
 
 /** Barre du bas : 4 écrans + « Plus ». Libellés courts : « Commandes » tient en 12 px dans une case de 75 px. */
 const BARRE_BAS: { vue: VueAdmin; libelle: string }[] = [
@@ -43,7 +47,7 @@ const BARRE_BAS: { vue: VueAdmin; libelle: string }[] = [
   { vue: 'produits', libelle: 'Produits' },
   { vue: 'clients', libelle: 'Clients' },
 ];
-const DANS_PLUS: VueAdmin[] = ['categories', 'catalogue'];
+const DANS_PLUS: VueAdmin[] = ['categories', 'catalogue', 'equipe'];
 
 export function NavigationAdmin({
   vue,
@@ -66,6 +70,28 @@ export function NavigationAdmin({
 }) {
   const [plusOuvert, setPlusOuvert] = useState(false);
 
+  /** Un écran dans la barre latérale (travail du jour ou réglages : même bouton). */
+  const boutonLateral = (v: VueAdmin) => {
+    const actif = vue === v;
+    return (
+      <button
+        key={v}
+        type="button"
+        onClick={() => onVue(v)}
+        aria-current={actif ? 'page' : undefined}
+        className={`w-full flex items-center gap-3 px-3 min-h-[44px] rounded-xl text-sm font-medium transition-colors ${
+          actif ? 'bg-[#C8102E] text-white shadow-lg shadow-[#C8102E]/25' : 'text-gray-300 hover:text-white hover:bg-white/5'
+        }`}
+      >
+        {ICONES[v]('w-5 h-5 flex-shrink-0')}
+        <span className="flex-1 text-left">{TITRES_VUES[v]}</span>
+        {v === 'commandes' && (
+          <PastilleAConfirmer nombre={aConfirmer} enRetard={enRetard} surFondRouge={actif} />
+        )}
+      </button>
+    );
+  };
+
   return (
     <>
       {/* ─── Barre latérale (ordinateur) ─── */}
@@ -83,28 +109,10 @@ export function NavigationAdmin({
         </div>
 
         <nav className="flex-1 overflow-y-auto px-3 py-4 space-y-1" aria-label="Écrans de l'admin">
-          {ORDRE.map(v => {
-            const actif = vue === v;
-            return (
-              <button
-                key={v}
-                type="button"
-                onClick={() => onVue(v)}
-                aria-current={actif ? 'page' : undefined}
-                className={`w-full flex items-center gap-3 px-3 min-h-[44px] rounded-xl text-sm font-medium transition-colors ${
-                  actif ? 'bg-[#C8102E] text-white shadow-lg shadow-[#C8102E]/25' : 'text-gray-300 hover:text-white hover:bg-white/5'
-                }`}
-              >
-                {ICONES[v]('w-5 h-5 flex-shrink-0')}
-                <span className="flex-1 text-left">{TITRES_VUES[v]}</span>
-                {v === 'commandes' && (
-                  <PastilleAConfirmer nombre={aConfirmer} enRetard={enRetard} surFondRouge={actif} />
-                )}
-              </button>
-            );
-          })}
+          {ORDRE.map(v => boutonLateral(v))}
 
-          <div className="pt-4 border-t border-white/5 mt-4">
+          <div className="pt-4 border-t border-white/5 mt-4 space-y-1">
+            {REGLAGES.map(v => boutonLateral(v))}
             <a
               href="/shop"
               target="_blank"

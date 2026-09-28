@@ -8,21 +8,16 @@
 // Produits, Catégories, Clients et Catalogue, qu'il passe dans `ecrans`.
 
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { collection, onSnapshot, orderBy, query, type Firestore } from 'firebase/firestore';
+import type { Firestore } from 'firebase/firestore';
 import type { ShopOrder } from '@/lib/shop-types';
 import type { FileCommandes } from '@/lib/commandes-boutique';
 import { EcranCommandes } from '../_commandes/ecran-commandes';
 import { actionsFirestore } from '../_commandes/actions-commandes';
-import { normaliserCommande } from '../_commandes/normaliser-commande';
 import { useAlerteNouvellesCommandes } from '../_commandes/use-alerte-nouvelles-commandes';
+import { useCommandesEnDirect } from '../_commandes/use-commandes-en-direct';
+import { AccesEquipe } from './acces-equipe';
 import { EnTeteAdmin, type InfosConnexion } from './en-tete';
-import {
-  MESSAGE_HORS_LIGNE_SANS_DONNEES,
-  messageErreurLecture,
-  resumeAConfirmer,
-  useMaintenant,
-  type EtatConnexion,
-} from './etat-commandes';
+import { resumeAConfirmer, useMaintenant } from './etat-commandes';
 import { NavigationAdmin } from './navigation';
 import { BandeauErreur, EtatChargementCommandes, TableauDeBord } from './tableau-de-bord';
 import { adresseAvec, lireAdresse, VUE_PAR_DEFAUT, type VueAdmin } from './vues';
@@ -54,55 +49,8 @@ export function CoqueAdmin({ db, user, onDeconnexion, ecrans }: {
   onDeconnexion: () => void;
   ecrans: EcransAdmin;
 }) {
-  // ── Commandes en temps réel ──
-  const [orders, setOrders] = useState<ShopOrder[]>([]);
-  const [pret, setPret] = useState(false);              // le serveur a répondu au moins une fois
-  const pretRef = useRef(false);
-  const [horsLigne, setHorsLigne] = useState(false);    // la dernière liste vient du cache, pas du serveur
-  const [erreurLecture, setErreurLecture] = useState<string | null>(null); // la base a refusé : écoute arrêtée
-  const [actualiseLe, setActualiseLe] = useState<Date | null>(null);
-  const [tentative, setTentative] = useState(0);        // « Réessayer » relance l'écoute
-
-  useEffect(() => {
-    setErreurLecture(null);
-    const q = query(collection(db, 'shop_orders'), orderBy('createdAt', 'desc'));
-    // includeMetadataChanges : on est prévenu quand la connexion tombe (liste
-    // servie depuis le cache), sinon le voyant resterait vert hors ligne.
-    const arreter = onSnapshot(
-      q,
-      { includeMetadataChanges: true },
-      snap => {
-        const duCache = snap.metadata.fromCache;
-        // Écoute relancée hors connexion (« Réessayer ») : le cache en mémoire a été
-        // vidé à l'arrêt, et Firestore renvoie une liste vide « tirée du cache ».
-        // Ce n'est pas « plus aucune commande » : on garde la dernière liste connue.
-        if (duCache && snap.empty && pretRef.current) {
-          setHorsLigne(true);
-          setErreurLecture(null);
-          return;
-        }
-        // N'importe qui peut créer une commande : chacune est remise d'aplomb ici,
-        // au seul point d'entrée, avant d'arriver dans un écran.
-        setOrders(snap.docs.map(d => normaliserCommande(d.id, d.data())));
-        setHorsLigne(duCache);
-        if (!duCache) {
-          pretRef.current = true;
-          setPret(true);
-          setActualiseLe(new Date());
-        }
-        setErreurLecture(null);
-      },
-      err => setErreurLecture(messageErreurLecture(err)),
-    );
-    return () => arreter();
-  }, [db, tentative]);
-
-  const reessayer = useCallback(() => setTentative(t => t + 1), []);
-
-  // Ce que voient les écrans : jamais « aucune commande » quand on ne sait pas.
-  const erreur = erreurLecture ?? (!pret && horsLigne ? MESSAGE_HORS_LIGNE_SANS_DONNEES : null);
-  const chargement = !pret && !erreur;
-  const etat: EtatConnexion = erreurLecture ? 'erreur' : horsLigne ? 'hors_ligne' : pret ? 'direct' : 'connexion';
+  // ── Commandes en temps réel (écoute partagée avec l'espace équipe /staff) ──
+  const { orders, pret, chargement, erreur, etat, actualiseLe, reessayer } = useCommandesEnDirect(db);
   const connexion: InfosConnexion = { etat, message: erreur, actualiseLe };
 
   // ── Écran affiché et fiche ouverte, gardés dans l'adresse ──
@@ -296,6 +244,7 @@ export function CoqueAdmin({ db, user, onDeconnexion, ecrans }: {
             )
           )}
           {vue === 'catalogue' && ecrans.catalogue()}
+          {vue === 'equipe' && <AccesEquipe />}
         </main>
       </div>
     </div>

@@ -76,7 +76,7 @@ export function BoiteAnnulation({
       ouverte={ouverte}
       onFermer={onFermer}
       titre={`Annuler la commande ${commande.orderNumber} ?`}
-      description={<>Le client verra seulement « {MESSAGE_CLIENT.cancelled} ». Le motif reste dans l’admin : il ne le voit pas.</>}
+      description={<>Le client verra seulement « {MESSAGE_CLIENT.cancelled} ». Le motif reste en interne : il ne le voit pas.</>}
       pied={
         <Boite.Action
           disabled={!valide}

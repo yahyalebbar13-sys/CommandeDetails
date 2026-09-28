@@ -4,6 +4,9 @@
 // Carillon, message à l'écran, notification du navigateur, « (2) » dans le
 // titre de l'onglet. Et la pastille « Nouvelle » sur les commandes en attente
 // jamais ouvertes sur cet appareil.
+// Sert aussi à l'espace équipe (/staff) : `options` y donne son propre titre
+// d'onglet et sa propre page (sinon l'équipe lirait « LEBTEX Admin » et la
+// notification l'enverrait sur l'admin, où elle n'a pas accès).
 //
 // Le premier instantané ne sonne pas : ce sont les commandes déjà là à
 // l'ouverture. Seules sonnent celles qui arrivent ensuite.
@@ -28,6 +31,14 @@ const CLE_VUES = 'lebtex_admin_commandes_vues';
 const CLE_SON = 'lebtex_admin_son';
 const MAX_VUES = 500;
 const TITRE = 'LEBTEX Admin';
+const PAGE = '/admin-shop';
+
+export interface OptionsAlerte {
+  /** Titre de l'onglet (« (2) À confirmer — <titre> »). Par défaut « LEBTEX Admin ». */
+  titre?: string;
+  /** Page qui ouvre une commande avec ?commande=ID (notification de secours). Par défaut /admin-shop. */
+  page?: string;
+}
 
 // ─── Stockage local (peut être bloqué : navigation privée, réglages) ─────────
 
@@ -144,7 +155,7 @@ const dureeMessage = () =>
  * propre page au clic, et le layout racine les désinscrit : ils ne servent
  * qu'en repli, là où le constructeur est refusé (Chrome Android).
  */
-async function notifier(titre: string, corps: string, id: string, onClic: () => void) {
+async function notifier(titre: string, corps: string, id: string, page: string, onClic: () => void) {
   const options: NotificationOptions = { body: corps, tag: `commande-${id}`, icon: '/apple-touch-icon.png' };
   try {
     const n = new Notification(titre, options);
@@ -157,7 +168,7 @@ async function notifier(titre: string, corps: string, id: string, onClic: () => 
   } catch { /* constructeur refusé : on tente le service worker */ }
   try {
     const reg = await navigator.serviceWorker?.getRegistration();
-    await reg?.showNotification(titre, { ...options, data: { url: `/admin-shop?commande=${encodeURIComponent(id)}` } });
+    await reg?.showNotification(titre, { ...options, data: { url: `${page}?commande=${encodeURIComponent(id)}` } });
   } catch { /* pas de notification possible sur cet appareil */ }
 }
 
@@ -172,6 +183,7 @@ export function useAlerteNouvellesCommandes(
   orders: ShopOrder[],
   pret: boolean,
   onOuvrir: (id: string) => void,
+  { titre = TITRE, page = PAGE }: OptionsAlerte = {},
 ): EtatAlertes & { nonVues: Set<string>; marquerVue: (id: string) => void } {
   const { toast } = useToast();
 
@@ -285,10 +297,11 @@ export function useAlerteNouvellesCommandes(
         plusieurs ? `${arrivees.length} nouvelles commandes — LEBTEX` : 'Nouvelle commande — LEBTEX',
         libelleCommande(premiere),
         id,
+        page,
         ouvrir,
       );
     }
-  }, [toast]);
+  }, [toast, page]);
 
   useEffect(() => {
     if (!pret) return;
@@ -311,7 +324,7 @@ export function useAlerteNouvellesCommandes(
   const enAttente = useMemo(() => orders.filter(o => o.status === 'pending').length, [orders]);
   const titreInitial = useRef<string | null>(null);
 
-  const titreVoulu = enAttente > 0 ? `(${enAttente}) À confirmer — ${TITRE}` : TITRE;
+  const titreVoulu = enAttente > 0 ? `(${enAttente}) À confirmer — ${titre}` : titre;
   useEffect(() => {
     if (titreInitial.current === null) titreInitial.current = document.title;
     const appliquer = () => { if (document.title !== titreVoulu) document.title = titreVoulu; };

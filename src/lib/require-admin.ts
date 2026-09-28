@@ -13,7 +13,7 @@
 // leur ferait utiliser une instance sans identifiants selon l'ordre des requêtes.
 
 import { NextResponse } from 'next/server';
-import { createRemoteJWKSet, jwtVerify } from 'jose';
+import { createRemoteJWKSet, jwtVerify, type JWTPayload } from 'jose';
 import { ADMIN_EMAIL } from '@/lib/constants';
 
 const PROJECT_ID = process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || 'studio-9506506653-9b525';
@@ -28,26 +28,63 @@ export type AdminCheck =
   | { ok: true; uid: string; email: string }
   | { ok: false; response: NextResponse };
 
+/** Jeton Firebase dont la signature et les exigences Firebase ont été vérifiées. */
+export type JetonFirebaseVerifie = {
+  uid: string;
+  email: string;
+  /** Heure de la connexion (secondes) : ne change pas quand le jeton est rafraîchi. */
+  authTime: number;
+  /** Tout le contenu vérifié, y compris les claims posés par firebase-admin (ex. `staff`). */
+  payload: JWTPayload;
+};
+
+/**
+ * Résultat de la vérification du jeton de la requête : `absent` (pas d'en-tête
+ * Authorization) et `invalide` (signature, émetteur, expiration…) se
+ * distinguent, car les gardes ne répondent pas le même message.
+ */
+export type VerificationJeton =
+  | { ok: true; jeton: JetonFirebaseVerifie }
+  | { ok: false; raison: 'absent' | 'invalide' };
+
+/**
+ * Vérifie le jeton Firebase de la requête et rend son contenu COMPLET. Base
+ * commune des gardes administrateur, client et équipe (require-equipe.ts).
+ */
+export async function verifierJetonFirebase(req: Request): Promise<VerificationJeton> {
+  const match = /^Bearer\s+(.+)$/i.exec(req.headers.get('authorization') || '');
+  if (!match) return { ok: false, raison: 'absent' };
+
+  let payload: JWTPayload;
+  try {
+    ({ payload } = await jwtVerify(match[1], FIREBASE_JWKS, {
+      algorithms: ['RS256'],
+      issuer: `https://securetoken.google.com/${PROJECT_ID}`,
+      audience: PROJECT_ID,
+    }));
+  } catch {
+    return { ok: false, raison: 'invalide' };
+  }
+
+  // Exigences Firebase en plus de exp/iat/iss/aud (vérifiés par jose).
+  const nowSec = Math.floor(Date.now() / 1000);
+  const authTime = Number(payload.auth_time);
+  if (typeof payload.sub !== 'string' || !payload.sub || !Number.isFinite(authTime) || authTime > nowSec + 60) {
+    return { ok: false, raison: 'invalide' };
+  }
+  return {
+    ok: true,
+    jeton: { uid: payload.sub, email: typeof payload.email === 'string' ? payload.email : '', authTime, payload },
+  };
+}
+
 /**
  * Identité VÉRIFIÉE portée par le jeton Firebase de la requête, ou null.
  * Partagée avec la garde de l'espace client (cf. require-client.ts).
  */
 export async function lireJetonFirebase(req: Request): Promise<{ uid: string; email: string } | null> {
-  const match = /^Bearer\s+(.+)$/i.exec(req.headers.get('authorization') || '');
-  if (!match) return null;
-  try {
-    const { payload } = await jwtVerify(match[1], FIREBASE_JWKS, {
-      algorithms: ['RS256'],
-      issuer: `https://securetoken.google.com/${PROJECT_ID}`,
-      audience: PROJECT_ID,
-    });
-    const nowSec = Math.floor(Date.now() / 1000);
-    const authTime = Number(payload.auth_time);
-    if (typeof payload.sub !== 'string' || !payload.sub || !Number.isFinite(authTime) || authTime > nowSec + 60) return null;
-    return { uid: payload.sub, email: typeof payload.email === 'string' ? payload.email : '' };
-  } catch {
-    return null;
-  }
+  const v = await verifierJetonFirebase(req);
+  return v.ok ? { uid: v.jeton.uid, email: v.jeton.email } : null;
 }
 
 /**
@@ -59,33 +96,18 @@ export async function verifyAdmin(req: Request): Promise<AdminCheck> {
   const refuse = (status: number, error: string): AdminCheck =>
     ({ ok: false, response: NextResponse.json({ error }, { status }) });
 
-  const header = req.headers.get('authorization') || '';
-  const match = /^Bearer\s+(.+)$/i.exec(header);
-  if (!match) return refuse(401, 'Authentification requise');
-
-  let payload: Record<string, unknown>;
-  try {
-    ({ payload } = await jwtVerify(match[1], FIREBASE_JWKS, {
-      algorithms: ['RS256'],
-      issuer: `https://securetoken.google.com/${PROJECT_ID}`,
-      audience: PROJECT_ID,
-    }));
-  } catch {
-    return refuse(401, 'Session invalide ou expirée — reconnectez-vous');
+  const v = await verifierJetonFirebase(req);
+  if (!v.ok) {
+    return v.raison === 'absent'
+      ? refuse(401, 'Authentification requise')
+      : refuse(401, 'Session invalide ou expirée — reconnectez-vous');
   }
 
-  // Exigences Firebase en plus de exp/iat/iss/aud (vérifiés par jose).
-  const nowSec = Math.floor(Date.now() / 1000);
-  const authTime = Number(payload.auth_time);
-  if (typeof payload.sub !== 'string' || !payload.sub || !Number.isFinite(authTime) || authTime > nowSec + 60) {
-    return refuse(401, 'Session invalide ou expirée — reconnectez-vous');
-  }
-
-  const email = typeof payload.email === 'string' ? payload.email : '';
+  const { uid, email } = v.jeton;
   if (email.toLowerCase() !== ADMIN_EMAIL.toLowerCase()) {
     return refuse(403, "Accès réservé à l'administrateur");
   }
-  return { ok: true, uid: payload.sub, email };
+  return { ok: true, uid, email };
 }
 
 /**

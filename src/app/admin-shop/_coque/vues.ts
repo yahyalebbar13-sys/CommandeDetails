@@ -3,7 +3,7 @@
 // un rechargement garde l'écran, et le lien de l'e-mail « nouvelle commande »
 // (/admin-shop?commande=ID) ouvre directement la fiche.
 
-export type VueAdmin = 'commandes' | 'tableau' | 'produits' | 'categories' | 'clients' | 'catalogue';
+export type VueAdmin = 'commandes' | 'tableau' | 'produits' | 'categories' | 'clients' | 'catalogue' | 'equipe';
 
 export const VUE_PAR_DEFAUT: VueAdmin = 'commandes';
 
@@ -14,6 +14,8 @@ export const TITRES_VUES: Record<VueAdmin, string> = {
   categories: 'Catégories',
   clients: 'Clients',
   catalogue: 'Catalogue',
+  // Le compte partagé de l'équipe (/staff) : créé, modifié, désactivé par le patron seul.
+  equipe: 'Accès équipe',
 };
 
 const VUES = Object.keys(TITRES_VUES) as VueAdmin[];

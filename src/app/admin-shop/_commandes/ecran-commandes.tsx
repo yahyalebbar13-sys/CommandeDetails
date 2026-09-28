@@ -55,6 +55,11 @@ export interface EcranCommandesProps {
   fileDemandee?: { file: FileCommandes; jeton: number } | null;
   /** Ajout au contrat (facultatif) : relancer la lecture des commandes, plutôt que recharger la page. */
   onReessayer?: () => void;
+  /**
+   * La personne connectée reçoit l'e-mail « nouvelle commande » (l'administrateur,
+   * par défaut). Faux pour l'espace équipe : le bandeau téléphone ne le promet pas.
+   */
+  prevenuParEmail?: boolean;
 }
 
 /** Cle d'une version de la commande : une frontière d'erreur retente quand elle change. */
@@ -62,6 +67,7 @@ const versionDe = (o: ShopOrder) => `${o.id}|${o.status}|${dateDe(o.updatedAt)?.
 
 export function EcranCommandes({
   orders, chargement, erreur, actions, commandeOuverteId, onOuvrir, nonVues, alertes, fileDemandee, onReessayer,
+  prevenuParEmail = true,
 }: EcranCommandesProps) {
   const { toast } = useToast();
   const maintenant = useMaintenant(30_000);
@@ -365,7 +371,9 @@ export function EcranCommandes({
               <Smartphone className="h-5 w-5 shrink-0 text-amber-300" aria-hidden />
               <p className="min-w-[180px] flex-1 text-sm text-gray-200">
                 Sur téléphone, l’alerte ne sonne que si cette page est ouverte et l’écran allumé.
-                Sinon, vous êtes prévenu par e-mail.
+                {prevenuParEmail
+                  ? ' Sinon, vous êtes prévenu par e-mail.'
+                  : ' Gardez-la ouverte pendant le travail, ou revenez voir la liste régulièrement.'}
               </p>
               <button
                 type="button"

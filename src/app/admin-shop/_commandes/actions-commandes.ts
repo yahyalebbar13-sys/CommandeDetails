@@ -1,5 +1,5 @@
 // ─── Écritures d'une commande boutique depuis l'admin ────────────────────────
-// Tout passe par /api/shop/commandes/interne (réservée à l'administrateur) :
+// Tout passe par /api/shop/commandes/interne (administrateur et équipe /staff) :
 //   • le statut et la phrase du suivi que voit le client vont dans la commande
 //     (shop_orders/{id}, lisible par le client) ;
 //   • la note interne, le motif d'annulation et qui a fait quoi vont dans
@@ -13,6 +13,7 @@
 import type { Firestore } from 'firebase/firestore';
 import type { OrderStatus, ShopOrder } from '@/lib/shop-types';
 import { authedFetch } from '@/lib/authed-fetch';
+import { signalerAccesRefuse } from '@/lib/acces-equipe';
 import { EMAIL_LEBTEX } from '@/lib/email-confirmation-client';
 import { statutLisible } from './outils-ecran';
 
@@ -135,7 +136,15 @@ async function appeler<T>(url: string, init: RequestInit = {}, delaiMs = DELAI_R
   if (reponse.ok) return corps as T;
 
   if (reponse.status === 401 || reponse.status === 403) {
-    throw new ErreurEnregistrement('Accès refusé : votre session a peut-être expiré. Reconnectez-vous puis réessayez.');
+    // L'espace /staff revérifie aussitôt la session (mot de passe changé, accès
+    // désactivé) et ramène l'employé à la connexion s'il le faut.
+    signalerAccesRefuse(reponse.status);
+    // La raison donnée par le serveur (phrase fixe, en français) plutôt qu'une supposition.
+    const raison = typeof corps?.error === 'string' ? corps.error.trim().replace(/[.\s]+$/, '') : '';
+    throw new ErreurEnregistrement(raison
+      // « rien n’a été enregistré » : l'envoi d'e-mail le réécrit en « rien n’a été envoyé ».
+      ? `Accès refusé, rien n’a été enregistré : ${raison.charAt(0).toLowerCase()}${raison.slice(1)}.`
+      : 'Accès refusé : votre session a peut-être expiré. Reconnectez-vous puis réessayez.');
   }
   if (reponse.status === 409 && corps?.statut) {
     throw new ErreurEnregistrement(
