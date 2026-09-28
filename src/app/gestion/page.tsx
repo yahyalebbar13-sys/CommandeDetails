@@ -27,8 +27,6 @@ import DPView from '@/components/dp-view';
 import ReconciliationView from '@/components/reconciliation-view';
 import DevisPIView from '@/components/devis-pi-view';
 import { ClientProfitabilityView } from '@/components/client-profitability-view';
-import BaseOrdersView from '@/components/base-orders-view';
-import EmailsView from '@/components/emails-view';
 import DemandesClientsView from '@/components/demandes-clients-view';
 import { exportGlobalPackingPDF } from '@/lib/pdf-global-packing';
 
@@ -36,7 +34,7 @@ import { Button } from '@/components/ui/button';
 import {
   LogOut, Loader2, Layers, Plus, Database,
   LayoutDashboard, ClipboardList, Factory, Truck,
-  Anchor, UserCheck, Menu, Timer, Calculator, Package, ShieldOff, ShoppingCart, FileCheck, Table2, TrendingUp, ReceiptText, FileDown, History, ChevronDown, Mail, Sparkles, Inbox, TableProperties
+  Anchor, UserCheck, Menu, Timer, Calculator, Package, ShieldOff, ShoppingCart, FileCheck, Table2, TrendingUp, ReceiptText, FileDown, History, ChevronDown, Mail, Sparkles, Inbox, TableProperties, Handshake
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useUser, useFirebase, useCollection, useMemoFirebase } from '@/firebase';
@@ -373,15 +371,12 @@ function AdminApp() {
   const subCatsRef = useMemoFirebase(() => (!firestore || !user) ? null : collection(firestore, 'users', user.uid, 'categories'), [firestore, user]);
   // payments is only needed by SuppliersView — load lazily when that tab is active
   const paymentsRef = useMemoFirebase(() => (!firestore || !user || activeTab !== 'suppliers') ? null : collection(firestore, 'users', user.uid, 'supplierPayments'), [firestore, user, activeTab]);
-  // Profils fournisseurs : sert à reconnaître l'expéditeur d'un email (vue Emails).
-  const supplierProfilesRef = useMemoFirebase(() => (!firestore || !user || activeTab !== 'emails') ? null : collection(firestore, 'users', user.uid, 'supplierProfiles'), [firestore, user, activeTab]);
 
   const { data: rawFactures, isLoading: isFacturesLoading } = useCollection(facturesRef);
   const { data: rawArticles, isLoading: isArticlesLoading } = useCollection(articlesRef);
   const { data: rawGenCats, isLoading: isGenCatsLoading } = useCollection(genCatsRef);
   const { data: rawSubCats, isLoading: isSubCatsLoading } = useCollection(subCatsRef);
   const { data: rawPayments } = useCollection(paymentsRef); // no loading spinner — loads silently
-  const { data: rawSupplierProfiles } = useCollection(supplierProfilesRef);
 
   const factures = rawFactures || [];
   // Les achats du marché local (créés depuis /stock, ex: "dépannage" chez un vendeur local)
@@ -394,20 +389,6 @@ function AdminApp() {
   const generalCategories = rawGenCats || [];
   const subCategories = rawSubCats || [];
   const payments = rawPayments || [];
-
-  // Nom du fournisseur → emails connus, pour le rapprochement email ↔ arrivage.
-  // L'id du document supplierProfiles est le nom du fournisseur (= Facture.supplierId).
-  const supplierHints = useMemo(() => {
-    const hints: Record<string, { name: string; emails?: string[] }> = {};
-    for (const profile of (rawSupplierProfiles || []) as any[]) {
-      const name = (profile.id || profile.name || '').trim();
-      if (!name) continue;
-      const emails = [profile.email, profile.email2, profile.contactEmail]
-        .filter((e: any): e is string => typeof e === 'string' && e.includes('@'));
-      hints[name] = { name, emails };
-    }
-    return hints;
-  }, [rawSupplierProfiles]);
 
   // ─── Changements de statut d'arrivage : prévenir les clients, ou non ─────────────────
   // Rien ne part tout seul : le bandeau en haut de page demande pour chaque dossier.
@@ -423,108 +404,103 @@ function AdminApp() {
     setActiveTab('dashboard'); setSelectedFactureId(null);
     setSelectedGeneralCategoryId(null); setSelectedCategoryName(null); setIsMobileMenuOpen(false);
   };
-  const navGroups = [
-    [
-      { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
+  // Le menu : quelques onglets seuls, le reste rangé par familles en listes déroulantes.
+  type Onglet = { id: OngletAdmin; label: string; icon: React.ElementType };
+  type Famille = { famille: string; icon: React.ElementType; onglets: Onglet[] };
+  const menu: (Onglet | Famille)[] = [
+    { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
+    { famille: 'Commandes', icon: ClipboardList, onglets: [
       { id: 'to-order', label: 'Besoins', icon: ClipboardList },
-      { id: 'base-orders', label: 'Base Cmd', icon: Package },
       { id: 'pending', label: 'Production', icon: Factory },
-      { id: 'timeline', label: 'Timeline', icon: Timer },
+    ] },
+    { famille: 'Arrivages', icon: Anchor, onglets: [
       { id: 'factures', label: 'Arrivages', icon: Anchor },
+      { id: 'timeline', label: 'Timeline', icon: Timer },
       { id: 'tableau-arrivages', label: 'Tableau Arrivages', icon: TableProperties },
+    ] },
+    { famille: 'Catalogue', icon: Layers, onglets: [
       { id: 'general-categories', label: 'Groupes', icon: Layers },
-    ],
-    [
-      { id: 'devis-pi',  label: 'Devis Client', icon: ReceiptText },
+      { id: 'qualities', label: 'Qualités', icon: Sparkles },
+    ] },
+    { famille: 'Commercial', icon: Handshake, onglets: [
+      { id: 'suppliers', label: 'Partenaires', icon: UserCheck },
       { id: 'demandes-clients', label: 'Demandes clients', icon: Inbox },
-      { id: 'suppliers', label: 'Partenaires',  icon: UserCheck },
-      { id: 'emails',    label: 'Emails',       icon: Mail },
-      { id: 'data',      label: 'Data Lab',     icon: Table2 },
-      { id: 'qualities', label: 'Qualités',     icon: Sparkles },
-    ],
-  ] as const;
-
-  const financeSubItems = [
-    { id: 'cost-analysis'   as const, label: 'Coût Revient',  icon: Calculator },
-    { id: 'history-revient' as const, label: 'Hist. Revient', icon: History },
-    { id: 'client-profitability' as const, label: 'Rentabilité', icon: TrendingUp },
-    { id: 'cost-sale'       as const, label: 'Coût Vente',    icon: ShoppingCart },
-    { id: 'dp'              as const, label: 'Déc. Prov.',    icon: FileCheck },
-    { id: 'reconciliation'  as const, label: 'Réconcil.',     icon: TrendingUp },
-    { id: 'simulateur'      as const, label: 'Simulateur',    icon: Calculator },
+      { id: 'devis-pi', label: 'Devis Client', icon: ReceiptText },
+    ] },
+    { id: 'data', label: 'Data Lab', icon: Table2 },
+    { famille: 'Finance', icon: Calculator, onglets: [
+      { id: 'cost-analysis', label: 'Coût Revient', icon: Calculator },
+      { id: 'history-revient', label: 'Hist. Revient', icon: History },
+      { id: 'client-profitability', label: 'Rentabilité', icon: TrendingUp },
+      { id: 'cost-sale', label: 'Coût Vente', icon: ShoppingCart },
+      { id: 'dp', label: 'Déc. Prov.', icon: FileCheck },
+      { id: 'reconciliation', label: 'Réconcil.', icon: TrendingUp },
+      { id: 'simulateur', label: 'Simulateur', icon: Calculator },
+    ] },
   ];
-  const isFinanceTab = financeSubItems.some(f => f.id === activeTab);
-  const navItems = [...navGroups.flat(), ...financeSubItems];
 
+  const ouvrir = (id: OngletAdmin) => {
+    setPreviousTab(null);
+    setActiveTab(id);
+    if (id === 'factures') setSelectedFactureId(null);
+    if (id === 'general-categories') setSelectedGeneralCategoryId(null);
+    setIsMobileMenuOpen(false);
+  };
+
+  const actif = 'bg-amber-500 text-white font-black shadow-md shadow-amber-500/10';
+  const inactif = 'text-stone-500 hover:bg-stone-100 hover:text-stone-900';
+
+  // Pastille des demandes clients pas encore vues, sur l'onglet et sur sa famille.
+  const Pastille = ({ sur }: { sur: boolean }) => (
+    <span aria-label={`${demandesNouvelles} nouvelle${demandesNouvelles > 1 ? 's' : ''}`} className={`ml-auto inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full text-[9px] font-black ${sur ? 'bg-white/25 text-white' : 'bg-rose-500 text-white'}`}>{demandesNouvelles}</span>
+  );
+  const aPastille = (onglets: Onglet[]) => demandesNouvelles > 0 && onglets.some(o => o.id === 'demandes-clients');
+
+  const BoutonOnglet = ({ o, vertical }: { o: Onglet; vertical: boolean }) => (
+    <Button variant={activeTab === o.id ? 'secondary' : 'ghost'}
+      className={`flex items-center gap-2 justify-start rounded-xl transition-all px-3 py-1.5 h-9 ${activeTab === o.id ? actif : inactif} ${vertical ? 'w-full h-11' : ''}`}
+      onClick={() => ouvrir(o.id)}>
+      <o.icon className={vertical ? 'w-4 h-4' : 'w-3.5 h-3.5'} />
+      <span className={`truncate uppercase font-black tracking-wider ${vertical ? 'text-[11px]' : 'text-[10px]'}`}>{o.label}</span>
+      {aPastille([o]) && <Pastille sur={activeTab === o.id} />}
+    </Button>
+  );
 
   const NavButtons = ({ vertical = false }: { vertical?: boolean }) => (
     <div className={`flex ${vertical ? 'flex-col space-y-1' : 'flex-row space-x-1 items-center'}`}>
-      {navGroups.map((group, gi) => (
-        <React.Fragment key={gi}>
-          {gi > 0 && (
-            vertical
-              ? <div className="my-1 h-px bg-stone-100 mx-2" />
-              : <div className="mx-1 h-5 w-px bg-stone-200 self-center" />
-          )}
-          {group.map(({ id, label, icon: Icon }) => (
-            <Button key={id} variant={activeTab === id ? 'secondary' : 'ghost'}
-              className={`flex items-center gap-2 justify-start rounded-xl transition-all px-3 py-1.5 h-9 ${activeTab === id ? 'bg-amber-500 text-white font-black shadow-md shadow-amber-500/10' : 'text-stone-500 hover:bg-stone-100 hover:text-stone-900'} ${vertical ? 'w-full h-11' : ''}`}
-              onClick={() => { setPreviousTab(null); setActiveTab(id); if (id === 'factures') setSelectedFactureId(null); if (id === 'general-categories') setSelectedGeneralCategoryId(null); setIsMobileMenuOpen(false); }}>
-              <Icon className={vertical ? 'w-4 h-4' : 'w-3.5 h-3.5'} />
-              <span className={`truncate uppercase font-black tracking-wider ${vertical ? 'text-[11px]' : 'text-[10px]'}`}>{label}</span>
-              {id === 'demandes-clients' && demandesNouvelles > 0 && (
-                <span aria-label={`${demandesNouvelles} nouvelle${demandesNouvelles > 1 ? 's' : ''}`} className={`ml-auto inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full text-[9px] font-black ${activeTab === id ? 'bg-white/25 text-white' : 'bg-rose-500 text-white'}`}>{demandesNouvelles}</span>
-              )}
-            </Button>
-          ))}
-        </React.Fragment>
-      ))}
-
-      {/* Finance dropdown */}
-      {vertical ? (
-        <>
-          <div className="my-1 h-px bg-stone-100 mx-2" />
-          <p className="px-3 text-[9px] font-black text-stone-400 uppercase tracking-widest mb-1">Finance</p>
-          {financeSubItems.map(({ id, label, icon: Icon }) => (
-            <Button key={id} variant={activeTab === id ? 'secondary' : 'ghost'}
-              className={`flex items-center gap-2 justify-start rounded-xl transition-all px-3 w-full h-11 ${
-                activeTab === id ? 'bg-amber-500 text-white font-black shadow-md shadow-amber-500/10' : 'text-stone-500 hover:bg-stone-100 hover:text-stone-900'
-              }`}
-              onClick={() => { setPreviousTab(null); setActiveTab(id); setIsMobileMenuOpen(false); }}>
-              <Icon className="w-4 h-4" />
-              <span className="truncate uppercase font-black tracking-wider text-[11px]">{label}</span>
-            </Button>
-          ))}
-        </>
-      ) : (
-        <>
-          <div className="mx-1 h-5 w-px bg-stone-200 self-center" />
-          <DropdownMenu>
+      {menu.map(entree => {
+        if (!('famille' in entree)) return <BoutonOnglet key={entree.id} o={entree} vertical={vertical} />;
+        if (vertical) return (
+          <React.Fragment key={entree.famille}>
+            <div className="my-1 h-px bg-stone-100 mx-2" />
+            <p className="px-3 text-[9px] font-black text-stone-400 uppercase tracking-widest mb-1">{entree.famille}</p>
+            {entree.onglets.map(o => <BoutonOnglet key={o.id} o={o} vertical />)}
+          </React.Fragment>
+        );
+        const dedans = entree.onglets.some(o => o.id === activeTab);
+        return (
+          <DropdownMenu key={entree.famille}>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost"
-                className={`flex items-center gap-1.5 rounded-xl transition-all px-3 py-1.5 h-9 ${
-                  isFinanceTab ? 'bg-amber-500 text-white font-black shadow-md shadow-amber-500/10' : 'text-stone-500 hover:bg-stone-100 hover:text-stone-900'
-                }`}>
-                <Calculator className="w-3.5 h-3.5" />
-                <span className="uppercase font-black tracking-wider text-[10px]">Finance</span>
+              <Button variant="ghost" className={`flex items-center gap-1.5 rounded-xl transition-all px-3 py-1.5 h-9 ${dedans ? actif : inactif}`}>
+                <entree.icon className="w-3.5 h-3.5" />
+                <span className="uppercase font-black tracking-wider text-[10px]">{entree.famille}</span>
+                {aPastille(entree.onglets) && <Pastille sur={dedans} />}
                 <ChevronDown className="w-3 h-3 opacity-60" />
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="start" className="w-44 rounded-xl shadow-xl border-stone-100">
-              {financeSubItems.map(({ id, label, icon: Icon }) => (
-                <DropdownMenuItem key={id}
-                  onClick={() => { setPreviousTab(null); setActiveTab(id); }}
-                  className={`flex items-center gap-2 rounded-lg cursor-pointer text-[11px] font-black uppercase tracking-wide ${
-                    activeTab === id ? 'bg-amber-50 text-amber-700' : ''
-                  }`}>
-                  <Icon className="w-3.5 h-3.5" />
-                  {label}
+            <DropdownMenuContent align="start" className="w-48 rounded-xl shadow-xl border-stone-100">
+              {entree.onglets.map(o => (
+                <DropdownMenuItem key={o.id} onClick={() => ouvrir(o.id)}
+                  className={`flex items-center gap-2 rounded-lg cursor-pointer text-[11px] font-black uppercase tracking-wide ${activeTab === o.id ? 'bg-amber-50 text-amber-700' : ''}`}>
+                  <o.icon className="w-3.5 h-3.5" />
+                  {o.label}
+                  {aPastille([o]) && <Pastille sur={false} />}
                 </DropdownMenuItem>
               ))}
             </DropdownMenuContent>
           </DropdownMenu>
-        </>
-      )}
+        );
+      })}
     </div>
   );
 
@@ -600,9 +576,6 @@ function AdminApp() {
             <div className={activeTab === 'to-order' ? 'block animate-in fade-in' : 'hidden'}>
               <ToOrderView articles={articles} factures={factures} onEdit={setEditingArticle} />
             </div>
-            <div className={activeTab === 'base-orders' ? 'block animate-in fade-in' : 'hidden'}>
-              <BaseOrdersView articles={articles} factures={factures} subCategories={subCategories} generalCategories={generalCategories} />
-            </div>
             <div className={activeTab === 'pending' ? 'block animate-in fade-in' : 'hidden'}>
               <PendingOrdersView articles={articles} factures={factures} generalCategories={generalCategories} onEdit={setEditingArticle} />
             </div>
@@ -661,9 +634,6 @@ function AdminApp() {
             </div>
             <div className={activeTab === 'data' ? 'block animate-in fade-in' : 'hidden'}>
               <DataView articles={articles} onEdit={setEditingArticle} />
-            </div>
-            <div className={activeTab === 'emails' ? 'block animate-in fade-in' : 'hidden'}>
-              <EmailsView factures={factures} supplierHints={supplierHints} />
             </div>
             {/* Toujours montée : elle se rafraîchit chaque minute et tient la pastille du menu à jour. */}
             <div className={activeTab === 'demandes-clients' ? 'block animate-in fade-in' : 'hidden'}>

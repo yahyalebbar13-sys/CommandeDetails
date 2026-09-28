@@ -280,7 +280,7 @@ export type SupplierPayment = {
   notes?: string;
 };
 
-export type ViewType = 'dashboard' | 'to-order' | 'pending' | 'transit' | 'factures' | 'general-categories' | 'categories' | 'suppliers' | 'data' | 'timeline' | 'cost-analysis' | 'cost-sale' | 'dp' | 'reconciliation' | 'devis-pi' | 'client-profitability' | 'ai' | 'products' | 'base-orders' | 'history-revient' | 'emails' | 'qualities' | 'simulateur';
+export type ViewType = 'dashboard' | 'to-order' | 'pending' | 'transit' | 'factures' | 'general-categories' | 'categories' | 'suppliers' | 'data' | 'timeline' | 'cost-analysis' | 'cost-sale' | 'dp' | 'reconciliation' | 'devis-pi' | 'client-profitability' | 'ai' | 'products' | 'history-revient' | 'qualities' | 'simulateur';
 
 export type StockMovementType = 'IN' | 'OUT' | 'ADJUSTMENT';
 export type StockMovementReason = 'ARRIVAGE' | 'VENTE' | 'PERTE' | 'RETOUR' | 'INVENTAIRE' | 'TRANSFERT';

@@ -21,7 +21,6 @@ import CostSaleView from '@/components/cost-sale-view';
 import DPView from '@/components/dp-view';
 import ReconciliationView from '@/components/reconciliation-view';
 import DevisPIView from '@/components/devis-pi-view';
-import EmailsView from '@/components/emails-view';
 import DemandesClientsView from '@/components/demandes-clients-view';
 import { ClientProfitabilityView } from '@/components/client-profitability-view';
 
@@ -398,7 +397,6 @@ function AdminApp() {
       { id: 'devis-pi',  label: 'Devis Client', icon: ReceiptText },
       { id: 'demandes-clients', label: 'Demandes clients', icon: Inbox },
       { id: 'suppliers', label: 'Partenaires',  icon: UserCheck },
-      { id: 'emails',    label: 'Emails',       icon: Mail },
       { id: 'data',      label: 'Data Lab',     icon: Database },
     ],
   ] as const;
@@ -584,9 +582,6 @@ function AdminApp() {
             </div>
             <div className={activeTab === 'data' ? 'block animate-in fade-in' : 'hidden'}>
               <DataView articles={articles} onEdit={setEditingArticle} />
-            </div>
-            <div className={activeTab === 'emails' ? 'block animate-in fade-in' : 'hidden'}>
-              <EmailsView />
             </div>
             {/* Toujours montée : elle se rafraîchit chaque minute et tient la pastille du menu à jour. */}
             <div className={activeTab === 'demandes-clients' ? 'block animate-in fade-in' : 'hidden'}>
