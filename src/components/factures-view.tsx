@@ -8,7 +8,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { 
   ChevronLeft, Plus, CalendarDays, Trash2, TrendingDown, 
   AlertCircle, CheckCircle2, FileText, Box, Truck,
-  ShieldCheck, Info, ArrowUpRight, Anchor, Settings2, MousePointer2, Hash, Ship, DollarSign, Building2, Pencil, FileDown, Palette, ClipboardCheck, Archive, AlertTriangle, ExternalLink, Ruler, Lock, Radar, Loader2, FileSpreadsheet
+  ShieldCheck, Info, ArrowUpRight, Anchor, Settings2, MousePointer2, Hash, Ship, DollarSign, Building2, Pencil, FileDown, Palette, ClipboardCheck, Archive, AlertTriangle, ExternalLink, Ruler, Lock, Radar, Loader2, FileSpreadsheet, TableProperties
 } from 'lucide-react';
 import { exportFacturePDF, exportPackingDetailsPDF } from '@/lib/pdf-export';
 import CommercialExportModal from './commercial-export-modal';
@@ -20,6 +20,8 @@ import { useUser, useFirestore } from '@/firebase';
 import { doc, collection, getDocs, writeBatch, deleteField } from 'firebase/firestore';
 import { isArrivalOlderThanOneMonth } from '@/lib/status-utils';
 import { effetsSuppression, planSuppressionDossier } from '@/lib/suppression-dossier';
+import { coutsDuDossier, droitsPayesDuDossier, resumerDossier } from '@/lib/chiffres-dossier';
+import { useRelectureConteneurs } from '@/hooks/use-relecture-conteneurs';
 
 /** Le dossier tel qu'il est enregistré, pour les règles du suivi (cf. `statutEnBase`). */
 const telQuEnregistre = (f: any) => (f && 'statutEnBase' in f ? { ...f, status: f.statutEnBase } : f);
@@ -33,7 +35,7 @@ export const isFactureInStock = (f: any) => {
 };
 
 // ── Tracking URL builder per carrier ─────────────────────────────────────────
-function getTrackingInfo(blNumber: string, shippingLine?: string): { url: string; needsCopy: boolean } {
+export function getTrackingInfo(blNumber: string, shippingLine?: string): { url: string; needsCopy: boolean } {
   const bl = encodeURIComponent(blNumber.trim());
   const prefix = blNumber.toUpperCase().substring(0, 4);
   const line = (shippingLine || '').toUpperCase();
@@ -113,6 +115,8 @@ interface FacturesViewProps {
    * conteneurs.
    */
   actif?: boolean;
+  /** Passe au tableau des arrivages (bouton « Vue tableau » de la liste). */
+  onVueTableau?: () => void;
 }
 
 export default function FacturesView({ 
@@ -125,6 +129,7 @@ export default function FacturesView({
   onBack,
   onPassToStock,
   actif = true,
+  onVueTableau,
 }: FacturesViewProps) {
   const { user } = useUser();
   const firestore = useFirestore();
@@ -162,80 +167,10 @@ export default function FacturesView({
 
   // Coût de Revient et Coût de Vente par dossier
   const costsPerFacture = useMemo(() => {
-    const MARGE_RATE = 0.05;
     const result: Record<string, { revient: number; vente: number; hasDp: boolean }> = {};
-
     (factures || []).forEach(facture => {
       const fArticles = articles.filter(a => a.factureId === facture.id);
-      const puMap = dpDeclarations[facture.id] || {};
-      const hasDp = Object.values(puMap).some(v => parseFloat(v as string) > 0);
-      if (fArticles.length === 0) { result[facture.id] = { revient: 0, vente: 0, hasDp }; return; }
-
-      const invoicePaidDhs = Number(facture.invoicePaidDhs) || 0;
-      const declaredValue = Number(facture.declaredValue) || 0;
-      const tauxChange = declaredValue > 0 ? invoicePaidDhs / declaredValue : 0;
-      const exchange = Number(facture.exchangeInvoiceAmount) || 0;
-      const transitaire = Number(facture.supplierInvoiceAmount) || 0;
-      const fraisSupp = Number(facture.additionalCostsAmount) || 0;
-      const fretMad = (Number(facture.freightCost) || 0) * tauxChange;
-      const mtFraisRevient = (exchange + transitaire + fraisSupp + fretMad) / 1.20;
-      const mtFraisVente = (exchange + transitaire + fraisSupp) / 1.20;
-      const cbmTotal = fArticles.reduce((s, a) => s + (Number(a.cubicMeasurement) || 0), 0);
-
-      let dosRevient = 0;
-      fArticles.forEach(a => {
-        const cbm = Number(a.cubicMeasurement) || 0;
-        const nw = Number(a.netWeight) || 0;
-        const qty = Number(a.quantity) || 0;
-        const fraisCmd = cbmTotal > 0 ? (cbm / cbmTotal) * mtFraisRevient : 0;
-        const valAchatMad = qty * (Number(a.purchasePricePerUnit) || 0) * tauxChange;
-        const cat = subCategories.find((c: any) => c.name === a.categoryId);
-        const cvk = cat?.customsValuePerKg != null ? Number(cat.customsValuePerKg) : null;
-        const idr = cat?.importDutyRate != null ? Number(cat.importDutyRate) / 100 : null;
-        const tpr = cat?.tpiRate != null ? Number(cat.tpiRate) / 100 : null;
-        const ticr = cat?.ticRate != null ? Number(cat.ticRate) / 100 : null;
-        const tvar = cat?.tvaRate != null ? Number(cat.tvaRate) / 100 : null;
-        const vd = cvk != null ? nw * cvk : 0;
-        const di = idr != null ? vd * idr : 0;
-        const tpi = tpr != null ? vd * tpr : 0;
-        const tic = ticr != null ? vd * ticr : 0;
-        const tva = tvar != null ? (vd + di + tpi + tic) * tvar : 0;
-        dosRevient += valAchatMad + fraisCmd + di + tpi + tic + tva;
-      });
-
-      const catMap: Record<string, { qty: number; nw: number; cbm: number }> = {};
-      fArticles.forEach(a => {
-        const catId = a.categoryId || '—';
-        if (!catMap[catId]) catMap[catId] = { qty: 0, nw: 0, cbm: 0 };
-        catMap[catId].qty += Number(a.quantity) || 0;
-        catMap[catId].nw += Number(a.netWeight) || 0;
-        catMap[catId].cbm += Number(a.cubicMeasurement) || 0;
-      });
-
-      let dosVente = 0;
-      Object.entries(catMap).forEach(([categoryId, { qty, nw, cbm }]) => {
-        const puDollar = parseFloat(puMap[categoryId] ?? '') || 0;
-        if (puDollar === 0) return;
-        const valAchatMad = qty * puDollar * tauxChange;
-        const fraisCmd = cbmTotal > 0 ? (cbm / cbmTotal) * mtFraisVente : 0;
-        const cat = subCategories.find((c: any) => c.name === categoryId);
-        const cvk = cat?.customsValuePerKg != null ? Number(cat.customsValuePerKg) : null;
-        const idr = cat?.importDutyRate != null ? Number(cat.importDutyRate) / 100 : null;
-        const tpr = cat?.tpiRate != null ? Number(cat.tpiRate) / 100 : null;
-        const ticr = cat?.ticRate != null ? Number(cat.ticRate) / 100 : null;
-        const tvar = cat?.tvaRate != null ? Number(cat.tvaRate) / 100 : null;
-        const vd = cvk != null ? nw * cvk : 0;
-        const di = idr != null ? vd * idr : 0;
-        const tpi = tpr != null ? vd * tpr : 0;
-        const tic = ticr != null ? vd * ticr : 0;
-        const totalHT = valAchatMad + fraisCmd + di + tpi + tic;
-        const marge = totalHT * MARGE_RATE;
-        const baseTva = vd + di + tpi + fraisCmd;
-        const tva = tvar != null ? baseTva * tvar : 0;
-        dosVente += totalHT + marge + tva;
-      });
-
-      result[facture.id] = { revient: dosRevient, vente: dosVente, hasDp };
+      result[facture.id] = coutsDuDossier(facture, fArticles, subCategories, dpDeclarations[facture.id] || {});
     });
     return result;
   }, [factures, articles, subCategories, dpDeclarations]);
@@ -247,19 +182,11 @@ export default function FacturesView({
 
     const aggregated = (factures || []).map(f => {
       const fArticles = articles.filter(o => o.factureId === f.id);
-      const itemsCount = fArticles.length;
-      const itemsVal = fArticles.reduce((sum, o) => sum + ((Number(o.quantity) || 0) * (Number(o.purchasePricePerUnit) || 0)), 0);
-      const cbm = fArticles.reduce((sum, o) => sum + (Number(o.cubicMeasurement) || 0), 0);
-      const netWeight = fArticles.reduce((sum, o) => sum + (Number(o.netWeight) || 0), 0);
-      const freight = Number(f.freightCost) || Number(f.freight) || 0;
-      const efficiency = cbm > 0 ? (freight / cbm) : 0;
-      const realFactureValue = itemsVal + freight;
-      const isIncomplete = fArticles.some(o => !Number(o.netWeight) || !Number(o.cubicMeasurement));
       const isOldArrival = isArrivalOlderThanOneMonth(f.arrivalDate);
       const effectiveStatus = (f.status === 'STOCK' || f.stockEntryDate || isOldArrival) ? 'STOCK' : (f.status || 'SHIPPED');
       // `statutEnBase` garde le statut enregistré : le suivi du conteneur en a
       // besoin, le statut d'affichage passant à STOCK dès un mois écoulé.
-      return { ...f, itemsCount, itemsVal, cbm, netWeight, freight, efficiency, realFactureValue, isIncomplete, status: effectiveStatus, statutEnBase: f.status };
+      return { ...f, ...resumerDossier(f, fArticles), status: effectiveStatus, statutEnBase: f.status };
     }).sort((a, b) => new Date(b.arrivalDate || '1900-01-01').getTime() - new Date(a.arrivalDate || '1900-01-01').getTime());
 
     return { declaredFactures: aggregated, orphanedFactureIds: orphaned };
@@ -277,46 +204,7 @@ export default function FacturesView({
   const factureEnregistree = useMemo(() => telQuEnregistre(selectedFacture), [selectedFacture]);
 
   // ── Afficher la liste, c'est relire les conteneurs en route ────────────────
-  // Sans attendre la tâche de 6 h ni un webhook : chaque date d'arrivée suit la
-  // dernière annonce de la compagnie. Gratuit, en arrière-plan. Relancé quand la
-  // liste s'affiche, quand on revient sur l'onglet du navigateur, et toutes les
-  // 5 minutes tant qu'elle reste à l'écran ; le serveur saute les dossiers relus
-  // il y a moins de 10 minutes. Les dates changées reviennent d'elles-mêmes par
-  // l'écoute Firestore.
-  const relectureEnCours = React.useRef(false);
-  useEffect(() => {
-    if (!actif) return;
-    let vivant = true;
-    const relire = () => {
-      if (relectureEnCours.current || document.visibilityState === 'hidden') return;
-      relectureEnCours.current = true;
-      authedFetch('/api/admin/suivi-actualiser', { method: 'POST' })
-        .then(r => (r.ok ? r.json() : null))
-        .then(d => {
-          const n = d?.datesModifiees?.length || 0;
-          if (vivant && n > 0) {
-            toast({
-              title: `📅 ${n} date${n > 1 ? 's' : ''} d'arrivée mise${n > 1 ? 's' : ''} à jour`,
-              description: d.datesModifiees
-                .map((x: any) => `${x.dossier} : ${x.apres?.split('-').reverse().join('/')}`)
-                .join(' · '),
-            });
-          }
-        })
-        .catch(() => { /* hors ligne : la tâche de 6 h rattrapera */ })
-        .finally(() => { relectureEnCours.current = false; });
-    };
-    relire();
-    const minuterie = window.setInterval(relire, 5 * 60 * 1000);
-    const auRetour = () => { if (document.visibilityState === 'visible') relire(); };
-    document.addEventListener('visibilitychange', auRetour);
-    return () => {
-      vivant = false;
-      window.clearInterval(minuterie);
-      document.removeEventListener('visibilitychange', auRetour);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [actif]);
+  useRelectureConteneurs(actif);
 
   const activerSuiviEnLot = async () => {
     // Deux temps : le premier clic annonce la dépense, le second l'engage.
@@ -372,38 +260,7 @@ export default function FacturesView({
     const factureArticles = articles.filter(a => a.factureId === selectedFactureId);
     const facture = declaredFactures.find(f => f.id === selectedFactureId);
     if (!facture) return 0;
-    const invoicePaidDhs = Number(facture.invoicePaidDhs) || 0;
-    const declaredValue = Number(facture.declaredValue) || 0;
-    const tauxChange = declaredValue > 0 ? invoicePaidDhs / declaredValue : 0;
-    const dossiersOverrides = overridesPerFacture[selectedFactureId] || {};
-    return factureArticles.reduce((total, a) => {
-      const ov = dossiersOverrides[a.id] || {};
-      const nw = (ov.netWeight != null ? Number(ov.netWeight) : Number(a.netWeight)) || 0;
-      const cat = subCategories.find(c => c.name === a.categoryId);
-      // Prend l'override si présent, sinon la valeur de catégorie
-      const customsValuePerKg = ov.customsValuePerKg != null
-        ? Number(ov.customsValuePerKg)
-        : (cat?.customsValuePerKg != null ? Number(cat.customsValuePerKg) : null);
-      if (customsValuePerKg == null) return total;
-      const importDutyRate = ov.importDutyRate != null
-        ? Number(ov.importDutyRate) / 100
-        : (cat?.importDutyRate != null ? Number(cat.importDutyRate) / 100 : 0);
-      const tpiRate = ov.tpiRate != null
-        ? Number(ov.tpiRate) / 100
-        : (cat?.tpiRate != null ? Number(cat.tpiRate) / 100 : 0);
-      const ticRate = ov.ticRate != null
-        ? Number(ov.ticRate) / 100
-        : (cat?.ticRate != null ? Number(cat.ticRate) / 100 : 0);
-      const tvaRate = ov.tvaRate != null
-        ? Number(ov.tvaRate) / 100
-        : (cat?.tvaRate != null ? Number(cat.tvaRate) / 100 : 0);
-      const valDouane = nw * customsValuePerKg;
-      const di = valDouane * importDutyRate;
-      const tpi = valDouane * tpiRate;
-      const tic = valDouane * ticRate;
-      const tva = (valDouane + di + tpi + tic) * tvaRate;
-      return total + di + tpi + tic + tva;
-    }, 0);
+    return droitsPayesDuDossier(factureArticles, subCategories, overridesPerFacture[selectedFactureId] || {});
   }, [selectedFactureId, articles, declaredFactures, subCategories, overridesPerFacture]);
 
   const handleAddFacture = (initialId?: string) => {
@@ -1071,6 +928,15 @@ export default function FacturesView({
           <Button onClick={() => handleAddFacture()} className="bg-amber-500 hover:bg-amber-600 text-white font-black uppercase text-[11px] tracking-widest px-10 h-14 rounded-2xl shadow-xl shadow-amber-500/20 gap-3 transition-all hover:scale-105 active:scale-95">
             <Plus className="w-5 h-5" /> Déclarer un Dossier
           </Button>
+          {onVueTableau && (
+            <Button
+              onClick={onVueTableau}
+              variant="outline"
+              className="bg-white/5 border-white/15 text-white hover:bg-white/10 hover:text-white font-black uppercase text-[10px] tracking-widest h-11 rounded-2xl gap-2"
+            >
+              <TableProperties className="w-4 h-4" /> Vue tableau · tout voir et modifier
+            </Button>
+          )}
           <div className="flex gap-4">
             <div className="bg-white/5 border border-white/10 px-6 py-4 rounded-2xl text-center flex-1">
               <p className="text-[8px] font-black text-stone-500 uppercase tracking-widest mb-1">Efficience Moyenne</p>

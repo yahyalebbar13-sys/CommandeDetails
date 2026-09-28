@@ -6,6 +6,7 @@ import { ViewType } from '@/lib/types';
 import { isLocalMarketPurchaseArticle } from '@/lib/local-purchase';
 import DashboardView from '@/components/dashboard-view';
 import FacturesView from '@/components/factures-view';
+import TableauArrivagesView from '@/components/tableau-arrivages-view';
 import GeneralCategoriesView from '@/components/general-categories-view';
 import CategoriesView from '@/components/categories-view';
 import QualitiesManagerView from '@/components/qualities-manager-view';
@@ -35,7 +36,7 @@ import { Button } from '@/components/ui/button';
 import {
   LogOut, Loader2, Layers, Plus, Database,
   LayoutDashboard, ClipboardList, Factory, Truck,
-  Anchor, UserCheck, Menu, Timer, Calculator, Package, ShieldOff, ShoppingCart, FileCheck, Table2, TrendingUp, ReceiptText, FileDown, History, ChevronDown, Mail, Sparkles, Inbox
+  Anchor, UserCheck, Menu, Timer, Calculator, Package, ShieldOff, ShoppingCart, FileCheck, Table2, TrendingUp, ReceiptText, FileDown, History, ChevronDown, Mail, Sparkles, Inbox, TableProperties
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useUser, useFirebase, useCollection, useMemoFirebase } from '@/firebase';
@@ -331,7 +332,7 @@ function StaffCostSaleApp({ adminUid, auth, firestore }: { adminUid: string; aut
 
 // ─── Admin Dashboard ──────────────────────────────────────────────────────────
 // Les onglets de l'application, plus ceux propres à cet écran.
-type OngletAdmin = ViewType | 'demandes-clients';
+type OngletAdmin = ViewType | 'demandes-clients' | 'tableau-arrivages';
 
 function AdminApp() {
   const { user } = useUser();
@@ -431,6 +432,7 @@ function AdminApp() {
       { id: 'pending', label: 'Production', icon: Factory },
       { id: 'timeline', label: 'Timeline', icon: Timer },
       { id: 'factures', label: 'Arrivages', icon: Anchor },
+      { id: 'tableau-arrivages', label: 'Tableau Arrivages', icon: TableProperties },
       { id: 'general-categories', label: 'Groupes', icon: Layers },
     ],
     [
@@ -582,7 +584,8 @@ function AdminApp() {
         </div>
       </nav>
 
-      <main className="flex-grow max-w-[1600px] mx-auto px-6 py-8 w-full">
+      {/* Le tableau des arrivages prend toute la largeur de l'écran : il a plus de trente colonnes. */}
+      <main className={`flex-grow mx-auto px-6 py-8 w-full ${activeTab === 'tableau-arrivages' ? 'max-w-none' : 'max-w-[1600px]'}`}>
         {/* Only block on the 4 core collections — payments loads silently in background */}
         {(isFacturesLoading || isArticlesLoading || isGenCatsLoading || isSubCatsLoading) ? (
           <div className="flex flex-col items-center justify-center py-40 space-y-6">
@@ -607,7 +610,18 @@ function AdminApp() {
               <TimelineView articles={articles} factures={factures} onNavigateToFacture={(id) => { setPreviousTab(activeTab); setSelectedFactureId(id); setActiveTab('factures'); setIsMobileMenuOpen(false); }} />
             </div>
             <div className={activeTab === 'factures' ? 'block animate-in fade-in' : 'hidden'}>
-              <FacturesView actif={activeTab === 'factures'} articles={articles} factures={factures} subCategories={subCategories} selectedFactureId={selectedFactureId} setSelectedFactureId={setSelectedFactureId} onNavigateToCategory={(c) => { setPreviousTab('factures'); setSelectedCategoryName(c); setActiveTab('categories'); }} onBack={() => { setSelectedFactureId(null); if (previousTab) { setActiveTab(previousTab); setPreviousTab(null); } }} />
+              <FacturesView actif={activeTab === 'factures'} articles={articles} factures={factures} subCategories={subCategories} selectedFactureId={selectedFactureId} setSelectedFactureId={setSelectedFactureId} onNavigateToCategory={(c) => { setPreviousTab('factures'); setSelectedCategoryName(c); setActiveTab('categories'); }} onBack={() => { setSelectedFactureId(null); if (previousTab) { setActiveTab(previousTab); setPreviousTab(null); } }} onVueTableau={() => { setPreviousTab(null); setActiveTab('tableau-arrivages'); }} />
+            </div>
+            <div className={activeTab === 'tableau-arrivages' ? 'block animate-in fade-in' : 'hidden'}>
+              <TableauArrivagesView
+                actif={activeTab === 'tableau-arrivages'}
+                articles={articles}
+                factures={factures}
+                subCategories={subCategories}
+                onOuvrirDossier={(id) => { setPreviousTab('tableau-arrivages'); setSelectedFactureId(id); setActiveTab('factures'); }}
+                onModifierArticle={setEditingArticle}
+                onVueCartes={() => { setPreviousTab(null); setSelectedFactureId(null); setActiveTab('factures'); }}
+              />
             </div>
             <div className={activeTab === 'general-categories' ? 'block animate-in fade-in' : 'hidden'}>
               <GeneralCategoriesView articles={articles} generalCategories={generalCategories} subCategories={subCategories} onSelectGeneralCategory={(id) => { setPreviousTab(activeTab); setSelectedGeneralCategoryId(id); setActiveTab(id ? 'categories' : 'general-categories'); }} onManageQualities={(specType, poleId) => { setQualitiesFocus({ specType, poleId }); setActiveTab('qualities'); }} />

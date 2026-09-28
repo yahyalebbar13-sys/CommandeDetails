@@ -19,7 +19,8 @@ type CheckItem = {
   color: string;
 };
 
-const CHECK_ITEMS: CheckItem[] = [
+// Exportées : le tableau des arrivages coche les mêmes vérifications, dans le même document.
+export const CHECK_ITEMS: CheckItem[] = [
   {
     id: 'douane_ok',
     label: 'Montant de la douane correct',

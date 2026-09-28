@@ -11,10 +11,11 @@ import { doc, collection, serverTimestamp } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { setDocumentNonBlocking, updateDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 import { FileText, Calendar, Truck, Save, AlertTriangle, Hash, Ship, DollarSign, Building2 } from 'lucide-react';
-import { computeEffectiveStatus } from '@/lib/status-utils';
-import { sendStatusNotification } from '@/lib/send-status-notification';
-import { authedFetch } from '@/lib/authed-fetch';
 import { aujourdHui, normaliserReference, referenceValide } from '@/lib/suivi-conteneur';
+import {
+  SOCIETES_DECLARANTES, articlesAPrevenir, notifierClientsDates, ouvrirSuiviEnFond,
+  statutPourLesClients, transitaireDeLaSociete,
+} from '@/lib/edition-dossier';
 
 interface AddFactureModalProps {
   open: boolean;
@@ -23,8 +24,6 @@ interface AddFactureModalProps {
   editFacture?: any | null;
   associatedArticles?: any[];
 }
-
-const COMPANIES = ["New fournitures", "Lebtex", "Robe in box"];
 
 export default function AddFactureModal({ open, onOpenChange, editFacture, associatedArticles }: AddFactureModalProps) {
   const { user } = useUser();
@@ -103,52 +102,6 @@ export default function AddFactureModal({ open, onOpenChange, editFacture, assoc
     }
   }, [editFacture, open]);
 
-  /**
-   * Demande au serveur d'ouvrir le suivi maritime du dossier. Lancé en arrière-plan :
-   * l'enregistrement ne doit pas attendre une compagnie maritime.
-   *
-   * Le dossier vient d'être écrit sans attente (setDocumentNonBlocking) : le
-   * serveur peut ne pas encore le voir. D'où les tentatives espacées sur un 404,
-   * plutôt qu'un échec qui laisserait l'arrivage sans suivi.
-   */
-  const ouvrirSuiviEnFond = async (factureId: string, reference: string) => {
-    for (let essai = 0; essai < 3; essai++) {
-      try {
-        const r = await authedFetch('/api/admin/suivi-conteneur', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ factureId, reference, auto: true }),
-        });
-        if (r.status === 404 && essai < 2) {
-          await new Promise(resoudre => setTimeout(resoudre, 800 * (essai + 1)));
-          continue;
-        }
-        const data = await r.json().catch(() => ({}));
-        if (!r.ok) {
-          // Le suivi reste activable à la main depuis le dossier : on informe
-          // sans transformer ça en échec d'enregistrement.
-          if (r.status !== 503) {
-            toast({
-              variant: 'destructive',
-              title: 'Suivi du conteneur non activé',
-              description: data?.error || 'Réessayez depuis le dossier.',
-            });
-          }
-          return;
-        }
-        if (data.issue === 'suivi-ouvert' || data.issue === 'date-modifiee' || data.issue === 'a-jour') {
-          toast({
-            title: '🚢 Suivi du conteneur activé',
-            description: `${reference} est suivi chez la compagnie. La date d'arrivée se mettra à jour toute seule.`,
-          });
-        }
-        return;
-      } catch {
-        return; // hors ligne : rien de cassé, le dossier est enregistré
-      }
-    }
-  };
-
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!user || !firestore || !formData.id) return;
@@ -170,6 +123,13 @@ export default function AddFactureModal({ open, onOpenChange, editFacture, assoc
     const stockEntryDateJustSet = Boolean(formData.stockEntryDate)
       && formData.stockEntryDate !== (capturedEditFacture?.stockEntryDate || '');
 
+    // Dates avant / après : quand le statut que voient les clients change, ils sont
+    // prévenus (plus bas) et le dossier le retient — sans quoi la notification
+    // automatique renverrait le même message au prochain chargement de /gestion.
+    const datesAvant = { arrivalDate: capturedEditFacture?.arrivalDate || null, stockEntryDate: capturedEditFacture?.stockEntryDate || null };
+    const datesApres = { arrivalDate: formData.arrivalDate || null, stockEntryDate: formData.stockEntryDate || null };
+    const aPrevenir = capturedEditFacture ? articlesAPrevenir(capturedArticles, datesAvant, datesApres) : [];
+
     const factureData: any = {
       ...formData,
       id: factureId,
@@ -180,6 +140,9 @@ export default function AddFactureModal({ open, onOpenChange, editFacture, assoc
     };
     if (stockEntryDateJustSet) {
       factureData.stockEntryDateSetAt = serverTimestamp();
+    }
+    if (aPrevenir.length > 0) {
+      factureData.lastNotifiedStatus = statutPourLesClients(datesApres);
     }
 
     setDocumentNonBlocking(docRef, factureData, { merge: true });
@@ -196,7 +159,7 @@ export default function AddFactureModal({ open, onOpenChange, editFacture, assoc
     // « verrouille » / « deja-arrive », sans toast) : la décision de dépenser un
     // crédit tient à un seul endroit, qui lit le dossier tel qu'il est enregistré.
     if (blActuel && referenceValide(blActuel) && (blChange || !dejaSuivi)) {
-      ouvrirSuiviEnFond(factureId, blActuel);
+      ouvrirSuiviEnFond(factureId, blActuel, toast);
     }
 
     // ─── DEBUG ───────────────────────────────────────────────────────────────
@@ -208,80 +171,17 @@ export default function AddFactureModal({ open, onOpenChange, editFacture, assoc
       '| capturedArticles count:', capturedArticles.length);
     // ─────────────────────────────────────────────────────────────────────────
 
-    // ─── Propagate date changes to linked articles + send client notifications ───
+    // ─── Dates changées : les clients sont prévenus si leur statut change ───────
     if (capturedEditFacture && (formData.arrivalDate !== capturedEditFacture.arrivalDate || formData.stockEntryDate !== capturedEditFacture.stockEntryDate) && capturedArticles.length > 0) {
-      const newArrivalDate = formData.arrivalDate || null;
-      const newStockEntryDate = formData.stockEntryDate || null;
-      const oldArrivalDate = capturedEditFacture.arrivalDate || null;
-      const oldStockEntryDate = capturedEditFacture.stockEntryDate || null;
-
-      let notifCount = 0;
-      let skippedNoClient = 0;
-
-      for (const article of capturedArticles) {
-        const clientName = (article.clientName || '').trim();
-        if (!clientName) {
-          skippedNoClient++;
-          console.log(`[Facture] ⏭ Skip "${article.name || article.categoryId || article.id}": PAS DE clientName (isPreorder=${article.isPreorder})`);
-          continue;
-        }
-
-        // Force 'SHIPPED' as base so computeEffectiveStatus uses dates, not stored status.
-        const rawStatus = 'SHIPPED';
-        const effectiveOld = computeEffectiveStatus({ status: rawStatus, arrivalDate: oldArrivalDate, stockEntryDate: oldStockEntryDate });
-        const effectiveNew = computeEffectiveStatus({ status: rawStatus, arrivalDate: newArrivalDate, stockEntryDate: newStockEntryDate });
-
-        const statusChanged = effectiveOld !== effectiveNew;
-        const arrivalDateChanged = oldArrivalDate !== newArrivalDate;
-        const stockEntryDateChanged = oldStockEntryDate !== newStockEntryDate;
-
-        console.log(`[Facture] 📦 "${article.name || article.categoryId}" → client="${clientName}" | ${effectiveOld} → ${effectiveNew} | statusChanged=${statusChanged} | arrivalChanged=${arrivalDateChanged} | stockChanged=${stockEntryDateChanged}`);
-
-        if (!statusChanged && !arrivalDateChanged && !stockEntryDateChanged) {
-          console.log(`[Facture] ⏭ Skip: aucun changement pertinent.`);
-          continue;
-        }
-
-        // Compute transit info for the email
-        let transitArrivalDate: string | undefined;
-        let transitDuration: string | undefined;
-        if (newArrivalDate) {
-          transitArrivalDate = newArrivalDate;
-          const today = new Date(); today.setHours(0, 0, 0, 0);
-          const eta = new Date(newArrivalDate); eta.setHours(0, 0, 0, 0);
-          const diffDays = Math.round((eta.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
-          if (diffDays > 0) transitDuration = diffDays === 1 ? '1 jour' : `${diffDays} jours`;
-          else if (diffDays === 0) transitDuration = "aujourd'hui";
-        } else if (effectiveNew === 'STOCK' && newStockEntryDate) {
-          transitArrivalDate = newStockEntryDate;
-        }
-
-        sendStatusNotification({
-          firestore,
-          adminUid: user.uid,
-          clientName,
-          articleName: article.categoryId || article.name,
-          oldStatus: effectiveOld,
-          newStatus: effectiveNew,
-          quantity: article.quantity,
-          unitOfMeasure: article.unitOfMeasure,
-          specs: article.specs,
-          color: article.color,
-          size: article.size,
-          imageUrl: article.imageUrl || undefined,
-          transitArrivalDate,
-          transitDuration,
-          noBL: formData.noBL?.trim() || null,
-        }).then(result => {
-          if (result.ok) {
-            console.log(`[Facture] ✅ Email envoyé → ${clientName} (${result.email})`);
-          } else {
-            console.warn(`[Facture] ❌ Email ÉCHOUÉ → "${clientName}":`, result.error || 'email introuvable dans clientAccess/clientEmails');
-          }
-        });
-
-        notifCount++;
-      }
+      const notifCount = notifierClientsDates({
+        firestore,
+        adminUid: user.uid,
+        articles: capturedArticles,
+        avant: datesAvant,
+        apres: datesApres,
+        noBL: formData.noBL,
+      });
+      const skippedNoClient = capturedArticles.filter(a => !(a.clientName || '').trim()).length;
 
       console.log(`[Facture] Résumé: ${notifCount} emails lancés, ${skippedNoClient}/${capturedArticles.length} articles sans clientName`);
 
@@ -396,9 +296,7 @@ export default function AddFactureModal({ open, onOpenChange, editFacture, assoc
               <Select 
                 value={formData.declaringCompany} 
                 onValueChange={v => {
-                  let inferredForwarder = formData.forwarder;
-                  if (v === 'Robe in box' || v === 'New fournitures') inferredForwarder = 'NOUH TRANSIT TRANSPORT';
-                  if (v === 'Lebtex') inferredForwarder = 'IDRISTRANS';
+                  const inferredForwarder = transitaireDeLaSociete(v) ?? formData.forwarder;
                   setFormData((prev: any) => ({ ...prev, declaringCompany: v, forwarder: inferredForwarder }));
                 }}
               >
@@ -406,7 +304,7 @@ export default function AddFactureModal({ open, onOpenChange, editFacture, assoc
                   <SelectValue placeholder="Choisir la société..." />
                 </SelectTrigger>
                 <SelectContent>
-                  {COMPANIES.map(company => (
+                  {SOCIETES_DECLARANTES.map(company => (
                     <SelectItem key={company} value={company} className="font-bold">{company}</SelectItem>
                   ))}
                 </SelectContent>
