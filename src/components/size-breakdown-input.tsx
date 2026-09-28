@@ -20,6 +20,13 @@ interface SizeBreakdownInputProps {
   value: SizeBreakdownRow[] | null;
   onChange: (rows: SizeBreakdownRow[] | null, total: number) => void;
   availableSizes?: string[];
+  /**
+   * L'unité dans laquelle le produit s'achète — m, pcs, rouleaux…
+   *
+   * Elle manquait : ce bloc écrivait « unités » en dur pendant que les trois autres
+   * ventilations affichaient la bonne. Un tissu au mètre annonçait « 12 000 unités ».
+   */
+  unit?: string;
 }
 
 function parsePastedSizes(raw: string): SizeBreakdownRow[] {
@@ -44,7 +51,7 @@ function parsePastedSizes(raw: string): SizeBreakdownRow[] {
   return rows;
 }
 
-export default function SizeBreakdownInput({ value, onChange, availableSizes }: SizeBreakdownInputProps) {
+export default function SizeBreakdownInput({ value, onChange, availableSizes, unit }: SizeBreakdownInputProps) {
   // Masqué quand un magasin envoie une demande : il ne voit jamais les prix d'achat.
   const showPrice = usePricesVisible();
   const [enabled, setEnabled] = useState<boolean>(!!value && value.length > 0);
@@ -140,7 +147,7 @@ export default function SizeBreakdownInput({ value, onChange, availableSizes }: 
           </span>
           {enabled && rows.length > 0 && (
             <span className="text-[9px] font-bold bg-teal-200 text-teal-800 px-2 py-0.5 rounded-full">
-              {rows.length} tailles · {total.toLocaleString()} unités
+              {rows.length} tailles · {total.toLocaleString()} {unit || 'unités'}
             </span>
           )}
         </div>
@@ -226,7 +233,7 @@ export default function SizeBreakdownInput({ value, onChange, availableSizes }: 
                 </div>
                 )}
                 <div className="py-2 px-3 text-[9px] font-black uppercase text-teal-600 tracking-widest text-right flex items-center justify-end gap-1">
-                  <Package className="w-2.5 h-2.5" /> Qté
+                  <Package className="w-2.5 h-2.5" /> {unit || 'Qté'}
                 </div>
                 <div />
               </div>
@@ -306,7 +313,7 @@ export default function SizeBreakdownInput({ value, onChange, availableSizes }: 
 
               <div className={`grid ${showPrice ? 'grid-cols-[1fr_90px_90px_36px]' : 'grid-cols-[1fr_90px_36px]'} bg-teal-600 text-white`}>
                 <div className={`py-2.5 px-3 text-[9px] font-black uppercase tracking-widest ${showPrice ? 'col-span-2' : ''}`}>TOTAL</div>
-                <div className="py-2.5 px-3 text-right text-[11px] font-black">{total.toLocaleString('en-US')} unités</div>
+                <div className="py-2.5 px-3 text-right text-[11px] font-black">{total.toLocaleString('en-US')} {unit || 'unités'}</div>
                 <div />
               </div>
             </div>
@@ -324,7 +331,7 @@ export default function SizeBreakdownInput({ value, onChange, availableSizes }: 
 
           {rows.length > 0 && (
             <p className="text-[9px] font-bold text-teal-600 uppercase bg-teal-100 px-3 py-2 rounded-lg">
-              ✓ Quantité totale calculée : <span className="font-black">{total.toLocaleString('en-US')} unités</span>
+              ✓ Quantité totale calculée : <span className="font-black">{total.toLocaleString('en-US')} {unit || 'unités'}</span>
               {showPrice && rows.some(r => r.priceOverride !== '' && r.priceOverride !== undefined) && (
                 <span className="ml-1 text-amber-600"> · Auto-split activé par prix</span>
               )}

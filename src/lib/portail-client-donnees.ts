@@ -8,6 +8,7 @@
 // Pur : testé par scripts/test-portail-client.ts.
 
 import { computeEffectiveStatus } from './status-utils';
+import { breakdownRowQuantity } from '@/lib/warehouse-locations';
 import { getArticleDisplayName } from './product-name-utils';
 import { dossierVerrouille } from './suivi-conteneur';
 
@@ -109,8 +110,8 @@ export function assainirCommande(a: any, facture: any, categories: any[], poles:
     caracteristiques: texte(a.specs),
     qualite: texte(a.quality),
     fermeture: texte(a.zipperType) ? [texte(a.zipperType), texte(a.slider) && `curseur ${a.slider}`].filter(Boolean).join(' · ') : undefined,
-    couleurs: liste(a.colorBreakdown).map(r => ({ code: String(r?.colorCode || r?.color || '').trim(), quantite: nombre(r?.rolls ?? r?.quantity) ?? 0 })).filter(r => r.code),
-    tailles: liste(a.sizeBreakdown).map(r => ({ taille: String(r?.size || '').trim(), quantite: nombre(r?.quantity ?? r?.rolls) ?? 0 })).filter(r => r.taille),
+    couleurs: liste(a.colorBreakdown).map(r => ({ code: String(r?.colorCode || r?.color || '').trim(), quantite: breakdownRowQuantity(r) })).filter(r => r.code),
+    tailles: liste(a.sizeBreakdown).map(r => ({ taille: String(r?.size || '').trim(), quantite: breakdownRowQuantity(r) })).filter(r => r.taille),
     qualites: liste(a.qualityBreakdown).map(r => ({ qualite: String(r?.nameFR || r?.quality || '').trim(), quantite: nombre(r?.quantity) ?? 0 })).filter(r => r.qualite),
     // Le prix de VENTE convenu avec le client, seulement une fois le devis confirmé.
     prixConvenuMad: a.devisConfirmed ? nombre(a.devisPrixVenteUniteMad) : undefined,

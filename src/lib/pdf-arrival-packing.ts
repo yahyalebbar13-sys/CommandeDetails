@@ -4,7 +4,7 @@ import {
   qualiteDeLArticle, specificationsArticle, type LigneSpecification,
 } from './specification-produit';
 import {
-  articleInboundVariants, articleVariantDimension, compareLocationCodes, variantKey,
+  articleInboundVariants, articleVariantDimension, breakdownRowQuantity, compareLocationCodes, variantKey,
 } from './warehouse-locations';
 
 /**
@@ -52,7 +52,11 @@ function nf(n: any, max = 3): string {
   return pdfText(v.toLocaleString('fr-FR', { maximumFractionDigits: max }));
 }
 
-const rowQty = (r: any) => Number(r?.quantity ?? r?.rolls) || 0;
+// La quantite d'une ligne de ventilation se lit toujours par le meme chemin : `quantity`
+// pour une qualite ou une taille, `rolls` pour une couleur ou un modele. Ce fichier avait sa
+// propre copie, avec `??` au lieu de `||` : une couleur portant `quantity: 0` et `rolls: 120`
+// valait zero, et comme les lignes a zero sont ecartees, elle DISPARAISSAIT du document.
+const rowQty = (r: any) => breakdownRowQuantity(r);
 const isVarious = (v: any) => String(v || '').toLowerCase() === 'various';
 
 function frDate(d?: string | null): string {

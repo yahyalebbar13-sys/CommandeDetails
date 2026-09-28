@@ -2,6 +2,7 @@
 "use client";
 
 import { memeQualiteCurseur } from '@/lib/designs-curseurs';
+import { breakdownRowQuantity } from '@/lib/warehouse-locations';
 import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import { CHAMP_ETAPE } from '@/lib/demande-magasin';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -43,7 +44,7 @@ const COLORS = ["white", "black", "raw black", "raw white", "various", "various 
  * les modèles, `quantity` pour les qualités et les tailles ; `designRef` est le libellé d'un modèle.
  */
 const lignesRemplies = (rows: any[] | null | undefined) =>
-  (rows || []).filter(r => (Number(r?.quantity ?? r?.rolls) || 0) > 0
+  (rows || []).filter(r => breakdownRowQuantity(r) > 0
     || String(r?.quality || r?.colorCode || r?.description || r?.color || r?.size || r?.designRef || r?.design || '').trim()).length;
 
 const ZIPPER_TYPES = ["O/E", "C/E"];
@@ -1910,7 +1911,12 @@ export function AddOrderForm({
           />
 
           {/* ── Section 3b: Tailles Multi ──────────────────────────────────── */}
-          <SizeBreakdownInput value={sizeBreakdown} onChange={handleSizeBreakdownChange} availableSizes={availableSizes} />
+          <SizeBreakdownInput
+            value={sizeBreakdown}
+            onChange={handleSizeBreakdownChange}
+            availableSizes={availableSizes}
+            unit={formData.unitOfMeasure}
+          />
 
           {/* ── Section 3c: Couleurs Multi ─────────────────────────────────── */}
           <ColorBreakdownInput
