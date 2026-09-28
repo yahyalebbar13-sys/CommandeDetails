@@ -17,8 +17,9 @@ import { Badge } from '@/components/ui/badge';
 import AddFactureModal from './add-facture-modal';
 import EditOrderModal from './edit-order-modal';
 import { useUser, useFirestore } from '@/firebase';
-import { doc, collection, getDocs, writeBatch } from 'firebase/firestore';
+import { doc, collection, getDocs, writeBatch, deleteField } from 'firebase/firestore';
 import { isArrivalOlderThanOneMonth } from '@/lib/status-utils';
+import { effetsSuppression, planSuppressionDossier } from '@/lib/suppression-dossier';
 
 /** Le dossier tel qu'il est enregistré, pour les règles du suivi (cf. `statutEnBase`). */
 const telQuEnregistre = (f: any) => (f && 'statutEnBase' in f ? { ...f, status: f.statutEnBase } : f);
@@ -424,25 +425,21 @@ export default function FacturesView({
     if (!user || !firestore || isDeleting) return;
     setIsDeleting(true);
     try {
-      // Unlink all articles referencing this facture (batch update)
-      const linkedArticles = articles.filter(a => a.factureId === facture.id);
-      if (linkedArticles.length > 0) {
-        const batch = writeBatch(firestore);
-        linkedArticles.forEach(a => {
-          const ref = doc(firestore, 'users', user.uid, 'articles', a.id);
-          batch.update(ref, { factureId: '', status: 'SHIPPED' });
-        });
-        await batch.commit();
+      // Pas encore en stock : les articles repartent en production, les parts expédiées
+      // rejoignent leur commande d'origine (lib/suppression-dossier).
+      const plan = planSuppressionDossier(facture.id, isFactureInStock(facture), articles);
+      const batch = writeBatch(firestore);
+      for (const e of plan.ecritures) {
+        const ref = doc(firestore, 'users', user.uid, 'articles', e.id);
+        if (e.op === 'delete') batch.delete(ref);
+        else batch.update(ref, { ...e.data, ...Object.fromEntries((e.retirer ?? []).map(champ => [champ, deleteField()])) });
       }
-      // Delete the facture document
-      deleteDocumentNonBlocking(
-        doc(firestore, 'users', user.uid, 'factures', facture.id)
-      );
+      // Dans le même lot : jamais un dossier supprimé avec des articles restés en route.
+      batch.delete(doc(firestore, 'users', user.uid, 'factures', facture.id));
+      await batch.commit();
       toast({
         title: '🗑️ Arrivage supprimé',
-        description: linkedArticles.length > 0
-          ? `Dossier ${facture.id} supprimé. ${linkedArticles.length} article(s) détaché(s).`
-          : `Dossier ${facture.id} supprimé.`,
+        description: `Dossier ${facture.id} supprimé. ${effetsSuppression(plan)}`.trim(),
       });
       setFactureToDelete(null);
       // If we were viewing this facture's detail, go back to list
@@ -879,27 +876,7 @@ export default function FacturesView({
                 </div>
               </div>
               <div className="p-5 space-y-4">
-                {(() => {
-                  const linked = articles.filter(a => a.factureId === factureToDelete?.id);
-                  return linked.length > 0 ? (
-                    <div className="flex items-start gap-3 bg-amber-50 border border-amber-200 rounded-xl p-4">
-                      <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
-                      <div>
-                        <p className="text-[10px] font-black text-amber-800 uppercase tracking-widest">
-                          {linked.length} article(s) lié(s)
-                        </p>
-                        <p className="text-[10px] font-medium text-amber-700 mt-1">
-                          Ces articles seront <strong>détachés</strong> du dossier mais ne seront <strong>pas supprimés</strong>.
-                          Leur statut sera remis à &quot;Expédié&quot;.
-                        </p>
-                      </div>
-                    </div>
-                  ) : (
-                    <p className="text-[10px] text-stone-500 font-medium">
-                      Aucun article lié à ce dossier. La suppression est sûre.
-                    </p>
-                  );
-                })()}
+                <EffetSuppression facture={factureToDelete} articles={articles} />
                 <div className="flex gap-3">
                   <Button
                     variant="outline"
@@ -1348,27 +1325,7 @@ export default function FacturesView({
             </div>
           </div>
           <div className="p-5 space-y-4">
-            {(() => {
-              const linked = articles.filter(a => a.factureId === factureToDelete?.id);
-              return linked.length > 0 ? (
-                <div className="flex items-start gap-3 bg-amber-50 border border-amber-200 rounded-xl p-4">
-                  <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
-                  <div>
-                    <p className="text-[10px] font-black text-amber-800 uppercase tracking-widest">
-                      {linked.length} article(s) lié(s)
-                    </p>
-                    <p className="text-[10px] font-medium text-amber-700 mt-1">
-                      Ces articles seront <strong>détachés</strong> du dossier mais ne seront <strong>pas supprimés</strong>.
-                      Leur statut sera remis à &quot;Expédié&quot;.
-                    </p>
-                  </div>
-                </div>
-              ) : (
-                <p className="text-[10px] text-stone-500 font-medium">
-                  Aucun article lié à ce dossier. La suppression est sûre.
-                </p>
-              );
-            })()}
+            <EffetSuppression facture={factureToDelete} articles={articles} />
             <div className="flex gap-3">
               <Button
                 variant="outline"
@@ -1390,6 +1347,36 @@ export default function FacturesView({
         </DialogContent>
       </Dialog>
 
+    </div>
+  );
+}
+
+/** Ce que la suppression fera des articles du dossier, dit avant de confirmer. */
+function EffetSuppression({ facture, articles }: { facture: any; articles: any[] }) {
+  if (!facture) return null;
+  const enStock = isFactureInStock(facture);
+  const plan = planSuppressionDossier(facture.id, enStock, articles);
+  const lies = plan.enProduction + plan.reunies + plan.detaches;
+  if (lies === 0) {
+    return (
+      <p className="text-[10px] text-stone-500 font-medium">
+        Aucun article lié à ce dossier. La suppression est sûre.
+      </p>
+    );
+  }
+  return (
+    <div className="flex items-start gap-3 bg-amber-50 border border-amber-200 rounded-xl p-4">
+      <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+      <div>
+        <p className="text-[10px] font-black text-amber-800 uppercase tracking-widest">
+          {lies} article(s) lié(s)
+        </p>
+        <p className="text-[10px] font-medium text-amber-700 mt-1">
+          {enStock
+            ? <>Marchandise déjà entrée en stock : les articles sont seulement <strong>détachés</strong>, rien ne repart en production.</>
+            : <>{effetsSuppression(plan)} Sans dossier ni date d&apos;arrivée, prêts à être expédiés de nouveau.</>}
+        </p>
+      </div>
     </div>
   );
 }
