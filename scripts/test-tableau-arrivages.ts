@@ -10,7 +10,7 @@ import {
   type FiltresArrivages,
 } from '../src/lib/tableau-arrivages';
 import { coutsDuDossier, droitsPayesDuDossier, resumerDossier, tauxDeChangeDossier } from '../src/lib/chiffres-dossier';
-import { articlesAPrevenir, statutPourLesClients, transitaireDeLaSociete } from '../src/lib/edition-dossier';
+import { articlesAPrevenir, changementsDeStatut, statutPourLesClients, transitaireDeLaSociete } from '../src/lib/edition-dossier';
 
 let pass = 0;
 let fail = 0;
@@ -189,6 +189,24 @@ console.log('\n── Modification d\'un dossier ──');
   check('entrée en stock prévue plus tard → personne aujourd\'hui', articlesAPrevenir(arts, avant, { ...avant, stockEntryDate: jour(5) }).length === 0);
   check('ETA repoussée dans le futur → retour en transit, prévenus',
     articlesAPrevenir(arts, avant, { ...avant, arrivalDate: jour(4) }).length === 1);
+
+  // Changements de statut qui attendent « Prévenir » / « Ne pas prévenir » dans /gestion.
+  const factures = [
+    { id: 'A', arrivalDate: jour(-2) },                                   // arrivé, jamais annoncé
+    { id: 'B', arrivalDate: jour(-2), lastNotifiedStatus: 'CUSTOMS' },     // déjà annoncé
+    { id: 'C', arrivalDate: jour(5) },                                    // toujours en transit
+    { id: 'D', arrivalDate: jour(-40), stockEntryDate: jour(-1) },        // historique : écarté
+    { id: 'E', arrivalDate: jour(-5), stockEntryDate: jour(0), lastNotifiedStatus: 'CUSTOMS' },
+    { id: 'F' },                                                          // sans dates
+  ];
+  const articlesC = [
+    { id: '1', factureId: 'A', clientName: 'Adil' }, { id: '2', factureId: 'A' },
+    { id: '3', factureId: 'E', clientName: ' ' },
+  ];
+  const ch = changementsDeStatut(factures, articlesC);
+  check('changements : seuls A et E attendent', json(ch.map(c => c.facture.id)) === json(['A', 'E']), json(ch.map(c => c.facture.id)));
+  check('A : transit → dédouanement, un client', ch[0]?.ancien === 'TRANSIT' && ch[0]?.nouveau === 'CUSTOMS' && json(ch[0].articles.map(a => a.id)) === json(['1']));
+  check('E : dédouanement → stock, personne à prévenir', ch[1]?.nouveau === 'STOCK' && ch[1].articles.length === 0);
 }
 
 console.log(`\n${pass} réussi(s), ${fail} échec(s)\n`);

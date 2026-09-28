@@ -10,7 +10,8 @@ import { useUser, useFirestore } from '@/firebase';
 import { doc, collection, serverTimestamp } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { setDocumentNonBlocking, updateDocumentNonBlocking } from '@/firebase/non-blocking-updates';
-import { FileText, Calendar, Truck, Save, AlertTriangle, Hash, Ship, DollarSign, Building2 } from 'lucide-react';
+import { FileText, Calendar, Truck, Save, AlertTriangle, Hash, Ship, DollarSign, Building2, Mail, BellOff } from 'lucide-react';
+import { STATUS_MAP } from '@/lib/status-utils';
 import { aujourdHui, normaliserReference, referenceValide } from '@/lib/suivi-conteneur';
 import {
   SOCIETES_DECLARANTES, articlesAPrevenir, notifierClientsDates, ouvrirSuiviEnFond,
@@ -102,8 +103,24 @@ export default function AddFactureModal({ open, onOpenChange, editFacture, assoc
     }
   }, [editFacture, open]);
 
+  // Clients dont le statut change avec les dates saisies : on demande avant de
+  // leur écrire (deux boutons en bas de la fenêtre), jamais d'office.
+  const aPrevenirSaisie = editFacture
+    ? articlesAPrevenir(
+        associatedArticles || [],
+        { arrivalDate: editFacture.arrivalDate || null, stockEntryDate: editFacture.stockEntryDate || null },
+        { arrivalDate: formData.arrivalDate || null, stockEntryDate: formData.stockEntryDate || null },
+      )
+    : [];
+
+  // Entrée dans un champ : enregistre seulement quand il n'y a pas de choix à faire.
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (aPrevenirSaisie.length > 0) return;
+    enregistrer(false);
+  };
+
+  const enregistrer = (prevenir: boolean) => {
     if (!user || !firestore || !formData.id) return;
 
     // Capture these BEFORE closing the modal — closing triggers re-render
@@ -123,9 +140,9 @@ export default function AddFactureModal({ open, onOpenChange, editFacture, assoc
     const stockEntryDateJustSet = Boolean(formData.stockEntryDate)
       && formData.stockEntryDate !== (capturedEditFacture?.stockEntryDate || '');
 
-    // Dates avant / après : quand le statut que voient les clients change, ils sont
-    // prévenus (plus bas) et le dossier le retient — sans quoi la notification
-    // automatique renverrait le même message au prochain chargement de /gestion.
+    // Dates avant / après : quand le statut que voient les clients change, le
+    // dossier le retient, qu'ils soient prévenus ou non — sans quoi le bandeau
+    // de /gestion reproposerait le même changement au prochain chargement.
     const datesAvant = { arrivalDate: capturedEditFacture?.arrivalDate || null, stockEntryDate: capturedEditFacture?.stockEntryDate || null };
     const datesApres = { arrivalDate: formData.arrivalDate || null, stockEntryDate: formData.stockEntryDate || null };
     const aPrevenir = capturedEditFacture ? articlesAPrevenir(capturedArticles, datesAvant, datesApres) : [];
@@ -172,7 +189,7 @@ export default function AddFactureModal({ open, onOpenChange, editFacture, assoc
     // ─────────────────────────────────────────────────────────────────────────
 
     // ─── Dates changées : les clients sont prévenus si leur statut change ───────
-    if (capturedEditFacture && (formData.arrivalDate !== capturedEditFacture.arrivalDate || formData.stockEntryDate !== capturedEditFacture.stockEntryDate) && capturedArticles.length > 0) {
+    if (prevenir && capturedEditFacture && (formData.arrivalDate !== capturedEditFacture.arrivalDate || formData.stockEntryDate !== capturedEditFacture.stockEntryDate) && capturedArticles.length > 0) {
       const notifCount = notifierClientsDates({
         firestore,
         adminUid: user.uid,
@@ -200,7 +217,9 @@ export default function AddFactureModal({ open, onOpenChange, editFacture, assoc
       });
       toast({
         title: editFacture?.isOrphaned ? 'Dossier régularisé' : 'Facture enregistrée',
-        description: `Référence ${factureId} activée.`,
+        description: aPrevenir.length > 0
+          ? `Référence ${factureId} — clients non prévenus.`
+          : `Référence ${factureId} activée.`,
       });
     }
   };
@@ -521,11 +540,31 @@ export default function AddFactureModal({ open, onOpenChange, editFacture, assoc
           )}
         </form>
 
+        {aPrevenirSaisie.length > 0 && editFacture && (
+          <div className="px-6 py-3 bg-amber-50 border-t border-amber-100 text-[11px] text-amber-900">
+            Pour les clients, le dossier passe de{' '}
+            <strong>{STATUS_MAP[statutPourLesClients(editFacture)].label}</strong> à{' '}
+            <strong>{STATUS_MAP[statutPourLesClients({ arrivalDate: formData.arrivalDate, stockEntryDate: formData.stockEntryDate })].label}</strong>.
+            {' '}À prévenir : <strong>{[...new Set(aPrevenirSaisie.map(a => String(a.clientName).trim()))].join(', ')}</strong>.
+          </div>
+        )}
+
         <DialogFooter className="p-6 bg-stone-50 border-t border-stone-100 flex flex-row gap-3">
           <Button variant="ghost" onClick={() => onOpenChange(false)} className="flex-1 text-[10px] font-black uppercase tracking-widest h-11">Annuler</Button>
-          <Button onClick={handleSubmit} className="flex-[2] bg-stone-900 hover:bg-black text-white font-black uppercase text-[10px] tracking-widest h-11 rounded-xl gap-2 shadow-lg shadow-stone-200">
-            <Save className="w-4 h-4" /> Enregistrer le dossier
-          </Button>
+          {aPrevenirSaisie.length > 0 ? (
+            <>
+              <Button variant="outline" onClick={() => enregistrer(false)} className="flex-1 border-stone-200 font-black uppercase text-[10px] tracking-widest h-11 rounded-xl gap-2">
+                <BellOff className="w-4 h-4" /> Sans prévenir
+              </Button>
+              <Button onClick={() => enregistrer(true)} className="flex-[2] bg-stone-900 hover:bg-black text-white font-black uppercase text-[10px] tracking-widest h-11 rounded-xl gap-2 shadow-lg shadow-stone-200">
+                <Mail className="w-4 h-4" /> Enregistrer et prévenir ({aPrevenirSaisie.length})
+              </Button>
+            </>
+          ) : (
+            <Button onClick={() => enregistrer(false)} className="flex-[2] bg-stone-900 hover:bg-black text-white font-black uppercase text-[10px] tracking-widest h-11 rounded-xl gap-2 shadow-lg shadow-stone-200">
+              <Save className="w-4 h-4" /> Enregistrer le dossier
+            </Button>
+          )}
         </DialogFooter>
       </DialogContent>
     </Dialog>

@@ -51,7 +51,8 @@ import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger
 } from '@/components/ui/dropdown-menu';
 import { useEnrichedArticles } from '@/hooks/use-enriched-articles';
-import { useAutoStatusNotifier } from '@/hooks/use-auto-status-notifier';
+import { useStatutsAAnnoncer } from '@/hooks/use-statuts-a-annoncer';
+import StatutsAAnnoncerBandeau from '@/components/statuts-a-annoncer-bandeau';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 // Only this email sees the admin dashboard — enforced ALSO by Firestore rules
@@ -408,11 +409,9 @@ function AdminApp() {
     return hints;
   }, [rawSupplierProfiles]);
 
-  // ─── Auto-detect status transitions and send emails ────────────────────────────────────
-  // Runs once per day when admin opens the app.
-  // Detects TRANSIT→CUSTOMS (arrivalDate passed) and CUSTOMS→STOCK (stockEntryDate reached)
-  // and sends notification emails to all linked preorder clients automatically.
-  useAutoStatusNotifier({
+  // ─── Changements de statut d'arrivage : prévenir les clients, ou non ─────────────────
+  // Rien ne part tout seul : le bandeau en haut de page demande pour chaque dossier.
+  const annonces = useStatutsAAnnoncer({
     firestore,
     adminUid: user?.uid ?? null,
     factures,
@@ -594,6 +593,7 @@ function AdminApp() {
           </div>
         ) : (
           <div className="fade-in">
+            <StatutsAAnnoncerBandeau {...annonces} />
             <div className={activeTab === 'dashboard' ? 'block animate-in fade-in' : 'hidden'}>
               <DashboardView articles={articles} factures={factures} generalCategories={generalCategories} subCategories={subCategories} onNavigate={setActiveTab} onNavigateToFacture={(id) => { setPreviousTab(activeTab); setSelectedFactureId(id); setActiveTab('factures'); setIsMobileMenuOpen(false); }} />
             </div>
@@ -610,7 +610,7 @@ function AdminApp() {
               <TimelineView articles={articles} factures={factures} onNavigateToFacture={(id) => { setPreviousTab(activeTab); setSelectedFactureId(id); setActiveTab('factures'); setIsMobileMenuOpen(false); }} />
             </div>
             <div className={activeTab === 'factures' ? 'block animate-in fade-in' : 'hidden'}>
-              <FacturesView actif={activeTab === 'factures'} articles={articles} factures={factures} subCategories={subCategories} selectedFactureId={selectedFactureId} setSelectedFactureId={setSelectedFactureId} onNavigateToCategory={(c) => { setPreviousTab('factures'); setSelectedCategoryName(c); setActiveTab('categories'); }} onBack={() => { setSelectedFactureId(null); if (previousTab) { setActiveTab(previousTab); setPreviousTab(null); } }} onVueTableau={() => { setPreviousTab(null); setActiveTab('tableau-arrivages'); }} />
+              <FacturesView actif={activeTab === 'factures'} articles={articles} factures={factures} subCategories={subCategories} generalCategories={generalCategories} selectedFactureId={selectedFactureId} setSelectedFactureId={setSelectedFactureId} onNavigateToCategory={(c) => { setPreviousTab('factures'); setSelectedCategoryName(c); setActiveTab('categories'); }} onBack={() => { setSelectedFactureId(null); if (previousTab) { setActiveTab(previousTab); setPreviousTab(null); } }} onVueTableau={() => { setPreviousTab(null); setActiveTab('tableau-arrivages'); }} />
             </div>
             <div className={activeTab === 'tableau-arrivages' ? 'block animate-in fade-in' : 'hidden'}>
               <TableauArrivagesView

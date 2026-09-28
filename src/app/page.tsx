@@ -44,7 +44,8 @@ import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger
 } from '@/components/ui/dropdown-menu';
 import { useEnrichedArticles } from '@/hooks/use-enriched-articles';
-import { useAutoStatusNotifier } from '@/hooks/use-auto-status-notifier';
+import { useStatutsAAnnoncer } from '@/hooks/use-statuts-a-annoncer';
+import StatutsAAnnoncerBandeau from '@/components/statuts-a-annoncer-bandeau';
 import { computeStockItems } from '@/components/stock/stock-app';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -370,11 +371,9 @@ function AdminApp() {
   
   const stockItems = useMemo(() => computeStockItems(rawArticles_, movements, subCategories, 'ALL', false, 'ADMIN', [], '', [], factures), [rawArticles_, movements, subCategories, factures]);
 
-  // ─── Auto-detect status transitions and send emails ────────────────────────────────────
-  // Runs once per day when admin opens the app.
-  // Detects TRANSIT→CUSTOMS (arrivalDate passed) and CUSTOMS→STOCK (stockEntryDate reached)
-  // and sends notification emails to all linked preorder clients automatically.
-  useAutoStatusNotifier({
+  // ─── Changements de statut d'arrivage : prévenir les clients, ou non ─────────────────
+  // Rien ne part tout seul : le bandeau en haut de page demande pour chaque dossier.
+  const annonces = useStatutsAAnnoncer({
     firestore,
     adminUid: user?.uid ?? null,
     factures,
@@ -540,6 +539,7 @@ function AdminApp() {
           </div>
         ) : (
           <div className="fade-in">
+            <StatutsAAnnoncerBandeau {...annonces} />
             <div className={activeTab === 'dashboard' ? 'block animate-in fade-in' : 'hidden'}>
               <DashboardView articles={articles} factures={factures} generalCategories={generalCategories} subCategories={subCategories} onNavigate={setActiveTab} onNavigateToFacture={(id) => { setPreviousTab(activeTab); setSelectedFactureId(id); setActiveTab('factures'); setIsMobileMenuOpen(false); }} />
             </div>

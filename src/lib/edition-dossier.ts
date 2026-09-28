@@ -1,10 +1,10 @@
 // ─── Modifier un dossier d'arrivage ───────────────────────────────────────────
 // Deux écrans modifient un dossier : la fenêtre « Paramétrer le dossier » et le
 // tableau des arrivages, cellule par cellule. Ce qu'une modification entraîne —
-// le transitaire de la société, le suivi du conteneur, les clients prévenus —
-// vit ici, pour que les deux écrans fassent exactement la même chose.
+// le transitaire de la société, le suivi du conteneur, les clients prévenus
+// (toujours sur un choix : jamais d'office) — vit ici, pour que les deux écrans fassent exactement la même chose.
 
-import { computeEffectiveStatus, type EffectiveStatus } from './status-utils';
+import { computeEffectiveStatus, isArrivalOlderThanOneMonth, type EffectiveStatus } from './status-utils';
 import { sendStatusNotification } from './send-status-notification';
 import { authedFetch } from './authed-fetch';
 
@@ -20,9 +20,9 @@ export function transitaireDeLaSociete(societe: string): string | undefined {
 export type DatesDossier = { arrivalDate?: string | null; stockEntryDate?: string | null };
 
 /**
- * Statut que les clients voient pour ces dates — le calcul de la notification
- * automatique (hooks/use-auto-status-notifier), qui part toujours d'un article
- * expédié : seules les dates du dossier comptent.
+ * Statut que les clients voient pour ces dates — le même calcul que le bandeau
+ * des changements à annoncer (hooks/use-statuts-a-annoncer), qui part toujours
+ * d'un article expédié : seules les dates du dossier comptent.
  */
 export function statutPourLesClients(dates: DatesDossier): EffectiveStatus {
   return computeEffectiveStatus({
@@ -47,9 +47,9 @@ export function articlesAPrevenir(articles: any[], avant: DatesDossier, apres: D
  * dates. Les envois partent en arrière-plan ; renvoie le nombre de messages
  * lancés.
  *
- * L'appelant inscrit `lastNotifiedStatus` dans le dossier quand ce nombre n'est
- * pas nul : sans cela, la notification automatique renverrait le même message
- * au prochain chargement de /gestion.
+ * L'appelant inscrit `lastNotifiedStatus` dans le dossier quand des clients sont
+ * concernés, qu'il les prévienne ou non : sans cela, le bandeau de /gestion
+ * reproposerait le même changement au prochain chargement.
  */
 export function notifierClientsDates(p: {
   firestore: any;
@@ -61,13 +61,72 @@ export function notifierClientsDates(p: {
 }): number {
   const destinataires = articlesAPrevenir(p.articles, p.avant, p.apres);
   if (!destinataires.length) return 0;
-  const ancien = statutPourLesClients(p.avant);
-  const nouveau = statutPourLesClients(p.apres);
+  return envoyerAnnonces({
+    firestore: p.firestore,
+    adminUid: p.adminUid,
+    destinataires,
+    ancien: statutPourLesClients(p.avant),
+    nouveau: statutPourLesClients(p.apres),
+    dates: p.apres,
+    noBL: p.noBL,
+  });
+}
+
+/**
+ * Un dossier dont le statut vu par les clients n'est plus celui du dernier
+ * message (`lastNotifiedStatus`) : le jour d'arrivée est passé, ShipsGo a
+ * déplacé la date, l'entrée en stock est atteinte… `articles` : ceux qui ont un
+ * client — vide, il n'y a personne à prévenir.
+ */
+export type ChangementDeStatut = {
+  facture: any;
+  ancien: EffectiveStatus;
+  nouveau: EffectiveStatus;
+  articles: any[];
+};
+
+/**
+ * Changements de statut pas encore annoncés. Les arrivages de plus d'un mois
+ * sont écartés : pas de message rétroactif sur l'historique.
+ */
+export function changementsDeStatut(factures: any[], articles: any[]): ChangementDeStatut[] {
+  const changements: ChangementDeStatut[] = [];
+  for (const facture of factures) {
+    if (!facture.arrivalDate && !facture.stockEntryDate) continue;
+    if (isArrivalOlderThanOneMonth(facture.arrivalDate)) continue;
+    const nouveau = statutPourLesClients(facture);
+    // Sans trace d'un message, le dossier part du début de son voyage.
+    const ancien = (facture.lastNotifiedStatus || 'TRANSIT') as EffectiveStatus;
+    if (nouveau === ancien) continue;
+    changements.push({
+      facture,
+      ancien,
+      nouveau,
+      articles: articles.filter(a => a.factureId === facture.id && (a.clientName || '').trim()),
+    });
+  }
+  return changements;
+}
+
+/**
+ * Envoie un message par article ; les envois partent en arrière-plan. Renvoie
+ * le nombre de messages lancés.
+ */
+export function envoyerAnnonces(p: {
+  firestore: any;
+  adminUid: string;
+  destinataires: any[];
+  ancien: EffectiveStatus;
+  nouveau: EffectiveStatus;
+  dates: DatesDossier;
+  noBL?: string | null;
+}): number {
+  const { destinataires, ancien, nouveau } = p;
 
   // Compute transit info for the email
   let transitArrivalDate: string | undefined;
   let transitDuration: string | undefined;
-  const newArrivalDate = p.apres.arrivalDate || null;
+  const newArrivalDate = p.dates.arrivalDate || null;
   if (newArrivalDate) {
     transitArrivalDate = newArrivalDate;
     const today = new Date(); today.setHours(0, 0, 0, 0);
@@ -75,8 +134,8 @@ export function notifierClientsDates(p: {
     const diffDays = Math.round((eta.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
     if (diffDays > 0) transitDuration = diffDays === 1 ? '1 jour' : `${diffDays} jours`;
     else if (diffDays === 0) transitDuration = "aujourd'hui";
-  } else if (nouveau === 'STOCK' && p.apres.stockEntryDate) {
-    transitArrivalDate = p.apres.stockEntryDate;
+  } else if (nouveau === 'STOCK' && p.dates.stockEntryDate) {
+    transitArrivalDate = p.dates.stockEntryDate;
   }
 
   for (const article of destinataires) {

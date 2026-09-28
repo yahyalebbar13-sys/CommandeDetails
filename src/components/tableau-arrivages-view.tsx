@@ -534,7 +534,7 @@ export default function TableauArrivagesView({
     const apres: DatesDossier = { ...avant, [champ]: valeur || null };
     const statutChange = (champ === 'arrivalDate' || champ === 'stockEntryDate')
       && articlesAPrevenir(l.articles, avant, apres).length > 0;
-    // Prévenus ou non, c'est décidé : la notification automatique ne repasse pas derrière.
+    // Prévenus ou non, c'est décidé : le bandeau de /gestion ne le repropose pas.
     if (statutChange) maj.lastNotifiedStatus = statutPourLesClients(apres);
     ecrire(l, maj, champ);
     if (statutChange && prevenir && user && firestore) {
@@ -1059,7 +1059,7 @@ export default function TableauArrivagesView({
                 ))}
               </div>
               <p className="text-[10px] text-stone-400 leading-relaxed">
-                Les mêmes messages que depuis « Paramétrer le dossier ». Sans message, la notification automatique ne l&apos;annoncera pas non plus.
+                Les mêmes messages que depuis « Paramétrer le dossier ». Sans message, le changement ne sera pas reproposé dans le bandeau de /gestion.
               </p>
               <div className="grid grid-cols-2 gap-2">
                 <Button onClick={() => confirmer(true)} className="col-span-2 h-11 text-[10px] font-black uppercase tracking-widest rounded-xl bg-stone-900 hover:bg-black text-white gap-1.5">
