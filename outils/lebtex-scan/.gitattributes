@@ -1,0 +1,3 @@
+# Scripts Windows : fins de ligne CRLF même sur un poste ou une archive qui ne les convertit pas.
+*.cmd text eol=crlf
+*.ps1 text eol=crlf

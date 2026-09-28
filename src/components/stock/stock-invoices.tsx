@@ -4,7 +4,7 @@ import React, { useState, useMemo } from 'react';
 import { LOGO_B64 } from '@/lib/logo-b64';
 import { imprimerHtml, messageImpression, echapperHtml } from '@/lib/impression';
 import { valeurImprimable } from '@/lib/specification-produit';
-import { Search, Eye, Printer, CreditCard, X, Download, Mail, Send, Plus, Trash2, CheckCircle2, Camera, Calendar, Banknote, FileCheck, FileText, Landmark, MoreHorizontal, Undo2 } from 'lucide-react';
+import { Search, Eye, Printer, CreditCard, X, Download, Mail, Send, Plus, Trash2, ScanLine, Camera, Calendar, Banknote, FileCheck, FileText, Landmark, MoreHorizontal, Undo2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -15,6 +15,7 @@ import { exportToFile, formatInvoicesForExport } from '@/lib/export-utils';
 import { exportInvoicesPDF, exportFridaySalesPDF } from '@/lib/pdf-export-reports';
 import { cleanUndefined } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
+import { ScanPiece } from './scan-piece';
 
 interface PaymentLineState {
   id: string;
@@ -267,7 +268,7 @@ export default function StockInvoices({ invoices, clients, payments, onRecordPay
       toast({
         variant: 'destructive',
         title: 'Scan obligatoire',
-        description: `Le scan ou la photo du ${missingScanLine.method} est obligatoire avant d'enregistrer le paiement. Prenez une photo ou importez le scan du document.`,
+        description: `Le scan du ${missingScanLine.method} est obligatoire avant d'enregistrer le paiement : scannez la pièce avec l'imprimante, ou prenez-la en photo.`,
       });
       return;
     }
@@ -806,12 +807,12 @@ export default function StockInvoices({ invoices, clients, payments, onRecordPay
                         </div>
                       </div>
 
-                      {/* Photo / Scan OBLIGATOIRE pour chèque et LC */}
+                      {/* Scan OBLIGATOIRE pour chèque et LC */}
                       <div className="space-y-1.5">
                         <div className="flex items-center justify-between">
                           <Label className="text-[11px] font-black uppercase tracking-widest flex items-center gap-1.5 text-amber-800">
-                            <Camera className="w-3.5 h-3.5 text-amber-600" />
-                            <span>Scan / Photo du {line.method === 'CHEQUE' ? 'Chèque' : 'la LC'}</span>
+                            <ScanLine className="w-3.5 h-3.5 text-amber-600" />
+                            <span>Scan {line.method === 'CHEQUE' ? 'du chèque' : 'de la LC'}</span>
                             <span className="text-red-500 font-black">* OBLIGATOIRE</span>
                           </Label>
                           {!line.scannedImageUrl && (
@@ -821,59 +822,11 @@ export default function StockInvoices({ invoices, clients, payments, onRecordPay
                           )}
                         </div>
 
-                        <div className={`relative border-2 border-dashed rounded-xl p-3 transition-colors ${
-                          line.scannedImageUrl
-                            ? 'border-emerald-400 bg-emerald-50/40'
-                            : 'border-amber-400 bg-amber-50/50 hover:bg-amber-100/40'
-                        }`}>
-                          {line.scannedImageUrl ? (
-                            <div className="flex items-center gap-3 w-full">
-                              <img src={line.scannedImageUrl} alt="Scan Chèque/LC" className="w-16 h-12 rounded-lg object-contain bg-white border border-emerald-200 shadow-sm" />
-                              <div className="flex-1 min-w-0">
-                                <div className="flex items-center gap-1.5 text-emerald-700 font-black text-xs">
-                                  <CheckCircle2 className="w-4 h-4" />
-                                  <span>Document scanné avec succès</span>
-                                </div>
-                                <p className="text-[10px] text-stone-500 font-bold">Image jointe au paiement</p>
-                              </div>
-                              <Button
-                                type="button"
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => updatePayLine(line.id, { scannedImageUrl: '' })}
-                                className="ml-auto h-8 text-[10px] text-red-600 hover:text-red-700 hover:bg-red-50 font-black rounded-lg">
-                                Supprimer / Reprendre
-                              </Button>
-                            </div>
-                          ) : (
-                            <label className="flex flex-col sm:flex-row items-center justify-center gap-3 py-2 cursor-pointer w-full text-stone-600 hover:text-stone-900 group">
-                              <div className="w-9 h-9 rounded-full bg-amber-100 text-amber-700 group-hover:bg-amber-200 flex items-center justify-center transition-colors shrink-0">
-                                <Camera className="w-5 h-5" />
-                              </div>
-                              <div className="text-center sm:text-left">
-                                <span className="text-xs font-black text-stone-900 group-hover:text-amber-900">
-                                  Prendre une photo ou importer le scan du chèque / de la LC
-                                </span>
-                                <p className="text-[10px] text-stone-500 font-medium">
-                                  Appareil photo smartphone/tablette ou image locale (JPG, PNG)
-                                </p>
-                              </div>
-                              <input
-                                type="file"
-                                accept="image/*"
-                                className="sr-only"
-                                onChange={e => {
-                                  const file = e.target.files?.[0];
-                                  if (file) {
-                                    const reader = new FileReader();
-                                    reader.onloadend = () => updatePayLine(line.id, { scannedImageUrl: reader.result as string });
-                                    reader.readAsDataURL(file);
-                                  }
-                                }}
-                              />
-                            </label>
-                          )}
-                        </div>
+                        <ScanPiece
+                          methode={line.method}
+                          image={line.scannedImageUrl}
+                          onImage={image => updatePayLine(line.id, { scannedImageUrl: image })}
+                        />
                       </div>
                     </div>
                   )}

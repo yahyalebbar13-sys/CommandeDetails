@@ -9,7 +9,7 @@ import {
   Search, Plus, Minus, X, ChevronRight, ChevronLeft,
   UserPlus, Tag, Percent, ArrowRight, Phone, Mail, Printer,
   Banknote, Landmark, FileCheck, Layers, Trash2, CreditCard,
-  Camera, Image as ImageIcon, Clock, Building2, FileText, WifiOff,
+  ScanLine, Image as ImageIcon, Clock, Building2, FileText, WifiOff,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -27,6 +27,7 @@ import { useOnlineStatus } from '@/hooks/use-online-status';
 import {
   SectionFormulaire, Champ, Encadre, LigneResume, Recapitulatif, BoutonValider, CLASSE_CHAMP,
 } from './ui-formulaire';
+import { ScanPiece } from './scan-piece';
 
 // ── helpers ──
 const fmt$ = (n: number) => n.toLocaleString('fr-MA', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -681,7 +682,7 @@ export default function StockSaleFlow({
         toast({
           variant: 'destructive',
           title: 'Scan obligatoire',
-          description: `Le scan ou la photo du ${missingScanLine.method} est obligatoire avant de valider la vente. Prenez une photo ou importez le scan du document.`,
+          description: `Le scan du ${missingScanLine.method} est obligatoire avant de valider la vente : scannez la pièce avec l'imprimante, ou prenez-la en photo.`,
         });
         return;
       }
@@ -2040,80 +2041,27 @@ export default function StockSaleFlow({
                             )}
                           </div>
 
-                          {/* Scan / Photo obligatoire du Chèque / LC */}
+                          {/* Scan obligatoire du Chèque / LC */}
                           <Champ
                             label={(
                               <span className="inline-flex items-center gap-1.5">
-                                <Camera className="w-3.5 h-3.5 text-amber-600" />
-                                Photo {line.method === 'CHEQUE' ? 'du chèque' : "de l'effet"}
+                                <ScanLine className="w-3.5 h-3.5 text-amber-600" />
+                                Scan {line.method === 'CHEQUE' ? 'du chèque' : "de l'effet"}
                               </span>
                             )}
                             obligatoire
-                            aide="Sans cette photo, la vente ne peut pas être validée : c'est la seule preuve de la pièce reçue."
+                            aide="Sans cette image, la vente ne peut pas être validée : c'est la seule preuve de la pièce reçue."
                             indice={!line.scannedImageUrl ? (
                               <span className="text-[11px] font-bold text-amber-800 bg-amber-100 px-2 py-0.5 rounded-full">
-                                Photo manquante
+                                Image manquante
                               </span>
                             ) : undefined}
                           >
-                            <div className={`relative border-2 border-dashed rounded-xl p-3 transition-colors ${
-                              line.scannedImageUrl
-                                ? 'border-emerald-400 bg-emerald-50/40'
-                                : 'border-amber-400 bg-amber-50/50 hover:bg-amber-100/40'
-                            }`}>
-                              {line.scannedImageUrl ? (
-                                <div className="flex items-center gap-3 w-full">
-                                  <img
-                                    src={line.scannedImageUrl}
-                                    alt="Scan Chèque / LC"
-                                    className="w-16 h-12 rounded-lg object-contain bg-white border border-emerald-200 shadow-sm"
-                                  />
-                                  <div className="flex-1 min-w-0">
-                                    <div className="flex items-center gap-1.5 text-emerald-700 font-black text-xs">
-                                      <CheckCircle2 className="w-4 h-4" />
-                                      <span>Document scanné avec succès</span>
-                                    </div>
-                                    <p className="text-[10px] text-stone-500 font-bold">Image jointe au paiement</p>
-                                  </div>
-                                  <Button
-                                    type="button"
-                                    variant="ghost"
-                                    size="sm"
-                                    onClick={() => updateCheckoutPaymentLine(line.id, 'scannedImageUrl', '')}
-                                    className="h-8 text-[10px] text-red-600 hover:text-red-700 hover:bg-red-50 font-black rounded-lg"
-                                  >
-                                    Supprimer / Reprendre
-                                  </Button>
-                                </div>
-                              ) : (
-                                <label className="flex flex-col sm:flex-row items-center justify-center gap-3 py-2 cursor-pointer w-full text-stone-600 hover:text-stone-900 group">
-                                  <div className="w-9 h-9 rounded-full bg-amber-100 text-amber-700 group-hover:bg-amber-200 flex items-center justify-center transition-colors shrink-0">
-                                    <Camera className="w-5 h-5" />
-                                  </div>
-                                  <div className="text-center sm:text-left">
-                                    <span className="text-xs font-black text-stone-900 group-hover:text-amber-900">
-                                      Prendre la pièce en photo, ou choisir une image
-                                    </span>
-                                    <p className="text-[11px] text-stone-500 font-medium">
-                                      Appareil photo du téléphone ou de la tablette, ou fichier image (JPG, PNG)
-                                    </p>
-                                  </div>
-                                  <input
-                                    type="file"
-                                    accept="image/*"
-                                    className="sr-only"
-                                    onChange={e => {
-                                      const file = e.target.files?.[0];
-                                      if (file) {
-                                        const reader = new FileReader();
-                                        reader.onloadend = () => updateCheckoutPaymentLine(line.id, 'scannedImageUrl', reader.result as string);
-                                        reader.readAsDataURL(file);
-                                      }
-                                    }}
-                                  />
-                                </label>
-                              )}
-                            </div>
+                            <ScanPiece
+                              methode={line.method}
+                              image={line.scannedImageUrl}
+                              onImage={image => updateCheckoutPaymentLine(line.id, 'scannedImageUrl', image)}
+                            />
                           </Champ>
                         </div>
                       )}
