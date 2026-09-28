@@ -1283,6 +1283,20 @@ export default function CategoriesView({
       setNewAccessoryQualityForm({ label: '', nameFR: '', size: '', thickness: '', weightPerPiece: '', pcsPerBox: '', boxPerCarton: '' });
     }
 
+    /**
+     * Les six nettoyeurs ci-dessous reconstruisent chaque ligne de qualite champ par champ, a
+     * partir d'une liste ecrite en dur. Tout champ du modele qu'ils ignorent serait donc EFFACE
+     * par un simple enregistrement de cet ecran — le grand carton et l'empilage en barrette sont
+     * saisis dans l'ecran Qualites, mais dans LE MEME document Firestore. On les reporte.
+     */
+    const reporterChampsConserves = (source: any, item: Record<string, any>) => {
+      for (const champ of ['cartonsPerMaster', 'stackLevel', 'stackPerRow', 'stackRows', 'pcsPerCtn']) {
+        const v = source?.[champ];
+        if (v !== undefined && v !== null && String(v).trim() !== '') item[champ] = v;
+      }
+      return item;
+    };
+
     // Sanitize arrays to guarantee NO undefined fields inside array items for Firestore
     const cleanFabricQualities = currentFabricQualities.map(q => {
       const item: Record<string, any> = { label: q.label || 'Qualité' };
@@ -1294,7 +1308,7 @@ export default function CategoriesView({
       if (q.rollLength != null && !isNaN(Number(q.rollLength))) item.rollLength = Number(q.rollLength);
       if (q.rollLengthUnit) item.rollLengthUnit = q.rollLengthUnit;
       if (q.packagingPerBag != null && !isNaN(Number(q.packagingPerBag))) item.packagingPerBag = Number(q.packagingPerBag);
-      return item;
+      return reporterChampsConserves(q, item);
     });
 
     const cleanZipperQualities = currentZipperQualities
@@ -1310,7 +1324,7 @@ export default function CategoriesView({
         if (q.sliderWeightG != null && !isNaN(Number(q.sliderWeightG))) item.sliderWeightG = Number(q.sliderWeightG);
         if (q.pcsPerBag != null && !isNaN(Number(q.pcsPerBag))) item.pcsPerBag = Number(q.pcsPerBag);
         if (q.bagsPerCarton != null && !isNaN(Number(q.bagsPerCarton))) item.bagsPerCarton = Number(q.bagsPerCarton);
-        return item;
+        return reporterChampsConserves(q, item);
       });
 
     const cleanThreadQualities = currentThreadQualities
@@ -1330,7 +1344,7 @@ export default function CategoriesView({
         if (q.lengthUnit) item.lengthUnit = q.lengthUnit;
         if (q.pcsPerBag != null && !isNaN(Number(q.pcsPerBag))) item.pcsPerBag = Number(q.pcsPerBag);
         if (q.bagsPerCarton != null && !isNaN(Number(q.bagsPerCarton))) item.bagsPerCarton = Number(q.bagsPerCarton);
-        return item;
+        return reporterChampsConserves(q, item);
       });
 
     const cleanSliderQualities = currentSliderQualities
@@ -1345,7 +1359,7 @@ export default function CategoriesView({
         }
         if (q.pcsPerBag != null && !isNaN(Number(q.pcsPerBag))) item.pcsPerBag = Number(q.pcsPerBag);
         if (q.bagsPerCarton != null && !isNaN(Number(q.bagsPerCarton))) item.bagsPerCarton = Number(q.bagsPerCarton);
-        return item;
+        return reporterChampsConserves(q, item);
       });
 
     cleanZipperQualities.forEach(q => {
@@ -1380,7 +1394,7 @@ export default function CategoriesView({
         }
         if (q.rollsPerShrink != null && !isNaN(Number(q.rollsPerShrink))) item.rollsPerShrink = Number(q.rollsPerShrink);
         if (q.rollsPerCarton != null && !isNaN(Number(q.rollsPerCarton))) item.rollsPerCarton = Number(q.rollsPerCarton);
-        return item;
+        return reporterChampsConserves(q, item);
       });
 
     cleanTapeQualities.forEach(q => {
@@ -1404,7 +1418,7 @@ export default function CategoriesView({
         }
         if (q.pcsPerBox != null && !isNaN(Number(q.pcsPerBox))) item.pcsPerBox = Number(q.pcsPerBox);
         if (q.boxPerCarton != null && !isNaN(Number(q.boxPerCarton))) item.boxPerCarton = Number(q.boxPerCarton);
-        return item;
+        return reporterChampsConserves(q, item);
       });
 
     cleanAccessoryQualities.forEach(q => {

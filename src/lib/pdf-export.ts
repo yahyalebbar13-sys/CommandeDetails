@@ -9,6 +9,7 @@ import {
 } from '@/lib/specification-produit';
 import { breakdownRowQuantity, libelleFixe } from '@/lib/warehouse-locations';
 import { addPdfLogoHeader } from './pdf-charte-lebtex';
+import { colisage, echelleDeLArticle } from './conditionnement';
 
 // ── Décrire un article sur un document ─────────────────────────────────────
 /**
@@ -3588,7 +3589,9 @@ export async function exportBaseOrderPDF(order: any) {
 
 // ── Packing Details PDF ─────────────────────────────────────────────────────
 // Per-product layout, grouped by designation. No P.A. displayed.
-export async function exportPackingDetailsPDF(facture: any, articles: any[], subCategories?: any[]) {
+export async function exportPackingDetailsPDF(
+  facture: any, articles: any[], subCategories?: any[], generalCategories?: any[],
+) {
   const { default: jsPDF } = await import('jspdf');
   const { default: autoTable } = await import('jspdf-autotable');
 
@@ -3728,9 +3731,22 @@ export async function exportPackingDetailsPDF(facture: any, articles: any[], sub
     if (!groupMap.has(key)) {
         const cat = (subCategories || []).find((c: any) => c.name === art.categoryId);
         const defaultPcs = cat?.defaultPcsPerCtn || 0;
-        const computedPcsPerCtn = Number(art.pcsPerCtn) > 0 
-          ? Number(art.pcsPerCtn) 
-          : (art.pcsPerBag && art.bagsPerCarton ? Number(art.pcsPerBag) * Number(art.bagsPerCarton) : Number(defaultPcs));
+        // Combien d'unites de l'article font un carton. Le calcul passe par l'echelle de
+        // conditionnement du produit (src/lib/conditionnement.ts), la meme que le document de
+        // reception du magasin : sans elle, ce tableau multipliait pcsPerBag par bagsPerCarton
+        // sans regarder l'unite, et annoncait un carton pour 200 METRES de doublure -- alors
+        // qu'un carton en contient 2 000. Deux papiers du meme dossier donnaient deux chiffres.
+        const parCarton = (() => {
+          const unitaire = colisage(1, echelleDeLArticle(art, subCategories || [], generalCategories || []));
+          const total = unitaire.cartons?.total || 0;
+          // Le resultat est l'inverse d'une division : 1/(1/1920,24) rend 1920,2399999999998.
+          // Il s'imprime tel quel dans la colonne PCS/CTN — deux decimales suffisent, et le
+          // magasinier n'a que faire de la trainee binaire.
+          return total > 0 ? Math.round((1 / total) * 100) / 100 : 0;
+        })();
+        // Les poles comptent autant que les familles : les lignes de qualite vivent sur les deux,
+        // et sans eux le type du produit n'est plus reconnu — donc plus aucun carton compte.
+        const computedPcsPerCtn = parCarton > 0 ? parCarton : (Number(art.pcsPerCtn) > 0 ? Number(art.pcsPerCtn) : Number(defaultPcs));
 
         // Le bandeau du produit porte la qualité de l'article et les caractéristiques de son
         // modèle — tissu, fermeture, fil, curseur, ruban ou accessoire.
@@ -3826,7 +3842,7 @@ export async function exportPackingDetailsPDF(facture: any, articles: any[], sub
       g.colorLabel ? ['Couleur', g.colorLabel] : ['Taille', g.size],
       ['CBM', `${g.cbmTotal.toFixed(3)} m³`],
       ['N.W.', `${g.nwTotal.toFixed(2)} kg`],
-      ['PCS/CTN', g.pcsPerCtn ? String(g.pcsPerCtn) : '—'],
+      ['PCS/CTN', g.pcsPerCtn ? g.pcsPerCtn.toLocaleString('fr-MA', { maximumFractionDigits: 2 }) : '—'],
     ];
     doc.setFontSize(5.5);
     let sx = pageW - MX - 2;
@@ -3911,7 +3927,7 @@ export async function exportPackingDetailsPDF(facture: any, articles: any[], sub
       resumeLibelles(g.rows.map(r => r.label), 2),
       { content: g.totalQty.toLocaleString('fr-MA'), styles: { halign: 'right', fontStyle: 'bold' } },
       g.unit,
-      { content: g.pcsPerCtn ? String(g.pcsPerCtn) : '—', styles: { halign: 'center' } },
+      { content: g.pcsPerCtn ? g.pcsPerCtn.toLocaleString('fr-MA', { maximumFractionDigits: 2 }) : '—', styles: { halign: 'center' } },
       { content: g.pcsPerCtn > 0 ? (g.totalQty / g.pcsPerCtn).toFixed(1) : '—', styles: { halign: 'right', fontStyle: 'bold', textColor: AMBER } },
       { content: g.cbmTotal.toFixed(3), styles: { halign: 'right' } },
       { content: g.nwTotal.toFixed(2), styles: { halign: 'right' } },

@@ -11,7 +11,10 @@ import { getStorage, ref as storageRef, uploadBytesResumable, getDownloadURL } f
 import { getApp } from 'firebase/app';
 import { useToast } from '@/hooks/use-toast';
 import { GeneralCategory, Category } from '@/lib/types';
-import { QUALITY_SCHEMA, QUALITIES_FIELD_BY_SPEC, SPEC_BADGES, detectSpecType } from '@/lib/quality-schema';
+import {
+  QUALITY_SCHEMA, QUALITIES_FIELD_BY_SPEC, SPEC_BADGES, detectSpecType,
+  groupeDuChamp, LIBELLE_GROUPE, type QualityFieldGroup,
+} from '@/lib/quality-schema';
 import { useLignesLogistiques } from '@/hooks/use-lignes-logistiques';
 
 interface QualitiesManagerViewProps {
@@ -81,6 +84,31 @@ export default function QualitiesManagerView({ generalCategories = [], subCatego
 
   const fieldsKey = QUALITIES_FIELD_BY_SPEC[activeSpecType];
   const schemaFields = QUALITY_SCHEMA[activeSpecType] || [];
+
+  /**
+   * Les colonnes sont nombreuses : quatorze pour une fermeture. On les coiffe d'une rangée de
+   * groupes — ce qui décrit la marchandise, ce qui la met en carton, ce qui la monte en palette —
+   * pour qu'on sache d'un coup d'œil où l'on saisit quoi.
+   */
+  const groupesDesColonnes = useMemo(() => {
+    const bandes: { groupe: QualityFieldGroup | 'identite'; libelle: string; colonnes: number }[] = [
+      { groupe: 'identite', libelle: 'Identification', colonnes: 2 },
+    ];
+    for (const champ of schemaFields) {
+      const g = groupeDuChamp(champ);
+      const derniere = bandes[bandes.length - 1];
+      if (derniere.groupe === g) derniere.colonnes += 1;
+      else bandes.push({ groupe: g, libelle: LIBELLE_GROUPE[g], colonnes: 1 });
+    }
+    return bandes;
+  }, [schemaFields]);
+
+  const COULEUR_GROUPE: Record<string, string> = {
+    identite: 'bg-stone-100 text-stone-500',
+    technique: 'bg-stone-50 text-stone-400',
+    conditionnement: 'bg-amber-50 text-amber-700',
+    empilage: 'bg-indigo-50 text-indigo-700',
+  };
 
   const polesForActiveType = useMemo(() => (
     generalCategories.filter(gc => detectSpecType(gc) === activeSpecType)
@@ -314,11 +342,29 @@ export default function QualitiesManagerView({ generalCategories = [], subCatego
                             <div className="overflow-x-auto">
                               <table className="w-full text-left">
                                 <thead>
+                                  <tr>
+                                    {groupesDesColonnes.map((bande, i) => (
+                                      <th
+                                        key={i}
+                                        colSpan={bande.colonnes}
+                                        className={`text-[8px] font-black uppercase tracking-[0.15em] py-1.5 px-3 text-center border-r border-white ${COULEUR_GROUPE[bande.groupe]}`}
+                                      >
+                                        {bande.libelle}
+                                      </th>
+                                    ))}
+                                    <th className="w-10"></th>
+                                  </tr>
                                   <tr className="bg-stone-50/60">
                                     <th className="text-[8px] font-black uppercase text-stone-400 tracking-widest py-2 px-3">Libellé</th>
                                     <th className="text-[8px] font-black uppercase text-stone-400 tracking-widest py-2 px-3">Nom FR</th>
                                     {schemaFields.map(f => (
-                                      <th key={f.key} className="text-[8px] font-black uppercase text-stone-400 tracking-widest py-2 px-3">{f.label}</th>
+                                      <th
+                                        key={f.key}
+                                        title={f.aide}
+                                        className="text-[8px] font-black uppercase text-stone-400 tracking-widest py-2 px-3 whitespace-nowrap"
+                                      >
+                                        {f.label}
+                                      </th>
                                     ))}
                                     <th className="w-10"></th>
                                   </tr>
@@ -371,6 +417,19 @@ export default function QualitiesManagerView({ generalCategories = [], subCatego
                                                   </span>
                                                 </label>
                                               </div>
+                                            ) : f.type === 'select' ? (
+                                              // Ce qu'on empile est un choix fermé : un sac, un carton, un rouleau.
+                                              // Laissé libre, il se serait écrit de cinq façons et rien ne se serait calculé.
+                                              <select
+                                                value={row[f.key] ?? ''}
+                                                onChange={e => handleFieldChange(fam, idx, f.key, e.target.value)}
+                                                className="h-8 w-full text-[10px] font-bold rounded-lg border border-stone-200 bg-white px-2 text-stone-700"
+                                              >
+                                                <option value="">{f.placeholder ? `${f.placeholder} (défaut)` : '—'}</option>
+                                                {(f.options || []).map(o => (
+                                                  <option key={o} value={o}>{o}</option>
+                                                ))}
+                                              </select>
                                             ) : (
                                               <Input
                                                 type={f.type === 'number' ? 'number' : 'text'}

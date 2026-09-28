@@ -12,9 +12,9 @@
  * comme sur le papier.
  */
 
-import { QUALITY_SCHEMA, detectSpecType } from './quality-schema';
+import { QUALITY_SCHEMA, detectSpecType, groupeDuChamp, type QualityFieldGroup } from './quality-schema';
 
-export type LigneSpecification = { cle: string; label: string; valeur: string };
+export type LigneSpecification = { cle: string; label: string; valeur: string; groupe: QualityFieldGroup };
 
 /**
  * Les champs techniques propres à chaque type, pour deviner un type quand ni le pôle ni la famille
@@ -78,18 +78,27 @@ export function specificationsArticle(
   categories: any[] = [],
   generalCategories: any[] = [],
   ligneQualite?: any,
+  /**
+   * Les groupes à retenir. Par défaut tout sauf l'empilage : comment les colis se montent sur
+   * une palette n'a rien à faire sur une fiche produit ni sur une facture — c'est une donnée
+   * d'entrepôt, que seul le document de réception exploite.
+   */
+  groupes: QualityFieldGroup[] = ['technique', 'conditionnement'],
 ): LigneSpecification[] {
   const type = specTypeDeLArticle(article, categories, generalCategories);
   const modele = type ? QUALITY_SCHEMA[type] : null;
   if (!modele) return [];
 
+  const retenus = new Set(groupes);
   const lignes: LigneSpecification[] = [];
   for (const champ of modele) {
     if (champ.type === 'image') continue;
+    const groupe = groupeDuChamp(champ);
+    if (!retenus.has(groupe)) continue;
     const brut = rempli(ligneQualite?.[champ.key]) ? ligneQualite[champ.key] : article?.[champ.key];
     if (!rempli(brut)) continue;
     const valeur = String(brut).trim();
-    lignes.push({ cle: champ.key, label: champ.label, valeur: champ.uppercase ? valeur.toUpperCase() : valeur });
+    lignes.push({ cle: champ.key, label: champ.label, valeur: champ.uppercase ? valeur.toUpperCase() : valeur, groupe });
   }
   return lignes;
 }

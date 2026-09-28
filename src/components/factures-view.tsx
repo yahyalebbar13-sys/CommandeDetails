@@ -104,6 +104,12 @@ interface FacturesViewProps {
   articles: any[];
   factures: any[];
   subCategories: any[];
+  /**
+   * Les poles. Necessaires au packing details : les lignes de qualite vivent aussi bien sur le
+   * pole que sur la famille, et c'est le pole qui dit le type du produit. Sans eux, le document
+   * ne reconnait plus un tissu d'une fermeture et sa colonne cartons tombe a rien.
+   */
+  generalCategories?: any[];
   selectedFactureId: string | null;
   setSelectedFactureId: (id: string | null) => void;
   onNavigateToCategory: (categoryName: string) => void;
@@ -123,6 +129,7 @@ export default function FacturesView({
   articles, 
   factures,
   subCategories,
+  generalCategories = [],
   selectedFactureId, 
   setSelectedFactureId,
   onNavigateToCategory,
@@ -658,7 +665,7 @@ export default function FacturesView({
           </Button>
           <Button
             variant="outline"
-            onClick={() => exportPackingDetailsPDF(selectedFacture, selectedFactureArticles, subCategories)}
+            onClick={() => exportPackingDetailsPDF(selectedFacture, selectedFactureArticles, subCategories, generalCategories)}
             className="h-10 text-[10px] font-black uppercase tracking-widest border-blue-200 rounded-xl px-6 gap-2 text-blue-700 hover:bg-blue-50"
           >
             <Archive className="w-4 h-4" /> Packing Details PDF

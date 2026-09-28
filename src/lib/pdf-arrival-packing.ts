@@ -6,6 +6,10 @@ import {
 import {
   articleInboundVariants, articleVariantDimension, breakdownRowQuantity, compareLocationCodes, variantKey,
 } from './warehouse-locations';
+import {
+  colisage, colisageArticle, colisageArticleTexte, colisageTexte, echelleDeLArticle, manqueTexte,
+  type Colisage, type ColisageArticle,
+} from './conditionnement';
 
 /**
  * Packing details d'un dossier d'arrivage, en français, pour les magasins et l'entrepôt.
@@ -222,6 +226,86 @@ export async function exportArrivalPackingPDF(params: ArrivalPackingParams): Pro
     totalNet += Number(a.netWeight) || 0;
   }
 
+  // ── Colisage : ce que le magasinier va réellement décharger ──────────────
+  // Le conditionnement est saisi dans les qualités depuis toujours, mais ce document le
+  // recopiait en clair — « Pcs/bag 20 · Sacs/carton 10 » — en laissant la division au
+  // magasinier, devant le camion. Il la fait maintenant, et il ne l'invente jamais : une
+  // référence dont la chaîne est incomplète dit lequel de ses champs manque.
+  const colisageDe = new Map<string, ColisageArticle>();
+  for (const a of articles) colisageDe.set(a.id, colisageArticle(a, categories, generalCategories));
+
+  const totalCartons = articles.reduce((s, a) => s + (colisageDe.get(a.id)?.cartons || 0), 0);
+  const sansCartons = articles.filter(a => colisageDe.get(a.id)?.cartons == null);
+  const totalBarrettes = articles.reduce((s, a) => s + (colisageDe.get(a.id)?.barrettes || 0), 0);
+
+  // ── Sur quoi se calcule la part de chaque référence ──────────────────────
+  // Le carton d'abord : c'est la seule mesure qui parle à un magasinier, parce que c'est ce qui
+  // occupe une étagère. À défaut, le volume, puis le poids. En dernier recours la quantité —
+  // mais seulement si tout le dossier est dans la même unité, sinon on additionnerait des
+  // mètres avec des pièces.
+  //
+  // Une base ne vaut que si TOUTES les références la portent. Le volume, en particulier, n'arrive
+  // que sur certaines lignes de la facture fournisseur : s'en servir quand même donnerait 100 %
+  // à la seule référence cubée et 0 % aux autres, qui partiraient toutes au fond de l'entrepôt.
+  // Un zéro de donnée manquante n'est pas une part.
+  const unites = Object.keys(totalsByUnit);
+  const partout = (f: (a: any) => number) => articles.length > 0 && articles.every(a => f(a) > 0);
+  const parCartons = (a: any) => colisageDe.get(a.id)?.cartons || 0;
+  const parVolume = (a: any) => Number(a.cubicMeasurement) || 0;
+  const parPoids = (a: any) => Number(a.netWeight) || 0;
+  const parQuantite = (a: any) => Number(a.quantity) || 0;
+
+  const candidats: { cle: string; mot: string; valeur: (a: any) => number; utilisable: boolean }[] = [
+    { cle: 'cartons', mot: 'les cartons', valeur: parCartons, utilisable: sansCartons.length === 0 && totalCartons > 0 },
+    { cle: 'volume', mot: 'le volume (m³)', valeur: parVolume, utilisable: partout(parVolume) },
+    { cle: 'poids', mot: 'le poids net (kg)', valeur: parPoids, utilisable: partout(parPoids) },
+    { cle: 'quantite', mot: unites.length === 1 ? `la quantité (${unites[0]})` : 'la quantité',
+      valeur: parQuantite, utilisable: unites.length === 1 && partout(parQuantite) },
+  ];
+  const retenue = candidats.find(c => c.utilisable);
+  // Aucune mesure commune à tout le dossier : on ne classe pas, et on dit pourquoi.
+  const base = retenue || { cle: 'aucune', mot: 'aucune mesure commune', valeur: () => 0 };
+  const baseFiable = Boolean(retenue);
+  const totalBase = articles.reduce((s, a) => s + base.valeur(a), 0);
+  const part = (a: any) => (totalBase > 0 ? base.valeur(a) / totalBase : 0);
+
+  // ── Classement ABC ───────────────────────────────────────────────────────
+  // La règle d'entrepôt : 20 % des références font 80 % du volume. Ce sont elles qu'on range
+  // près de la sortie, parce qu'on y revient dix fois par jour. Le reste part au fond.
+  const CLASSES: Record<string, { rang: string; ou: string; couleur: [number, number, number] }> = {
+    A: { rang: 'A', ou: 'au plus près de la sortie', couleur: [4, 120, 87] },
+    B: { rang: 'B', ou: 'allée centrale',            couleur: [180, 130, 20] },
+    C: { rang: 'C', ou: 'en hauteur ou au fond',     couleur: [120, 113, 108] },
+  };
+  const classement = [...articles]
+    .sort((x, y) => base.valeur(y) - base.valeur(x))
+    .map(a => ({ article: a, part: part(a), cumul: 0, classe: 'C' }));
+  let cumul = 0;
+  for (const ligne of classement) {
+    cumul += ligne.part;
+    ligne.cumul = cumul;
+    // La classe se décide sur le cumul ATTEINT par la référence : celle qui fait franchir les
+    // 80 % en fait encore partie, sinon une référence à elle seule majoritaire serait classée B.
+    ligne.classe = cumul - ligne.part < 0.8 ? 'A' : cumul - ligne.part < 0.95 ? 'B' : 'C';
+  }
+  const compteParClasse = (c: string) => classement.filter(l => l.classe === c).length;
+
+  // ── Regroupement par pôle ────────────────────────────────────────────────
+  const poleOf = (a: any) => {
+    const cat = categories.find((c: any) => c.name === a.categoryId || c.id === a.categoryId);
+    const gcId = a.generalCategoryId || cat?.generalCategoryId;
+    const gc = generalCategories.find((g: any) => g.id === gcId);
+    return (gc?.nameFR || gc?.name || 'Autres articles').toUpperCase();
+  };
+
+  const groups = new Map<string, any[]>();
+  for (const a of articles) {
+    const pole = poleOf(a);
+    if (!groups.has(pole)) groups.set(pole, []);
+    groups.get(pole)!.push(a);
+  }
+  const poles = Array.from(groups.keys()).sort((a, b) => a.localeCompare(b, 'fr'));
+
   // ── En-tête de page ──────────────────────────────────────────────────────
   const drawPageHeader = async () => {
     doc.setFillColor(...INK);
@@ -277,6 +361,159 @@ export async function exportArrivalPackingPDF(params: ArrivalPackingParams): Pro
     }
   };
 
+  /** Un titre de section, souligné d'un filet doré — la charte des documents LEBTEX. */
+  const titreSection = (yy: number, texte: string, sous?: string): number => {
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(10);
+    doc.setTextColor(...INK);
+    doc.text(pdfText(texte), M, yy);
+    const largeur = doc.getTextWidth(pdfText(texte));
+    doc.setDrawColor(...GOLD);
+    doc.setLineWidth(0.7);
+    doc.line(M, yy + 1.6, M + largeur, yy + 1.6);
+    doc.setLineWidth(0.2);
+    if (sous) {
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(7.5);
+      doc.setTextColor(...STONE_500);
+      doc.text(pdfText(sous), M + largeur + 5, yy);
+    }
+    return yy + 6;
+  };
+
+  /**
+   * Ce qui arrive, et où le poser.
+   *
+   * Le document ne disait que « quoi » et « combien ». Un gestionnaire de stock a besoin de deux
+   * choses de plus avant d'ouvrir la porte du conteneur : la part que pèse chaque pôle, pour
+   * savoir où il va manquer de place, et lesquelles des références il verra passer tous les
+   * jours — celles-là se rangent près de la sortie, pas au fond.
+   */
+  const blocStrategie = async (yDepart: number): Promise<number> => {
+    let yb = yDepart;
+
+    // ── Répartition par pôle ──
+    yb = titreSection(yb, 'CE QUI ARRIVE', baseFiable
+      ? `part calculée sur ${base.mot}`
+      : "part non calculée : aucune mesure n'est renseignée sur toutes les références");
+
+    const lignesPole = poles.map(pole => {
+      const list = groups.get(pole)!;
+      const qtes: Record<string, number> = {};
+      for (const a of list) qtes[(a.unitOfMeasure || 'pcs').trim()] = (qtes[(a.unitOfMeasure || 'pcs').trim()] || 0) + (Number(a.quantity) || 0);
+      const cartons = list.reduce((s, a) => s + (colisageDe.get(a.id)?.cartons || 0), 0);
+      const incomplets = list.filter(a => colisageDe.get(a.id)?.cartons == null).length;
+      const barrettes = list.reduce((s, a) => s + (colisageDe.get(a.id)?.barrettes || 0), 0);
+      const p = list.reduce((s, a) => s + part(a), 0);
+      return { pole, list, qtes, cartons, incomplets, barrettes, p };
+    }).sort((a, b) => b.p - a.p);
+
+    autoTable(doc, {
+      startY: yb,
+      margin: { left: M, right: M, top: 30, bottom: 16 },
+      head: [['Pôle', 'Réf.', 'Quantités', 'Cartons', 'Barrettes', 'Part', '']],
+      body: lignesPole.map(l => [
+        pdfText(l.pole),
+        String(l.list.length),
+        pdfText(Object.entries(l.qtes).map(([u, q]) => `${nf(q)} ${u}`).join(' + ')),
+        l.cartons > 0
+          ? pdfText(`${nf(l.cartons, 0)}${l.incomplets > 0 ? ` (+${l.incomplets} réf.)` : ''}`)
+          : (l.incomplets > 0 ? 'à préciser' : '—'),
+        l.barrettes > 0 ? nf(l.barrettes, 0) : '—',
+        baseFiable ? `${(l.p * 100).toFixed(1).replace('.', ',')} %` : '—',
+        { content: '', styles: { cellPadding: 0 } },
+      ]),
+      foot: [[
+        'TOTAL', String(articles.length),
+        pdfText(Object.entries(totalsByUnit).map(([u, t]) => `${nf(t.qty)} ${u}`).join(' + ')),
+        totalCartons > 0 ? nf(totalCartons, 0) : '—',
+        totalBarrettes > 0 ? nf(totalBarrettes, 0) : '—',
+        baseFiable ? '100 %' : '—', '',
+      ]],
+      theme: 'grid',
+      styles: { font: 'helvetica', fontSize: 8, cellPadding: 2, textColor: INK, lineColor: STONE_200, lineWidth: 0.2 },
+      headStyles: { fillColor: INK, textColor: GOLD, fontStyle: 'bold', fontSize: 7.5 },
+      footStyles: { fillColor: STONE_50, textColor: INK, fontStyle: 'bold' },
+      columnStyles: {
+        0: { cellWidth: 58, fontStyle: 'bold' },
+        1: { cellWidth: 14, halign: 'center' },
+        2: { cellWidth: 52, halign: 'right' },
+        3: { cellWidth: 26, halign: 'right', fontStyle: 'bold' },
+        4: { cellWidth: 22, halign: 'right' },
+        5: { cellWidth: 18, halign: 'right', fontStyle: 'bold' },
+        6: { cellWidth: 'auto' },
+      },
+      // La barre de part : un pôle qui prend la moitié du conteneur se voit d'un coup d'œil,
+      // sans lire les chiffres.
+      didDrawCell: (data: any) => {
+        if (data.section !== 'body' || data.column.index !== 6 || !baseFiable) return;
+        const l = lignesPole[data.row.index];
+        if (!l) return;
+        const larg = Math.max(0.6, (data.cell.width - 6) * Math.min(1, l.p));
+        doc.setFillColor(...GOLD);
+        doc.rect(data.cell.x + 3, data.cell.y + data.cell.height / 2 - 1.6, larg, 3.2, 'F');
+      },
+    });
+    yb = (doc as any).lastAutoTable.finalY + 7;
+
+    // ── Classement ABC ──
+    // En dessous de cinq références, la règle des 80/20 ne dit plus rien : on ne l'imprime pas.
+    if (articles.length < 5 || !baseFiable || totalBase <= 0) return yb;
+
+    if (yb > pageH - 55) { doc.addPage(); yb = 30; }
+    yb = titreSection(yb, 'OÙ LES POSER — CLASSEMENT ABC',
+      `A : ${compteParClasse('A')} réf. = 80 % de l'arrivage  ·  B : ${compteParClasse('B')}  ·  C : ${compteParClasse('C')}`);
+
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(7.5);
+    doc.setTextColor(...STONE_500);
+    doc.text(pdfText(
+      "Les références A sont celles qu'on manipule le plus : elles se rangent au plus près de la sortie. "
+      + 'Les C dorment au fond ou en hauteur.'), M, yb);
+    yb += 5;
+
+    autoTable(doc, {
+      startY: yb,
+      margin: { left: M, right: M, top: 30, bottom: 16 },
+      head: [['Classe', 'Désignation', 'Pôle', 'Quantité', 'Cartons', 'Part', 'Cumul', 'Où la poser']],
+      body: classement.map(l => [
+        { content: l.classe, styles: { halign: 'center', fontStyle: 'bold', textColor: CLASSES[l.classe].couleur } },
+        pdfText(getArticleFrenchName(l.article, categories, generalCategories)),
+        pdfText(poleOf(l.article)),
+        pdfText(`${nf(l.article.quantity)} ${l.article.unitOfMeasure || 'pcs'}`),
+        colisageDe.get(l.article.id)?.cartons != null ? nf(colisageDe.get(l.article.id)!.cartons!, 0) : '—',
+        `${(l.part * 100).toFixed(1).replace('.', ',')} %`,
+        `${(l.cumul * 100).toFixed(0)} %`,
+        pdfText(CLASSES[l.classe].ou),
+      ]),
+      theme: 'grid',
+      styles: { font: 'helvetica', fontSize: 7.5, cellPadding: 1.6, textColor: INK, lineColor: STONE_200, lineWidth: 0.2 },
+      headStyles: { fillColor: [68, 64, 60], textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 7, halign: 'center' },
+      columnStyles: {
+        0: { cellWidth: 14 },
+        1: { cellWidth: 64, fontStyle: 'bold' },
+        2: { cellWidth: 40 },
+        3: { cellWidth: 28, halign: 'right' },
+        4: { cellWidth: 20, halign: 'right' },
+        5: { cellWidth: 16, halign: 'right' },
+        6: { cellWidth: 16, halign: 'right', textColor: STONE_500 },
+        7: { cellWidth: 'auto' },
+      },
+      // Le trait de séparation entre A, B et C : c'est lui qu'on suit des yeux pour savoir où
+      // s'arrête ce qui va près de la porte.
+      didParseCell: (data: any) => {
+        if (data.section !== 'body') return;
+        const l = classement[data.row.index];
+        const precedent = classement[data.row.index - 1];
+        if (l && precedent && l.classe !== precedent.classe) {
+          data.cell.styles.lineWidth = { top: 0.8, right: 0.2, bottom: 0.2, left: 0.2 } as any;
+          data.cell.styles.lineColor = GOLD;
+        }
+      },
+    });
+    return (doc as any).lastAutoTable.finalY + 7;
+  };
+
   infoBox(M, 'EXPÉDITION', [
     ['Fournisseur', facture.supplierId || facture.supplier || '—'],
     ['N° de dossier', facture.id],
@@ -293,29 +530,20 @@ export async function exportArrivalPackingPDF(params: ArrivalPackingParams): Pro
   ]);
   infoBox(M + (colW + gap) * 2, 'CONTENU', [
     ['Références', String(articles.length)],
-    ['Volume total', totalCbm > 0 ? `${nf(totalCbm)} m³` : '—'],
-    ['Poids net total', totalNet > 0 ? `${nf(totalNet)} kg` : '—'],
     ['Quantités', Object.entries(totalsByUnit).map(([u, t]) => `${nf(t.qty)} ${u}`).join(' + ') || '—'],
+    ['Cartons à compter', totalCartons > 0
+      ? `${nf(totalCartons, 0)}${sansCartons.length > 0 ? ` + ${sansCartons.length} réf. à préciser` : ''}`
+      : '—'],
+    ['Barrettes', totalBarrettes > 0 ? nf(totalBarrettes, 0) : '—'],
+    ['Volume / poids', [totalCbm > 0 ? `${nf(totalCbm)} m³` : null, totalNet > 0 ? `${nf(totalNet)} kg` : null].filter(Boolean).join(' · ') || '—'],
   ]);
 
   y += boxH + 7;
 
+  // ── Ce qui arrive, et où le poser ────────────────────────────────────────
+  y = await blocStrategie(y);
+
   // ── Tableau principal, groupé par pôle ───────────────────────────────────
-  const poleOf = (a: any) => {
-    const cat = categories.find((c: any) => c.name === a.categoryId || c.id === a.categoryId);
-    const gcId = a.generalCategoryId || cat?.generalCategoryId;
-    const gc = generalCategories.find((g: any) => g.id === gcId);
-    return (gc?.nameFR || gc?.name || 'Autres articles').toUpperCase();
-  };
-
-  const groups = new Map<string, any[]>();
-  for (const a of articles) {
-    const pole = poleOf(a);
-    if (!groups.has(pole)) groups.set(pole, []);
-    groups.get(pole)!.push(a);
-  }
-  const poles = Array.from(groups.keys()).sort((a, b) => a.localeCompare(b, 'fr'));
-
   type Cell = string | { content: string; colSpan?: number; styles?: any };
   const body: Cell[][] = [];
   let lineNo = 0;
@@ -357,6 +585,26 @@ export async function exportArrivalPackingPDF(params: ArrivalPackingParams): Pro
       const tailleFixe = fixe(a.size);
       const conditionnement = conditionnementTexte(a);
 
+      // Le colisage : ce que la quantité fait réellement en sacs, cartons et barrettes. Quand la
+      // chaîne est incomplète, la cellule dit quel champ saisir — jamais un chiffre inventé.
+      const colisageCellule = (c: Colisage, barrettes = true): string =>
+        colisageTexte(c, true, barrettes) || manqueTexte(c) || '—';
+      // La ligne de l'article : le comptage de la reference entiere, celui-la meme que reprend
+      // la feuille de controle. Prendre ici le colisage de la quantite totale ferait figurer
+      // deux nombres de cartons differents pour le meme article sur la meme page.
+      const celluleArticle = (ca: ColisageArticle): string => {
+        const lignes = [colisageArticleTexte(ca, true) || ca.manque || '—'];
+        // Une ventilation qui ne retombe pas sur la quantité annoncée : le calcul revient au
+        // total de l'article, et le papier le dit. Sans cette ligne, le magasinier compterait
+        // des cartons sans comprendre pourquoi ils ne correspondent pas à la ventilation.
+        if (ca.ventilationEcartee) {
+          lignes.push(`ventilation à revoir (${nf(ca.ventilationEcartee.ventile)} ventilés)`);
+        }
+        return lignes.join('\n');
+      };
+      const colisageLigne = (r: any, q: number) =>
+        colisage(q, echelleDeLArticle(a, categories, generalCategories, r));
+
       body.push([
         { content: String(lineNo), styles: { halign: 'center', fontStyle: 'bold' } },
         { content: frName + (internal && internal.toLowerCase() !== frName.toLowerCase() ? `\n${internal}` : ''), styles: { fontStyle: 'bold' } },
@@ -364,8 +612,8 @@ export async function exportArrivalPackingPDF(params: ArrivalPackingParams): Pro
         colors.length > 0 ? `${colors.length} couleurs` : pdfText(couleurFixe || '—'),
         sizes.length > 0 ? `${sizes.length} tailles` : pdfText(tailleFixe || '—'),
         pdfText(specsTexte(a, undefined, sizes.length > 0 ? '' : tailleFixe) || '—'),
-        { content: nf(a.quantity), styles: { halign: 'right', fontStyle: 'bold', textColor: EMERALD } },
-        { content: pdfText(unit), styles: { halign: 'center' } },
+        { content: pdfText(`${nf(a.quantity)} ${unit}`), styles: { halign: 'right', fontStyle: 'bold', textColor: EMERALD } },
+        { content: pdfText(celluleArticle(colisageDe.get(a.id)!)), styles: { fontSize: 7 } },
         { content: Number(a.netWeight) > 0 ? nf(a.netWeight) : '—', styles: { halign: 'right' } },
         { content: Number(a.cubicMeasurement) > 0 ? nf(a.cubicMeasurement) : '—', styles: { halign: 'right' } },
         pdfText(articlePlacementText(a)),
@@ -375,15 +623,15 @@ export async function exportArrivalPackingPDF(params: ArrivalPackingParams): Pro
       // son article, pour rester lisible quand la ventilation déborde sur la page suivante.
       const parentLabel = `› ${frName}`;
       const SUBROW = { ...SUB, fillColor: STONE_50 };
-      const subRow = (q: string, c: string, s: string, specs: string, qty: number, place = ''): Cell[] => [
+      const subRow = (q: string, c: string, s: string, specs: string, qty: number, place = '', ligne?: any): Cell[] => [
         { content: String(lineNo), styles: { ...SUBROW, halign: 'center' } },
         { content: parentLabel, styles: { ...SUBROW, fontSize: 7 } },
         { content: pdfText(q), styles: SUBROW },
         { content: pdfText(c), styles: { ...SUBROW, textColor: INK } },
         { content: pdfText(s), styles: SUBROW },
         { content: pdfText(specs), styles: { ...SUBROW, fontSize: 7 } },
-        { content: nf(qty), styles: { ...SUBROW, halign: 'right', textColor: INK } },
-        { content: pdfText(unit), styles: { ...SUBROW, halign: 'center' } },
+        { content: pdfText(`${nf(qty)} ${unit}`), styles: { ...SUBROW, halign: 'right', textColor: INK } },
+        { content: pdfText(colisageCellule(colisageLigne(ligne, qty), false)), styles: { ...SUBROW, fontSize: 7 } },
         { content: '', styles: SUBROW }, { content: '', styles: SUBROW },
         { content: pdfText(place), styles: { ...SUBROW, textColor: INK, fontStyle: 'bold' } },
       ];
@@ -393,7 +641,7 @@ export async function exportArrivalPackingPDF(params: ArrivalPackingParams): Pro
         const taille = fixe(r.size) || tailleFixe;
         body.push(subRow(
           r.nameFR || qualiteDeLArticle(a, r) || '—', couleurFixe, taille,
-          specsTexte(a, r, taille), rowQty(r), placementOf(r),
+          specsTexte(a, r, taille), rowQty(r), placementOf(r), r,
         ));
       }
       // Couleurs et tailles partagent les caractéristiques de l'article : on rappelle le
@@ -438,7 +686,7 @@ export async function exportArrivalPackingPDF(params: ArrivalPackingParams): Pro
     margin: { left: M, right: M, top: 30, bottom: 16 },
     head: [[
       'N°', 'Désignation', 'Qualité', 'Couleur', 'Taille', 'Caractéristiques',
-      'Quantité', 'Unité', 'Poids net\n(kg)', 'Volume\n(m³)', 'Emplacement',
+      'Quantité', 'Colisage', 'Poids net\n(kg)', 'Volume\n(m³)', 'Emplacement',
     ]],
     body: body as any,
     theme: 'grid',
@@ -451,20 +699,21 @@ export async function exportArrivalPackingPDF(params: ArrivalPackingParams): Pro
       halign: 'center', valign: 'middle',
     },
     // La colonne Emplacement garde ses ~30 mm : « A-02-01 : 1 234 » y tient sur une ligne, ligne
-    // de variante comprise. Les caractéristiques disent maintenant les six types au complet
-    // (jusqu'à huit valeurs pour une fermeture) : les autres colonnes leur cèdent 17 mm, et le
-    // corps y passe en 7 pt pour tenir en trois ou quatre lignes.
+    // de variante comprise. L'unité a rejoint la quantité — « 12 000 m » se lit mieux en un seul
+    // bloc — et les 13 mm libérés vont au Colisage, qui en réclame le double : « 120 rlx · 30
+    // sacs · 3 ctn » est ce que le magasinier compte vraiment. Les caractéristiques cèdent le
+    // reste : le conditionnement brut qu'elles répétaient est désormais calculé à côté.
     columnStyles: {
       0: { cellWidth: 9 },
-      1: { cellWidth: 46 },
-      2: { cellWidth: 23 },
-      3: { cellWidth: 28 },
-      4: { cellWidth: 18 },
-      5: { cellWidth: 57, fontSize: 7 },
-      6: { cellWidth: 20 },
-      7: { cellWidth: 13 },
-      8: { cellWidth: 15 },
-      9: { cellWidth: 14 },
+      1: { cellWidth: 44 },
+      2: { cellWidth: 21 },
+      3: { cellWidth: 26 },
+      4: { cellWidth: 16 },
+      5: { cellWidth: 50, fontSize: 7 },
+      6: { cellWidth: 22 },
+      7: { cellWidth: 28 },
+      8: { cellWidth: 14 },
+      9: { cellWidth: 13 },
       10: { cellWidth: 'auto' },
     },
     // Recopier l'en-tête sombre sur chaque nouvelle page
@@ -484,66 +733,75 @@ export async function exportArrivalPackingPDF(params: ArrivalPackingParams): Pro
     },
   });
 
-  // ── Récapitulatif par unité ───────────────────────────────────────────────
+  // ── Contrôle en cartons ───────────────────────────────────────────────────
+  // Le document finissait sur quatre traits à signer. Or ce qu'on contrôle devant un camion,
+  // ce n'est pas une quantité — personne ne compte 48 000 fermetures — c'est un nombre de
+  // cartons. La feuille les annonce donc référence par référence, avec la case pour écrire ce
+  // qu'on a réellement compté et l'écart en face.
   let afterY = (doc as any).lastAutoTable.finalY + 8;
-  const summaryRows = Object.entries(totalsByUnit)
-    .sort((a, b) => b[1].qty - a[1].qty)
-    .map(([u, t]) => [pdfText(u), String(t.refs), nf(t.qty)]);
+  const aControler = articles
+    .map(a => ({ a, cartons: colisageDe.get(a.id)?.cartons ?? null }))
+    .sort((x, y) => (y.cartons || 0) - (x.cartons || 0));
 
-  // Récap + bloc de contrôle côte à côte : il faut ~55 mm de hauteur libre
-  if (afterY > pageH - 60) {
-    doc.addPage();
-    afterY = 30;
-  }
+  if (afterY > pageH - 70) { doc.addPage(); afterY = 30; }
+  afterY = titreSection(afterY, 'CONTRÔLE À LA RÉCEPTION',
+    totalCartons > 0
+      ? `${nf(totalCartons, 0)} carton(s) annoncé(s)${sansCartons.length > 0 ? ` · ${sansCartons.length} référence(s) sans conditionnement saisi` : ''}`
+      : 'aucun conditionnement saisi : le contrôle se fait en quantités');
 
   autoTable(doc, {
     startY: afterY,
-    margin: { left: M },
-    tableWidth: 100,
-    head: [['RÉCAPITULATIF', 'Références', 'Quantité totale']],
-    body: summaryRows,
+    margin: { left: M, right: M, top: 30, bottom: 16 },
+    head: [['Réf.', 'Désignation', 'Quantité annoncée', 'Cartons annoncés', 'Cartons comptés', 'Écart', 'Visa']],
+    body: aControler.map(({ a, cartons }, i) => [
+      { content: String(i + 1), styles: { halign: 'center' } },
+      pdfText(getArticleFrenchName(a, categories, generalCategories)),
+      pdfText(`${nf(a.quantity)} ${a.unitOfMeasure || 'pcs'}`),
+      cartons != null
+        ? { content: nf(cartons, 0), styles: { halign: 'right', fontStyle: 'bold' } }
+        : { content: pdfText(colisageDe.get(a.id)!.manque || 'à préciser'), styles: { halign: 'right', fontSize: 6.5, textColor: STONE_500 } },
+      '', '', '',
+    ]),
     foot: [[
-      'TOTAL',
-      String(articles.length),
-      totalCbm > 0 || totalNet > 0
-        ? pdfText([totalNet > 0 ? `${nf(totalNet)} kg` : null, totalCbm > 0 ? `${nf(totalCbm)} m³` : null].filter(Boolean).join(' · '))
-        : '',
+      '', 'TOTAL', '',
+      { content: totalCartons > 0 ? nf(totalCartons, 0) : '—', styles: { halign: 'right' } },
+      '', '', '',
     ]],
     theme: 'grid',
-    styles: { font: 'helvetica', fontSize: 8.5, cellPadding: 2.2, textColor: INK, lineColor: STONE_200, lineWidth: 0.2 },
-    headStyles: { fillColor: INK, textColor: GOLD, fontStyle: 'bold' },
+    styles: { font: 'helvetica', fontSize: 8, cellPadding: 2.4, textColor: INK, lineColor: STONE_200, lineWidth: 0.2, minCellHeight: 8 },
+    headStyles: { fillColor: INK, textColor: GOLD, fontStyle: 'bold', fontSize: 7.5, halign: 'center', minCellHeight: 7 },
     footStyles: { fillColor: STONE_50, textColor: INK, fontStyle: 'bold' },
-    columnStyles: { 1: { halign: 'center' }, 2: { halign: 'right', fontStyle: 'bold' } },
+    columnStyles: {
+      0: { cellWidth: 12 },
+      1: { cellWidth: 'auto', fontStyle: 'bold' },
+      2: { cellWidth: 34, halign: 'right' },
+      3: { cellWidth: 28 },
+      // Les trois dernières restent vides : c'est le magasinier qui les remplit, au stylo.
+      4: { cellWidth: 30, fillColor: [250, 250, 249] },
+      5: { cellWidth: 22, fillColor: [250, 250, 249] },
+      6: { cellWidth: 22, fillColor: [250, 250, 249] },
+    },
   });
 
-  // ── Contrôle à la réception ───────────────────────────────────────────────
-  const ctrlX = M + 110;
-  const ctrlW = pageW - M - ctrlX;
-  doc.setDrawColor(...STONE_200);
-  doc.setFillColor(255, 255, 255);
-  doc.roundedRect(ctrlX, afterY, ctrlW, 46, 2, 2, 'D');
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(8);
-  doc.setTextColor(...INK);
-  doc.text('CONTRÔLE À LA RÉCEPTION', ctrlX + 4, afterY + 6);
-
+  // ── Qui a réceptionné ─────────────────────────────────────────────────────
+  let signY = (doc as any).lastAutoTable.finalY + 7;
+  if (signY > pageH - 36) { doc.addPage(); signY = 30; }
   const fields = ['Réceptionné par', 'Contrôlé par', 'Date et heure', 'Signature'];
-  const fw = (ctrlW - 8) / 2;
+  const fw = (pageW - M * 2) / 4;
   fields.forEach((label, i) => {
-    const fx = ctrlX + 4 + (i % 2) * fw;
-    const fy = afterY + 14 + Math.floor(i / 2) * 11;
+    const fx = M + i * fw;
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(7.5);
     doc.setTextColor(...STONE_500);
-    doc.text(pdfText(label), fx, fy);
+    doc.text(pdfText(label), fx, signY);
     doc.setDrawColor(...STONE_200);
-    doc.line(fx, fy + 5, fx + fw - 6, fy + 5);
+    doc.line(fx, signY + 6, fx + fw - 8, signY + 6);
   });
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(7.5);
   doc.setTextColor(...STONE_500);
-  doc.text('Observations / écarts constatés', ctrlX + 4, afterY + 38);
-  doc.line(ctrlX + 4, afterY + 43, ctrlX + ctrlW - 4, afterY + 43);
+  doc.text('Observations / écarts constatés', M, signY + 15);
+  doc.line(M, signY + 20, pageW - M, signY + 20);
 
   // ── Pied de page ─────────────────────────────────────────────────────────
   const pages = doc.getNumberOfPages();
