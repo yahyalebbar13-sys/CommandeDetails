@@ -7,17 +7,20 @@
  * le logiciel comme en vraie exploitation — vendre, transférer, inventorier, facturer, sans
  * jamais tomber sur une rupture qui arrête l'essai.
  *
- * Trois règles ont façonné ce fichier :
+ * Quatre règles ont façonné ce fichier :
  *
+ * - **TOUTE référence reçoit du stock, sur TOUTES ses couleurs**, sans exception et quel que
+ *   soit le volume. Un plafond écartait autrefois les coloris au-delà du sixième, puis les
+ *   références qui ne tenaient plus. C'était l'inverse de ce qu'on attend d'un essai : une
+ *   couleur restée à zéro ne se vend pas, ne se transfère pas, ne se compte pas à l'inventaire —
+ *   et c'est précisément le coloris rare qui fait sortir les défauts ;
  * - **la marchandise part des entrepôts**, un ou deux par référence, jamais directement en
  *   boutique : c'est ainsi qu'elle arrive dans la vraie vie, et c'est ce qui rend la simulation
- *   honnête — il faudra transférer pour vendre depuis un autre magasin ;
+ *   honnête — il faudra transférer pour vendre depuis un autre magasin. Le SECOND entrepôt est
+ *   le seul confort négociable : quand le volume monte, c'est lui qu'on sacrifie, jamais une
+ *   couleur, et l'écran annonce ce que le chargement va coûter en lenteur ;
  * - **chaque variante reçoit la même quantité pleine**, pas une part d'un total : une couleur ne
  *   doit pas s'épuiser avant les autres au milieu de l'essai ;
- * - **TOUTES les couleurs sont chargées**, sans exception : six d'entre elles suffisaient à faire
- *   tourner l'écran, mais pas à éprouver le logiciel. Une couleur restée à zéro ne se vend pas,
- *   ne se transfère pas, ne se compte pas à l'inventaire — et c'est précisément la couleur rare
- *   qui révèle les défauts. Le seul plafond qui subsiste est celui du nombre total de lignes ;
  * - **tout est marqué**, pour pouvoir n'effacer que ça : une semaine plus tard, on retire le
  *   stock de test sans toucher au reste.
  */
@@ -146,33 +149,37 @@ export function entrepotsDeLArticle(entrepots: string[], rang: number): string[]
 }
 
 /**
- * Le plafond de lignes de stock que l'écran supporte sans devenir poussif.
+ * Le nombre de lignes au-delà duquel l'écran commence à peiner.
+ *
+ * Ce n'est PLUS un plafond qui coupe : rien n'est jamais écarté du chargement. C'est un seuil de
+ * confort, qui sert à deux choses — décider si le second entrepôt vaut la peine d'être posé, et
+ * prévenir honnêtement quand l'essai va être lent.
  *
  * Le calcul du stock balaie tous les mouvements pour chaque article, et il tourne quatre fois par
  * rendu. Mesuré sur cette machine : 1 000 articles pour 10 000 mouvements font 150 ms par appel,
  * 2 000 pour 30 000 en font 600, et 3 000 pour 100 000 font treize secondes. Douze mille lignes
- * laissent une semaine confortable ; au-dela, la simulation testerait surtout la patience.
+ * laissent une semaine confortable ; au-delà, l'essai reste possible, mais il se paie en attente.
  */
 export const MAX_LIGNES = 12000;
 
 export type PlanSimulation = {
   lignes: LigneSimulation[];
-  /** Nombre de références effectivement chargées, avec TOUTES leurs variantes. */
+  /** Nombre de références chargées. TOUTES celles qui sont exploitables : aucune n'est écartée. */
   references: number;
-  /** Nombre de références qu'on a dû laisser de côté pour tenir le plafond de lignes. */
-  referencesEcartees: number;
-  /** La plus grosse référence écartée, pour dire pourquoi elle ne passait pas. */
-  plusGrosseEcartee: { nom: string; lignes: number } | null;
-  /** Nombre de variantes chargées, toutes références confondues. */
+  /** Nombre de variantes chargées — couleurs, qualités, tailles — toutes références confondues. */
   variantes: number;
+  /** Les lignes du socle : une par variante, dans un entrepôt. C'est le minimum garanti. */
+  lignesSocle: number;
+  /** Références posées dans DEUX entrepôts, pour obliger à choisir d'où sort la marchandise. */
+  referencesDoublees: number;
+  /** Références qui auraient dû aller dans deux entrepôts, mais n'y tenaient pas. */
+  doublonsEcartes: number;
+  /** Lignes au-delà du seuil de confort. Au-delà de zéro, l'écran prévient que ce sera lent. */
+  depassement: number;
   /** Nombre d'unités posées au total. */
   unites: number;
 };
 
-/**
- * Ce que le chargement va écrire, calculé à l'avance pour être relu avant de valider : une ligne
- * par variante et par entrepôt.
- */
 export function planifierSimulation(
   articles: any[],
   entrepots: string[],
@@ -180,44 +187,52 @@ export function planifierSimulation(
   maxLignes: number = MAX_LIGNES,
 ): PlanSimulation {
   const retenus = (articles || []).filter(estRetenable);
-  const lignes: LigneSimulation[] = [];
-  let charges = 0;
-  let variantesChargees = 0;
-  let plusGrosseEcartee: { nom: string; lignes: number } | null = null;
 
-  for (const [rang, article] of retenus.entries()) {
-    const nom = nomArticle(article);
-    const variantes = variantesArticle(article);
+  const prepares = retenus.map((article, rang) => {
     const lieux = entrepotsDeLArticle(entrepots, rang);
-    const aEcrire = lieux.length * variantes.length;
+    return {
+      article,
+      nom: nomArticle(article),
+      variantes: variantesArticle(article),
+      principal: lieux[0],
+      second: lieux[1],
+    };
+  }).filter(a => Boolean(a.principal));
 
-    // Une référence part en entier ou pas du tout : la charger à moitié donnerait un produit
-    // présent dans un entrepôt et absent de l'autre, ou trois coloris sur douze, sans que
-    // personne sache pourquoi.
-    //
-    // Et on ne s'arrête pas à la première qui ne passe pas : une seule référence à cent coloris
-    // priverait de stock tout ce qui la suit dans le catalogue. On la laisse de côté, on continue
-    // avec les suivantes, et on dit laquelle a été écartée.
-    if (lignes.length + aEcrire > maxLignes) {
-      if (!plusGrosseEcartee || aEcrire > plusGrosseEcartee.lignes) plusGrosseEcartee = { nom, lignes: aEcrire };
-      continue;
-    }
+  const lignes: LigneSimulation[] = [];
+  const poser = (a: typeof prepares[number], entrepot: string) => {
+    for (const variante of a.variantes) lignes.push({ article: a.article, nom: a.nom, entrepot, variante, quantite });
+  };
 
-    for (const entrepot of lieux) {
-      for (const variante of variantes) {
-        lignes.push({ article, nom, entrepot, variante, quantite });
-      }
-    }
-    charges += 1;
-    variantesChargees += variantes.length;
+  // ── Le socle : chaque référence, CHAQUE variante, dans un entrepôt ──
+  // Rien n'est écarté ici, jamais. Une couleur laissée à zéro ne se vend pas, ne se transfère
+  // pas, ne se compte pas à l'inventaire : elle ne teste rien, et c'est justement la couleur
+  // rare qui fait sortir les défauts. Le volume n'entre pas en ligne de compte — on l'annonce.
+  for (const a of prepares) poser(a, a.principal!);
+  const lignesSocle = lignes.length;
+  const variantes = prepares.reduce((somme, a) => somme + a.variantes.length, 0);
+
+  // ── Le supplément : le second entrepôt, si la place le permet ──
+  // Une référence présente à deux endroits oblige à choisir d'où sort la marchandise, et c'est
+  // le cas qui casse quand il n'a jamais été essayé. C'est un confort, pas une couverture : si
+  // le budget de lignes manque, c'est LUI qu'on sacrifie — jamais une couleur.
+  let referencesDoublees = 0;
+  let doublonsEcartes = 0;
+  for (const a of prepares) {
+    if (!a.second) continue;
+    if (lignes.length + a.variantes.length > maxLignes) { doublonsEcartes += 1; continue; }
+    poser(a, a.second);
+    referencesDoublees += 1;
   }
 
   return {
     lignes,
-    references: charges,
-    referencesEcartees: retenus.length - charges,
-    plusGrosseEcartee,
-    variantes: variantesChargees,
+    references: prepares.length,
+    variantes,
+    lignesSocle,
+    referencesDoublees,
+    doublonsEcartes,
+    depassement: Math.max(0, lignesSocle - maxLignes),
     unites: lignes.reduce((somme, l) => somme + l.quantite, 0),
   };
 }

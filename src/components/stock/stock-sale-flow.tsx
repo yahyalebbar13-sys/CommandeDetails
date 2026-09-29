@@ -507,12 +507,11 @@ export default function StockSaleFlow({
       if (ex) {
         return prev.map(l => l.item.articleId === addModal.item!.articleId && l.sourceStore === finalStore
           ? { ...l, qty: arrondiQte(Math.min(l.qty + addModal.qty, itemStockLimit)), unitPrice: addModal.unitPrice }
-          : (l.item.productName === addModal.item!.productName ? { ...l, unitPrice: addModal.unitPrice } : l)
-        );
+          : l);
       }
-      // Ajouter la nouvelle variante et harmoniser les variantes existantes du même produit avec ce prix
-      const newCart = prev.map(l => l.item.productName === addModal.item!.productName ? { ...l, unitPrice: addModal.unitPrice } : l);
-      return [...newCart, { item: addModal.item!, qty: addModal.qty, unitPrice: addModal.unitPrice, sourceStore: finalStore }];
+      // La nouvelle variante prend le prix saisi. Les variantes déjà au panier gardent le leur :
+      // deux couleurs du même produit peuvent parfaitement ne pas valoir le même prix.
+      return [...prev, { item: addModal.item!, qty: addModal.qty, unitPrice: addModal.unitPrice, sourceStore: finalStore }];
     });
     setAddModal({ open: false, qty: 1, unitPrice: 0 });
   };
@@ -521,12 +520,10 @@ export default function StockSaleFlow({
     setCart(prev => {
       const target = prev.find(l => l.item.articleId === articleId);
       if (key === 'unitPrice' && target) {
-        // Appliquer automatiquement ce prix unitaire à toutes les couleurs/variantes du même produit
-        return prev.map(l => 
-          (l.item.productName === target.item.productName || l.item.articleId === articleId)
-            ? { ...l, unitPrice: val }
-            : l
-        );
+        // CHAQUE couleur porte son prix. Le prix saisi se recopiait sur toutes les variantes du
+        // même produit : un noir à 12 et un imprimé à 18 étaient impossibles à vendre ensemble,
+        // corriger l'un écrasait l'autre. Seule la ligne visée change maintenant.
+        return prev.map(l => (l.item.articleId === articleId ? { ...l, unitPrice: val } : l));
       }
       if (key === 'qty' && target) {
         const storeStock = target.sourceStore
@@ -572,16 +569,16 @@ export default function StockSaleFlow({
     setCart(prev => {
       const ex = prev.find(l => l.item.articleId === item.articleId && l.sourceStore === sourceStore);
       if (ex) {
+        // Ajouter une unité ne rechiffre pas la ligne : son prix a pu être ajusté à la main.
         return prev.map(l =>
           l.item.articleId === item.articleId && l.sourceStore === sourceStore
-            ? { ...l, qty: arrondiQte(Math.min(l.qty + 1, maxQty)), unitPrice: price }
-            : (l.item.productName === item.productName ? { ...l, unitPrice: price } : l)
+            ? { ...l, qty: arrondiQte(Math.min(l.qty + 1, maxQty)), unitPrice: customPrice !== undefined ? customPrice : l.unitPrice }
+            : l
         );
       }
-      const harmonized = prev.map(l => l.item.productName === item.productName ? { ...l, unitPrice: price } : l);
       // Au mètre, un reste de rouleau de 0,4 m part tel quel plutôt qu'un mètre qui n'existe pas.
       const premiere = uniteDecimale(item.unitOfMeasure) && maxQty > 0 && maxQty < 1 ? arrondiQte(maxQty) : 1;
-      return [...harmonized, { item, qty: premiere, unitPrice: price, sourceStore }];
+      return [...prev, { item, qty: premiere, unitPrice: price, sourceStore }];
     });
   };
 
@@ -598,9 +595,10 @@ export default function StockSaleFlow({
     setCart(prev => {
       const ex = prev.find(l => l.item.articleId === item.articleId && l.sourceStore === sourceStore);
       if (validQty === 0) return prev.filter(l => l.item.articleId !== item.articleId);
-      if (ex) return prev.map(l => l.item.articleId === item.articleId && l.sourceStore === sourceStore ? { ...l, qty: validQty, unitPrice: price } : (l.item.productName === item.productName ? { ...l, unitPrice: price } : l));
-      const harmonized = prev.map(l => l.item.productName === item.productName ? { ...l, unitPrice: price } : l);
-      return [...harmonized, { item, qty: validQty, unitPrice: price, sourceStore }];
+      if (ex) return prev.map(l => l.item.articleId === item.articleId && l.sourceStore === sourceStore
+        ? { ...l, qty: validQty, unitPrice: customPrice !== undefined ? customPrice : l.unitPrice }
+        : l);
+      return [...prev, { item, qty: validQty, unitPrice: price, sourceStore }];
     });
   };
 
@@ -1544,8 +1542,8 @@ export default function StockSaleFlow({
                       )}
                       <span className="text-[11px] text-stone-400 font-medium">{item.categoryId}</span>
                       {cart.filter(l => l.item.productName === item.productName).length > 1 && (
-                        <span className="text-[11px] font-bold text-violet-700 bg-violet-50 px-2 py-0.5 rounded-md border border-violet-200/60" title="Le prix saisi vaut pour toutes les couleurs de ce produit">
-                          Prix commun à {cart.filter(l => l.item.productName === item.productName).length} couleurs
+                        <span className="text-[11px] font-bold text-violet-700 bg-violet-50 px-2 py-0.5 rounded-md border border-violet-200/60" title="Chaque couleur de ce produit porte son propre prix">
+                          {cart.filter(l => l.item.productName === item.productName).length} couleurs · prix séparés
                         </span>
                       )}
                     </div>
@@ -1639,7 +1637,7 @@ export default function StockSaleFlow({
                     indice={unitPrice > 0 ? `${fmt$(qty * unitPrice)} MAD la ligne` : undefined}
                     aide={
                       cart.filter(l => l.item.productName === item.productName).length > 1
-                        ? 'Ce prix sera repris sur toutes les couleurs de ce produit déjà au panier.'
+                        ? "Ce prix ne vaut que pour cette couleur. Les autres couleurs du même produit gardent le leur."
                         : "Prix hors remise. La remise s'applique plus bas, sur le total de la vente."
                     }
                   >

@@ -4,7 +4,7 @@
 //   npx tsx scripts/test-stock-simulation.ts
 
 import {
-  planifierSimulation, entrepotsDeLArticle, variantesArticle, variantesEtReste, nomArticle,
+  planifierSimulation, entrepotsDeLArticle, variantesArticle, nomArticle,
   estMouvementSimulation, noteSimulation, jourDuChargement, joursDepuis,
   QUANTITE_PAR_LIGNE, MAX_LIGNES, MARQUE_SIMULATION,
 } from '../src/lib/stock-simulation';
@@ -60,7 +60,8 @@ const catalogue = [
 ];
 const plan = planifierSimulation(catalogue, entrepots);
 check('toutes les références sont chargées', plan.references === catalogue.length);
-check('aucune référence écartée', plan.referencesEcartees === 0);
+check('toutes leurs couleurs aussi',
+  plan.variantes === catalogue.reduce((s, a) => s + variantesArticle(a).length, 0));
 check('chaque ligne porte la quantité pleine',
   plan.lignes.every(l => l.quantite === QUANTITE_PAR_LIGNE), String(plan.lignes[0]?.quantite));
 check('une couleur ne reçoit pas une part du total mais le tout',
@@ -84,37 +85,45 @@ check('une demande déjà envoyée, elle, compte',
   planifierSimulation([{ id: 'b2', nameFR: 'Besoin envoyé', requestSource: 'STORE', requestStage: 'COMMERCIAL' }], entrepots)
     .lignes.length > 0);
 
-console.log('\n── Le plafond ──');
+console.log('\n── Le volume : on sacrifie le second entrepôt, jamais une couleur ──');
 const gros = Array.from({ length: 4000 }, (_, i) => couleurs(`g${i}`, `Produit ${i}`, ['A', 'B', 'C', 'D']));
 const planGros = planifierSimulation(gros, entrepots);
-check('on ne dépasse jamais le plafond de lignes',
-  planGros.lignes.length <= MAX_LIGNES, String(planGros.lignes.length));
-check('le plafond est presque atteint, pas gaspillé',
-  planGros.lignes.length > MAX_LIGNES - 12, String(planGros.lignes.length));
-check('les références écartées sont comptées',
-  planGros.referencesEcartees === 4000 - planGros.references);
+check('les 4 000 références sont TOUTES chargées', planGros.references === 4000, String(planGros.references));
+check('et leurs 16 000 couleurs aussi', planGros.variantes === 16000, String(planGros.variantes));
+check('chaque référence a bien ses quatre couleurs en stock',
+  Array.from(new Set(planGros.lignes.map(l => l.article.id)))
+    .every(id => new Set(planGros.lignes.filter(l => l.article.id === id).map(l => l.variante.label)).size === 4));
+check('le socle dépasse le seuil de confort, et le plan le dit',
+  planGros.depassement === planGros.lignesSocle - MAX_LIGNES && planGros.depassement > 0,
+  String(planGros.depassement));
+check('aucun second entrepôt n’a pu être posé', planGros.referencesDoublees === 0);
+check('et on sait combien de doublons ont été sacrifiés', planGros.doublonsEcartes > 0);
 
-// Une référence à cent coloris ne doit pas priver de stock tout ce qui la suit dans le
-// catalogue : on la saute, et on continue avec les suivantes.
 {
+  // Un catalogue modeste : le second entrepôt passe, et c'est ce qui rend l'essai réaliste.
+  const petit = Array.from({ length: 30 }, (_, i) => couleurs(`p${i}`, `Petit ${i}`, ['A', 'B']));
+  const plan = planifierSimulation(petit, entrepots);
+  check('toutes les références y sont', plan.references === 30);
+  check('rien ne dépasse le seuil', plan.depassement === 0);
+  check('une référence sur trois est dans deux entrepôts',
+    plan.referencesDoublees === 10, String(plan.referencesDoublees));
+  check('aucun doublon sacrifié', plan.doublonsEcartes === 0);
+}
+{
+  // Une référence à cent coloris est chargée ENTIÈREMENT, quoi qu'il en coûte : c'est
+  // précisément le produit dont on veut éprouver les cent couleurs.
   const enorme = couleurs('mastodonte', 'Produit à cent coloris',
     Array.from({ length: 100 }, (_, i) => `COL${i}`));
   const petits = Array.from({ length: 20 }, (_, i) => couleurs(`p${i}`, `Petit ${i}`, ['A', 'B']));
   const plan = planifierSimulation([enorme, ...petits], ['E1'], QUANTITE_PAR_LIGNE, 50);
-  check('la référence trop grosse est sautée',
-    !plan.lignes.some(l => l.article.id === 'mastodonte'), JSON.stringify(plan.references));
-  check('mais les suivantes sont bien chargées', plan.references === 20, String(plan.references));
-  check('et on dit laquelle a été écartée, et de combien',
-    plan.plusGrosseEcartee?.lignes === 100, JSON.stringify(plan.plusGrosseEcartee));
-  check('le plafond reste tenu', plan.lignes.length <= 50, String(plan.lignes.length));
+  check('le mastodonte est chargé malgré le seuil',
+    plan.lignes.filter(l => l.article.id === 'mastodonte').length === 100,
+    String(plan.lignes.filter(l => l.article.id === 'mastodonte').length));
+  check('et les vingt autres aussi', plan.references === 21, String(plan.references));
+  check('le plan annonce le dépassement au lieu de couper',
+    plan.depassement === plan.lignesSocle - 50 && plan.depassement > 0, String(plan.depassement));
 }
-{
-  // Quand tout tient, rien n'est écarté et rien n'est signalé.
-  const plan = planifierSimulation([couleurs('c', 'Petit', ['A', 'B', 'C'])], ['E1']);
-  check('aucune référence écartée quand tout tient', plan.referencesEcartees === 0);
-  check('et rien à signaler', plan.plusGrosseEcartee === null);
-}
-check('une référence est chargée en entier ou pas du tout',
+check('une référence est chargée en entier dans chacun de ses entrepôts',
   Array.from(new Set(planGros.lignes.map(l => l.article.id)))
     .every(id => {
       const pour = planGros.lignes.filter(l => l.article.id === id);

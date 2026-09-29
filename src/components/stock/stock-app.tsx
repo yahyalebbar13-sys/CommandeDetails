@@ -3994,17 +3994,27 @@ export default function StockApp() {
             </div>
           )}
 
-          {planSimulation.referencesEcartees > 0 && (
+          {/* Rien n'est jamais écarté : toutes les références, toutes leurs couleurs. Ce qui se
+              sacrifie quand le volume monte, c'est le SECOND entrepôt — un confort qui sert à
+              tester les transferts, pas une couverture. Et si le volume dépasse le seuil de
+              confort, on le dit au lieu de couper : c'est au patron de décider. */}
+          {planSimulation.doublonsEcartes > 0 && (
+            <p className="text-[10px] font-semibold text-stone-400 mt-2">
+              {planSimulation.doublonsEcartes.toLocaleString('fr-MA')} référence(s) n'iront que dans un seul
+              entrepôt au lieu de deux, faute de place. Leur stock est complet : c'est le doublon qui saute,
+              jamais une couleur.
+            </p>
+          )}
+
+          {planSimulation.depassement > 0 && (
             <Encadre ton="attention" className="mt-3">
-              {planSimulation.referencesEcartees.toLocaleString('fr-MA')} référence(s) ne seront pas chargées :
-              au-delà de {MAX_LIGNES.toLocaleString('fr-MA')} lignes de stock — mouvements déjà en base compris —
-              l'écran devient poussif, le calcul relisant tous les mouvements pour chaque article. Chaque référence
-              part avec TOUTES ses couleurs ou pas du tout : celles qui ne tiennent pas dans ce qui reste sont
-              sautées, et les suivantes continuent d'être chargées.
-              {planSimulation.plusGrosseEcartee && (
-                <> La plus grosse écartée : <span className="font-black">{planSimulation.plusGrosseEcartee.nom}</span>,
-                {' '}{planSimulation.plusGrosseEcartee.lignes.toLocaleString('fr-MA')} lignes à elle seule.</>
-              )}
+              Ce chargement pose {planSimulation.lignesSocle.toLocaleString('fr-MA')} lignes, soit
+              {' '}{planSimulation.depassement.toLocaleString('fr-MA')} de plus que les
+              {' '}{MAX_LIGNES.toLocaleString('fr-MA')} au-delà desquelles l'écran devient poussif — le calcul du
+              stock relit tous les mouvements pour chaque article, quatre fois par affichage.
+              <span className="font-black"> Toutes les références et toutes leurs couleurs seront chargées
+              quand même</span> : c'est ce qui fait l'intérêt de l'essai. Attendez-vous simplement à des écrans
+              plus lents, et effacez le stock de test dès que l'essai est fini.
             </Encadre>
           )}
 
