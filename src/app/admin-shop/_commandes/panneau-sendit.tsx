@@ -128,7 +128,21 @@ async function appeler<T>(url: string, init: RequestInit = {}): Promise<T> {
   if (reponse.ok) return corps as T;
   // L'espace /staff revérifie la session (mot de passe changé, accès coupé).
   if (reponse.status === 401 || reponse.status === 403) signalerAccesRefuse(reponse.status);
-  throw new ErreurPanneau(String(corps?.error || 'Opération impossible. Réessayez.'), reponse.status, corps);
+  throw new ErreurPanneau(String(corps?.error || messageSansExplication(reponse.status, init.method === 'POST')), reponse.status, corps);
+}
+
+/**
+ * Le serveur a répondu sans explication (page d'erreur de Vercel) : le plus souvent un
+ * délai dépassé. Pour un envoi, on ne sait pas s'il a abouti : on le dit.
+ */
+function messageSansExplication(statut: number, envoi: boolean): string {
+  const delai = statut === 504 || statut === 502 || statut === 408;
+  if (delai) {
+    return envoi
+      ? `Le serveur a mis trop de temps (erreur ${statut}). C’est peut-être fait : appuyez sur « Rafraîchir » avant de réessayer.`
+      : `Le serveur a mis trop de temps (erreur ${statut}). Réessayez dans un instant.`;
+  }
+  return `Opération impossible (erreur ${statut}). Réessayez ; si ça recommence, envoyez cette erreur à l’administrateur.`;
 }
 
 const ROUTE_ENVOI = '/api/shop/sendit/envoyer';

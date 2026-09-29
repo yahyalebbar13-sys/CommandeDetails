@@ -53,7 +53,7 @@ import {
   erreurSenditPour,
   idRamassage,
   lireColis,
-  listerQuartiers,
+  chercherQuartiers,
   montantPartielValide,
   paiementRecuDe,
   quartierParId,
@@ -192,8 +192,9 @@ function colisAffiche(e: any, role: Role) {
 async function suggestion(ville: string): Promise<QuartierSendit | null> {
   let minuterie: ReturnType<typeof setTimeout> | undefined;
   try {
+    // Une recherche par la ville (une question à Sendit), pas la liste entière.
     const liste = await Promise.race([
-      listerQuartiers(),
+      chercherQuartiers('', ville, 200),
       new Promise<null>(resolve => { minuterie = setTimeout(() => resolve(null), ATTENTE_SUGGESTION_MS); }),
     ]);
     return liste ? suggererQuartier(liste, ville) : null;

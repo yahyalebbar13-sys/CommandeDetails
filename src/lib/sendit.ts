@@ -472,10 +472,64 @@ export async function listerQuartiers(): Promise<QuartierSendit[]> {
   }
 }
 
-/** Un quartier par son identifiant (liste en cache). */
+/** Un quartier renvoyé seul par Sendit (GET /districts/{id}) : dans data, ou dans data.data. */
+export function quartierDeReponse(json: any): QuartierSendit | null {
+  const data = json?.data;
+  if (!data || typeof data !== 'object' || Array.isArray(data)) return null;
+  const brut = data.data && typeof data.data === 'object' && !Array.isArray(data.data) ? data.data : data;
+  return quartierDe(brut);
+}
+
+/**
+ * Un quartier par son identifiant : la liste en mémoire si elle est déjà là, sinon
+ * UNE question à Sendit (GET /districts/{id}). Recharger toute la liste (≈ 600
+ * quartiers, page par page) dans une fonction qui vient de démarrer dépassait le
+ * temps permis par Vercel : l'envoi du colis était coupé sans explication.
+ */
 export async function quartierParId(id: number): Promise<QuartierSendit | null> {
-  const liste = await listerQuartiers();
-  return liste.find(q => q.id === id) ?? null;
+  if (!Number.isInteger(id) || id <= 0) return null;
+  const enMemoire = quartiersEnCache?.liste.find(q => q.id === id);
+  if (enMemoire) return enMemoire;
+  try {
+    const q = quartierDeReponse(await appel(`/districts/${id}`));
+    return q && q.id === id ? q : null;
+  } catch (e) {
+    if (e instanceof ErreurSendit && e.nature === 'introuvable') return null;
+    throw e;
+  }
+}
+
+/** Pages lues au plus pour une recherche (100 quartiers par page). */
+const PAGES_RECHERCHE = 3;
+
+/**
+ * Quartiers qui répondent à une recherche (ou à une ville) : la liste en mémoire si
+ * elle est fraîche, sinon la recherche de Sendit (GET /districts?querystring=),
+ * quelques pages au plus. Toujours rapide, même dans une fonction qui démarre.
+ */
+export async function chercherQuartiers(recherche: string, ville = '', limite = 20): Promise<QuartierSendit[]> {
+  if (!senditConfigure()) throw new ErreurSendit(MESSAGE_NON_CONFIGURE, 'non_configure');
+  if (quartiersEnCache && Date.now() - quartiersEnCache.lu < DUREE_CACHE_LISTES_MS) {
+    return filtrerQuartiers(quartiersEnCache.liste, recherche, ville, limite);
+  }
+  const brut = (String(recherche ?? '').trim() || String(ville ?? '').trim()).slice(0, 60);
+  if (!brut) return [];
+  const ramassage = await idRamassage().catch(() => null);
+  const lire = async (terme: string) => {
+    const parId = new Map<number, QuartierSendit>();
+    for (let page = 1; page <= PAGES_RECHERCHE; page++) {
+      const json = await appel(`/districts?per_page=100&page=${page}&querystring=${encodeURIComponent(terme)}${ramassage ? `&pickup-district=${ramassage.id}` : ''}`);
+      const lus = listeDe(json).map(quartierDe).filter((q): q is QuartierSendit => q !== null);
+      for (const q of lus) parId.set(q.id, q);
+      if (!lus.length || !pageSuivante(json)) break;
+    }
+    return [...parId.values()];
+  };
+  let trouves = await lire(brut);
+  // « Maârif » tapé avec l'accent, « Maarif » chez Sendit (ou l'inverse) : un second essai sans accents.
+  const simple = sansAccents(brut);
+  if (!trouves.length && simple && simple !== brut.toLowerCase()) trouves = await lire(simple);
+  return filtrerQuartiers(trouves, recherche, ville, limite);
 }
 
 /** Nombre de quartiers annoncé par Sendit (une seule page lue). */

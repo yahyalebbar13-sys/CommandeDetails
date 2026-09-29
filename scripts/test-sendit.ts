@@ -6,6 +6,7 @@
 
 import { createHmac } from 'crypto';
 import {
+  quartierDeReponse,
   choisirColisRetrouve,
   evenementRecent,
   montantPartielValide,
@@ -210,6 +211,11 @@ const quartiers = bruts.map(quartierDe).filter((q): q is QuartierSendit => q !==
 check('entrées illisibles écartées', quartiers.length === 6);
 check('prix en nombre', quartiers[0].price === 19);
 check('prix absent = null', quartierDe({ id: 5, name: 'A' })?.price === null);
+// GET /districts/{id} : le quartier seul, dans data ou dans data.data (jamais une liste).
+check('quartier seul : data', quartierDeReponse({ success: true, data: { id: 473, name: 'Casablanca - Maarif', ville: 'Casablanca', price: '19' } })?.id === 473);
+check('quartier seul : data.data', quartierDeReponse({ data: { data: { id: 474, name: 'Casablanca - Anfa' } } })?.name === 'Casablanca - Anfa');
+check('quartier seul : une liste n’est pas un quartier', quartierDeReponse({ data: [{ id: 1, name: 'X' }] }) === null);
+check('quartier seul : réponse vide', quartierDeReponse(null) === null && quartierDeReponse({ data: null }) === null);
 check('recherche sans accents', filtrerQuartiers(quartiers, 'fès').map(q => q.id).join() === '139');
 check('recherche de mots', filtrerQuartiers(quartiers, 'casa abdel').map(q => q.id).join() === '473');
 check('recherche en arabe', filtrerQuartiers(quartiers, 'الرباط').map(q => q.id).join() === '53');

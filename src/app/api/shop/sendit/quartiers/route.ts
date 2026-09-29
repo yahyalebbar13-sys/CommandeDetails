@@ -9,16 +9,17 @@
 // généré, ou document Firestore rafraîchi par l'administrateur), ou une limite de
 // débit par adresse IP — jamais cette route ouverte telle quelle.
 //
-// La liste complète est lue chez Sendit une fois toutes les 12 h par fonction
-// serveur (cf. listerQuartiers). La réponse n'est gardée que par le navigateur
-// (réponse authentifiée : jamais par le CDN).
+// Chaque recherche pose une seule question à Sendit (cf. chercherQuartiers) : lire
+// les 600 quartiers page par page dans une fonction qui démarre dépassait le temps
+// permis. La réponse n'est gardée que par le navigateur (réponse authentifiée :
+// jamais par le CDN).
 //
 // GET ?q=ain&ville=Casablanca → { configure: true, quartiers: [{ id, ville, name, price, delais }] }
 // Sans clés Sendit : 503 { configure: false }.
 
 import { NextResponse } from 'next/server';
 import { verifyEquipe } from '@/lib/require-equipe';
-import { ErreurSendit, filtrerQuartiers, listerQuartiers, senditConfigure } from '@/lib/sendit';
+import { ErreurSendit, chercherQuartiers, senditConfigure } from '@/lib/sendit';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -51,8 +52,8 @@ export async function GET(req: Request) {
   }
 
   try {
-    const liste = await listerQuartiers();
-    const quartiers = filtrerQuartiers(liste, q, ville, q ? LIMITE_RECHERCHE : LIMITE_VILLE)
+    // Une recherche chez Sendit (ou la liste en mémoire) : jamais les 600 quartiers page par page.
+    const quartiers = (await chercherQuartiers(q, ville, q ? LIMITE_RECHERCHE : LIMITE_VILLE))
       // Le tarif Sendit du quartier (ce que LEBTEX paie) : à l'administrateur seulement, comme dans le panneau.
       .map(({ id, ville: v, name, price, delais }) => ({ id, ville: v, name, price: check.role === 'admin' ? price : null, delais }));
     return NextResponse.json({ configure: true, quartiers }, { headers: CACHE_PRIVE });
