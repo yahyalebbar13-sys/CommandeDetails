@@ -12,6 +12,7 @@ import type { TransferOrder, TransferOrderItem, StockItem, StoreLocation, StockM
 import { exportTransferOrderPDF } from '@/lib/pdf-export-reports';
 import { logAudit } from '@/lib/audit-log';
 import { cleanUndefined } from '@/lib/utils';
+import { disponibleDepuis } from '@/lib/stock-disponible';
 import {
   type StockVariant, type VariantDimension, splitOutboundLines, suggestInboundLocation, stockItemVariant,
 } from '@/lib/warehouse-locations';
@@ -137,7 +138,7 @@ export default function TransferOrdersView({ transferOrders, stockItems, stores,
 
   const addArticleToTransfer = (item: StockItem) => {
     if (selectedItems.find(i => i.articleId === item.articleId)) return;
-    const availableInSource = fromStore && item.qtyByStore ? ((item.qtyByStore as any)[fromStore] || 0) : item.currentQty;
+    const availableInSource = disponibleDepuis(item, fromStore, stores);
     if (availableInSource <= 0) {
       toast({
         variant: 'destructive',
@@ -169,7 +170,7 @@ export default function TransferOrdersView({ transferOrders, stockItems, stores,
     // Vérification stricte des stocks sources disponibles
     for (const item of selectedItems) {
       const originalStock = stockItems.find(s => s.articleId === item.articleId);
-      const available = fromStore && originalStock?.qtyByStore ? ((originalStock.qtyByStore as any)[fromStore] || 0) : (originalStock?.currentQty || 0);
+      const available = disponibleDepuis(originalStock, fromStore, stores);
       if (item.sentQty <= 0) {
         return toast({ variant: 'destructive', title: 'Quantité invalide', description: `Veuillez spécifier une quantité valide pour ${item.productName}.` });
       }
@@ -671,7 +672,7 @@ export default function TransferOrdersView({ transferOrders, stockItems, stores,
                   {articleSearch && (
                     <div className="absolute top-full left-0 right-0 mt-2 max-h-48 overflow-y-auto bg-white border border-stone-200 rounded-xl shadow-xl z-50 p-2">
                       {resultatsRecherche.map(item => {
-                        const availInSrc = fromStore && item.qtyByStore ? ((item.qtyByStore as any)[fromStore] || 0) : item.currentQty;
+                        const availInSrc = disponibleDepuis(item, fromStore, stores);
                         return (
                           <button key={item.articleId} onClick={() => addArticleToTransfer(item)} className="w-full text-left px-3 py-2 hover:bg-stone-50 rounded-lg flex items-center justify-between gap-3">
                             <div className="min-w-0">
@@ -707,7 +708,7 @@ export default function TransferOrdersView({ transferOrders, stockItems, stores,
                   <tbody>
                     {selectedItems.map((item, idx) => {
                       const originalStock = stockItems.find(s => s.articleId === item.articleId);
-                      const availInSrc = fromStore && originalStock?.qtyByStore ? ((originalStock.qtyByStore as any)[fromStore] || 0) : (originalStock?.currentQty || 0);
+                      const availInSrc = disponibleDepuis(originalStock, fromStore, stores);
                       // Message rattaché à la ligne fautive, pour ne plus le découvrir au moment du clic.
                       const erreurLigne = availInSrc <= 0
                         ? `Plus rien à ${getStoreLabel(fromStore) || 'ce lieu'} : retirez la ligne ou changez le lieu de départ.`

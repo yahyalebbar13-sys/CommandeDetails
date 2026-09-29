@@ -24,6 +24,7 @@ import { uniteDecimale, pasDeSaisie, libelleUnite } from '@/lib/unites-pole';
 import { useToast } from '@/hooks/use-toast';
 import { useConfirm } from '@/hooks/use-confirm';
 import { sansPrix } from '@/lib/commande-sans-prix';
+import { disponibleDepuis, lieuDeMouvement } from '@/lib/stock-disponible';
 import { useOnlineStatus } from '@/hooks/use-online-status';
 import {
   SectionFormulaire, Champ, Encadre, LigneResume, Recapitulatif, BoutonValider, CLASSE_CHAMP,
@@ -437,25 +438,19 @@ export default function StockSaleFlow({
   // CHRIFA. Une vente ne doit donc jamais être taguée à l'ID brut d'un
   // entrepôt (les règles Firestore la refuseraient — un commercial ne peut
   // écrire que sous son propre magasin), toujours à 'CHRIFA' à la place.
-  const normalizeSourceStore = useCallback((rawStoreId: string): string => {
-    if (rawStoreId === 'CHRIFA') return rawStoreId;
-    const store = stores?.find(s => s.id === rawStoreId);
-    return store?.type === 'WAREHOUSE' ? 'CHRIFA' : rawStoreId;
-  }, [stores]);
+  const normalizeSourceStore = useCallback(
+    (rawStoreId: string): string => lieuDeMouvement(rawStoreId, stores || []),
+    [stores],
+  );
 
-  // Quantité réellement disponible "depuis" un magasin normalisé : pour CHRIFA,
-  // additionne son propre stock + celui de tous les entrepôts rattachés (sinon
-  // le plafond retomberait à 0 dès que le stock physique est en entrepôt).
-  const availableQtyAtStore = useCallback((item: StockItem, storeId: string): number => {
-    if (!item.qtyByStore) return item.currentQty;
-    if (storeId === 'CHRIFA') {
-      return Object.entries(item.qtyByStore).reduce((sum, [sId, q]) => {
-        if (sId === 'CHRIFA' || stores?.find(s => s.id === sId)?.type === 'WAREHOUSE') return sum + (Number(q) || 0);
-        return sum;
-      }, 0);
-    }
-    return Number((item.qtyByStore as any)[storeId]) || 0;
-  }, [stores]);
+  // Ce qu'on peut réellement sortir depuis ce lieu. La règle — le magasin principal, c'est lui
+  // PLUS ses entrepôts — vit maintenant dans src/lib/stock-disponible.ts : elle n'était écrite
+  // qu'ici, et l'écran des transferts, qui l'ignorait, affichait « Rien au départ » sur un stock
+  // pourtant bien présent en entrepôt.
+  const availableQtyAtStore = useCallback(
+    (item: StockItem, storeId: string): number => disponibleDepuis(item, storeId, stores || []),
+    [stores],
+  );
 
   const resolveSourceStore = useCallback((item: StockItem, preferredStore?: string): string => {
     // 1. Si un magasin préféré est spécifié et a du stock > 0
