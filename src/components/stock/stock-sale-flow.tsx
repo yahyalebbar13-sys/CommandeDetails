@@ -516,13 +516,34 @@ export default function StockSaleFlow({
     setAddModal({ open: false, qty: 1, unitPrice: 0 });
   };
 
+  /**
+   * Recopie un prix sur toutes les couleurs du même produit, à la demande.
+   *
+   * La recopie automatique a été retirée : elle rendait impossible de vendre un noir à 12 et un
+   * imprimé à 18 dans le même panier. Mais quand les couleurs valent bien le même prix — le cas
+   * le plus fréquent — le retaper douze fois est une corvée. D'où ce geste explicite.
+   */
+  const appliquerPrixAuProduit = (productName: string, prix: number) => {
+    let touchees = 0;
+    setCart(prev => prev.map(l => {
+      if (l.item.productName !== productName || l.unitPrice === prix) return l;
+      touchees += 1;
+      return { ...l, unitPrice: prix };
+    }));
+    toast({
+      title: 'Prix appliqué',
+      description: `${fmt$(prix)} MAD sur ${touchees} autre${touchees > 1 ? 's' : ''} couleur${touchees > 1 ? 's' : ''} de ${productName}.`,
+    });
+  };
+
   const updateCart = (articleId: string, key: 'qty' | 'unitPrice', val: number) => {
     setCart(prev => {
       const target = prev.find(l => l.item.articleId === articleId);
       if (key === 'unitPrice' && target) {
         // CHAQUE couleur porte son prix. Le prix saisi se recopiait sur toutes les variantes du
         // même produit : un noir à 12 et un imprimé à 18 étaient impossibles à vendre ensemble,
-        // corriger l'un écrasait l'autre. Seule la ligne visée change maintenant.
+        // corriger l'un écrasait l'autre. Seule la ligne visée change maintenant — pour recopier
+        // volontairement, il y a le bouton « Appliquer aux N couleurs ».
         return prev.map(l => (l.item.articleId === articleId ? { ...l, unitPrice: val } : l));
       }
       if (key === 'qty' && target) {
@@ -1648,6 +1669,24 @@ export default function StockSaleFlow({
                         className={`${CLASSE_CHAMP} pr-14`} />
                       <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[11px] font-bold text-stone-400">MAD</span>
                     </div>
+
+                    {/* Le prix ne se propage plus tout seul — deux couleurs du même produit ne
+                        valent pas toujours pareil. Mais quand elles valent pareil, le recopier à
+                        la main sur douze couleurs est une corvée : ce bouton le fait, sur demande. */}
+                    {(() => {
+                      const memeProduit = cart.filter(l => l.item.productName === item.productName);
+                      const aRecopier = memeProduit.filter(l => l.item.articleId !== item.articleId && l.unitPrice !== unitPrice).length;
+                      if (memeProduit.length < 2 || unitPrice <= 0 || aRecopier === 0) return null;
+                      return (
+                        <button
+                          type="button"
+                          onClick={() => appliquerPrixAuProduit(item.productName, unitPrice)}
+                          className="mt-2 w-full h-9 rounded-xl border border-violet-200 bg-violet-50 text-violet-800 text-[11px] font-black tracking-wide hover:bg-violet-100 transition-colors"
+                        >
+                          Appliquer {fmt$(unitPrice)} aux {memeProduit.length} couleurs
+                        </button>
+                      );
+                    })()}
                   </Champ>
                 </div>
               </div>
