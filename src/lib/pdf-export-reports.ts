@@ -271,7 +271,7 @@ export async function exportInvoicesPDF(invoices: any[]) {
  * Bilan Hebdomadaire des Ventes du Vendredi (Prix, MT, N° Bon, Mode de Règlement, À Crédit)
  */
 export async function exportFridaySalesPDF(invoices: any[], payments: any[] = [], periodLabel?: string) {
-  const totalTTC = invoices.reduce((s, i) => s + (i.totalAfterDiscount || 0), 0);
+  const totalFacture = invoices.reduce((s, i) => s + (i.totalAfterDiscount || 0), 0);
   const totalPaid = invoices.reduce((s, i) => s + (i.paidAmount || 0), 0);
   const totalCredit = invoices.reduce((s, i) => s + (i.remainingBalance || 0), 0);
 
@@ -340,7 +340,7 @@ export async function exportFridaySalesPDF(invoices: any[], payments: any[] = []
       };
     }),
     summaryRows: [
-      { label: `Total Chiffre d'Affaires Hebdo (${invoices.length} bons)`, value: `${fmt(totalTTC)} MAD` },
+      { label: `Total Chiffre d'Affaires Hebdo (${invoices.length} bons)`, value: `${fmt(totalFacture)} MAD` },
       { label: 'Total Encaissé', value: `${fmt(totalPaid)} MAD` },
       { label: 'Total Restant À Crédit (Créances clients)', value: `${fmt(totalCredit)} MAD` },
     ],

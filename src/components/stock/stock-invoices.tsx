@@ -327,10 +327,13 @@ export default function StockInvoices({ invoices, clients, payments, onRecordPay
   const construireEtImprimerFacture = (inv: Invoice) => {
     const num = invoiceNumber(inv);
     const client = clients.find(c => c.id === inv.clientId);
-    const tvaRate = inv.tvaRate ?? 20;
-    const ht = inv.totalAfterDiscount;
-    const tvaAmount = inv.tvaAmount ?? (ht * tvaRate / 100);
-    const ttc = inv.totalTTC ?? (ht + tvaAmount);
+    // Pas de TVA sur ce document, et aucune mention « HT » ni « TTC ».
+    //
+    // La facture affichait un hors-taxe, une TVA à 20 % et un toutes-taxes — trois montants qui
+    // ne correspondaient à rien de ce qui est encaissé : les prix saisis en caisse sont les prix
+    // pratiqués, point. Annoncer une TVA qui n'est ni facturée ni reversée est faux, et les trois
+    // lignes faisaient douter le client sur ce qu'il devait vraiment. Un seul total, comme sur le
+    // bon de commande.
     const discountAmt = Math.max(0, (inv.totalAmount || 0) - (inv.totalAfterDiscount || 0));
     const html = (`<!DOCTYPE html><html><head><meta charset="utf-8"><title>${echapperHtml(num)}</title>
     <style>body{font-family:Arial,sans-serif;max-width:700px;margin:40px auto;color:#1c1917}
@@ -366,7 +369,7 @@ export default function StockInvoices({ invoices, clients, payments, onRecordPay
       </div>
     </div>
     <table><thead><tr>
-      <th>Produit</th><th>Couleur</th><th>Taille</th><th>Qté</th><th>Prix unit. HT</th><th>Total HT</th>
+      <th>Produit</th><th>Couleur</th><th>Taille</th><th>Qté</th><th>Prix unit.</th><th>Total</th>
     </tr></thead>
     <tbody>${(inv.items || []).map(item => `<tr>
       <td><strong>${echapperHtml(item.productName)}</strong></td><td>${echapperHtml(valeurImprimable(item.color, '—'))}</td><td>${echapperHtml(valeurImprimable(item.size, '—'))}</td>
@@ -375,11 +378,9 @@ export default function StockInvoices({ invoices, clients, payments, onRecordPay
       <td><strong>${sansPrix(item) ? '<em style="color:#a16207">&mdash;</em>' : fmt$(item.totalPrice)}</strong></td>
     </tr>`).join('')}</tbody></table>
     <div style="text-align:right;border-top:1px solid #e7e5e4;padding-top:12px">
-      <div style="color:#78716c;margin-bottom:4px;font-size:12px">Sous-total HT : ${fmt$(inv.totalAmount)}</div>
-      ${discountAmt > 0 ? `<div style="color:#059669;margin-bottom:4px;font-size:12px">Remise${inv.discount ? ` (${inv.discount}%)` : ''} : -${fmt$(discountAmt)}</div>` : ''}
-      <div style="color:#78716c;margin-bottom:4px;font-size:12px;font-weight:700">Total HT : ${fmt$(ht)}</div>
-      <div style="color:#78716c;margin-bottom:4px;font-size:12px">TVA ${tvaRate}% : ${fmt$(tvaAmount)}</div>
-      <div class="total-row">Total TTC : ${fmt$(ttc)} MAD</div>
+      ${discountAmt > 0 ? `<div style="color:#78716c;margin-bottom:4px;font-size:12px">Sous-total : ${fmt$(inv.totalAmount)}</div>
+      <div style="color:#059669;margin-bottom:4px;font-size:12px">Remise${inv.discount ? ` (${inv.discount}%)` : ''} : -${fmt$(discountAmt)}</div>` : ''}
+      <div class="total-row">Total : ${fmt$(inv.totalAfterDiscount)} MAD</div>
       <div style="color:#059669;margin-top:8px;font-size:12px">Payé : ${fmt$(inv.paidAmount)}</div>
       <div style="color:#dc2626;font-size:14px;font-weight:700">Solde dû : ${fmt$(inv.remainingBalance)}</div>
     </div>

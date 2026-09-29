@@ -530,13 +530,22 @@ export type Invoice = {
   clientName?: string;
   orderId?: string;
   items: OrderItem[];
-  totalAmount: number;         // Montant HT
+  totalAmount: number;         // Montant total, avant remise
   discount?: number;
-  totalAfterDiscount: number;  // Montant HT après remise
-  // ── Conformité fiscale marocaine ──
-  tvaRate?: TvaRate;           // Taux TVA applicable (20% par défaut)
-  tvaAmount?: number;          // Montant TVA calculé
-  totalTTC?: number;           // Total TTC (totalAfterDiscount + tvaAmount)
+  totalAfterDiscount: number;  // Montant total après remise — c'est ce que le client doit
+  /**
+   * Champs de TVA, HÉRITÉS et jamais écrits par /stock.
+   *
+   * La facture imprimée en fabriquait une de toutes pièces — « TVA 20 % » calculée à l'impression
+   * sur un taux par défaut, jamais enregistré, jamais reversé — et affichait trois montants (HT,
+   * TVA, TTC) là où il n'y en a qu'un. Les prix saisis en caisse sont les prix pratiqués : la
+   * facture n'affiche plus qu'un total, comme le bon de commande.
+   *
+   * Ne pas les réutiliser pour un affichage sans une vraie décision comptable.
+   */
+  tvaRate?: TvaRate;
+  tvaAmount?: number;
+  totalTTC?: number;
   paidAmount: number;
   remainingBalance: number;
   status: InvoiceStatus;
