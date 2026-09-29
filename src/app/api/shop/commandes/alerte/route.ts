@@ -24,14 +24,23 @@
 // seul par commande, commande toute récente, même plafond. Son adresse vient de
 // la commande enregistrée, jamais de la requête. Il est noté dans
 // shop_orders_interne/{id}.emailsClient, que la fiche de l'admin affiche.
+//
+// Contrôle des frais (29/09/2026) : les frais de livraison sont calculés par le
+// navigateur du client. On les recalcule ici avec la grille de livraison-boutique
+// (mode, ville, sous-total recalculé depuis les lignes) et on range le résultat
+// dans shop_orders_interne/{id}.controleFrais : la fiche avertit s'il y a un écart,
+// l'e-mail aussi. Rien n'est corrigé tout seul dans la commande. La fiche, elle,
+// recalcule ce contrôle à chaque lecture (même fonction, pure) : il ne dépend pas
+// de cet appel, que le navigateur du client peut ne jamais faire.
 
 import { NextResponse, after } from 'next/server';
 import nodemailer from 'nodemailer';
 import { FieldValue, Timestamp } from 'firebase-admin/firestore';
 import { dbAdmin } from '@/lib/firebase-admin-serveur';
 import { dateDe } from '@/lib/commandes-boutique';
-import { emailAlertesEnPause, emailDuClient, emailNouvelleCommande } from '@/lib/alerte-commande-boutique';
+import { controleFraisCommande, emailAlertesEnPause, emailDuClient, emailNouvelleCommande } from '@/lib/alerte-commande-boutique';
 import { emailConfirmationClient } from '@/lib/email-confirmation-client';
+import { CHEMIN_REGLAGES_RECEPTION, lireReglagesReception, type ReglagesReception } from '@/lib/reglages-reception';
 import { normaliserCommande } from '@/app/admin-shop/_commandes/normaliser-commande';
 import type { ShopOrder } from '@/lib/shop-types';
 
@@ -57,7 +66,7 @@ type Quota = { heure?: Fenetre; jour?: Fenetre; pauseSignaleePour?: string };
 
 type Issue =
   | { cas: 'rien' }
-  | { cas: 'quota'; recap: { plafond: number; periode: 'heure' | 'jour'; reprise: Date } | null }
+  | { cas: 'quota'; recap: { plafond: number; periode: 'heure' | 'jour'; reprise: Date } | null; commande: ShopOrder & { id: string } }
   | { cas: 'envoyer'; commande: ShopOrder & { id: string } };
 
 /** La fenêtre en cours, ou une nouvelle si l'ancienne est finie (ou illisible). */
@@ -115,15 +124,19 @@ export async function POST(req: Request) {
           ? { plafond: MAX_PAR_HEURE, periode: 'heure' as const, fenetre: heure, duree: HEURE_MS }
           : null;
 
+      // Une commande écrite à la main peut avoir n'importe quelle forme : on
+      // garantit au moins une liste d'articles avant de construire l'e-mail.
+      const commande = { ...o, id, items: Array.isArray(o.items) ? o.items : [] };
+
       if (bloque) {
         // Pas « alertée » : on sait que l'e-mail n'est pas parti pour celle-ci.
         tx.update(ref, { alerteSautee: FieldValue.serverTimestamp() });
         // Un seul e-mail « alertes en pause » par période bloquée.
         const cle = `${bloque.periode}:${bloque.fenetre.debut}`;
-        if (q.pauseSignaleePour === cle) return { cas: 'quota', recap: null };
+        if (q.pauseSignaleePour === cle) return { cas: 'quota', recap: null, commande };
         tx.set(quotaRef, { pauseSignaleePour: cle }, { merge: true });
         const reprise = new Date(Date.parse(bloque.fenetre.debut) + bloque.duree);
-        return { cas: 'quota', recap: { plafond: bloque.plafond, periode: bloque.periode, reprise } };
+        return { cas: 'quota', recap: { plafond: bloque.plafond, periode: bloque.periode, reprise }, commande };
       }
 
       tx.update(ref, { alerteReserveeLe: FieldValue.serverTimestamp() });
@@ -132,9 +145,7 @@ export async function POST(req: Request) {
         jour: { debut: jour.debut, nombre: jour.nombre + 1 },
       }, { merge: true });
 
-      // Une commande écrite à la main peut avoir n'importe quelle forme : on
-      // garantit au moins une liste d'articles avant de construire l'e-mail.
-      return { cas: 'envoyer', commande: { ...o, id, items: Array.isArray(o.items) ? o.items : [] } };
+      return { cas: 'envoyer', commande };
     });
   } catch (err: any) {
     console.error('[shop/commandes/alerte] Firestore :', err?.code || err?.message || 'erreur');
@@ -142,6 +153,16 @@ export async function POST(req: Request) {
   }
 
   if (issue.cas === 'rien') return ok();
+
+  // Le contrôle des frais, même quand l'e-mail est en pause : la fiche en a besoin.
+  // Calculé sur la commande remise d'aplomb (mode, lignes volumineuses, prix).
+  const commandeLue = normaliserCommande(id, issue.commande);
+  const controleFrais = controleFraisCommande(commandeLue);
+  lancerApresReponse(async () => {
+    await dbAdmin().collection('shop_orders_interne').doc(id).set({
+      controleFrais: { ...controleFrais, le: Timestamp.now() },
+    }, { merge: true });
+  }, `contrôle des frais ${id}`);
 
   if (issue.cas === 'quota') {
     console.warn(`[shop/commandes/alerte] plafond d'alertes atteint : e-mail non envoyé (commande ${id})`);
@@ -154,8 +175,14 @@ export async function POST(req: Request) {
 
   const commande = issue.commande;
   const emailClient = emailDuClient(commande);
+  // Lu une fois pour les deux e-mails : les adresses des magasins réglées par le patron.
+  let reglages: Promise<ReglagesReception> | null = null;
+  const reglagesUneFois = () => (reglages ??= lireReglages());
   lancerApresReponse(async () => {
-    await envoyerEmail(emailNouvelleCommande(commande, `${SITE}/admin-shop?commande=${commande.id}`), { replyTo: emailClient });
+    await envoyerEmail(
+      emailNouvelleCommande(commande, `${SITE}/admin-shop?commande=${commande.id}`, Date.now(), { reglages: await reglagesUneFois(), controleFrais }),
+      { replyTo: emailClient },
+    );
     // Seulement maintenant : l'e-mail est vraiment parti.
     await dbAdmin().collection('shop_orders').doc(commande.id).update({ alerteEnvoyeeLe: FieldValue.serverTimestamp() });
   }, `commande ${id}`);
@@ -164,13 +191,27 @@ export async function POST(req: Request) {
   if (emailClient) {
     lancerApresReponse(async () => {
       // Même commande remise d'aplomb que l'aperçu de la fiche : même e-mail.
-      await envoyerEmail(emailConfirmationClient(normaliserCommande(commande.id, commande)), { a: emailClient, expediteur: 'LEBTEX' });
+      // `automatique` : envoyé sans relecture, vers une adresse choisie par le créateur de la
+      // commande. Le n° n'est repris que s'il a la forme du checkout ; nom et adresse sont bornés
+      // et sans suite de chiffres (pas de faux RIB possible dans un e-mail de LEBTEX).
+      await envoyerEmail(emailConfirmationClient(commandeLue, { reglages: await reglagesUneFois(), automatique: true }), { a: emailClient, expediteur: 'LEBTEX' });
       await dbAdmin().collection('shop_orders_interne').doc(commande.id).set({
         emailsClient: FieldValue.arrayUnion({ type: 'reception', a: emailClient, le: Timestamp.now(), auteur: 'automatique' }),
       }, { merge: true });
     }, `accusé de réception ${id}`);
   }
   return ok();
+}
+
+/** Réglages de réception (magasins) ; illisibles : valeurs par défaut, l'e-mail part quand même. */
+async function lireReglages(): Promise<ReglagesReception> {
+  try {
+    const snap = await dbAdmin().collection(CHEMIN_REGLAGES_RECEPTION.collection).doc(CHEMIN_REGLAGES_RECEPTION.document).get();
+    return lireReglagesReception(snap.data());
+  } catch (e: any) {
+    console.error('[shop/commandes/alerte] réglages de réception illisibles :', e?.code || e?.message || 'erreur');
+    return lireReglagesReception(undefined);
+  }
 }
 
 /** Après la réponse au client ; un échec est seulement journalisé (sans donnée personnelle). */

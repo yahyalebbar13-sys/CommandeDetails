@@ -4,11 +4,40 @@ import React from "react";
 import { Truck } from "lucide-react";
 import { useLanguage } from "@/contexts/language-context";
 import { formatPrice, getFreeDeliveryProgress, FREE_DELIVERY_THRESHOLD } from "@/lib/shop-utils";
+import {
+  TEXTE_TRANSPORT_VOLUMINEUX, TEXTE_TRANSPORT_VOLUMINEUX_AR, TEXTE_VOLUMINEUX_COURT, TEXTE_VOLUMINEUX_COURT_AR,
+} from "@/lib/livraison-boutique";
 
 // Paliers de livraison gratuite, la ville n'étant pas encore connue :
-// d'abord Casablanca (100 MAD), puis tout le Maroc (500 MAD).
-export default function FreeDeliveryProgress({ subtotal, compact = false }: { subtotal: number; compact?: boolean }) {
-  const { t } = useLanguage();
+// d'abord Casablanca, puis tout le Maroc (seuils dans shop-utils).
+// Un panier avec un rouleau entier ne part pas par colis Sendit : la livraison
+// offerte ne le concerne pas, on affiche à la place la notice du transport.
+// En `compact` (pied du tiroir, toujours visible), une seule ligne : la notice
+// complète y écrasait la liste des articles sur un petit téléphone.
+export default function FreeDeliveryProgress({
+  subtotal,
+  compact = false,
+  volumineux = false,
+}: {
+  subtotal: number;
+  compact?: boolean;
+  volumineux?: boolean;
+}) {
+  const { t, language } = useLanguage();
+  const ar = language === "ar";
+
+  if (volumineux) {
+    const texte = compact
+      ? ar ? TEXTE_VOLUMINEUX_COURT_AR : TEXTE_VOLUMINEUX_COURT
+      : ar ? TEXTE_TRANSPORT_VOLUMINEUX_AR : TEXTE_TRANSPORT_VOLUMINEUX;
+    return (
+      <div className={`flex gap-2 rounded-xl border bg-amber-50 border-amber-200 ${compact ? "px-3 py-2" : "px-4 py-3"}`} dir={ar ? "rtl" : "ltr"}>
+        <Truck className="w-4 h-4 flex-shrink-0 mt-0.5 text-amber-700" />
+        <p className={`text-[#2A2A2A] leading-relaxed ${compact ? "text-xs" : "text-sm"}`}>{texte}</p>
+      </div>
+    );
+  }
+
   const { stage, remaining, progress } = getFreeDeliveryProgress(subtotal);
   const casaUnlocked = stage !== "none";
 
@@ -44,7 +73,7 @@ export default function FreeDeliveryProgress({ subtotal, compact = false }: { su
           />
         </div>
       )}
-      {hint && <p className={`mt-1.5 text-[#6B6B6B] ${compact ? "text-[11px]" : "text-xs"}`}>{hint}</p>}
+      {hint && <p className="mt-1.5 text-xs text-[#6B6B6B]">{hint}</p>}
     </div>
   );
 }

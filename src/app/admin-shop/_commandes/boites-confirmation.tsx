@@ -10,8 +10,8 @@ import { useEffect, useId, useState, type ReactNode } from 'react';
 import * as Boite from '@radix-ui/react-alert-dialog';
 import type { OrderStatus, ShopOrder } from '@/lib/shop-types';
 import { formatPrice } from '@/lib/shop-utils';
-import { MOTIFS_ANNULATION, MESSAGE_CLIENT } from '@/lib/commandes-boutique';
-import { estStatutFinal, statutLisible } from './outils-ecran';
+import { MOTIFS_ANNULATION, MESSAGE_CLIENT, messageClient, moyenPaiementDe, receptionDe } from '@/lib/commandes-boutique';
+import { estStatutFinal, statutLisible, statutLisiblePour } from './outils-ecran';
 
 const CLASSE_BOUTON_RETOUR =
   'h-11 px-4 rounded-xl border border-white/15 text-sm font-semibold text-gray-200 hover:bg-white/5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-white/60';
@@ -129,49 +129,74 @@ export function BoiteAnnulation({
 
 type Textes = { titre: (o: ShopOrder) => string; description: (o: ShopOrder) => string; bouton: string };
 
-const TEXTES_SENSIBLES: Partial<Record<OrderStatus, Textes>> = {
-  delivered: {
-    titre: o => `La commande ${o.orderNumber} est livrée et payée ?`,
-    description: o => `À marquer seulement quand l’argent (${formatPrice(Number(o.total) || 0)}) est encaissé. Le client verra « ${MESSAGE_CLIENT.delivered} »`,
-    bouton: 'Oui, livrée et payée',
-  },
-  returned: {
-    titre: o => `La commande ${o.orderNumber} est revenue ?`,
-    description: () => `À marquer quand le colis est de retour au dépôt. Le client verra « ${MESSAGE_CLIENT.returned} »`,
-    bouton: 'Oui, colis revenu',
-  },
-};
+/** « livrée », « retirée », « livrée ou récupérée » : le mot du mode de réception. */
+function motLivree(o: ShopOrder): { mot: string; bouton: string } {
+  const { mode } = receptionDe(o);
+  if (mode === 'retrait') return { mot: 'retirée', bouton: 'Oui, retirée et payée' };
+  if (mode === 'transport') return { mot: 'livrée (ou récupérée au dépôt)', bouton: 'Oui, livrée et payée' };
+  return { mot: 'livrée', bouton: 'Oui, livrée et payée' };
+}
+
+function textesSensibles(o: ShopOrder, statut: OrderStatus, paiementRecu: boolean): Textes | undefined {
+  if (statut === 'delivered') {
+    const { mot, bouton } = motLivree(o);
+    const moyen = moyenPaiementDe(o);
+    return {
+      titre: c => `La commande ${c.orderNumber} est ${mot} et payée ?`,
+      description: c => [
+        paiementRecu
+          ? 'Le paiement est déjà noté comme reçu.'
+          : moyen === 'cod'
+            ? `À marquer seulement quand l’argent (${formatPrice(Number(c.total) || 0)}) est encaissé.`
+            : `Attention : le ${moyen === 'virement' ? 'virement' : 'paiement par carte'} n’est pas encore noté comme reçu. À marquer seulement quand l’argent est vu sur le compte.`,
+        `Le client verra « ${messageClient(c, 'delivered')} »`,
+      ].join(' '),
+      bouton,
+    };
+  }
+  if (statut === 'returned') {
+    return {
+      titre: c => `La commande ${c.orderNumber} est revenue ?`,
+      description: () => `À marquer quand le colis est de retour au dépôt. Le client verra « ${MESSAGE_CLIENT.returned} »`,
+      bouton: 'Oui, colis revenu',
+    };
+  }
+  return undefined;
+}
 
 /** Sortir d'un statut final : ce qui change pour l'argent et ce que le client lira. */
 function textesReouverture(statut: OrderStatus): Textes {
   return {
     titre: o => `Rouvrir la commande ${o.orderNumber} ?`,
     description: o => [
-      `Elle est « ${statutLisible(o.status)} » et repassera « ${statutLisible(statut)} ».`,
+      `Elle est « ${statutLisiblePour(o, o.status)} » et repassera « ${statutLisible(statut)} ».`,
       o.status === 'delivered' ? `Son montant (${formatPrice(Number(o.total) || 0)}) sortira de « Encaissé ».` : '',
-      `Le client verra dans son suivi : « ${MESSAGE_CLIENT[statut]} »`,
+      `Le client verra dans son suivi : « ${messageClient(o, statut)} »`,
     ].filter(Boolean).join(' '),
     bouton: 'Oui, rouvrir',
   };
 }
 
-function textesPour(o: ShopOrder, statut: OrderStatus): Textes | undefined {
+function textesPour(o: ShopOrder, statut: OrderStatus, paiementRecu: boolean): Textes | undefined {
   // Livrée ou retournée demandée : la question propre à ce statut.
-  if (TEXTES_SENSIBLES[statut]) return TEXTES_SENSIBLES[statut];
+  const sensibles = textesSensibles(o, statut, paiementRecu);
+  if (sensibles) return sensibles;
   if (estStatutFinal(o.status) && !estStatutFinal(statut)) return textesReouverture(statut);
   return undefined;
 }
 
 /** Livrée, retournée, ou commande rouverte : une question avant d'enregistrer. */
 export function BoiteStatutSensible({
-  commande, statut, onFermer, onConfirmer,
+  commande, statut, onFermer, onConfirmer, paiementRecu = false,
 }: {
   commande: ShopOrder;
   statut: OrderStatus | null;
   onFermer: () => void;
   onConfirmer: (statut: OrderStatus) => void;
+  /** Ajout au contrat (facultatif) : paiement déjà noté reçu par l'administrateur. */
+  paiementRecu?: boolean;
 }) {
-  const textes = statut ? textesPour(commande, statut) : undefined;
+  const textes = statut ? textesPour(commande, statut, paiementRecu) : undefined;
   return (
     <Cadre
       ouverte={!!statut && !!textes}

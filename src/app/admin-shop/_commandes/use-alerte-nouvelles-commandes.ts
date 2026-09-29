@@ -14,7 +14,7 @@
 import { createElement, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { ShopOrder } from '@/lib/shop-types';
 import { formatPrice } from '@/lib/shop-utils';
-import { msDe } from '@/lib/commandes-boutique';
+import { msDe, receptionDe } from '@/lib/commandes-boutique';
 import { useToast } from '@/hooks/use-toast';
 import { ToastAction, type ToastActionElement } from '@/components/ui/toast';
 
@@ -174,8 +174,9 @@ async function notifier(titre: string, corps: string, id: string, page: string, 
 
 // ─── Le hook ──────────────────────────────────────────────────────────────────
 
+// Un rouleau se voit dès la notification : c'est un appel à organiser, pas un colis.
 const libelleCommande = (o: ShopOrder) =>
-  [o.orderNumber, o.customerName || o.shippingAddress?.fullName, o.shippingAddress?.city, formatPrice(Number(o.total) || 0)]
+  [receptionDe(o).volumineux ? 'VOLUMINEUX' : '', o.orderNumber, o.customerName || o.shippingAddress?.fullName, o.shippingAddress?.city, formatPrice(Number(o.total) || 0)]
     .filter(Boolean)
     .join(' · ');
 

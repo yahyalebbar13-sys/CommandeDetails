@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
@@ -12,7 +12,6 @@ import {
   MapPin,
   Phone,
   Mail,
-  DollarSign,
   FileText,
   Shield,
   CheckCircle2,
@@ -21,6 +20,11 @@ import {
   ArrowLeft,
   Package,
   ShieldCheck,
+  Store,
+  Banknote,
+  Landmark,
+  CreditCard,
+  Info,
 } from "lucide-react";
 
 import { initializeApp, getApps, getApp } from "firebase/app";
@@ -37,20 +41,42 @@ import { useLanguage } from "@/contexts/language-context";
 import {
   formatPrice,
   formatPriceOrOnRequest,
-  getDeliveryFee,
-  getDeliveryDays,
-  isCasablanca,
-  isEligibleForFreeDelivery,
-  CASABLANCA_FREE_DELIVERY_THRESHOLD,
-  FREE_DELIVERY_THRESHOLD,
   generateOrderNumber,
   MOROCCAN_CITIES,
 } from "@/lib/shop-utils";
-import type { ShippingAddress } from "@/lib/shop-types";
+import {
+  FRAIS_ZONE,
+  SEUIL_OFFERTE_CASABLANCA,
+  SEUIL_OFFERTE_AUTRES,
+  TEXTE_TRANSPORT_VOLUMINEUX,
+  commandeVolumineuse,
+  delaiColis,
+  estCasablanca,
+  estPeripherieCasablanca,
+  fraisLivraison,
+  libelleFrais,
+  lieuRetraitPour,
+  livraisonOfferte,
+  modesPossibles,
+  seuilOfferte,
+} from "@/lib/livraison-boutique";
+import { PLAFOND_ESPECES_COLIS } from "@/lib/commandes-boutique";
+import { useReglagesReception } from "@/lib/use-reglages-reception";
+import type { ReglagesReception } from "@/lib/reglages-reception";
+import type {
+  LieuRetrait,
+  ModeReception,
+  MoyenPaiement,
+  ReceptionCommande,
+  ShippingAddress,
+} from "@/lib/shop-types";
 
 // ─── Firebase init ────────────────────────────────────────────────────────────
 const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
 const db = getFirestore(app);
+
+// Valeur de la liste des villes quand le client écrit lui-même sa ville.
+const AUTRE_VILLE = "__autre__";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 interface FormData {
@@ -59,8 +85,14 @@ interface FormData {
   phone: string;
   phone2: string;
   email: string;
-  address: string;
+  /** Ville de la liste, ou AUTRE_VILLE. */
   city: string;
+  /** Ville écrite à la main quand elle n'est pas dans la liste. */
+  villeAutre: string;
+  /** Vide tant que le client n'a pas choisi (une commande volumineuse n'a pas de choix par défaut). */
+  mode: ModeReception | "";
+  paiement: MoyenPaiement;
+  address: string;
   region: string;
   postalCode: string;
   notes: string;
@@ -68,6 +100,95 @@ interface FormData {
 }
 
 type FormErrors = Partial<Record<keyof FormData, string>>;
+
+type PreferenceTransport = NonNullable<ReceptionCommande["preferenceTransport"]>;
+
+/** Tout ce que la ville, le panier et le mode choisi décident, calculé une fois. */
+interface ChoixReception {
+  ville: string;
+  volumineux: boolean;
+  /** Modes proposés (le retrait disparaît si son magasin est fermé dans les réglages). */
+  modes: ModeReception[];
+  /** Mode retenu, ou null tant qu'il faut choisir. */
+  mode: ModeReception | null;
+  lieuRetrait: LieuRetrait;
+  preferenceTransport: PreferenceTransport;
+  /** Frais du mode retenu : null = transport à confirmer par téléphone. */
+  frais: number | null;
+  /** Faux tant que le mode ou (pour un colis) la ville manque : on n'affiche pas un prix au hasard. */
+  fraisConnus: boolean;
+  adresseRequise: boolean;
+}
+
+function villeSaisie(form: Pick<FormData, "city" | "villeAutre">): string {
+  return form.city === AUTRE_VILLE ? form.villeAutre.trim() : form.city;
+}
+
+// Rouleau livré à Casablanca ou en périphérie : notre camionnette. Ailleurs : un
+// transporteur habituel de Derb Omar, jusqu'à son dépôt dans la ville du client.
+function transportPour(ville: string): PreferenceTransport {
+  return estCasablanca(ville) || estPeripherieCasablanca(ville) ? "camionnette" : "transporteur";
+}
+
+function calculerChoix(
+  form: FormData,
+  volumineux: boolean,
+  sousTotal: number,
+  reglages: ReglagesReception
+): ChoixReception {
+  const ville = villeSaisie(form);
+  const lieuRetrait = lieuRetraitPour(volumineux);
+  const modes = modesPossibles(volumineux).filter(
+    (m) => m !== "retrait" || reglages.lieux[lieuRetrait].actif
+  );
+  // Petits articles : « à domicile » coché d'office, comme avant. Volumineux : le client
+  // choisit lui-même entre retrait et transport, les deux ne demandent pas la même chose.
+  const mode: ModeReception | null = modes.includes(form.mode as ModeReception)
+    ? (form.mode as ModeReception)
+    : !volumineux && modes.length > 0
+      ? modes[0]
+      : null;
+  const preferenceTransport = transportPour(ville);
+  const frais = mode ? fraisLivraison({ mode, ville, sousTotal }) : null;
+  return {
+    ville,
+    volumineux,
+    modes,
+    mode,
+    lieuRetrait,
+    preferenceTransport,
+    frais,
+    fraisConnus: mode !== null && (mode !== "domicile" || !!ville),
+    // Le transporteur livre à son dépôt, le client y récupère : pas besoin de son adresse.
+    adresseRequise: mode === "domicile" || (mode === "transport" && preferenceTransport === "camionnette"),
+  };
+}
+
+/**
+ * Frais tels que le client les lit : « 35 MAD », « Offerte », « À confirmer par téléphone ».
+ * Même unité que les prix du site (formatPrice) : jamais « 35 DH » à côté de « 685 MAD ».
+ */
+function prixFrais(frais: number | null): string {
+  return frais === null || !Number.isFinite(frais) || frais < 0
+    ? libelleFrais(null)
+    : frais === 0 ? libelleFrais(0) : formatPrice(frais);
+}
+
+/** Libellé de l'option « espèces », dit dans les mots du mode choisi. */
+function libelleEspeces(choix: ChoixReception): { titre: string; texte: string } {
+  if (choix.mode === "retrait") {
+    return { titre: "Espèces au retrait", texte: "Vous payez au magasin, au moment du retrait. Rien à payer maintenant." };
+  }
+  if (choix.mode === "transport") {
+    return choix.preferenceTransport === "camionnette"
+      ? { titre: "Espèces à la livraison", texte: "Vous payez notre chauffeur LEBTEX à la livraison. Rien à payer maintenant." }
+      : { titre: "Espèces à la réception", texte: "Nous convenons avec vous, au téléphone, du moment du paiement. Rien à payer maintenant." };
+  }
+  if (choix.mode === "domicile") {
+    return { titre: "Espèces à la livraison", texte: "Vous payez le livreur à la réception. Rien à payer maintenant." };
+  }
+  return { titre: "Espèces à la livraison ou au retrait", texte: "Rien à payer maintenant." };
+}
 
 // ─── Progress Steps ───────────────────────────────────────────────────────────
 function ProgressSteps({ step }: { step: 1 | 2 | 3 }) {
@@ -154,15 +275,69 @@ function InputField({ label, required, error, children }: InputFieldProps) {
   );
 }
 
+// 16 px dans les champs : en dessous, le téléphone zoome sur le formulaire.
 const inputCls = (error?: string) =>
-  `w-full px-4 py-3 text-sm border rounded-xl bg-[#FBF8F3] text-[#0F0F0F] placeholder:text-[#6B6B6B]/50 focus:outline-none focus:ring-2 transition-all ${
+  `w-full px-4 py-3 text-base border rounded-xl bg-[#FBF8F3] text-[#0F0F0F] placeholder:text-[#6B6B6B]/50 focus:outline-none focus:ring-2 transition-all ${
     error
       ? "border-red-300 focus:ring-red-200 focus:border-red-400"
       : "border-[#E8E4DF] focus:ring-[#C8102E]/20 focus:border-[#C8102E]/40"
   }`;
 
+// ─── Carte à choix (mode de réception, paiement) ─────────────────────────────
+function OptionCarte({
+  name,
+  checked,
+  onSelect,
+  icone,
+  titre,
+  prix,
+  prixOfferte,
+  children,
+}: {
+  name: string;
+  checked: boolean;
+  onSelect: () => void;
+  icone: React.ReactNode;
+  titre: string;
+  prix?: string;
+  prixOfferte?: boolean;
+  children?: React.ReactNode;
+}) {
+  return (
+    <label
+      className={`flex items-start gap-3 p-4 rounded-2xl border-2 cursor-pointer transition-all ${
+        checked
+          ? "border-[#C8102E] bg-[#C8102E]/[0.04]"
+          : "border-[#E8E4DF] bg-white hover:border-[#C8102E]/40"
+      }`}
+    >
+      <input
+        type="radio"
+        name={name}
+        checked={checked}
+        onChange={onSelect}
+        className="mt-0.5 w-5 h-5 flex-shrink-0 accent-[#C8102E]"
+      />
+      <div className="flex-1 min-w-0">
+        <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+          <span className="font-bold text-[#0F0F0F] text-sm sm:text-base flex items-center gap-2">
+            <span className="text-[#C8102E] flex-shrink-0">{icone}</span>
+            {titre}
+          </span>
+          {prix && (
+            <span className={`text-sm font-bold tabular-nums ${prixOfferte ? "text-green-700" : "text-[#0F0F0F]"}`}>
+              {prix}
+            </span>
+          )}
+        </div>
+        {children && <div className="mt-1 text-sm text-[#4A4A4A] leading-relaxed space-y-1">{children}</div>}
+      </div>
+    </label>
+  );
+}
+
 // ─── Validation ───────────────────────────────────────────────────────────────
-function validate(form: FormData): FormErrors {
+function validate(form: FormData, choix: ChoixReception): FormErrors {
   const errors: FormErrors = {};
   if (!form.firstName.trim()) errors.firstName = "Le prénom est requis";
   if (!form.lastName.trim()) errors.lastName = "Le nom est requis";
@@ -174,29 +349,111 @@ function validate(form: FormData): FormErrors {
   if (form.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) {
     errors.email = "Adresse email invalide";
   }
-  if (!form.address.trim()) errors.address = "L'adresse est requise";
-  if (!form.city) errors.city = "La ville est requise";
+  // Retrait au magasin : la ville ne change ni les frais ni le lieu, elle devient facultative.
+  if (!form.city && choix.mode !== "retrait") errors.city = "La ville est requise";
+  else if (form.city === AUTRE_VILLE && !form.villeAutre.trim()) errors.villeAutre = "Écrivez le nom de votre ville";
+  if (!choix.mode) errors.mode = "Choisissez comment recevoir votre commande";
+  if (choix.adresseRequise && !form.address.trim()) errors.address = "L'adresse est requise pour la livraison";
   if (!form.acceptTerms) errors.acceptTerms = "Vous devez accepter les conditions";
   return errors;
+}
+
+// ─── Totaux (récapitulatif, et résumé au-dessus du bouton sur téléphone) ──────
+// Plan §3.4 : le prix se voit avant la commande, jamais après. Sur téléphone, le
+// récapitulatif vient après le bouton : le même bloc est répété juste au-dessus.
+
+interface Totaux {
+  titreLigne: string;
+  valeurLigne: string;
+  offerte: boolean;
+  total: number;
+  legendeTotal: string;
+}
+
+function calculerTotaux(choix: ChoixReception, subtotal: number, paiement: MoyenPaiement): Totaux {
+  const { ville, mode, frais, fraisConnus, volumineux } = choix;
+  const titreLigne =
+    mode === "retrait" ? "Retrait" : mode === "transport" ? "Transport" : `Livraison${ville ? ` — ${ville}` : ""}`;
+  const valeurLigne = !mode
+    ? volumineux ? "Selon le mode choisi" : "Selon la ville"
+    : mode === "retrait"
+      ? "Gratuit"
+      : !fraisConnus
+        ? "Selon la ville"
+        : prixFrais(frais);
+  const legendeTotal =
+    mode === "transport"
+      ? "+ transport à confirmer par téléphone"
+      : !fraisConnus
+        ? volumineux ? "+ selon le mode choisi" : "+ livraison selon la ville"
+        : paiement === "virement"
+          ? "Par virement bancaire"
+          : paiement === "carte"
+            ? "Par carte bancaire"
+            : mode === "retrait" ? "Payé au retrait" : "Payé à la réception";
+  return {
+    titreLigne,
+    valeurLigne,
+    offerte: mode === "domicile" && fraisConnus && frais === 0,
+    total: subtotal + (fraisConnus && frais !== null ? frais : 0),
+    legendeTotal,
+  };
+}
+
+/** Sous-total, frais et total : le client les voit juste avant « Confirmer ma commande ». */
+function ResumeAvantValidation({ subtotal, choix, paiement }: { subtotal: number; choix: ChoixReception; paiement: MoyenPaiement }) {
+  const { language } = useLanguage();
+  const t = calculerTotaux(choix, subtotal, paiement);
+  return (
+    <div className="lg:hidden mb-5 rounded-2xl border border-[#E8E4DF] bg-[#FBF8F3] px-4 py-3 space-y-2" aria-label="Résumé de la commande">
+      <div className="flex items-center justify-between gap-3 text-sm">
+        <span className="text-[#6B6B6B]">Sous-total</span>
+        <span className="font-semibold text-[#0F0F0F] tabular-nums">{formatPriceOrOnRequest(subtotal, language)}</span>
+      </div>
+      <div className="flex items-start justify-between gap-3 text-sm">
+        <span className="text-[#6B6B6B]">{t.titreLigne}</span>
+        <span className={`font-semibold text-right ${t.offerte || choix.mode === "retrait" ? "text-green-700" : "text-[#0F0F0F]"}`}>{t.valeurLigne}</span>
+      </div>
+      <div className="border-t border-[#E8E4DF] pt-2 flex items-start justify-between gap-3">
+        <span className="font-bold text-[#0F0F0F]">Total</span>
+        <div className="text-right">
+          <span className="font-bold text-[#C8102E] text-lg tabular-nums">{formatPriceOrOnRequest(subtotal > 0 ? t.total : 0, language)}</span>
+          <p className="text-xs text-[#6B6B6B]">{t.legendeTotal}</p>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 // ─── Order Summary sidebar ────────────────────────────────────────────────────
 interface SummaryPanelProps {
   items: ReturnType<typeof useShopCart>["items"];
   subtotal: number;
-  city: string;
   productQtyMap: Record<string, number>;
+  choix: ChoixReception;
+  paiement: MoyenPaiement;
 }
-function SummaryPanel({ items, subtotal, city, productQtyMap }: SummaryPanelProps) {
+function SummaryPanel({ items, subtotal, productQtyMap, choix, paiement }: SummaryPanelProps) {
   const { language } = useLanguage();
-  const freeShipping = isEligibleForFreeDelivery(subtotal, city);
-  // Tant que la ville n'est pas choisie, les frais restent inconnus (gratuits à Casablanca à partir de 100 MAD)
-  const deliveryFee = freeShipping || !city ? 0 : getDeliveryFee(city);
-  const deliveryDays = city ? getDeliveryDays(city) : "24–72h";
-  const total = subtotal + deliveryFee;
-  const freeDeliveryThreshold = city && isCasablanca(city) ? CASABLANCA_FREE_DELIVERY_THRESHOLD : FREE_DELIVERY_THRESHOLD;
+  const { ville, mode, frais, fraisConnus } = choix;
   const itemCount = items.reduce((s, i) => s + i.quantity, 0);
   const hasUnpricedItems = items.some((item) => getCartItemUnitPrice(item, productQtyMap?.[item.productId] || item.quantity) <= 0);
+  const { titreLigne, valeurLigne, offerte, total, legendeTotal } = calculerTotaux(choix, subtotal, paiement);
+
+  // Incitation : seulement pour un colis, la seule livraison que l'on offre.
+  const incitation =
+    mode === "domicile" && subtotal > 0 && !(ville && livraisonOfferte(subtotal, ville))
+      ? ville
+        ? `Plus que ${formatPrice(seuilOfferte(ville) - subtotal)} pour la livraison offerte${estCasablanca(ville) ? " à Casablanca" : ""}`
+        : `Livraison offerte dès ${formatPrice(SEUIL_OFFERTE_CASABLANCA)} à Casablanca, dès ${formatPrice(SEUIL_OFFERTE_AUTRES)} ailleurs`
+      : null;
+
+  const rassurance =
+    paiement === "carte"
+      ? "Paiement par carte sécurisé."
+      : paiement === "virement"
+        ? "Rien à payer maintenant : notre RIB s'affiche après la commande."
+        : "Rien à payer maintenant : vous payez à la réception de votre commande.";
 
   return (
     <div className="bg-white rounded-2xl border border-[#E8E4DF] overflow-hidden shadow-sm">
@@ -206,7 +463,7 @@ function SummaryPanel({ items, subtotal, city, productQtyMap }: SummaryPanelProp
           <Package className="w-4 h-4 text-[#D4A843]" />
           Votre commande / طلبيتك
         </h2>
-        <p className="text-[#6B6B6B] text-xs mt-0.5">
+        <p className="text-gray-400 text-xs mt-0.5">
           {itemCount} article{itemCount > 1 ? "s" : ""}
         </p>
       </div>
@@ -243,7 +500,7 @@ function SummaryPanel({ items, subtotal, city, productQtyMap }: SummaryPanelProp
                   </div>
                 )}
                 {/* Qty badge */}
-                <span className="absolute -top-1.5 -right-1.5 w-4.5 h-4.5 min-w-[1.125rem] bg-[#C8102E] text-white text-[9px] font-bold rounded-full flex items-center justify-center px-1">
+                <span className="absolute -top-1.5 -right-1.5 h-5 min-w-[1.25rem] bg-[#C8102E] text-white text-xs font-bold rounded-full flex items-center justify-center px-1">
                   {productTotalQty}
                 </span>
               </div>
@@ -251,9 +508,12 @@ function SummaryPanel({ items, subtotal, city, productQtyMap }: SummaryPanelProp
               <div className="flex-1 min-w-0">
                 <p className="text-xs font-semibold text-[#0F0F0F] truncate">{first.productName}</p>
                 {variantsSummary && (
-                  <p className="text-[10px] text-[#6B6B6B] mt-0.5 line-clamp-2" title={variantsSummary}>
+                  <p className="text-xs text-[#6B6B6B] mt-0.5 line-clamp-2" title={variantsSummary}>
                     {variantsSummary}
                   </p>
+                )}
+                {first.volumineux && (
+                  <p className="text-xs font-semibold text-amber-700 mt-0.5">Article volumineux</p>
                 )}
               </div>
               <span className="text-xs font-bold text-[#0F0F0F] flex-shrink-0 tabular-nums">
@@ -271,39 +531,36 @@ function SummaryPanel({ items, subtotal, city, productQtyMap }: SummaryPanelProp
           <span className="font-semibold text-[#0F0F0F] tabular-nums">{formatPriceOrOnRequest(subtotal, language)}</span>
         </div>
         {subtotal > 0 && hasUnpricedItems && (
-          <p className="text-[10px] text-[#6B6B6B] -mt-1.5">
+          <p className="text-xs text-[#6B6B6B] -mt-1.5">
             {language === 'ar' ? 'لا يشمل المنتجات حسب الطلب' : 'Hors articles sur demande'}
           </p>
         )}
-        <div className="flex items-center justify-between text-sm">
+        <div className="flex items-start justify-between gap-3 text-sm">
           <span className="text-[#6B6B6B] flex items-center gap-1.5">
-            <Truck className="w-3.5 h-3.5" />
-            Livraison{city ? ` — ${city}` : ""}
+            {mode === "retrait" ? <Store className="w-3.5 h-3.5" /> : <Truck className="w-3.5 h-3.5" />}
+            {titreLigne}
           </span>
-          {freeShipping ? (
-            <span className="font-semibold text-green-600">GRATUIT 🎉</span>
-          ) : city ? (
-            <span className="font-semibold text-[#0F0F0F] tabular-nums">{formatPrice(deliveryFee)}</span>
-          ) : (
-            <span className="text-xs text-[#6B6B6B]">Selon la ville</span>
-          )}
+          <span
+            className={`font-semibold text-right ${
+              offerte || mode === "retrait" ? "text-green-700" : fraisConnus && frais !== null ? "text-[#0F0F0F] tabular-nums" : "text-xs text-[#6B6B6B]"
+            }`}
+          >
+            {valeurLigne}
+          </span>
         </div>
-        {/* Incitation : ce qui manque pour la livraison gratuite dans la ville choisie */}
-        {subtotal > 0 && !freeShipping && (
-          <p className="flex items-start gap-1.5 rounded-lg bg-emerald-50 border border-emerald-100 px-2.5 py-2 text-[11px] font-medium text-emerald-800">
+        {incitation && (
+          <p className="flex items-start gap-1.5 rounded-lg bg-emerald-50 border border-emerald-100 px-2.5 py-2 text-xs font-medium text-emerald-800">
             <Truck className="w-3.5 h-3.5 mt-px flex-shrink-0" />
-            {city
-              ? `Plus que ${formatPrice(freeDeliveryThreshold - subtotal)} pour la livraison gratuite${isCasablanca(city) ? " à Casablanca" : ""}`
-              : `Livraison gratuite à Casablanca à partir de ${formatPrice(CASABLANCA_FREE_DELIVERY_THRESHOLD)}, partout au Maroc à partir de ${formatPrice(FREE_DELIVERY_THRESHOLD)}`}
+            {incitation}
           </p>
         )}
-        {city && (
+        {mode === "domicile" && ville && (
           <div className="flex items-center justify-between text-xs text-[#6B6B6B]">
             <span className="flex items-center gap-1.5">
               <Truck className="w-3 h-3" />
               Délai estimé
             </span>
-            <span className="font-medium text-[#0F0F0F]">{deliveryDays}</span>
+            <span className="font-medium text-[#0F0F0F]">{delaiColis(ville)}</span>
           </div>
         )}
         <div className="border-t border-[#E8E4DF] pt-2.5 flex items-center justify-between">
@@ -312,9 +569,7 @@ function SummaryPanel({ items, subtotal, city, productQtyMap }: SummaryPanelProp
             <span className="font-bold text-[#C8102E] text-xl shop-font-display tabular-nums">
               {formatPriceOrOnRequest(subtotal > 0 ? total : 0, language)}
             </span>
-            <p className="text-[10px] text-[#6B6B6B]">
-              {!city && !freeShipping ? "+ livraison selon la ville" : "Paiement à la livraison"}
-            </p>
+            <p className="text-xs text-[#6B6B6B]">{legendeTotal}</p>
           </div>
         </div>
       </div>
@@ -323,9 +578,7 @@ function SummaryPanel({ items, subtotal, city, productQtyMap }: SummaryPanelProp
       <div className="px-5 pb-5">
         <div className="flex items-center gap-2 bg-[#FBF8F3] border border-[#E8E4DF] rounded-xl px-3 py-2">
           <Shield className="w-4 h-4 text-[#D4A843] flex-shrink-0" />
-          <p className="text-[10px] text-[#6B6B6B] leading-tight">
-            100% sécurisé — Paiement en cash à la réception de votre commande
-          </p>
+          <p className="text-xs text-[#6B6B6B] leading-tight">{rassurance}</p>
         </div>
       </div>
     </div>
@@ -336,15 +589,18 @@ function SummaryPanel({ items, subtotal, city, productQtyMap }: SummaryPanelProp
 export default function CheckoutPage() {
   const router = useRouter();
   const { items, subtotal, clearCart, productQtyMap } = useShopCart();
-  const { language } = useLanguage();
+  const { reglages } = useReglagesReception();
   const [form, setForm] = useState<FormData>({
     firstName: "",
     lastName: "",
     phone: "",
     phone2: "",
     email: "",
-    address: "",
     city: "",
+    villeAutre: "",
+    mode: "",
+    paiement: "cod",
+    address: "",
     region: "",
     postalCode: "",
     notes: "",
@@ -354,6 +610,20 @@ export default function CheckoutPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [orderSuccess, setOrderSuccess] = useState(false);
+
+  const volumineux = useMemo(() => commandeVolumineuse(items), [items]);
+  const choix = useMemo(
+    () => calculerChoix(form, volumineux, subtotal, reglages),
+    [form, volumineux, subtotal, reglages]
+  );
+  // Un moyen de paiement retiré des réglages entre-temps retombe sur les espèces.
+  const paiement: MoyenPaiement =
+    (form.paiement === "virement" && !reglages.virement.actif) || (form.paiement === "carte" && !reglages.carte.actif)
+      ? "cod"
+      : form.paiement;
+  const lieu = reglages.lieux[choix.lieuRetrait];
+  const especes = libelleEspeces(choix);
+  const totalConnu = subtotal + (choix.fraisConnus && choix.frais !== null ? choix.frais : 0);
 
   // Redirect if cart empty
   useEffect(() => {
@@ -379,29 +649,40 @@ export default function CheckoutPage() {
       e.preventDefault();
       setSubmitError(null);
 
-      const validationErrors = validate(form);
-      if (Object.keys(validationErrors).length > 0) {
+      const validationErrors = validate(form, choix);
+      const mode = choix.mode;
+      if (Object.keys(validationErrors).length > 0 || !mode) {
         setErrors(validationErrors);
         // Scroll to first error
-        const firstErrorEl = document.querySelector('[data-error="true"]');
-        firstErrorEl?.scrollIntoView({ behavior: "smooth", block: "center" });
+        setTimeout(() => {
+          const firstErrorEl = document.querySelector('[data-error="true"]');
+          firstErrorEl?.scrollIntoView({ behavior: "smooth", block: "center" });
+        }, 0);
         return;
       }
 
       setIsSubmitting(true);
 
       try {
-        const freeShipping = isEligibleForFreeDelivery(subtotal, form.city);
-        const deliveryFee = freeShipping ? 0 : getDeliveryFee(form.city);
+        // Transport d'un rouleau : prix donné au téléphone, la commande part à 0 et
+        // l'équipe l'ajoute après l'accord du client.
+        const deliveryFee = choix.frais ?? 0;
         const total = subtotal + deliveryFee;
         const orderNumber = generateOrderNumber();
+
+        const reception: ReceptionCommande = {
+          mode,
+          volumineux: choix.volumineux,
+          ...(mode === "retrait" ? { lieuRetrait: choix.lieuRetrait } : {}),
+          ...(mode === "transport" ? { preferenceTransport: choix.preferenceTransport } : {}),
+        };
 
         const shippingAddress: ShippingAddress = {
           fullName: `${form.firstName.trim()} ${form.lastName.trim()}`,
           phone: form.phone.trim(),
           ...(form.phone2.trim() ? { phone2: form.phone2.trim() } : {}),
           address: form.address.trim(),
-          city: form.city,
+          city: choix.ville,
           ...(form.region.trim() ? { region: form.region.trim() } : {}),
           ...(form.postalCode.trim() ? { postalCode: form.postalCode.trim() } : {}),
         };
@@ -417,10 +698,10 @@ export default function CheckoutPage() {
           shippingAddress,
           items: items.map((item) => {
             // Clean undefined values from variant object as Firestore does not support them
-            const cleanVariant = item.variant 
+            const cleanVariant = item.variant
               ? Object.fromEntries(Object.entries(item.variant).filter(([_, v]) => v !== undefined))
               : null;
-              
+
             return {
               productId: item.productId || 'unknown',
               productName: item.productName || 'Produit',
@@ -432,12 +713,15 @@ export default function CheckoutPage() {
               quantity: item.quantity || 1,
               variant: cleanVariant && Object.keys(cleanVariant).length > 0 ? cleanVariant : null,
               maxStock: item.maxStock ?? 99,
+              // L'équipe voit quelle ligne est un rouleau entier (préparé à CHRIFA).
+              ...(item.volumineux ? { volumineux: true } : {}),
             };
           }),
           subtotal: subtotal || 0,
           deliveryFee: deliveryFee || 0,
           total: total || 0,
-          paymentMethod: "cod",
+          paymentMethod: paiement,
+          reception,
           status: "pending",
           notes: form.notes.trim() || null,
           createdAt: serverTimestamp(),
@@ -475,30 +759,50 @@ export default function CheckoutPage() {
         setIsSubmitting(false);
       }
     },
-    [form, items, subtotal, productQtyMap, clearCart, router]
+    [form, choix, paiement, items, subtotal, productQtyMap, clearCart, router]
   );
 
   if (items.length === 0 && !orderSuccess) return null;
+
+  // Texte de l'option transport : ce qui se passe dépend de la ville.
+  const texteTransport = !choix.ville
+    ? "Choisissez d'abord votre ville."
+    : choix.preferenceTransport === "camionnette"
+      ? reglages.camionnette.actif
+        ? `Notre camionnette LEBTEX vous livre au pied de l'immeuble. Tournées : ${reglages.camionnette.jours}.`
+        : "Livraison à votre adresse, organisée avec vous au téléphone."
+      : `Notre transporteur habituel livre la marchandise à son dépôt, à ${choix.ville}. Vous la récupérez à ce dépôt : nous vous donnons son adresse au téléphone.`;
+
+  const placeholderNotes =
+    choix.mode === "retrait"
+      ? "Ex : je passerai samedi matin"
+      : choix.mode === "transport"
+        ? "Ex : meilleur moment pour vous appeler"
+        : "Ex : livrer après 18h, sonnez au 2ème étage";
 
   return (
     <div className="min-h-screen bg-[#FBF8F3]">
       {/* ── Header ── */}
       <div className="bg-white border-b border-[#E8E4DF] sticky top-0 z-30 shadow-sm">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
-          <div className="flex items-center gap-3">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 min-h-[64px] py-2 flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2 sm:gap-3 min-w-0">
             <Link
               href="/shop/panier"
-              className="flex items-center gap-2 text-sm text-[#6B6B6B] hover:text-[#C8102E] transition-colors"
+              aria-label="Retour au panier"
+              className="-ml-2 inline-flex min-h-[44px] min-w-[44px] items-center justify-center gap-2 rounded-xl px-2 text-sm text-[#6B6B6B] hover:text-[#C8102E] transition-colors"
             >
-              <ArrowLeft className="w-4 h-4" />
+              <ArrowLeft className="w-5 h-5" />
               <span className="hidden sm:inline">Retour au panier</span>
             </Link>
-            <span className="text-[#E8E4DF]">|</span>
-            <h1 className="text-lg font-bold text-[#0F0F0F] shop-font-display">
-              Finaliser la commande / إنهاء الطلب
+            <span className="hidden sm:inline text-[#E8E4DF]" aria-hidden>|</span>
+            <h1 className="text-lg font-bold text-[#0F0F0F] shop-font-display min-w-0">
+              <span className="sm:hidden">Commande</span>
+              <span className="hidden sm:inline">Finaliser la commande / إنهاء الطلب</span>
             </h1>
           </div>
-          <ProgressSteps step={2} />
+          <div className="hidden sm:flex">
+            <ProgressSteps step={2} />
+          </div>
         </div>
       </div>
 
@@ -598,28 +902,23 @@ export default function CheckoutPage() {
                 </div>
               </div>
 
-              {/* ── Section 2: Delivery ── */}
+              {/* ── Section 2: Réception (ville, mode, adresse) ── */}
               <div className="bg-white rounded-2xl border border-[#E8E4DF] p-6 shadow-sm">
                 <SectionHeader
                   icon={<MapPin className="w-4 h-4" />}
-                  title="Adresse de livraison / عنوان التوصيل"
-                  subtitle="Où souhaitez-vous recevoir votre commande ?"
+                  title="Réception de la commande / استلام الطلب"
+                  subtitle="Votre ville, puis la façon de recevoir votre commande"
                 />
-                <div className="space-y-4">
-                  <InputField label="Adresse complète / العنوان الكامل" required error={errors.address}>
-                    <input
-                      type="text"
-                      value={form.address}
-                      onChange={(e) => setField("address", e.target.value)}
-                      placeholder="N° X, Rue ..., Quartier ..."
-                      data-error={!!errors.address}
-                      className={inputCls(errors.address)}
-                      autoComplete="street-address"
-                    />
-                  </InputField>
+                <div className="space-y-5">
+                  {choix.volumineux && (
+                    <div className="flex gap-3 p-4 rounded-2xl bg-amber-50 border border-amber-200">
+                      <Info className="w-5 h-5 text-amber-700 flex-shrink-0 mt-0.5" />
+                      <p className="text-sm text-[#2A2A2A] leading-relaxed">{TEXTE_TRANSPORT_VOLUMINEUX}</p>
+                    </div>
+                  )}
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <InputField label="Ville / المدينة" required error={errors.city}>
+                    <InputField label="Ville / المدينة" required={choix.mode !== "retrait"} error={errors.city}>
                       <select
                         value={form.city}
                         onChange={(e) => setField("city", e.target.value)}
@@ -633,31 +932,148 @@ export default function CheckoutPage() {
                             {city}
                           </option>
                         ))}
+                        <option value={AUTRE_VILLE}>Autre ville (écrivez-la)</option>
                       </select>
                     </InputField>
-                    <InputField label="Région / الجهة" error={errors.region}>
-                      <input
-                        type="text"
-                        value={form.region}
-                        onChange={(e) => setField("region", e.target.value)}
-                        placeholder="ex: Grand Casablanca"
-                        className={inputCls(errors.region)}
-                        autoComplete="address-level1"
-                      />
-                    </InputField>
+                    {form.city === AUTRE_VILLE && (
+                      <InputField label="Votre ville" required error={errors.villeAutre}>
+                        <input
+                          type="text"
+                          value={form.villeAutre}
+                          onChange={(e) => setField("villeAutre", e.target.value)}
+                          placeholder="ex : Sidi Bennour"
+                          data-error={!!errors.villeAutre}
+                          className={inputCls(errors.villeAutre)}
+                          autoComplete="address-level2"
+                          maxLength={60}
+                        />
+                      </InputField>
+                    )}
                   </div>
 
-                  <InputField label="Code postal / الرمز البريدي" error={errors.postalCode}>
-                    <input
-                      type="text"
-                      value={form.postalCode}
-                      onChange={(e) => setField("postalCode", e.target.value)}
-                      placeholder="ex: 20000"
-                      className={`${inputCls(errors.postalCode)} max-w-32`}
-                      autoComplete="postal-code"
-                      maxLength={5}
-                    />
-                  </InputField>
+                  <fieldset data-error={!!errors.mode}>
+                    <legend className="block text-sm font-medium text-[#0F0F0F] mb-2">
+                      Comment voulez-vous recevoir votre commande ?
+                      <span className="text-[#C8102E] ml-1">*</span>
+                    </legend>
+                    <div className="space-y-3">
+                      {choix.modes.map((m) => {
+                        if (m === "domicile") {
+                          const prixConnu = !!choix.ville;
+                          const fraisDomicile = prixConnu
+                            ? fraisLivraison({ mode: "domicile", ville: choix.ville, sousTotal: subtotal })
+                            : null;
+                          const offerte = prixConnu && fraisDomicile === 0;
+                          return (
+                            <OptionCarte
+                              key={m}
+                              name="mode"
+                              checked={choix.mode === m}
+                              onSelect={() => setField("mode", m)}
+                              icone={<Truck className="w-4 h-4" />}
+                              titre="À domicile par Sendit"
+                              prix={prixConnu ? prixFrais(fraisDomicile) : `${formatPrice(FRAIS_ZONE.casablanca)} à ${formatPrice(FRAIS_ZONE.eloignee)}`}
+                              prixOfferte={offerte}
+                            >
+                              <p>
+                                Livraison à votre adresse{prixConnu ? `, sous ${delaiColis(choix.ville)}` : ", prix selon la ville"}.
+                                {" "}{paiement === "cod" ? "Vous payez à la réception : le" : "Le"} colis ne s&apos;ouvre pas avant le paiement.
+                              </p>
+                              {/* Plan §3.1 : Sendit facture plus cher quelques quartiers excentrés ; on le dit avant l'appel. */}
+                              {prixConnu && !offerte && estCasablanca(choix.ville) && (
+                                <p className="text-xs text-[#6B6B6B]">
+                                  {formatPrice(FRAIS_ZONE.eloignee)} dans quelques zones éloignées de Casablanca, confirmé à l&apos;appel.
+                                </p>
+                              )}
+                              {prixConnu && !offerte && subtotal > 0 && (
+                                <p className="text-xs font-semibold text-emerald-700">
+                                  Offerte dès {formatPrice(seuilOfferte(choix.ville))} d&apos;achats
+                                </p>
+                              )}
+                            </OptionCarte>
+                          );
+                        }
+                        if (m === "retrait") {
+                          return (
+                            <OptionCarte
+                              key={m}
+                              name="mode"
+                              checked={choix.mode === m}
+                              onSelect={() => setField("mode", m)}
+                              icone={<Store className="w-4 h-4" />}
+                              titre={`Retrait gratuit à ${lieu.nom}`}
+                              prix="Gratuit"
+                              prixOfferte
+                            >
+                              <p>{lieu.adresse} · {lieu.horaires}.</p>
+                              <p>L&apos;adresse exacte et le jour vous sont confirmés par WhatsApp.</p>
+                            </OptionCarte>
+                          );
+                        }
+                        return (
+                          <OptionCarte
+                            key={m}
+                            name="mode"
+                            checked={choix.mode === m}
+                            onSelect={() => setField("mode", m)}
+                            icone={<Truck className="w-4 h-4" />}
+                            titre="Livraison / transport"
+                            prix={prixFrais(null)}
+                          >
+                            <p>{texteTransport}</p>
+                            <p>Nous vous appelons avec le prix du transport : rien ne part avant votre accord.</p>
+                          </OptionCarte>
+                        );
+                      })}
+                    </div>
+                    {errors.mode && (
+                      <p className="text-xs text-red-500 mt-2 flex items-center gap-1">
+                        <AlertCircle className="w-3 h-3" />
+                        {errors.mode}
+                      </p>
+                    )}
+                  </fieldset>
+
+                  {choix.adresseRequise && (
+                    <>
+                      <InputField label="Adresse complète / العنوان الكامل" required error={errors.address}>
+                        <input
+                          type="text"
+                          value={form.address}
+                          onChange={(e) => setField("address", e.target.value)}
+                          placeholder="N° X, Rue ..., Quartier ..."
+                          data-error={!!errors.address}
+                          className={inputCls(errors.address)}
+                          autoComplete="street-address"
+                        />
+                      </InputField>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <InputField label="Région / الجهة" error={errors.region}>
+                          <input
+                            type="text"
+                            value={form.region}
+                            onChange={(e) => setField("region", e.target.value)}
+                            placeholder="ex: Grand Casablanca"
+                            className={inputCls(errors.region)}
+                            autoComplete="address-level1"
+                          />
+                        </InputField>
+                        <InputField label="Code postal / الرمز البريدي" error={errors.postalCode}>
+                          <input
+                            type="text"
+                            inputMode="numeric"
+                            value={form.postalCode}
+                            onChange={(e) => setField("postalCode", e.target.value)}
+                            placeholder="ex: 20000"
+                            className={`${inputCls(errors.postalCode)} max-w-40`}
+                            autoComplete="postal-code"
+                            maxLength={5}
+                          />
+                        </InputField>
+                      </div>
+                    </>
+                  )}
                 </div>
               </div>
 
@@ -666,34 +1082,58 @@ export default function CheckoutPage() {
                 <SectionHeader
                   icon={<ShieldCheck className="w-4 h-4" />}
                   title="Paiement / الدفع"
-                  subtitle="Moyen de paiement sécurisé"
+                  subtitle="Choisissez ce qui vous arrange"
                 />
-                <div className="flex items-start gap-4 p-4 bg-gradient-to-r from-[#D4A843]/8 to-[#D4A843]/4 border-2 border-[#D4A843]/40 rounded-2xl">
-                  <div className="w-10 h-10 rounded-xl bg-[#D4A843]/20 flex items-center justify-center flex-shrink-0">
-                    <span className="text-xl">💵</span>
-                  </div>
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2 mb-1">
-                      <h3 className="font-bold text-[#0F0F0F]">Paiement à la livraison</h3>
-                      <span className="px-2 py-0.5 bg-green-100 text-green-700 text-xs font-semibold rounded-full">
-                        Disponible
-                      </span>
-                    </div>
-                    <p className="text-sm text-[#6B6B6B] leading-relaxed">
-                      Payez en cash à la réception de votre commande. Aucun prépaiement requis — 100% sécurisé.
+                <fieldset className="space-y-3">
+                  <legend className="sr-only">Moyen de paiement</legend>
+                  <OptionCarte
+                    name="paiement"
+                    checked={paiement === "cod"}
+                    onSelect={() => setField("paiement", "cod")}
+                    icone={<Banknote className="w-4 h-4" />}
+                    titre={especes.titre}
+                  >
+                    <p>{especes.texte}</p>
+                  </OptionCarte>
+                  {reglages.virement.actif && (
+                    <OptionCarte
+                      name="paiement"
+                      checked={paiement === "virement"}
+                      onSelect={() => setField("paiement", "virement")}
+                      icone={<Landmark className="w-4 h-4" />}
+                      titre="Virement bancaire"
+                    >
+                      <p>
+                        Notre RIB s&apos;affiche après la commande. Mettez votre numéro de commande en motif du
+                        virement. Nous vous confirmons la réception par WhatsApp.
+                      </p>
+                    </OptionCarte>
+                  )}
+                  {reglages.carte.actif && (
+                    <OptionCarte
+                      name="paiement"
+                      checked={paiement === "carte"}
+                      onSelect={() => setField("paiement", "carte")}
+                      icone={<CreditCard className="w-4 h-4" />}
+                      titre="Carte bancaire"
+                    >
+                      <p>Paiement en ligne sécurisé : nous vous envoyons le lien après notre appel de confirmation.</p>
+                    </OptionCarte>
+                  )}
+                </fieldset>
+
+                {/* Plafond d'espèces d'un colis Sendit (règle validée le 29/09/2026) : on prévient,
+                    on propose le virement, on n'impose rien. */}
+                {choix.mode === "domicile" && paiement === "cod" && totalConnu > PLAFOND_ESPECES_COLIS && (
+                  <div className="mt-4 flex gap-2.5 p-3.5 rounded-xl bg-amber-50 border border-amber-200">
+                    <Info className="w-4 h-4 text-amber-700 flex-shrink-0 mt-0.5" />
+                    <p className="text-sm text-[#4A4A4A] leading-relaxed">
+                      Au-delà de {formatPrice(PLAFOND_ESPECES_COLIS)} d&apos;espèces pour un colis, nous vous proposons au
+                      téléphone la solution la plus simple (virement, retrait gratuit ou autre arrangement)
+                      {reglages.virement.actif ? " ; vous pouvez aussi choisir le virement dès maintenant." : "."}
                     </p>
-                    <div className="flex items-center gap-1.5 mt-2">
-                      <Shield className="w-3.5 h-3.5 text-green-600" />
-                      <span className="text-xs text-green-700 font-medium">
-                        Garantie retour 14 jours si insatisfait
-                      </span>
-                    </div>
                   </div>
-                  {/* Checked indicator */}
-                  <div className="w-5 h-5 rounded-full bg-[#D4A843] flex items-center justify-center flex-shrink-0">
-                    <CheckCircle2 className="w-3.5 h-3.5 text-white" />
-                  </div>
-                </div>
+                )}
               </div>
 
               {/* ── Section 4: Notes ── */}
@@ -701,14 +1141,14 @@ export default function CheckoutPage() {
                 <SectionHeader
                   icon={<FileText className="w-4 h-4" />}
                   title="Notes de commande"
-                  subtitle="Instructions spéciales pour la livraison"
+                  subtitle="Une précision pour notre équipe ?"
                 />
                 <textarea
                   value={form.notes}
                   onChange={(e) => setField("notes", e.target.value)}
-                  placeholder="Ex: Livrer après 18h, sonnez au 2ème étage, etc."
+                  placeholder={placeholderNotes}
                   rows={3}
-                  className="w-full px-4 py-3 text-sm border border-[#E8E4DF] rounded-xl bg-[#FBF8F3] text-[#0F0F0F] placeholder:text-[#6B6B6B]/50 focus:outline-none focus:ring-2 focus:ring-[#C8102E]/20 focus:border-[#C8102E]/40 transition-all resize-none"
+                  className="w-full px-4 py-3 text-base border border-[#E8E4DF] rounded-xl bg-[#FBF8F3] text-[#0F0F0F] placeholder:text-[#6B6B6B]/50 focus:outline-none focus:ring-2 focus:ring-[#C8102E]/20 focus:border-[#C8102E]/40 transition-all resize-none"
                 />
               </div>
 
@@ -761,6 +1201,9 @@ export default function CheckoutPage() {
                   </p>
                 )}
 
+                {/* Sur téléphone, le récapitulatif vient après le bouton : le total se voit ici avant de valider. */}
+                <ResumeAvantValidation subtotal={subtotal} choix={choix} paiement={paiement} />
+
                 {/* Submit error */}
                 {submitError && (
                   <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-xl flex items-start gap-3">
@@ -792,7 +1235,8 @@ export default function CheckoutPage() {
                 <div className="flex items-center justify-center gap-4 mt-4">
                   <Shield className="w-4 h-4 text-[#D4A843]" />
                   <p className="text-xs text-[#6B6B6B] text-center">
-                    Commande sécurisée · Paiement à la livraison · Retour facile sous 14 jours
+                    Commande sécurisée · {paiement === "carte" ? "Paiement par carte" : "Rien à payer maintenant"} ·{" "}
+                    <Link href="/shop/conditions" className="underline hover:text-[#C8102E]">Retour sous 14 jours (sauf tissu coupé)</Link>
                   </p>
                 </div>
               </div>
@@ -801,7 +1245,13 @@ export default function CheckoutPage() {
             {/* ── Right: Order Summary (40%) ── */}
             <div className="lg:col-span-2">
               <div className="sticky top-24">
-                <SummaryPanel items={items} subtotal={subtotal} city={form.city} productQtyMap={productQtyMap} />
+                <SummaryPanel
+                  items={items}
+                  subtotal={subtotal}
+                  productQtyMap={productQtyMap}
+                  choix={choix}
+                  paiement={paiement}
+                />
               </div>
             </div>
           </div>

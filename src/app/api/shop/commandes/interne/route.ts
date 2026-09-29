@@ -15,21 +15,40 @@
 // savoir si c'est parti) et chaque envoi réussi est noté dans
 // shop_orders_interne/{id}.emailsClient (à qui, quand, par qui, à quel statut).
 //
-// GET  ?id=…                                   → { noteInterne, motifAnnulation, journal, emailsClient }
+// « Paiement reçu » (virement vu sur le compte) aussi, dans shop_orders_interne/{id}.paiement :
+// jamais dans la commande, que n'importe qui peut écrire à la création. Seul l'administrateur
+// le pose : c'est lui qui voit le compte en banque.
+//
+// Après l'appel, l'équipe peut aussi changer le mode de réception et les frais
+// (action « reception ») : un colis de plus de 3 000 DH qui finit en retrait, un
+// rouleau finalement retiré à CHRIFA, les 45 DH d'une zone éloignée, le prix du
+// transport convenu. Le serveur réécrit reception, deliveryFee et total (articles
+// + frais − remise, recalculé ici), avec une trace (qui, quand, avant / après)
+// dans shop_orders_interne/{id}.journalReception. Refusé si un colis Sendit existe
+// déjà : son montant à encaisser est fixé chez Sendit.
+//
+// GET  ?id=…                                   → { noteInterne, motifAnnulation, journal, emailsClient,
+//                                                   paiement, controleFrais, journalReception, peutValiderPaiement }
 // POST { id, action: 'statut', statut, depuis, motif? }
 // POST { id, action: 'note', note }
+// POST { id, action: 'paiement', recu, note? }   (administrateur seulement : 403 pour l'équipe)
+// POST { id, action: 'reception', mode, lieuRetrait?, preferenceTransport?, frais }
 // POST { id, action: 'email-confirmation', forcer?, delai? } → { ok, envoyeA, le, statut }
 //      échec : { error, incertain? } — `incertain` quand Gmail a coupé en plein envoi (peut-être parti).
 
 import { NextResponse } from 'next/server';
 import nodemailer from 'nodemailer';
-import { FieldValue, Timestamp, type DocumentReference } from 'firebase-admin/firestore';
+import { FieldValue, Timestamp, type DocumentReference, type Firestore } from 'firebase-admin/firestore';
 import { verifyEquipe } from '@/lib/require-equipe';
 import { dbAdmin } from '@/lib/firebase-admin-serveur';
-import { MESSAGE_CLIENT } from '@/lib/commandes-boutique';
+import {
+  lignesCollentAuSousTotal, messageClient, receptionDe, totalDesLignes,
+} from '@/lib/commandes-boutique';
+import { lieuRetraitPour } from '@/lib/livraison-boutique';
 import { emailDuClient } from '@/lib/alerte-commande-boutique';
 import { EMAIL_LEBTEX, delaiLivraisonNettoye, echecEnvoiGmail, emailConfirmationClient, statutPermetConfirmation } from '@/lib/email-confirmation-client';
-import { ORDER_STATUS_LABELS, type OrderStatus } from '@/lib/shop-types';
+import { CHEMIN_REGLAGES_RECEPTION, lireReglagesReception, type ReglagesReception } from '@/lib/reglages-reception';
+import { ORDER_STATUS_LABELS, type ModeReception, type OrderStatus, type ReceptionCommande } from '@/lib/shop-types';
 // Pur : la même remise d'aplomb que la fiche, pour que l'e-mail envoyé soit celui de l'aperçu.
 import { normaliserCommande } from '@/app/admin-shop/_commandes/normaliser-commande';
 
@@ -76,6 +95,51 @@ function emailsClientDe(data: Record<string, any> | undefined, auteurLisible: (a
     .slice(-20);
 }
 
+/** « Paiement reçu » tel que la fiche l'affiche, ou null. */
+function paiementDe(data: Record<string, any> | undefined, auteurLisible: (a: string) => string) {
+  const p = data?.paiement;
+  if (!p || typeof p !== 'object' || typeof p.recu !== 'boolean') return null;
+  const ms = msDe(p.le);
+  const par = texte(p.par, 200);
+  const note = texte(p.note, 300);
+  return {
+    recu: p.recu as boolean,
+    ...(ms !== null ? { le: new Date(ms).toISOString() } : {}),
+    ...(par ? { par: auteurLisible(par) } : {}),
+    ...(note ? { note } : {}),
+  };
+}
+
+/** Frais recalculés par la route d'alerte à l'arrivée de la commande, ou null. */
+function controleFraisDe(data: Record<string, any> | undefined) {
+  const c = data?.controleFrais;
+  const nombre = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? v : null);
+  if (!c || typeof c !== 'object') return null;
+  const saisis = nombre(c.saisis);
+  const ecart = nombre(c.ecart);
+  if (saisis === null || ecart === null) return null;
+  return { attendus: nombre(c.attendus), saisis, ecart };
+}
+
+const MODES: ModeReception[] = ['domicile', 'retrait', 'transport'];
+
+/** Les changements de réception notés (les 10 derniers), pour la fiche. */
+function journalReceptionDe(data: Record<string, any> | undefined, auteurLisible: (a: string) => string) {
+  const liste = Array.isArray(data?.journalReception) ? data!.journalReception : [];
+  const nombre = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? v : null);
+  return liste
+    .filter((e: any) => e && msDe(e.le) !== null && e.apres && typeof e.apres === 'object')
+    .map((e: any) => ({
+      le: new Date(msDe(e.le)!).toISOString(),
+      par: auteurLisible(texte(e.par, 200)),
+      mode: MODES.includes(e.apres.mode) ? e.apres.mode as ModeReception : 'domicile',
+      frais: nombre(e.apres.frais),
+      total: nombre(e.apres.total),
+    }))
+    .sort((x: { le: string }, y: { le: string }) => Date.parse(x.le) - Date.parse(y.le))
+    .slice(-10);
+}
+
 /** Forme renvoyée au navigateur : dates en ISO, rien d'autre que ce qu'affiche la fiche. */
 function versReponse(data: Record<string, any> | undefined, role: 'admin' | 'staff') {
   const journal = Array.isArray(data?.journal) ? data!.journal : [];
@@ -87,7 +151,26 @@ function versReponse(data: Record<string, any> | undefined, role: 'admin' | 'sta
       .filter((e: any) => e && STATUTS.includes(e.statut) && msDe(e.le) !== null)
       .map((e: any) => ({ statut: e.statut as OrderStatus, auteur: auteurLisible(texte(e.auteur, 200)), le: new Date(msDe(e.le)!).toISOString() })),
     emailsClient: emailsClientDe(data, auteurLisible),
+    paiement: paiementDe(data, auteurLisible),
+    controleFrais: controleFraisDe(data),
+    journalReception: journalReceptionDe(data, auteurLisible),
+    // L'écran n'affiche le bouton « Paiement reçu » qu'à qui peut s'en servir ; le POST revérifie.
+    peutValiderPaiement: role === 'admin',
   };
+}
+
+/**
+ * Magasins et camionnette réglés par le patron (lecture publique) : l'e-mail envoyé
+ * cite les mêmes adresses que l'aperçu de la fiche. Illisibles : valeurs par défaut.
+ */
+async function reglagesReception(db: Firestore): Promise<ReglagesReception> {
+  try {
+    const snap = await db.collection(CHEMIN_REGLAGES_RECEPTION.collection).doc(CHEMIN_REGLAGES_RECEPTION.document).get();
+    return lireReglagesReception(snap.data());
+  } catch (err: any) {
+    console.error('[shop/commandes/interne] réglages de réception illisibles :', err?.code || err?.message || 'erreur');
+    return lireReglagesReception(undefined);
+  }
 }
 
 const erreur = (status: number, message: string, extra: Record<string, unknown> = {}) =>
@@ -172,7 +255,7 @@ async function envoyerConfirmation(
   }
 
   // Construit avant de réserver : une commande illisible ne bloque pas les envois suivants.
-  const e = emailConfirmationClient(commande, { delaiLivraison: delai });
+  const e = emailConfirmationClient(commande, { delaiLivraison: delai, reglages: await reglagesReception(ref.firestore) });
 
   // Anti double clic, dans une transaction : deux appuis simultanés (ou deux
   // appareils) ne peuvent pas envoyer deux e-mails sans qu'on le demande.
@@ -258,6 +341,42 @@ type Resultat =
   | { cas: 'conflit'; actuel: OrderStatus }
   | { cas: 'ok' };
 
+/** Au-delà, une faute de frappe (le prix d'un rouleau tapé dans les frais) : refusé. */
+const FRAIS_MAX = 10_000;
+const STATUTS_FIGES: OrderStatus[] = ['delivered', 'cancelled', 'returned'];
+
+type ResultatReception =
+  | { cas: 'absente' }
+  | { cas: 'refus'; message: string }
+  | { cas: 'ok'; total: number; frais: number; reception: ReceptionCommande };
+
+interface ReceptionDemandee {
+  mode: ModeReception;
+  lieuRetrait?: 'derb_omar' | 'chrifa';
+  preferenceTransport?: 'camionnette' | 'transporteur';
+  frais: number;
+}
+
+/**
+ * Nouveau mode et nouveaux frais, relus : valeurs permises seulement, frais en DH (0 à
+ * 10 000, deux décimales). Sinon, la raison du refus.
+ */
+function receptionDemandee(corps: any): ReceptionDemandee | string {
+  const mode = MODES.includes(corps?.mode) ? corps.mode as ModeReception : null;
+  if (!mode) return 'Mode de réception inconnu.';
+  const brut = typeof corps?.frais === 'number' ? corps.frais : typeof corps?.frais === 'string' ? Number(corps.frais.replace(',', '.')) : NaN;
+  if (!Number.isFinite(brut) || brut < 0 || brut > FRAIS_MAX) return `Frais illisibles : un montant en DH, de 0 à ${FRAIS_MAX}.`;
+  const frais = Math.round(brut * 100) / 100;
+  const lieuRetrait = corps?.lieuRetrait === 'derb_omar' || corps?.lieuRetrait === 'chrifa' ? corps.lieuRetrait : undefined;
+  const preferenceTransport = corps?.preferenceTransport === 'camionnette' || corps?.preferenceTransport === 'transporteur' ? corps.preferenceTransport : undefined;
+  return {
+    mode,
+    ...(mode === 'retrait' && lieuRetrait ? { lieuRetrait } : {}),
+    ...(mode === 'transport' && preferenceTransport ? { preferenceTransport } : {}),
+    frais,
+  };
+}
+
 export async function POST(req: Request) {
   // Écriture : l'accès est relu dans la base (pas de copie en mémoire), pour
   // qu'un accès désactivé ou un mot de passe changé bloque tout de suite.
@@ -305,10 +424,12 @@ export async function POST(req: Request) {
 
         // Même instant dans le suivi client et dans le journal : la fiche les rapproche.
         const le = Timestamp.fromMillis(Date.now());
+        // La phrase suit le mode : « Commande retirée », pas « livrée », pour qui est venu au magasin.
+        const message = messageClient(normaliserCommande(id, snap.data()), statut);
         tx.update(ref, {
           status: statut,
           updatedAt: FieldValue.serverTimestamp(),
-          trackingNotes: FieldValue.arrayUnion({ status: statut, message: MESSAGE_CLIENT[statut], timestamp: le }),
+          trackingNotes: FieldValue.arrayUnion({ status: statut, message, timestamp: le }),
         });
         tx.set(refInterne, {
           journal: FieldValue.arrayUnion({ statut, auteur, le }),
@@ -326,6 +447,82 @@ export async function POST(req: Request) {
           { statut: resultat.actuel });
       }
       return NextResponse.json({ ok: true }, { headers: PAS_DE_CACHE });
+    }
+
+    if (corps.action === 'paiement') {
+      // L'équipe voit l'état du paiement, jamais le bouton : elle n'a pas accès à la banque.
+      if (check.role !== 'admin') {
+        return erreur(403, 'Seul l’administrateur peut noter un paiement reçu, après l’avoir vu sur le compte');
+      }
+      if (typeof corps.recu !== 'boolean') return erreur(400, 'Requête illisible');
+      const note = texte(corps.note, 300);
+      const snap = await ref.get();
+      if (!snap.exists) return erreur(404, 'Cette commande n’existe plus (elle a peut-être été supprimée).');
+      const le = Timestamp.fromMillis(Date.now());
+      const entree = { recu: corps.recu as boolean, le, par: auteur, note };
+      await refInterne.set({
+        // Écrit en entier : une ancienne note ne survit pas à l'annulation d'un « reçu ».
+        paiement: entree,
+        // Qui a noté quoi, et quand : l'argent se contrôle après coup.
+        journalPaiement: FieldValue.arrayUnion(entree),
+        majLe: FieldValue.serverTimestamp(),
+      }, { merge: true });
+      return NextResponse.json({ ok: true, le: le.toDate().toISOString() }, { headers: PAS_DE_CACHE });
+    }
+
+    if (corps.action === 'reception') {
+      const demande = receptionDemandee(corps);
+      if (typeof demande === 'string') return erreur(400, demande);
+
+      const resultat = await db.runTransaction<ResultatReception>(async tx => {
+        const [snap, snapInterne] = await Promise.all([tx.get(ref), tx.get(refInterne)]);
+        if (!snap.exists) return { cas: 'absente' };
+        const o = normaliserCommande(id, snap.data());
+        if (STATUTS_FIGES.includes(o.status)) {
+          return { cas: 'refus', message: 'Cette commande est terminée (livrée, annulée ou retournée) : sa réception ne change plus.' };
+        }
+        // Le colis Sendit a déjà son montant à encaisser : changer les frais ou le mode ici le contredirait.
+        const envoi = snapInterne.data()?.sendit ?? {};
+        if (typeof envoi.code === 'string' && envoi.code) {
+          return { cas: 'refus', message: `Un colis Sendit existe déjà pour cette commande (code ${envoi.code}) : annulez-le d’abord dans l’application Sendit, puis voyez avec l’administrateur.` };
+        }
+        if (envoi.enCours || envoi.incertain === true) {
+          return { cas: 'refus', message: 'Un envoi à Sendit est en cours ou resté sans réponse : vérifiez d’abord le colis (panneau Sendit).' };
+        }
+        const avant = receptionDe(o);
+        if (avant.volumineux && demande.mode === 'domicile') {
+          return { cas: 'refus', message: 'Un rouleau entier ne part jamais par Sendit : choisissez le retrait ou le transport.' };
+        }
+        const reception: ReceptionCommande = {
+          mode: demande.mode,
+          volumineux: avant.volumineux,
+          ...(demande.mode === 'retrait' ? { lieuRetrait: demande.lieuRetrait ?? lieuRetraitPour(avant.volumineux) } : {}),
+          ...(demande.mode === 'transport' && demande.preferenceTransport ? { preferenceTransport: demande.preferenceTransport } : {}),
+        };
+        // Articles : la somme des lignes (le sous-total si une ancienne commande ne la retrouve pas).
+        const articles = lignesCollentAuSousTotal(o) ? totalDesLignes(o) : Number(o.subtotal) || 0;
+        const total = Math.round((articles + demande.frais - (Number(o.discount) || 0)) * 100) / 100;
+        const le = Timestamp.fromMillis(Date.now());
+        tx.update(ref, { reception, deliveryFee: demande.frais, total, updatedAt: FieldValue.serverTimestamp() });
+        tx.set(refInterne, {
+          journalReception: FieldValue.arrayUnion({
+            avant: { mode: avant.mode, frais: Number(o.deliveryFee) || 0, total: Number(o.total) || 0 },
+            apres: {
+              mode: reception.mode, frais: demande.frais, total,
+              ...(reception.lieuRetrait ? { lieu: reception.lieuRetrait } : {}),
+              ...(reception.preferenceTransport ? { transport: reception.preferenceTransport } : {}),
+            },
+            par: auteur,
+            le,
+          }),
+          majLe: FieldValue.serverTimestamp(),
+        }, { merge: true });
+        return { cas: 'ok', total, frais: demande.frais, reception };
+      });
+
+      if (resultat.cas === 'absente') return erreur(404, 'Cette commande n’existe plus (elle a peut-être été supprimée).');
+      if (resultat.cas === 'refus') return erreur(409, resultat.message);
+      return NextResponse.json({ ok: true, total: resultat.total, frais: resultat.frais, reception: resultat.reception }, { headers: PAS_DE_CACHE });
     }
 
     if (corps.action === 'email-confirmation') {

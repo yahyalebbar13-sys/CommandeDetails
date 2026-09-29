@@ -1,9 +1,10 @@
 'use client';
 
 // ─── Tableau de bord de la boutique ──────────────────────────────────────────
-// Ce qui attend (à confirmer, à préparer, en livraison) et l'argent vraiment
-// encaissé (commandes livrées) — plus de « chiffre d'affaires » qui comptait les
-// commandes jamais confirmées. En dessous, les commandes à rappeler en premier.
+// Ce qui attend (à confirmer, à préparer, transport à organiser, à retirer, en
+// livraison) et l'argent vraiment encaissé (commandes livrées ou retirées) — plus
+// de « chiffre d'affaires » qui comptait les commandes jamais confirmées. En
+// dessous, les commandes à rappeler en premier.
 
 import { useMemo, type ReactNode } from 'react';
 import {
@@ -15,8 +16,10 @@ import {
   MapPin,
   PackageCheck,
   RefreshCw,
+  Store,
   Truck,
   Wallet,
+  Warehouse,
 } from 'lucide-react';
 import type { ShopOrder } from '@/lib/shop-types';
 import { formatPrice } from '@/lib/shop-utils';
@@ -136,7 +139,7 @@ export function TableauDeBord({
       {erreur && <BandeauErreur message={erreur} onReessayer={onReessayer} />}
 
       {/* ── Ce qui attend, et l'argent encaissé ── */}
-      <div className="grid grid-cols-2 xl:grid-cols-4 gap-3 md:gap-4">
+      <div className="grid grid-cols-2 xl:grid-cols-3 gap-3 md:gap-4">
         <Carte
           titre="À confirmer"
           valeur={comptes.a_confirmer}
@@ -157,19 +160,35 @@ export function TableauDeBord({
           sousTitre="confirmées, colis à faire"
         />
         <Carte
+          titre="Transport à organiser"
+          valeur={comptes.transport}
+          icone={<Warehouse className="w-5 h-5" />}
+          couleur="#F59E0B"
+          onClick={() => onVoirFile('transport')}
+          sousTitre="rouleaux : retrait CHRIFA, camionnette ou transporteur"
+        />
+        <Carte
+          titre="À retirer"
+          valeur={comptes.a_retirer}
+          icone={<Store className="w-5 h-5" />}
+          couleur="#14B8A6"
+          onClick={() => onVoirFile('a_retirer')}
+          sousTitre="prêtes au magasin"
+        />
+        <Carte
           titre="En livraison"
           valeur={comptes.en_livraison}
           icone={<Truck className="w-5 h-5" />}
           couleur="#06B6D4"
           onClick={() => onVoirFile('en_livraison')}
-          sousTitre="chez le livreur"
+          sousTitre="Sendit, camionnette ou transporteur"
         />
         <Carte
           titre="Encaissé"
           valeur={formatPrice(argent.encaisse)}
           icone={<Wallet className="w-5 h-5" />}
           couleur="#10B981"
-          sousTitre="commandes livrées"
+          sousTitre="livrées ou retirées"
         />
       </div>
       {(argent.enCours > 0 || argent.aConfirmer > 0) && (

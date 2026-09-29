@@ -25,7 +25,7 @@ const PromoCard = React.memo(function PromoCard({ product }: { product: ShopProd
   const handleAdd = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    addItem({ productId: product.id, productName: product.name, productImage: product.images?.[0] || '', price: product.price, quantity: product.minOrderQty || 1, maxStock: product.stockQty ?? 999 });
+    addItem({ productId: product.id, productName: product.name, productImage: product.images?.[0] || '', price: product.price, quantity: product.minOrderQty || 1, maxStock: product.stockQty ?? 999, volumineux: !!product.volumineux });
     setAdded(true);
     setTimeout(() => setAdded(false), 2000);
   };

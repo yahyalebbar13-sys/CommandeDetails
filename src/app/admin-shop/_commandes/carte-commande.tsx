@@ -10,6 +10,7 @@ import { memo, type MouseEvent } from 'react';
 import { Clock, MapPin, MessageCircle, Phone, PhoneOff } from 'lucide-react';
 import { ORDER_STATUS_COLORS, type ShopOrder } from '@/lib/shop-types';
 import { formatPrice } from '@/lib/shop-utils';
+import type { ReglagesReception } from '@/lib/reglages-reception';
 import {
   depuisQuand,
   enRetard,
@@ -18,8 +19,8 @@ import {
   telephonesCommande,
   telLisible,
 } from '@/lib/commandes-boutique';
-import { messageWhatsAppDuMoment, resumeArticles } from './outils-ecran';
-import { BadgeStatut, BOUTON_APPEL, BOUTON_INACTIF, BOUTON_WHATSAPP } from './elements';
+import { messageWhatsAppDuMoment, resumeArticles, statutLisiblePour } from './outils-ecran';
+import { BadgesReception, BadgeStatut, BOUTON_APPEL, BOUTON_INACTIF, BOUTON_WHATSAPP } from './elements';
 
 const arreter = (e: MouseEvent) => e.stopPropagation();
 
@@ -30,6 +31,7 @@ export const CarteCommande = memo(function CarteCommande({
   selectionnee,
   afficherStatut,
   onOuvrir,
+  reglages,
 }: {
   commande: ShopOrder;
   maintenant: number;
@@ -37,6 +39,8 @@ export const CarteCommande = memo(function CarteCommande({
   selectionnee: boolean;
   afficherStatut: boolean;
   onOuvrir: (id: string) => void;
+  /** Magasins réglés : le WhatsApp « commande prête » cite la bonne adresse (valeurs par défaut sans eux). */
+  reglages?: ReglagesReception;
 }) {
   const retard = enRetard(o, maintenant);
   const couleur = ORDER_STATUS_COLORS[o.status] || '#6B7280';
@@ -44,7 +48,7 @@ export const CarteCommande = memo(function CarteCommande({
   const ville = o.shippingAddress?.city;
   const tel = telephonesCommande(o)[0];
   const appel = lienAppel(tel);
-  const whatsapp = lienWhatsAppClient(tel, messageWhatsAppDuMoment(o, maintenant));
+  const whatsapp = lienWhatsAppClient(tel, messageWhatsAppDuMoment(o, maintenant, { reglages }));
   const ouvrir = () => { if (o.id) onOuvrir(o.id); };
 
   return (
@@ -98,7 +102,9 @@ export const CarteCommande = memo(function CarteCommande({
         )}
         <p className="mt-2 line-clamp-2 text-sm text-gray-300">{resumeArticles(o)}</p>
         <p className="mt-1 truncate font-mono text-xs text-gray-400">{o.orderNumber}</p>
-        {afficherStatut && <BadgeStatut statut={o.status} className="mt-2" />}
+        {/* Rouleau, retrait, transport, virement : ce qui change le travail se voit sans ouvrir. */}
+        <BadgesReception commande={o} compact className="mt-2" />
+        {afficherStatut && <BadgeStatut statut={o.status} libelle={statutLisiblePour(o, o.status)} className="mt-2" />}
       </button>
 
       <div className="flex gap-2 pl-5 pr-4 pb-3.5 pt-1.5">

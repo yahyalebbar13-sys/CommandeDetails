@@ -19,11 +19,12 @@ export default function LocalBusinessSchema() {
           height: 512,
         },
         image: 'https://lebtex.ma/hero-banner.png',
-        telephone: '+212600000000', // Update with real number
+        // Le numéro affiché sur la page À propos et partout sur le site (WhatsApp compris).
+        telephone: '+212 760 998 347',
         email: 'lebtexsarlau@gmail.com',
-        priceRange: '₺₺',
+        priceRange: '$$',
         currenciesAccepted: 'MAD',
-        paymentAccepted: 'Cash, Paiement à la livraison',
+        paymentAccepted: 'Espèces à la livraison ou au retrait, Virement bancaire',
         address: {
           '@type': 'PostalAddress',
           addressLocality: 'Casablanca',
@@ -88,8 +89,8 @@ export default function LocalBusinessSchema() {
           {
             '@type': 'OpeningHoursSpecification',
             dayOfWeek: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'],
-            opens: '08:00',
-            closes: '18:00',
+            opens: '08:30',
+            closes: '18:30',
           },
         ],
         keywords: 'fermeture éclair, élastique, bouton, ruban, tissu, mercerie, Maroc, سحاب, مطاط, أزرار, قماش',

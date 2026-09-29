@@ -19,6 +19,9 @@ import {
   type OrderStatus,
 } from '@/lib/shop-types';
 import { formatPrice } from '@/lib/shop-utils';
+import { moyenPaiementDe, prixUnitaireLigne, receptionDe, totalLigne, transportPrevu } from '@/lib/commandes-boutique';
+import { useReglagesReception } from '@/lib/use-reglages-reception';
+import type { ReglagesReception } from '@/lib/reglages-reception';
 import {
   Search,
   Package,
@@ -35,65 +38,121 @@ import {
   RefreshCw,
   ChevronRight,
   ChevronDown,
+  Store,
+  Landmark,
 } from 'lucide-react';
 
 // ─── Firebase init ─────────────────────────────────────────────────────────────
 const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
-// ─── Status step config ────────────────────────────────────────────────────────
-const TRACKING_STEPS: {
+// ─── Étapes affichées, selon le mode de réception ─────────────────────────────
+// Un colis Sendit, un retrait au magasin et le transport d'un rouleau ne passent
+// pas par les mêmes étapes : pas de « remis au transporteur » pour un retrait.
+interface EtapeSuivi {
   status: OrderStatus;
   label: string;
   description: string;
   icon: React.ReactNode;
-}[] = [
-  {
-    status: 'pending',
-    label: 'En attente',
-    description: 'Commande reçue, en attente de confirmation',
-    icon: <Clock className="w-5 h-5" />,
-  },
-  {
-    status: 'confirmed',
-    label: 'Confirmée',
-    description: 'Commande confirmée par notre équipe',
-    icon: <CheckCircle2 className="w-5 h-5" />,
-  },
-  {
-    status: 'processing',
-    label: 'En préparation',
-    description: 'Votre colis est en cours de préparation',
-    icon: <Package className="w-5 h-5" />,
-  },
-  {
-    status: 'shipped',
-    label: 'Expédiée',
-    description: 'Colis remis au transporteur',
-    icon: <Truck className="w-5 h-5" />,
-  },
-  {
-    status: 'out_for_delivery',
-    label: 'En livraison',
-    description: 'Le livreur est en route vers vous',
-    icon: <MapPin className="w-5 h-5" />,
-  },
-  {
-    status: 'delivered',
-    label: 'Livrée',
-    description: 'Commande livrée avec succès',
-    icon: <CheckCircle2 className="w-5 h-5" />,
-  },
-];
+}
 
-function getStepIndex(status: OrderStatus): number {
-  const idx = TRACKING_STEPS.findIndex((s) => s.status === status);
-  return idx === -1 ? 0 : idx;
+// Rang de chaque statut dans l'avancement : place une commande sur les étapes de
+// SON parcours même si l'équipe a choisi un statut d'un autre parcours.
+const RANG_STATUT: Partial<Record<OrderStatus, number>> = {
+  pending: 0,
+  confirmed: 1,
+  processing: 2,
+  ready_for_pickup: 3,
+  shipped: 3,
+  out_for_delivery: 4,
+  delivered: 5,
+};
+
+function etapesSuivi(order: ShopOrder, reglages: ReglagesReception): EtapeSuivi[] {
+  const r = receptionDe(order);
+  const debut: EtapeSuivi[] = [
+    {
+      status: 'pending',
+      label: 'En attente',
+      description: r.mode === 'transport'
+        ? 'Commande reçue : nous vous appelons pour organiser le transport'
+        : 'Commande reçue, en attente de confirmation',
+      icon: <Clock className="w-5 h-5" />,
+    },
+    {
+      status: 'confirmed',
+      label: 'Confirmée',
+      description: r.mode === 'transport' ? 'Transport convenu avec vous au téléphone' : 'Commande confirmée par notre équipe',
+      icon: <CheckCircle2 className="w-5 h-5" />,
+    },
+    {
+      status: 'processing',
+      label: 'En préparation',
+      description: `Votre commande est en cours de préparation à ${reglages.lieux[r.lieu].nom}`,
+      icon: <Package className="w-5 h-5" />,
+    },
+  ];
+
+  if (r.mode === 'retrait') {
+    return [
+      ...debut,
+      {
+        status: 'ready_for_pickup',
+        label: 'Prête à retirer',
+        description: `Venez la retirer à ${reglages.lieux[r.lieu].nom} avec votre numéro de commande`,
+        icon: <Store className="w-5 h-5" />,
+      },
+      { status: 'delivered', label: 'Retirée', description: 'Commande retirée au magasin', icon: <CheckCircle2 className="w-5 h-5" /> },
+    ];
+  }
+
+  // « Prête à retirer » veut toujours dire « prête dans un magasin LEBTEX » : pas d'étape
+  // « arrivée au dépôt du transporteur » (l'équipe ne la pose pas, et ce statut enverrait
+  // l'adresse de CHRIFA). Nous prévenons le client par téléphone quand le camion arrive.
+  if (r.mode === 'transport' && transportPrevu(order) === 'transporteur') {
+    return [
+      ...debut,
+      {
+        status: 'shipped',
+        label: 'Remise au transporteur',
+        description: 'En route vers son dépôt, dans votre ville : nous vous appelons à son arrivée, avec l’adresse du dépôt',
+        icon: <Truck className="w-5 h-5" />,
+      },
+      { status: 'delivered', label: 'Récupérée', description: 'Marchandise récupérée au dépôt du transporteur', icon: <CheckCircle2 className="w-5 h-5" /> },
+    ];
+  }
+
+  if (r.mode === 'transport') {
+    return [
+      ...debut,
+      { status: 'shipped', label: 'Chargée', description: 'Chargée dans notre camionnette', icon: <Truck className="w-5 h-5" /> },
+      { status: 'out_for_delivery', label: 'En livraison', description: 'Notre chauffeur est en route vers vous', icon: <MapPin className="w-5 h-5" /> },
+      { status: 'delivered', label: 'Livrée', description: 'Commande livrée avec succès', icon: <CheckCircle2 className="w-5 h-5" /> },
+    ];
+  }
+
+  return [
+    ...debut,
+    { status: 'shipped', label: 'Expédiée', description: 'Colis remis à Sendit', icon: <Truck className="w-5 h-5" /> },
+    { status: 'out_for_delivery', label: 'En livraison', description: 'Le livreur est en route vers vous', icon: <MapPin className="w-5 h-5" /> },
+    { status: 'delivered', label: 'Livrée', description: 'Commande livrée avec succès', icon: <CheckCircle2 className="w-5 h-5" /> },
+  ];
+}
+
+function getStepIndex(etapes: EtapeSuivi[], status: OrderStatus): number {
+  const exact = etapes.findIndex((s) => s.status === status);
+  if (exact !== -1) return exact;
+  const rang = RANG_STATUT[status] ?? 0;
+  let idx = 0;
+  etapes.forEach((s, i) => {
+    if ((RANG_STATUT[s.status] ?? 0) <= rang) idx = i;
+  });
+  return idx;
 }
 
 // ─── Vertical Stepper ─────────────────────────────────────────────────────────
-function StatusStepper({ order }: { order: ShopOrder }) {
-  const currentIdx = getStepIndex(order.status);
+function StatusStepper({ order, etapes }: { order: ShopOrder; etapes: EtapeSuivi[] }) {
+  const currentIdx = getStepIndex(etapes, order.status);
   const isCancelled = order.status === 'cancelled' || order.status === 'returned';
 
   if (isCancelled) {
@@ -116,7 +175,7 @@ function StatusStepper({ order }: { order: ShopOrder }) {
 
   return (
     <div className="relative">
-      {TRACKING_STEPS.map((step, i) => {
+      {etapes.map((step, i) => {
         const done = i <= currentIdx;
         const active = i === currentIdx;
         const color = done ? (ORDER_STATUS_COLORS[step.status] || '#6B7280') : '#D1D5DB';
@@ -146,7 +205,7 @@ function StatusStepper({ order }: { order: ShopOrder }) {
                   step.icon
                 )}
               </div>
-              {i < TRACKING_STEPS.length - 1 && (
+              {i < etapes.length - 1 && (
                 <div
                   className="w-0.5 flex-1 my-1 min-h-[32px] transition-all duration-700"
                   style={{ background: done && i < currentIdx ? color : '#E5E7EB' }}
@@ -156,7 +215,7 @@ function StatusStepper({ order }: { order: ShopOrder }) {
             <div className="flex-1 pb-6 pt-2">
               <p
                 className={`font-semibold text-sm transition-colors ${
-                  done ? 'text-[#0F0F0F]' : 'text-gray-400'
+                  done ? 'text-[#0F0F0F]' : 'text-gray-500'
                 } ${active ? 'text-base' : ''}`}
               >
                 {step.label}
@@ -169,7 +228,7 @@ function StatusStepper({ order }: { order: ShopOrder }) {
                   </span>
                 )}
               </p>
-              <p className={`text-xs mt-0.5 ${done ? 'text-gray-500' : 'text-gray-300'}`}>
+              <p className={`text-xs mt-0.5 ${done ? 'text-gray-600' : 'text-gray-500'}`}>
                 {step.description}
               </p>
             </div>
@@ -181,10 +240,15 @@ function StatusStepper({ order }: { order: ShopOrder }) {
 }
 
 // ─── Order Card (compact, expandable) ──────────────────────────────────────────
-function OrderCard({ order }: { order: ShopOrder }) {
+function OrderCard({ order, reglages }: { order: ShopOrder; reglages: ReglagesReception }) {
   const [expanded, setExpanded] = useState(false);
+  const etapes = etapesSuivi(order, reglages);
+  const reception = receptionDe(order);
+  const transport = transportPrevu(order);
+  const lieu = reglages.lieux[reception.lieu];
   const statusColor = ORDER_STATUS_COLORS[order.status] || '#6B7280';
-  const statusLabel = ORDER_STATUS_LABELS[order.status] || order.status;
+  // « Retirée » plutôt que « Livré » pour un retrait : le libellé de l'étape du parcours.
+  const statusLabel = etapes.find((e) => e.status === order.status)?.label || ORDER_STATUS_LABELS[order.status] || order.status;
   const date = order.createdAt?.toDate
     ? order.createdAt.toDate().toLocaleDateString('fr-MA', {
         day: '2-digit',
@@ -244,7 +308,7 @@ function OrderCard({ order }: { order: ShopOrder }) {
       {expanded && (
         <div className="px-5 pb-5 border-t border-gray-100 pt-4 space-y-5">
           {/* Status tracker */}
-          <StatusStepper order={order} />
+          <StatusStepper order={order} etapes={etapes} />
 
           {/* Items */}
           <div>
@@ -263,22 +327,51 @@ function OrderCard({ order }: { order: ShopOrder }) {
                     <p className="text-sm font-semibold text-[#0F0F0F] truncate">{item.productName}</p>
                     <p className="text-xs text-gray-400">Qté: {item.quantity}</p>
                   </div>
-                  <p className="font-bold text-sm text-[#0F0F0F]">{formatPrice(item.price * item.quantity)}</p>
+                  {/* Le prix réellement facturé (prix de gros compris), comme sur la page de confirmation. */}
+                  <p className="font-bold text-sm text-[#0F0F0F] shrink-0">
+                    {prixUnitaireLigne(item) > 0 ? formatPrice(totalLigne(item)) : <span className="text-xs text-gray-500 font-semibold">Prix à confirmer</span>}
+                  </p>
                 </div>
               ))}
             </div>
           </div>
 
-          {/* Shipping address */}
-          {order.shippingAddress && (
+          {/* Où la commande arrive : magasin de retrait, dépôt du transporteur ou adresse */}
+          {reception.mode === 'retrait' ? (
+            <div className="flex items-start gap-3 p-3 rounded-xl bg-gray-50">
+              <Store className="w-4 h-4 text-[#C8102E] flex-shrink-0 mt-0.5" />
+              <div className="text-sm text-gray-600">
+                <p className="font-semibold text-[#0F0F0F]">Retrait à {lieu.nom}</p>
+                <p>{lieu.adresse}</p>
+                <p>{lieu.horaires}</p>
+              </div>
+            </div>
+          ) : order.shippingAddress && (
             <div className="flex items-start gap-3 p-3 rounded-xl bg-gray-50">
               <MapPin className="w-4 h-4 text-[#C8102E] flex-shrink-0 mt-0.5" />
               <div className="text-sm text-gray-600">
                 <p className="font-semibold text-[#0F0F0F]">{order.shippingAddress.fullName}</p>
-                <p>{order.shippingAddress.address}, {order.shippingAddress.city}</p>
+                {reception.mode === 'transport' && transport === 'transporteur' ? (
+                  <p>Jusqu&apos;au dépôt du transporteur{order.shippingAddress.city ? ` à ${order.shippingAddress.city}` : ''}</p>
+                ) : (
+                  <p>{[order.shippingAddress.address, order.shippingAddress.city].filter(Boolean).join(', ')}</p>
+                )}
                 <p className="text-[#C8102E] font-medium">📞 {order.shippingAddress.phone}</p>
               </div>
             </div>
+          )}
+
+          {/* Virement choisi, commande en cours : le RIB est sur la page de la commande (jamais envoyé seul par message). */}
+          {moyenPaiementDe(order) === 'virement' && order.id && !['delivered', 'cancelled', 'returned'].includes(order.status) && (
+            <Link
+              href={`/shop/confirmation/${order.id}`}
+              className="flex min-h-[44px] items-center justify-between w-full p-4 rounded-xl bg-[#FBF8F3] border border-[#E8E4DF] hover:border-[#C8102E] transition-colors"
+            >
+              <span className="flex items-center gap-2 text-sm font-semibold text-[#1A1A1A]">
+                <Landmark className="w-4 h-4 text-[#C8102E]" /> Voir le RIB et payer par virement
+              </span>
+              <ChevronRight className="w-4 h-4 text-[#C8102E]" />
+            </Link>
           )}
 
           {/* WhatsApp help */}
@@ -302,6 +395,7 @@ function OrderCard({ order }: { order: ShopOrder }) {
 
 // ─── Main Page ──────────────────────────────────────────────────────────────────
 export default function SuiviPage() {
+  const { reglages } = useReglagesReception();
   const [orders, setOrders] = useState<ShopOrder[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchPhone, setSearchPhone] = useState('');
@@ -406,7 +500,7 @@ export default function SuiviPage() {
       {orders.length > 0 ? (
         <div className="space-y-4">
           {orders.map(order => (
-            <OrderCard key={order.id || order.orderNumber} order={order} />
+            <OrderCard key={order.id || order.orderNumber} order={order} reglages={reglages} />
           ))}
 
           {/* Change phone / logout */}
@@ -440,7 +534,7 @@ export default function SuiviPage() {
                   value={searchPhone}
                   onChange={(e) => setSearchPhone(e.target.value)}
                   placeholder="06 XX XX XX XX"
-                  className="flex-1 text-sm bg-transparent text-[#0F0F0F] focus:outline-none placeholder-gray-400"
+                  className="flex-1 text-base bg-transparent text-[#0F0F0F] focus:outline-none placeholder-gray-400"
                   required
                 />
               </div>

@@ -9,12 +9,18 @@
 // Passer par le serveur a un autre avantage : hors connexion, rien ne reste en
 // file d'attente dans le navigateur. Soit le serveur a répondu (c'est fait, ou
 // refusé), soit on dit franchement qu'on ne sait pas.
+//
+// Seule lecture directe : les réglages de réception (magasins, camionnette),
+// publics, lus dans shop_catalogue_settings/reception pour la fiche et ses messages.
 
-import type { Firestore } from 'firebase/firestore';
-import type { OrderStatus, ShopOrder } from '@/lib/shop-types';
+import { doc, getDoc, type Firestore } from 'firebase/firestore';
+import type { ModeReception, OrderStatus, ShopOrder } from '@/lib/shop-types';
 import { authedFetch } from '@/lib/authed-fetch';
 import { signalerAccesRefuse } from '@/lib/acces-equipe';
 import { EMAIL_LEBTEX } from '@/lib/email-confirmation-client';
+import type { PaiementInterne } from '@/lib/commandes-boutique';
+import type { ControleFrais } from '@/lib/alerte-commande-boutique';
+import { CHEMIN_REGLAGES_RECEPTION, lireReglagesReception, type ReglagesReception } from '@/lib/reglages-reception';
 import { statutLisible } from './outils-ecran';
 
 /** Une ligne du journal de l'équipe : qui a posé quel statut, et quand. */
@@ -46,6 +52,24 @@ export interface EmailEnvoye {
   statut?: OrderStatus;
 }
 
+/** Un changement de réception fait après l'appel (mode, frais), tel que la fiche l'affiche. */
+export interface ChangementReception {
+  /** Date ISO. */
+  le: string;
+  par: string;
+  mode: ModeReception;
+  frais: number | null;
+  total: number | null;
+}
+
+/** Ce que l'équipe choisit après l'appel : le mode, le magasin ou le transport, et les frais (DH). */
+export interface ChoixReception {
+  mode: ModeReception;
+  lieuRetrait?: 'derb_omar' | 'chrifa';
+  preferenceTransport?: 'camionnette' | 'transporteur';
+  frais: number;
+}
+
 /** Ce que l'équipe garde pour elle sur une commande. */
 export interface InfosInternes {
   noteInterne: string;
@@ -53,6 +77,14 @@ export interface InfosInternes {
   journal: EntreeJournal[];
   /** E-mails envoyés au client, du plus ancien au plus récent (vide si aucun). */
   emailsClient: EmailClientEnvoye[];
+  /** « Paiement reçu » noté par l'administrateur (virement vu sur le compte), ou null. */
+  paiement: PaiementInterne | null;
+  /** Frais de livraison recalculés par le serveur à l'arrivée de la commande, ou null. */
+  controleFrais: ControleFrais | null;
+  /** Changements de mode ou de frais faits après l'appel (les plus récents en dernier). */
+  journalReception: ChangementReception[];
+  /** Le serveur dit si la personne connectée peut noter un paiement (l'administrateur seul). */
+  peutValiderPaiement: boolean;
 }
 
 export interface ActionsCommandes {
@@ -71,7 +103,36 @@ export interface ActionsCommandes {
    * `forcer` renvoie quand même. `peutEtreFait` : l'e-mail est peut-être parti.
    */
   envoyerEmailConfirmation?(o: ShopOrder, options?: { forcer?: boolean; delai?: string }): Promise<EmailEnvoye>;
+  /**
+   * Ajout au contrat (facultatif) : « paiement reçu » (ou son annulation), réservé à
+   * l'administrateur (le serveur refuse l'équipe). Rangé hors de la commande.
+   */
+  marquerPaiement?(o: ShopOrder, recu: boolean, note?: string): Promise<void>;
+  /** Ajout au contrat (facultatif) : magasins, camionnette… (réglages par défaut sans lui). */
+  lireReglagesReception?(): Promise<ReglagesReception>;
+  /**
+   * Ajout au contrat (facultatif) : après l'appel, change le mode de réception et les frais.
+   * Le serveur recalcule le total (articles + frais − remise) et garde une trace ; il refuse
+   * si un colis Sendit existe déjà. Renvoie le nouveau total.
+   */
+  modifierReception?(o: ShopOrder, choix: ChoixReception): Promise<{ total: number }>;
 }
+
+/** Les réglages changent rarement : relus au plus une fois par minute, pour toutes les fiches. */
+const DUREE_CACHE_REGLAGES_MS = 60_000;
+let cacheReglages: { le: number; promesse: Promise<ReglagesReception> } | null = null;
+
+/** Après un enregistrement des réglages : la prochaine fiche relit tout de suite. */
+export function oublierReglagesReception(): void {
+  cacheReglages = null;
+}
+
+const estPaiement = (p: any): p is PaiementInterne => !!p && typeof p === 'object' && typeof p.recu === 'boolean';
+const estChangement = (c: any): c is ChangementReception =>
+  !!c && typeof c.le === 'string' && !Number.isNaN(Date.parse(c.le)) && typeof c.mode === 'string';
+const estControle = (c: any): c is ControleFrais =>
+  !!c && typeof c === 'object' && typeof c.saisis === 'number' && typeof c.ecart === 'number'
+  && (c.attendus === null || typeof c.attendus === 'number');
 
 /** Sans réponse du serveur au-delà, on le dit plutôt que de laisser un bouton tourner sans fin. */
 const DELAI_REPONSE_MS = 20_000;
@@ -171,11 +232,11 @@ function envoyer<T = unknown>(corps: Record<string, unknown>, delaiMs?: number):
 }
 
 /**
- * Signature gardée pour le contrat entre chantiers. `db` n'est plus utilisé (les
- * écritures passent par le serveur) et l'auteur retenu est celui du jeton vérifié
- * côté serveur, jamais une valeur envoyée par le navigateur.
+ * Signature gardée pour le contrat entre chantiers. `db` ne sert qu'à lire les
+ * réglages de réception (les écritures passent par le serveur) et l'auteur retenu
+ * est celui du jeton vérifié côté serveur, jamais une valeur envoyée par le navigateur.
  */
-export function actionsFirestore(_db: Firestore, _auteur: string): ActionsCommandes {
+export function actionsFirestore(db: Firestore, _auteur: string): ActionsCommandes {
   return {
     async changerStatut(o, statut, options) {
       await envoyer({
@@ -199,7 +260,43 @@ export function actionsFirestore(_db: Firestore, _auteur: string): ActionsComman
         motifAnnulation: typeof brut?.motifAnnulation === 'string' ? brut.motifAnnulation : '',
         journal: Array.isArray(brut?.journal) ? brut!.journal : [],
         emailsClient: Array.isArray(brut?.emailsClient) ? brut!.emailsClient.filter(estEmailEnvoye) : [],
+        paiement: estPaiement(brut?.paiement) ? brut!.paiement : null,
+        controleFrais: estControle(brut?.controleFrais) ? brut!.controleFrais : null,
+        journalReception: Array.isArray(brut?.journalReception) ? brut!.journalReception.filter(estChangement) : [],
+        peutValiderPaiement: brut?.peutValiderPaiement === true,
       };
+    },
+
+    async marquerPaiement(o, recu, note) {
+      await envoyer({
+        id: idDe(o),
+        action: 'paiement',
+        recu: recu === true,
+        ...(note?.trim() ? { note: note.trim().slice(0, 300) } : {}),
+      });
+    },
+
+    async modifierReception(o, choix) {
+      const r = await envoyer<{ total?: unknown }>({
+        id: idDe(o),
+        action: 'reception',
+        mode: choix.mode,
+        frais: choix.frais,
+        ...(choix.lieuRetrait ? { lieuRetrait: choix.lieuRetrait } : {}),
+        ...(choix.preferenceTransport ? { preferenceTransport: choix.preferenceTransport } : {}),
+      });
+      return { total: typeof r?.total === 'number' ? r.total : Number(o.total) || 0 };
+    },
+
+    lireReglagesReception() {
+      if (cacheReglages && Date.now() - cacheReglages.le < DUREE_CACHE_REGLAGES_MS) return cacheReglages.promesse;
+      const promesse = getDoc(doc(db, CHEMIN_REGLAGES_RECEPTION.collection, CHEMIN_REGLAGES_RECEPTION.document))
+        .then(snap => lireReglagesReception(snap.exists() ? snap.data() : undefined));
+      const entree = { le: Date.now(), promesse };
+      cacheReglages = entree;
+      // Un échec (hors ligne) ne reste pas en mémoire : la fiche suivante réessaie.
+      promesse.catch(() => { if (cacheReglages === entree) cacheReglages = null; });
+      return promesse;
     },
 
     async envoyerEmailConfirmation(o, options) {

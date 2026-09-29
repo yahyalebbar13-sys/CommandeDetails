@@ -12,8 +12,9 @@ import * as Boite from '@radix-ui/react-alert-dialog';
 import { AlertTriangle, Info, Loader2, Send } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import type { ShopOrder } from '@/lib/shop-types';
-import { dateHeure } from '@/lib/commandes-boutique';
+import { dateHeure, receptionDe } from '@/lib/commandes-boutique';
 import { EMAIL_LEBTEX, delaiLivraisonParDefaut, emailConfirmationClient } from '@/lib/email-confirmation-client';
+import type { ReglagesReception } from '@/lib/reglages-reception';
 import { ErreurConfirmationRecente, ErreurEnregistrement, type EmailEnvoye } from './actions-commandes';
 
 type Etat =
@@ -35,7 +36,7 @@ export function libelleEmailClient(statut: ShopOrder['status'], dejaEnvoye: bool
 }
 
 export function BoiteEmailConfirmation({
-  commande, emailClient, ouverte, dejaEnvoyee, maintenant, envoyer, onFermer, onEnvoye,
+  commande, emailClient, ouverte, dejaEnvoyee, maintenant, envoyer, onFermer, onEnvoye, reglages,
 }: {
   commande: ShopOrder;
   /** L'adresse telle que la fiche l'affiche (le serveur relit la sienne dans la commande). */
@@ -47,6 +48,11 @@ export function BoiteEmailConfirmation({
   envoyer: (options: { forcer: boolean; delai: string }) => Promise<ResultatEnvoi>;
   onFermer: () => void;
   onEnvoye: (r: ResultatEnvoi) => void;
+  /**
+   * Ajout au contrat (facultatif) : les magasins réglés, pour que l'aperçu cite les
+   * mêmes adresses que l'e-mail envoyé (le serveur relit le même document).
+   */
+  reglages?: ReglagesReception;
 }) {
   const { toast } = useToast();
   const idMessage = useId();
@@ -70,9 +76,17 @@ export function BoiteEmailConfirmation({
   // Le texte exact qui partira : le serveur le reconstruit depuis la commande, remise
   // d'aplomb par le même normaliserCommande que celle affichée ici.
   const apercu = useMemo(
-    () => (ouverte ? emailConfirmationClient(commande, { delaiLivraison: delai }) : null),
-    [ouverte, commande, delai],
+    () => (ouverte ? emailConfirmationClient(commande, { delaiLivraison: delai, reglages }) : null),
+    [ouverte, commande, delai, reglages],
   );
+  // Un retrait se prépare, un transport se convient : le délai ne se dit pas pareil.
+  const mode = receptionDe(commande).mode;
+  const libelleDelai = mode === 'retrait' ? 'Délai de préparation annoncé' : mode === 'transport' ? 'Délai de transport annoncé' : 'Délai de livraison annoncé';
+  const aideDelai = mode === 'retrait'
+    ? 'L’e-mail dira « prête sous … ».'
+    : mode === 'transport'
+      ? 'L’e-mail dira « délai prévu : … » (laisser vide tant que le transport n’est pas fixé).'
+      : 'L’e-mail dira « la livraison est prévue sous … ».';
   const enEnvoi = etat.cas === 'envoi';
 
   async function lancer(forcer: boolean) {
@@ -146,7 +160,7 @@ export function BoiteEmailConfirmation({
                 <dd className="min-w-0 break-words text-gray-100" dir="auto">{apercu.sujet}</dd>
               </dl>
 
-              <label htmlFor={idDelai} className="mt-4 block text-sm font-semibold text-gray-200">Délai de livraison annoncé</label>
+              <label htmlFor={idDelai} className="mt-4 block text-sm font-semibold text-gray-200">{libelleDelai}</label>
               <input
                 id={idDelai}
                 type="text"
@@ -157,7 +171,7 @@ export function BoiteEmailConfirmation({
                 placeholder="ex. 24-48h — laisser vide pour ne pas en parler"
                 className="mt-1.5 h-11 w-full rounded-xl border border-white/15 bg-[#141414] px-3 text-base text-gray-100 placeholder:text-gray-400 focus:border-white/40 focus:outline-none disabled:opacity-60 sm:text-sm"
               />
-              <p className="mt-1 text-xs text-gray-400">L’e-mail dira « la livraison est prévue sous … ».</p>
+              <p className="mt-1 text-xs text-gray-400">{aideDelai}</p>
 
               <p className="mt-4 text-sm font-semibold text-gray-200" id={idMessage}>Message</p>
               <pre

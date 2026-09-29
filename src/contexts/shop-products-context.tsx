@@ -78,6 +78,8 @@ export interface ProductOverride {
   // Liaison stock réel
   stockArticleId?: string;
   stockArticleIds?: Record<string, string>; // variantId -> stock articleId
+  // Rouleau entier : jamais par colis Sendit (retrait ou transport organisé par téléphone)
+  volumineux?: boolean;
 }
 
 interface ShopProductsContextType {
@@ -122,7 +124,8 @@ export function ShopProductsProvider({ children }: { children: React.ReactNode }
         ...(ov.inStock !== undefined && { inStock: ov.inStock }),
         ...(ov.stockQty !== undefined && { stockQty: ov.stockQty }),
         ...(ov.name && { name: ov.name }),
-        ...(ov.catalogueName !== undefined && { catalogueName: ov.catalogueName }),
+        // null = nom de catalogue effacé dans l'admin : on retombe sur le nom du produit.
+        ...(ov.catalogueName !== undefined && { catalogueName: ov.catalogueName ?? undefined }),
         ...(ov.nameAr && { nameAr: ov.nameAr }),
         ...(ov.shortDescription && { shortDescription: ov.shortDescription }),
         ...(ov.shortDescriptionAr && { shortDescriptionAr: ov.shortDescriptionAr }),
@@ -162,6 +165,8 @@ export function ShopProductsProvider({ children }: { children: React.ReactNode }
         ...(ov.conditionnementGros && { conditionnementGros: ov.conditionnementGros }),
         ...(ov.stockArticleId && { stockArticleId: ov.stockArticleId }),
         ...(ov.stockArticleIds && { stockArticleIds: ov.stockArticleIds }),
+        // Booléen : décocher la case doit aussi l'emporter sur la fiche d'origine
+        ...(ov.volumineux !== undefined && { volumineux: !!ov.volumineux }),
       };
     });
     // Filter out hardcoded products marked hidden by admin
@@ -187,7 +192,7 @@ export function ShopProductsProvider({ children }: { children: React.ReactNode }
           ...(ov.isNew !== undefined && { isNew: ov.isNew }),
           ...(ov.isPromo !== undefined && { isPromo: ov.isPromo }),
           ...(ov.name && { name: ov.name }),
-          ...(ov.catalogueName !== undefined && { catalogueName: ov.catalogueName }),
+          ...(ov.catalogueName !== undefined && { catalogueName: ov.catalogueName ?? undefined }),
           ...(ov.nameAr && { nameAr: ov.nameAr }),
           ...(ov.shortDescription && { shortDescription: ov.shortDescription }),
           ...(ov.shortDescriptionAr && { shortDescriptionAr: ov.shortDescriptionAr }),
@@ -228,6 +233,7 @@ export function ShopProductsProvider({ children }: { children: React.ReactNode }
           ...(ov.conditionnementGros && { conditionnementGros: ov.conditionnementGros }),
           ...(ov.stockArticleId && { stockArticleId: ov.stockArticleId }),
           ...(ov.stockArticleIds && { stockArticleIds: ov.stockArticleIds }),
+          ...(ov.volumineux !== undefined && { volumineux: !!ov.volumineux }),
         };
       });
     return [...visibleHardcoded, ...mergedCustom];

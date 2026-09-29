@@ -26,10 +26,10 @@ export const translations: Translations = {
   btn_promos:    { fr: 'Promotions',         ar: 'عروض خاصة' },
 
   // ── Trust badges ──────────────────────────────────────────────────────────
-  trust_delivery: { fr: 'Livraison 24-48h',       ar: 'توصيل 24-48 ساعة' },
+  trust_delivery: { fr: 'Expédition sous 24 h',   ar: 'الشحن خلال 24 ساعة' },
   trust_return:   { fr: 'Retour 14j',              ar: 'إرجاع خلال 14 يوم' },
   trust_support:  { fr: 'WhatsApp support',        ar: 'دعم عبر الواتساب' },
-  trust_payment:  { fr: 'Paiement à la livraison', ar: 'الدفع عند الاستلام' },
+  trust_payment:  { fr: 'Paiement à la réception', ar: 'الدفع عند الاستلام' },
   trust_quality:  { fr: 'Qualité garantie',        ar: 'جودة مضمونة' },
 
   // ── Cart & Drawer ─────────────────────────────────────────────────────────
@@ -50,7 +50,7 @@ export const translations: Translations = {
   free_delivery_other_progress: { fr: 'Autres villes : plus que {amount} pour la livraison gratuite', ar: 'باقي المدن: باقي {amount} للتوصيل المجاني' },
   free_delivery_other_cities: { fr: 'Autres villes : livraison gratuite à partir de {amount}', ar: 'باقي المدن: التوصيل مجاني ابتداءً من {amount}' },
   delivery_free_casa: { fr: 'Gratuite à Casablanca', ar: 'مجاني في الدار البيضاء' },
-  cod_payment:    { fr: 'Paiement à la livraison 💵', ar: 'الدفع عند الاستلام 💵' },
+  cod_payment:    { fr: 'Paiement à la livraison ou au retrait 💵', ar: 'الدفع عند التوصيل أو الاستلام من المحل 💵' },
   price_on_request: { fr: 'Sur demande', ar: 'حسب الطلب' },
   price_from:     { fr: 'À partir de',                  ar: 'من' },
 

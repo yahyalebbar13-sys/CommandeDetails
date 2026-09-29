@@ -40,8 +40,8 @@ const SERVICE_LINKS = [
 const GUARANTEES = [
   {
     icon: Truck,
-    title: "Livraison rapide",
-    desc: "Expédition le jour même avant 14h",
+    title: "Livraison Sendit",
+    desc: "Expédition sous 24 h (jours ouvrés), retrait gratuit à Casablanca",
     color: "#10B981",
   },
   {
@@ -53,13 +53,13 @@ const GUARANTEES = [
   {
     icon: MessageCircle,
     title: "Support WhatsApp",
-    desc: "Réponse rapide 7j/7",
+    desc: "Lundi–samedi, 8h30–18h30",
     color: "#25D366",
   },
   {
     icon: RotateCcw,
     title: "Retour 14 jours",
-    desc: "Satisfait ou remboursé sans question",
+    desc: "Article non utilisé, hors tissu coupé au mètre",
     color: "#3B82F6",
   },
 ];
@@ -107,7 +107,7 @@ function NewsletterForm() {
           onChange={(e) => setEmail(e.target.value)}
           placeholder="votre@email.com"
           required
-          className="w-full pl-10 pr-4 py-3 text-sm rounded-xl border border-white/10 bg-white/5 text-white placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-[#D4A843]/40 focus:border-[#D4A843]/50 transition-all"
+          className="w-full pl-10 pr-4 py-3 text-base rounded-xl border border-white/10 bg-white/5 text-white placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#D4A843]/40 focus:border-[#D4A843]/50 transition-all"
         />
       </div>
       <button
@@ -261,7 +261,7 @@ export default function ShopFooter() {
                 />
                 <a
                   href="mailto:lebtexsarlau@gmail.com"
-                  className="text-gray-600 dark:text-gray-400 hover:text-[#C8102E] dark:hover:text-[#D4A843] transition-colors"
+                  className="text-gray-400 hover:text-[#D4A843] transition-colors"
                 >
                   lebtexsarlau@gmail.com
                 </a>
@@ -389,9 +389,9 @@ export default function ShopFooter() {
                   Livraison gratuite
                 </span>
               </div>
-              <p className="text-xs" style={{ color: "#6B7280" }}>
-                À Casablanca à partir de {formatPrice(CASABLANCA_FREE_DELIVERY_THRESHOLD)} d&apos;achat, partout au Maroc
-                à partir de {formatPrice(FREE_DELIVERY_THRESHOLD)}
+              <p className="text-xs" style={{ color: "#9CA3AF" }}>
+                Colis offert à Casablanca dès {formatPrice(CASABLANCA_FREE_DELIVERY_THRESHOLD)} d&apos;achat, partout au Maroc
+                dès {formatPrice(FREE_DELIVERY_THRESHOLD)}. Retrait gratuit à Casablanca.
               </p>
             </div>
           </div>
@@ -416,11 +416,11 @@ export default function ShopFooter() {
 
             {/* Trust badges */}
             <div className="mt-5 space-y-2">
-              <div className="flex items-center gap-2 text-xs" style={{ color: "#6B7280" }}>
+              <div className="flex items-center gap-2 text-xs" style={{ color: "#9CA3AF" }}>
                 <CheckCircle2 className="w-3.5 h-3.5 text-green-500 flex-shrink-0" />
                 Pas de spam — désinscription en 1 clic
               </div>
-              <div className="flex items-center gap-2 text-xs" style={{ color: "#6B7280" }}>
+              <div className="flex items-center gap-2 text-xs" style={{ color: "#9CA3AF" }}>
                 <CheckCircle2 className="w-3.5 h-3.5 text-green-500 flex-shrink-0" />
                 Vos données sont protégées
               </div>
@@ -439,7 +439,7 @@ export default function ShopFooter() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-5">
         <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
           {/* Copyright */}
-          <div className="flex items-center gap-1.5 text-xs" style={{ color: "#4B5563" }}>
+          <div className="flex items-center gap-1.5 text-xs" style={{ color: "#9CA3AF" }}>
             <span>© {currentYear} LEBTEX. Fait avec</span>
             <Heart
               className="w-3 h-3"
@@ -449,43 +449,39 @@ export default function ShopFooter() {
           </div>
 
           {/* Payment methods */}
-          <div className="flex items-center gap-3">
-            <span className="text-xs" style={{ color: "#4B5563" }}>
+          <div className="flex flex-wrap items-center justify-center gap-2">
+            <span className="text-xs" style={{ color: "#9CA3AF" }}>
               Paiement accepté :
             </span>
-            <div
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-semibold"
-              style={{
-                borderColor: "rgba(255,255,255,0.1)",
-                backgroundColor: "rgba(255,255,255,0.04)",
-                color: "#9CA3AF",
-              }}
-            >
-              💵 Paiement à la livraison (COD)
-            </div>
+            {["💵 Espèces à la réception", "🏦 Virement bancaire"].map((moyen) => (
+              <div
+                key={moyen}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-semibold"
+                style={{
+                  borderColor: "rgba(255,255,255,0.1)",
+                  backgroundColor: "rgba(255,255,255,0.04)",
+                  color: "#D1D5DB",
+                }}
+              >
+                {moyen}
+              </div>
+            ))}
           </div>
 
           {/* Legal links */}
-          <div className="flex items-center gap-4 text-xs" style={{ color: "#4B5563" }}>
+          <div className="flex items-center gap-1 text-xs" style={{ color: "#9CA3AF" }}>
             <Link
               href="/shop/confidentialite"
-              className="hover:text-gray-300 transition-colors"
+              className="inline-flex items-center min-h-[44px] px-2 hover:text-white transition-colors"
             >
               Confidentialité
             </Link>
-            <span>·</span>
+            <span aria-hidden="true">·</span>
             <Link
               href="/shop/conditions"
-              className="hover:text-gray-300 transition-colors"
+              className="inline-flex items-center min-h-[44px] px-2 hover:text-white transition-colors"
             >
-              CGV
-            </Link>
-            <span>·</span>
-            <Link
-              href="/shop/mentions-legales"
-              className="hover:text-gray-300 transition-colors"
-            >
-              Mentions légales
+              Conditions de vente
             </Link>
           </div>
         </div>

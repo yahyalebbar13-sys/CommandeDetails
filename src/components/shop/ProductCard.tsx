@@ -66,8 +66,9 @@ export default React.memo(function ProductCard({ product, showAddToCart = true }
   const discountPercent = isPromo ? getDiscountPercent(product.price, product.comparePrice as number) : 0;
   const isLowStock = product.inStock && product.stockQty > 0 && product.stockQty <= LOW_STOCK_THRESHOLD;
   const hasWholesalePrice = Boolean(product.wholesalePrice && product.wholesalePrice > 0 && product.wholesalePrice < product.price && product.minOrderQty && product.minOrderQty > 1);
-  // Un seul exemplaire suffit à atteindre le seuil de livraison gratuite à Casablanca
-  const unlocksFreeCasaDelivery = product.inStock && getProductDisplayPrice(product).amount >= CASABLANCA_FREE_DELIVERY_THRESHOLD;
+  // Un seul exemplaire suffit à atteindre le seuil de livraison gratuite à Casablanca.
+  // Jamais pour un rouleau entier : il ne part pas en colis, la livraison offerte ne le concerne pas.
+  const unlocksFreeCasaDelivery = !product.volumineux && product.inStock && getProductDisplayPrice(product).amount >= CASABLANCA_FREE_DELIVERY_THRESHOLD;
 
   const handleAddToCart = useCallback(
     (e: React.MouseEvent) => {
@@ -82,6 +83,7 @@ export default React.memo(function ProductCard({ product, showAddToCart = true }
         price: product.price,
         quantity: product.minOrderQty ?? 1,
         maxStock: product.stockQty,
+        volumineux: !!product.volumineux,
       });
 
       setAdded(true);

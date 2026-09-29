@@ -16,6 +16,8 @@ import { actionsFirestore } from '../_commandes/actions-commandes';
 import { useAlerteNouvellesCommandes } from '../_commandes/use-alerte-nouvelles-commandes';
 import { useCommandesEnDirect } from '../_commandes/use-commandes-en-direct';
 import { AccesEquipe } from './acces-equipe';
+import { EcranReception } from './ecran-reception';
+import { CarteSenditEtat } from './sendit-etat';
 import { EnTeteAdmin, type InfosConnexion } from './en-tete';
 import { resumeAConfirmer, useMaintenant } from './etat-commandes';
 import { NavigationAdmin } from './navigation';
@@ -216,6 +218,8 @@ export function CoqueAdmin({ db, user, onDeconnexion, ecrans }: {
               alertes={alerte}
               fileDemandee={fileDemandee}
               onReessayer={reessayer}
+              // Cette coque n'est montée que pour le compte administrateur vérifié par la page.
+              estAdmin
             />
           )}
           {vue === 'tableau' && (
@@ -244,6 +248,8 @@ export function CoqueAdmin({ db, user, onDeconnexion, ecrans }: {
             )
           )}
           {vue === 'catalogue' && ecrans.catalogue()}
+          {/* Réglages de réception et de paiement : administrateur seulement (l'espace /staff n'a pas cette coque). */}
+          {vue === 'reception' && <EcranReception db={db} zoneSendit={<CarteSenditEtat />} />}
           {vue === 'equipe' && <AccesEquipe />}
         </main>
       </div>

@@ -16,16 +16,33 @@
  *
  * Mise en page : la charte commune (src/lib/pdf-charte-lebtex.ts). jsPDF, autotable et la charte
  * ne se chargent qu'au clic, comme pour l'espace client : /admin-shop s'ouvre sans eux.
+ *
+ * Depuis le 29/09/2026, le bon dit aussi comment la commande part (colis Sendit, retrait au
+ * magasin, transport d'un rouleau à confirmer par téléphone), où elle se prépare (Derb Omar ou
+ * CHRIFA) et comment elle se paie : un virement pas encore vu sur le compte ne laisse rien sortir,
+ * un paiement déjà reçu ne se réencaisse pas.
  */
 
 import type jsPDF from 'jspdf';
 import type { OrderStatus, ShippingAddress, ShopOrder } from '@/lib/shop-types';
 import {
-  dateDe, dateHeure, detailsVariante, lignesCollentAuSousTotal, lignesSansPrix, prixUnitaireLigne,
-  telephonesCommande, telInternational, telLisible, totalLigne, type LigneCommande,
+  alerteEspeces, commandeMixte, CONSIGNE_COMMANDE_MIXTE, dateDe, dateHeure, detailsVariante, fraisColisAnnonces,
+  lignesCollentAuSousTotal, lignesSansPrix, MENTION_LIGNE_ROULEAU, moyenPaiementDe, NOMS_LIEUX, prixUnitaireLigne,
+  receptionDe, telephonesCommande, telInternational, telLisible, totalLigne, transportPrevu, type LigneCommande,
 } from '@/lib/commandes-boutique';
 import { formatPrice } from '@/lib/shop-utils';
 import { texteImprimable } from '@/lib/pdf-espace-client';
+import { REGLAGES_RECEPTION_DEFAUT, type ReglagesReception } from '@/lib/reglages-reception';
+
+/** Ce que l'écran sait en plus de la commande : les magasins réglés, et les paiements déjà vus sur le compte. */
+export interface OptionsBon {
+  reglages?: ReglagesReception;
+  /** Identifiants des commandes dont l'administrateur a noté « paiement reçu ». */
+  paiementsRecus?: ReadonlySet<string>;
+}
+
+const paiementRecuPour = (commande: ShopOrder, options: OptionsBon) =>
+  !!commande.id && !!options.paiementsRecus?.has(commande.id);
 
 type Couleur = [number, number, number];
 type Style = 'normal' | 'bold' | 'italic' | 'bolditalic';
@@ -245,7 +262,7 @@ function numeroDe(commande: ShopOrder): string {
  * La ligne qu'on lit sans chercher : le numéro à écrire sur le colis, la ville par laquelle le
  * livreur trie sa tournée, et la somme qu'il doit rapporter.
  */
-function bandeauCommande(o: Outils, y: number, commande: ShopOrder): number {
+function bandeauCommande(o: Outils, y: number, commande: ShopOrder, paiementRecu: boolean): number {
   const { doc, c } = o;
   const largeur = largeurUtile(o);
   const hauteur = 15;
@@ -274,9 +291,15 @@ function bandeauCommande(o: Outils, y: number, commande: ShopOrder): number {
   }
 
   // Des articles sans prix ne sont pas dans le total : le livreur ne doit pas croire que tout y est.
+  // Déjà payée (virement vu sur le compte) : on n'imprime pas une somme qu'il encaisserait une 2e fois.
   const sansPrix = lignesSansPrix(commande).length > 0;
-  etiquette(o, sansPrix ? 'À encaisser (hors prix à fixer)' : 'À encaisser', droite, y + 5.2, 'right');
-  ecrire(doc, montant(commande.total), droite, y + 11.5, 13, 'bold', c.NAVY, 'right');
+  if (paiementRecu) {
+    etiquette(o, 'Déjà payée', droite, y + 5.2, 'right');
+    ecrire(doc, 'Rien à encaisser', droite, y + 11.5, 11, 'bold', c.NAVY, 'right');
+  } else {
+    etiquette(o, sansPrix ? 'À encaisser (hors prix à fixer)' : 'À encaisser', droite, y + 5.2, 'right');
+    ecrire(doc, montant(commande.total), droite, y + 11.5, 13, 'bold', c.NAVY, 'right');
+  }
   return y + hauteur + 5;
 }
 
@@ -287,11 +310,65 @@ const ALERTES: Partial<Record<OrderStatus, string>> = {
   returned: 'Commande revenue au dépôt : ne pas la renvoyer sans l’accord du client.',
 };
 
-function alerteStatut(o: Outils, y: number, commande: ShopOrder): number {
-  const texte = ALERTES[commande.status];
-  if (!texte) return y;
-  const lignes = decouper(o.doc, texte, largeurUtile(o) - 12, 9, 'bold');
+/** Ce qu'il faut savoir avant de remettre la marchandise, selon le mode et le paiement. */
+function alertesReception(commande: ShopOrder, paiementRecu: boolean): string[] {
+  const r = receptionDe(commande);
+  const moyen = moyenPaiementDe(commande);
+  const alertes: string[] = [];
+  if (r.volumineux && r.mode === 'domicile') {
+    alertes.push('Rouleau entier : il ne part pas par Sendit. Appeler le client pour le retrait à CHRIFA ou le transport.');
+  }
+  // Rouleau(x) et petits articles : tout se regroupe la veille à CHRIFA (plan §2.5).
+  if (commandeMixte(commande)) alertes.push(CONSIGNE_COMMANDE_MIXTE);
+  if (moyen !== 'cod' && !paiementRecu) {
+    alertes.push(`Paiement par ${moyen === 'virement' ? 'virement' : 'carte'} pas encore vu sur le compte : ne rien remettre sans l'accord de l'administrateur (jamais sur une capture d'écran).`);
+  }
+  const especes = paiementRecu ? null : alerteEspeces(commande);
+  if (especes) alertes.push(especes);
+  return alertes;
+}
+
+function alerteStatut(o: Outils, y: number, commande: ShopOrder, paiementRecu: boolean): number {
+  const textes = [ALERTES[commande.status], ...alertesReception(commande, paiementRecu)].filter((t): t is string => !!t);
+  if (textes.length === 0) return y;
+  const lignes = textes.flatMap(t => decouper(o.doc, t, largeurUtile(o) - 12, 9, 'bold'));
   return encadre(o, y, lignes, 'ambre', { taille: 9, style: 'bold' }) + 5;
+}
+
+/**
+ * Comment la commande part et comment elle se paie, une ligne chacun : c'est ce qui dit au
+ * magasin quoi faire du carton (Sendit, étagère des retraits, camionnette, transporteur).
+ * Sans titre, et le lieu de préparation dans la même phrase : ce bandeau ne doit pas faire
+ * passer les cases de signature d'une commande ordinaire sur une deuxième page.
+ */
+function blocReception(o: Outils, y: number, commande: ShopOrder, reglages: ReglagesReception, paiementRecu: boolean): number {
+  const r = receptionDe(commande);
+  const moyen = moyenPaiementDe(commande);
+  const ville = textePourPdf(commande.shippingAddress?.city);
+  const lieu = reglages.lieux[r.lieu];
+  const reception = r.mode === 'retrait'
+    ? `retrait par le client à ${textePourPdf(lieu.nom) || NOMS_LIEUX[r.lieu]} — ${textePourPdf(lieu.adresse)} (préparée sur place)`
+    : r.mode === 'transport'
+      ? `transport à confirmer par téléphone — ${transportPrevu(commande) === 'camionnette'
+        ? 'camionnette LEBTEX'
+        : `transporteur jusqu’à son dépôt${ville ? ` de ${ville}` : ''}, où le client récupère`} (préparée à ${NOMS_LIEUX[r.lieu]})`
+      : 'colis Sendit, préparé et ramassé à Derb Omar (ni ouvert ni essayé avant paiement)';
+  const paiement = paiementRecu
+    ? `déjà payée (${moyen === 'cod' ? 'paiement reçu' : moyen === 'virement' ? 'virement reçu' : 'carte'}) : rien à encaisser`
+    : moyen === 'virement'
+      ? 'virement bancaire (motif : n° de commande) — à vérifier sur le compte'
+      : moyen === 'carte'
+        ? 'carte bancaire — à vérifier'
+        : r.mode === 'retrait' ? 'espèces au retrait' : r.mode === 'transport' ? 'à encaisser comme convenu au téléphone' : 'espèces à la livraison';
+  const largeur = largeurUtile(o) - 12;
+  const lignes = [
+    ...(r.volumineux ? decouper(o.doc, 'VOLUMINEUX (rouleau entier) : jamais par colis Sendit', largeur, 8.5, 'bold') : []),
+    ...decouper(o.doc, `Réception : ${reception}.`, largeur, 8.5, 'normal'),
+    ...decouper(o.doc, `Paiement : ${paiement}.`, largeur, 8.5, 'normal'),
+  ];
+  const hauteur = 4 + lignes.length * interligne(8.5);
+  y = o.c.reserver(o.doc, y, hauteur + 4);
+  return encadre(o, y, lignes, 'or') + 4;
 }
 
 /** Qui appeler : le nom, les téléphones en gros, l'e-mail. */
@@ -352,6 +429,7 @@ function contenuLivraison(o: Outils, commande: ShopOrder, largeur: number): Lign
 
 /** Les deux encarts côte à côte, à la hauteur du plus rempli. */
 function encartsClient(o: Outils, y: number, commande: ShopOrder): number {
+  const mode = receptionDe(commande).mode;
   const { doc, c } = o;
   const ecart = 6;
   const largeur = (largeurUtile(o) - ecart) / 2;
@@ -362,7 +440,9 @@ function encartsClient(o: Outils, y: number, commande: ShopOrder): number {
   y = c.reserver(doc, y, hauteur + 6);
   const xLivraison = c.MARGE + largeur + ecart;
   c.encart(doc, { x: c.MARGE, y, largeur, hauteur, etiquette: 'Client', ton: 'or' });
-  c.encart(doc, { x: xLivraison, y, largeur, hauteur, etiquette: 'Livrer à', ton: 'nuit' });
+  // Un retrait ne se livre pas : l'adresse du client n'est qu'un renseignement.
+  const etiquetteAdresse = mode === 'retrait' ? 'Adresse du client' : mode === 'transport' ? 'Livrer à (transport)' : 'Livrer à';
+  c.encart(doc, { x: xLivraison, y, largeur, hauteur, etiquette: etiquetteAdresse, ton: 'nuit' });
   dessinerLignes(o, client, c.MARGE + 4, y + 8);
   dessinerLignes(o, livraison, xLivraison + 4, y + 8);
   return y + hauteur + 6;
@@ -379,8 +459,10 @@ function tableauArticles(o: Outils, y: number, commande: ShopOrder): number {
   const corps = items.map(item => {
     const variante = new Map(detailsVariante(item.variant).map(d => [d.libelle, textePourPdf(d.valeur)]));
     const unitaire = prixUnitaireLigne(item);
+    // Un rouleau entier se prépare à CHRIFA : dit sur sa ligne, pas seulement en haut du bon.
+    const nom = textePourPdf(item.productName) || '—';
     return [
-      textePourPdf(item.productName) || '—',
+      item.volumineux ? `${nom}\n${textePourPdf(MENTION_LIGNE_ROULEAU)}` : nom,
       variante.get('Modèle') || '—',
       variante.get('Couleur') || '—',
       variante.get('Taille') || '—',
@@ -428,7 +510,30 @@ function tableauArticles(o: Outils, y: number, commande: ShopOrder): number {
  * Les totaux à droite, ce qui les explique à gauche. « Total à encaisser » en gros : c'est la
  * somme que le livreur rapporte.
  */
-function blocTotaux(o: Outils, y: number, commande: ShopOrder): number {
+/** La ligne des frais : jamais « 0 » ni « gratuite » pour un transport qui se chiffre au téléphone. */
+function ligneFrais(commande: ShopOrder): [string, string] {
+  const r = receptionDe(commande);
+  const frais = Number(commande.deliveryFee) || 0;
+  if (r.mode === 'retrait') return ['Retrait', frais > 0 ? montant(frais) : 'Gratuit'];
+  if (r.mode === 'transport' || r.volumineux) return ['Transport', frais > 0 ? montant(frais) : 'À confirmer'];
+  if (frais > 0) return ['Livraison', montant(frais)];
+  // Seuil sur la somme des lignes ; ancienne commande : ancienne livraison offerte (100 / 500 DH).
+  return ['Livraison', fraisColisAnnonces(commande) === 'offerte' ? 'Offerte' : 'À vérifier'];
+}
+
+/** Sous la somme à encaisser : comment elle se paie. */
+function mentionPaiement(commande: ShopOrder, paiementRecu: boolean): string {
+  if (paiementRecu) return 'Déjà payée : ne rien encaisser';
+  const r = receptionDe(commande);
+  const moyen = moyenPaiementDe(commande);
+  if (moyen === 'virement') return 'Par virement, vu sur le compte';
+  if (moyen === 'carte') return 'Par carte bancaire';
+  if (r.mode === 'retrait') return 'Paiement au retrait';
+  if (r.mode === 'transport') return 'Transport en plus, à confirmer';
+  return 'Paiement à la livraison';
+}
+
+function blocTotaux(o: Outils, y: number, commande: ShopOrder, paiementRecu: boolean): number {
   const { doc, c } = o;
   const largeurBoite = 84;
   const xBoite = c.MARGE + largeurUtile(o) - largeurBoite;
@@ -436,7 +541,7 @@ function blocTotaux(o: Outils, y: number, commande: ShopOrder): number {
 
   const lignes: [string, string][] = [
     ['Sous-total', montant(commande.subtotal)],
-    ['Livraison', Number(commande.deliveryFee) > 0 ? montant(commande.deliveryFee) : 'Gratuite'],
+    ligneFrais(commande),
   ];
   if (Number(commande.discount) > 0) {
     const code = textePourPdf(commande.couponCode);
@@ -494,9 +599,9 @@ function blocTotaux(o: Outils, y: number, commande: ShopOrder): number {
   doc.setLineWidth(0.6);
   doc.line(xBoite, yBande, xBoite + largeurBoite, yBande);
   doc.line(xBoite, yBande + hauteurBande, xBoite + largeurBoite, yBande + hauteurBande);
-  ecrire(doc, 'TOTAL À ENCAISSER', xBoite + 4, yBande + 8.6, 8.5, 'bold', c.NAVY);
+  ecrire(doc, paiementRecu ? 'TOTAL DÉJÀ PAYÉ' : 'TOTAL À ENCAISSER', xBoite + 4, yBande + 8.6, 8.5, 'bold', c.NAVY);
   ecrire(doc, montant(commande.total), xBoite + largeurBoite - 4, yBande + 9.6, 16, 'bold', c.NAVY, 'right');
-  ecrire(doc, 'Paiement à la livraison', xBoite + 4, yBande + hauteurBande + 4.8, 7.5, 'italic', c.ESTOMPE);
+  ecrire(doc, mentionPaiement(commande, paiementRecu), xBoite + 4, yBande + hauteurBande + 4.8, 7.5, 'italic', c.ESTOMPE);
 
   return Math.max(y + hauteurBoite, yMention - 3) + 6;
 }
@@ -515,16 +620,17 @@ function noteClient(o: Outils, y: number, commande: ShopOrder): number {
  * Trois cases à remplir à la main : qui a préparé, quel livreur a pris le colis, et le client qui
  * reconnaît l'avoir reçu en bon état. C'est ce papier signé qui tranche un « je n'ai rien reçu ».
  */
-function casesSignature(o: Outils, y: number): number {
+function casesSignature(o: Outils, y: number, commande: ShopOrder): number {
   const { doc, c } = o;
   const ecart = 5;
   const hauteur = 36;
   const largeur = (largeurUtile(o) - 2 * ecart) / 3;
   y = c.reserver(doc, y, hauteur + 2);
 
+  const mode = receptionDe(commande).mode;
   const cases: { titre: string; ton: 'or' | 'nuit' }[] = [
     { titre: 'Préparé par', ton: 'or' },
-    { titre: 'Livreur', ton: 'or' },
+    { titre: mode === 'retrait' ? 'Remis au client par' : mode === 'transport' ? 'Chauffeur / transporteur' : 'Livreur', ton: 'or' },
     { titre: 'Client — reçu en bon état', ton: 'nuit' },
   ];
   cases.forEach(({ titre, ton }, i) => {
@@ -547,20 +653,31 @@ function casesSignature(o: Outils, y: number): number {
 
 // ─── Le document ──────────────────────────────────────────────────────────────
 
-async function dessinerBon(o: Outils, commande: ShopOrder): Promise<void> {
+async function dessinerBon(o: Outils, commande: ShopOrder, options: OptionsBon): Promise<void> {
   const recue = dateImprimee(commande.createdAt);
+  const paiementRecu = paiementRecuPour(commande, options);
   let y = await o.c.enTeteDocument(o.doc, {
     titre: 'Bon de livraison',
     sousTitre: `Commande n° ${numeroDe(commande)}`,
     mentions: recue ? [`Reçue le ${recue}`] : [],
   });
-  y = bandeauCommande(o, y, commande);
-  y = alerteStatut(o, y, commande);
+  y = bandeauCommande(o, y, commande, paiementRecu);
+  y = alerteStatut(o, y, commande, paiementRecu);
+  y = blocReception(o, y, commande, options.reglages ?? REGLAGES_RECEPTION_DEFAUT, paiementRecu);
   y = encartsClient(o, y, commande);
   y = tableauArticles(o, y, commande);
-  y = blocTotaux(o, y, commande);
+  y = blocTotaux(o, y, commande, paiementRecu);
   y = noteClient(o, y, commande);
-  casesSignature(o, y);
+  casesSignature(o, y, commande);
+}
+
+/** La mention du pied de page : le numéro, comment ça se paie, et que ce n'est pas une facture. */
+function mentionPied(commande: ShopOrder, options: OptionsBon): string {
+  const paiement = paiementRecuPour(commande, options)
+    ? 'Déjà payée'
+    : { cod: '', virement: 'Paiement par virement', carte: 'Paiement par carte' }[moyenPaiementDe(commande)]
+      || { domicile: 'Paiement à la livraison', retrait: 'Paiement au retrait', transport: 'Transport à confirmer' }[receptionDe(commande).mode];
+  return `${numeroDe(commande)} — ${paiement} — ce bon ne vaut pas facture.`;
 }
 
 /**
@@ -600,7 +717,7 @@ const listeDe = (commandes: ShopOrder | ShopOrder[]) =>
  * fichier, sans le télécharger. Chaque commande commence sur une nouvelle page et porte sa propre
  * pagination. Rejette « Aucune commande à imprimer. » sur une liste vide.
  */
-export async function construireBonLivraison(commandes: ShopOrder | ShopOrder[]): Promise<jsPDF> {
+export async function construireBonLivraison(commandes: ShopOrder | ShopOrder[], options: OptionsBon = {}): Promise<jsPDF> {
   const liste = listeDe(commandes);
   if (liste.length === 0) throw new Error('Aucune commande à imprimer.');
 
@@ -608,10 +725,10 @@ export async function construireBonLivraison(commandes: ShopOrder | ShopOrder[])
   for (const [i, commande] of liste.entries()) {
     if (i > 0) o.doc.addPage();
     const premiere = o.doc.getNumberOfPages();
-    await dessinerBon(o, commande);
+    await dessinerBon(o, commande, options);
     const derniere = o.doc.getNumberOfPages();
     mentionSuite(o, premiere, derniere, numeroDe(commande));
-    piedDuBon(o, premiere, derniere, `${numeroDe(commande)} — Paiement à la livraison — ce bon ne vaut pas facture.`);
+    piedDuBon(o, premiere, derniere, mentionPied(commande, options));
   }
   return o.doc;
 }
@@ -635,8 +752,8 @@ export function nomFichierBonLivraison(commandes: ShopOrder | ShopOrder[], maint
 }
 
 /** Télécharge le bon d'une commande, ou les bons d'un lot en un seul fichier. */
-export async function exporterBonLivraison(commandes: ShopOrder | ShopOrder[]): Promise<void> {
+export async function exporterBonLivraison(commandes: ShopOrder | ShopOrder[], options: OptionsBon = {}): Promise<void> {
   const liste = listeDe(commandes);
-  const doc = await construireBonLivraison(liste);
+  const doc = await construireBonLivraison(liste, options);
   doc.save(nomFichierBonLivraison(liste));
 }

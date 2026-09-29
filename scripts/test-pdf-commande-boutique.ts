@@ -11,6 +11,7 @@ import { mkdirSync, writeFileSync } from 'fs';
 import { join } from 'path';
 import jsPDF from 'jspdf';
 import type { ShopOrder } from '../src/lib/shop-types';
+import { REGLAGES_RECEPTION_DEFAUT } from '../src/lib/reglages-reception';
 import { formatPrice } from '../src/lib/shop-utils';
 import {
   MARQUE_ARABE, MARQUE_AUTRE_ALPHABET, chiffresLatins, construireBonLivraison, exporterBonLivraison,
@@ -293,7 +294,8 @@ const prix = (n: number) => formatPrice(n).replace(/[  ]/g, ' ');
   const vieille = lire(await construireBonLivraison(ancienne));
   check('le bon prévient que le sous-total fait foi', vieille.texte.includes('Prix de gros appliqué : le sous-total fait foi'));
   check('le sous-total et le total sont ceux de la commande', vieille.texte.includes(prix(1750)));
-  check('la livraison offerte s’écrit « Gratuite »', vieille.ecrits.some(e => e.texte === 'Gratuite'));
+  // 1 750 DH à Rabat, au-dessus du seuil de 650 DH : la livraison du colis est offerte (29/09/2026).
+  check('la livraison offerte s’écrit « Offerte »', vieille.ecrits.some(e => e.texte === 'Offerte'));
   check('pas de mention « prix à fixer » quand tout a un prix', !vieille.texte.includes('Prix à fixer'));
   check('sans date de réception lisible, pas de « Reçue le — »', !vieille.texte.includes('Reçue le —'));
   controlesDeMiseEnPage(vieille, 'ancienne commande');
@@ -341,6 +343,73 @@ const prix = (n: number) => formatPrice(n).replace(/[  ]/g, ' ');
   check('les 45 articles sont tous imprimés', Array.from({ length: 45 }, (_, i) => `N° ${i + 1} AU`).every(t => deux.texte.includes(t)));
   check('les cases de signature ne sont pas perdues', deux.ecrits.filter(e => e.texte === 'Signature :').length === 6);
   controlesDeMiseEnPage(deux, 'long bon');
+
+  console.log('\n── Réception et paiement (29/09/2026) ──');
+  const reglages = {
+    ...REGLAGES_RECEPTION_DEFAUT,
+    lieux: {
+      ...REGLAGES_RECEPTION_DEFAUT.lieux,
+      chrifa: { nom: 'LEBTEX CHRIFA', adresse: '31 Rue 65, Ain Chock', lienMaps: 'https://maps.app.goo.gl/x', telephone: '0522000000', horaires: 'Lundi au samedi', actif: true },
+    },
+    // Un RIB réglé : il n'a rien à faire sur un bon qui part avec le colis.
+    virement: { actif: true, titulaire: 'LEBTEX SARL AU', banque: 'CIH', rib: '011780000012345678901234' },
+  };
+  const rouleau = { ...ligne('ROULEAU TAFFETAS 100 M', 900, 1, { color: 'Noir' }), volumineux: true };
+  const retraitVirement: ShopOrder = {
+    ...ancienne, id: 'c5', orderNumber: 'LBT-RETRAIT1-CHRF', status: 'processing', items: [rouleau], subtotal: 900, deliveryFee: 0, total: 900,
+    paymentMethod: 'virement', reception: { mode: 'retrait', lieuRetrait: 'chrifa', volumineux: true },
+  };
+  const rv = lire(await construireBonLivraison(retraitVirement, { reglages }));
+  check('retrait : VOLUMINEUX, magasin et adresse réglés', rv.texte.includes('VOLUMINEUX') && rv.texte.includes('retrait par le client à LEBTEX CHRIFA')
+    && rv.texte.includes('31 Rue 65, Ain Chock'), rv.texte.slice(0, 600));
+  check('retrait : frais « Gratuit », paiement du virement à vérifier', rv.ecrits.some(e => e.texte === 'Gratuit')
+    && rv.texte.includes('virement bancaire (motif : n° de commande)') && rv.texte.includes('ne rien remettre'));
+  check('retrait : la case du milieu est « remis au client par »', /REMIS AU CLIENT PAR/i.test(rv.texte));
+  check('retrait : l’adresse du client n’est qu’un renseignement', /ADRESSE DU CLIENT/i.test(rv.texte));
+  check('retrait : le pied dit « Paiement par virement »', /PAIEMENT PAR VIREMENT/i.test(rv.texte));
+  check('jamais de RIB sur le bon', !rv.texte.replace(/\s/g, '').includes('011780000012345678901234'));
+  check('retrait : une seule page', rv.pages === 1, String(rv.pages));
+  controlesDeMiseEnPage(rv, 'retrait');
+
+  const recu = lire(await construireBonLivraison(retraitVirement, { reglages, paiementsRecus: new Set(['c5']) }));
+  check('virement reçu : « Rien à encaisser », « TOTAL DÉJÀ PAYÉ »', recu.texte.includes('Rien à encaisser') && recu.texte.includes('TOTAL DÉJÀ PAYÉ')
+    && recu.texte.includes('Déjà payée : ne rien encaisser'));
+  check('virement reçu : plus d’alerte « ne rien remettre »', !recu.texte.includes('ne rien remettre'));
+
+  const transportFes: ShopOrder = {
+    ...arabe, id: 'c6', orderNumber: 'LBT-TRANSP01-FES1', status: 'confirmed', customerName: 'Karim Tazi', notes: '',
+    shippingAddress: { fullName: 'Karim Tazi', phone: '0661223344', address: 'Rue 5, quartier Atlas', city: 'Fès' },
+    items: [rouleau], subtotal: 900, deliveryFee: 0, total: 900, paymentMethod: 'cod',
+    reception: { mode: 'transport', volumineux: true },
+  };
+  const tf = lire(await construireBonLivraison(transportFes, { reglages }));
+  check('transport : « à confirmer par téléphone », dépôt du transporteur à Fès',
+    tf.texte.includes('transport à confirmer par téléphone') && tf.texte.includes('son dépôt de Fès, où le client récupère'), tf.texte.slice(0, 600));
+  check('transport : frais « À confirmer », jamais « Gratuit » ni « Offerte »',
+    tf.ecrits.some(e => e.texte === 'À confirmer') && !tf.ecrits.some(e => e.texte === 'Gratuit' || e.texte === 'Offerte'));
+  check('transport : « Transport en plus, à confirmer »', tf.texte.includes('Transport en plus, à confirmer'));
+  check('transport : case « chauffeur / transporteur »', /CHAUFFEUR \/ TRANSPORTEUR/i.test(tf.texte));
+  check('transport : le pied dit « Transport à confirmer »', /TRANSPORT À CONFIRMER/i.test(tf.texte));
+  controlesDeMiseEnPage(tf, 'transport');
+
+  const colis = lire(await construireBonLivraison({ ...complete, id: 'c7', notes: '' }));
+  check('colis : Sendit, préparé et ramassé à Derb Omar, ni ouvert ni essayé',
+    colis.texte.includes('colis Sendit, préparé et ramassé à Derb Omar') && colis.texte.includes('ni ouvert ni essayé'));
+  const rouleauEnColis = lire(await construireBonLivraison({ ...complete, id: 'c8', items: [rouleau], subtotal: 900, deliveryFee: 0, total: 850 }));
+  check('rouleau commandé en colis : le bon prévient que Sendit ne le prend pas', rouleauEnColis.texte.includes('il ne part pas par Sendit'));
+  check('rouleau commandé en colis : frais de transport « À confirmer »', rouleauEnColis.ecrits.some(e => e.texte === 'À confirmer'));
+  const zeroSousSeuil = lire(await construireBonLivraison({ ...complete, id: 'c9', deliveryFee: 0, total: 900 }));
+  // 950 DH à Casablanca : au-dessus de 300 DH, la livraison est offerte ; à 120 DH, 0 DH est à vérifier.
+  check('colis à 0 DH au-dessus du seuil : « Offerte »', zeroSousSeuil.ecrits.some(e => e.texte === 'Offerte'));
+  const petitPanier = lire(await construireBonLivraison({
+    // Commande d'aujourd'hui (`reception` écrit par le checkout) : seuil de 300 DH à Casablanca.
+    ...complete, id: 'c10', items: [ligne('BOUTON', 2, 60)], subtotal: 120, deliveryFee: 0, discount: 0, total: 120,
+    reception: { mode: 'domicile', volumineux: false },
+  }));
+  check('colis à 0 DH sous le seuil : « À vérifier », jamais « Gratuite »',
+    petitPanier.ecrits.some(e => e.texte === 'À vérifier') && !petitPanier.ecrits.some(e => /^Gratuit/.test(e.texte)));
+  const gros = lire(await construireBonLivraison({ ...complete, id: 'c11', subtotal: 3500, discount: 0, total: 3525 }));
+  check('colis de plus de 3 000 DH en espèces : rappel du plafond', gros.texte.includes('pour un colis Sendit'), gros.texte.slice(0, 500));
 
   console.log('\n── Cas limites ──');
   const annulee = lire(await construireBonLivraison({ ...ancienne, status: 'cancelled' }));

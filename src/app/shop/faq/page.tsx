@@ -2,22 +2,43 @@
 import Link from 'next/link';
 import { useState } from 'react';
 import { ChevronDown, ChevronUp, MessageCircle, Phone } from 'lucide-react';
+import { formatPrice } from '@/lib/shop-utils';
+import {
+  DELAI_ZONE, FRAIS_ZONE, PERIPHERIE_CASABLANCA, SEUIL_OFFERTE_AUTRES, SEUIL_OFFERTE_CASABLANCA,
+} from '@/lib/livraison-boutique';
+import { PLAFOND_ESPECES_COLIS } from '@/lib/commandes-boutique';
+import { useReglagesReception } from '@/lib/use-reglages-reception';
+
+// Les prix, seuils et délais viennent de livraison-boutique.ts : la FAQ dit
+// toujours la même chose que le panier et le formulaire de commande. Les réponses
+// qui parlent du virement ne s'affichent que si le virement est proposé au
+// formulaire (RIB saisi par le patron dans « Réception & paiement »).
+const casa = formatPrice(SEUIL_OFFERTE_CASABLANCA);
+const ailleurs = formatPrice(SEUIL_OFFERTE_AUTRES);
+const prix = (zone: keyof typeof FRAIS_ZONE) => formatPrice(FRAIS_ZONE[zone]);
 
 const FAQS = [
   {
     category: "Livraison",
     questions: [
-      { q: "Quels sont les délais de livraison ?", a: "Casablanca : 24-48h. Grandes villes (Rabat, Marrakech, Fès, Tanger, Agadir) : 1-2 jours. Autres villes : 3-5 jours ouvrables." },
-      { q: "Quels sont les frais de livraison ?", a: "Casablanca : 25 MAD, et GRATUITE à partir de 100 MAD d'achat ! Grandes villes : 35 MAD. Autres régions : 50 MAD. Partout au Maroc, la livraison est GRATUITE à partir de 500 MAD d'achat." },
-      { q: "Livrez-vous dans tout le Maroc ?", a: "Oui, nous livrons dans toutes les villes et régions du Maroc via nos partenaires logistiques (Amana, Jibli, Cathedis)." },
-      { q: "Comment suivre ma commande ?", a: "Une fois votre commande expédiée, vous recevrez un numéro de suivi. Vous pouvez aussi utiliser notre page de suivi sur le site ou nous contacter sur WhatsApp." },
+      { q: "Qui livre mes colis ?", a: "Nos colis sont livrés par Sendit, dans toutes les villes du Maroc. Le livreur vous appelle avant de passer." },
+      { q: "Quels sont les délais de livraison ?", a: `Nous expédions sous 24 h (jours ouvrés) après l'appel de confirmation. Casablanca : ${DELAI_ZONE.casablanca}. Périphérie de Casablanca et grandes villes : ${DELAI_ZONE.standard}. Villes éloignées : ${DELAI_ZONE.eloignee}.` },
+      { q: "Quels sont les frais de livraison ?", a: `Casablanca : ${prix('casablanca')} (${prix('eloignee')} dans quelques zones éloignées, confirmé à l'appel). Périphérie de Casablanca (${PERIPHERIE_CASABLANCA.join(', ')}) et grandes villes : ${prix('standard')}. Villes éloignées et autres villes : ${prix('eloignee')}. La livraison est offerte dès ${casa} d'achat à Casablanca, et dès ${ailleurs} partout ailleurs.` },
+      { q: "Puis-je ouvrir le colis avant de payer ?", a: "Non : chez Sendit, le colis ne s'ouvre pas et ne s'essaie pas avant le paiement. Si vous voulez voir un article avant, demandez-nous des photos sur WhatsApp. Un problème à l'ouverture (article abîmé, erreur de notre part) ? Envoyez-nous une photo dans les 48 h : nous remplaçons à nos frais." },
+      { q: "Puis-je retirer ma commande ?", a: "Oui, le retrait est gratuit à Casablanca, pour toute commande : les petits articles au magasin de Derb Omar, les rouleaux à notre dépôt CHRIFA. Choisissez « Retrait gratuit » en commandant. Nous vous envoyons l'adresse exacte et le lien Google Maps par WhatsApp quand la commande est prête. Elle vous attend 7 jours ouvrés." },
+      { q: "Livrez-vous les rouleaux ?", a: "Oui, mais pas en colis : un rouleau entier est trop grand pour Sendit. Nous vous appelons pour organiser le transport : retrait gratuit à notre dépôt CHRIFA, livraison par notre camionnette à Casablanca et environs, ou envoi par un transporteur jusqu'à son dépôt dans votre ville, où vous récupérez la marchandise. Le prix vous est annoncé au téléphone ; rien n'est envoyé avant votre accord." },
+      { q: "Mon transporteur peut-il venir chercher ma commande ?", a: "Oui. Donnez-nous son nom et son téléphone à l'appel. Il se présente avec votre numéro de commande et votre nom, au magasin de Derb Omar (petits articles) ou à notre dépôt CHRIFA (rouleaux). La façon de régler la commande est convenue avec vous au téléphone." },
+      { q: "Livrez-vous dans tout le Maroc ?", a: "Oui, Sendit livre les colis dans toutes les villes du Maroc. Pour une ville que notre liste ne connaît pas, écrivez-la en commandant : nous confirmons le prix à l'appel." },
+      { q: "Comment suivre ma commande ?", a: "Utilisez la page « Suivi de commande » du site avec votre numéro de commande, ou écrivez-nous sur WhatsApp." },
     ]
   },
   {
     category: "Paiement",
     questions: [
-      { q: "Quels modes de paiement acceptez-vous ?", a: "Nous acceptons le paiement à la livraison (cash). Vous payez uniquement quand vous recevez votre commande et vérifiez les articles." },
-      { q: "Est-ce sécurisé de commander en ligne ?", a: "Absolument. Avec le paiement à la livraison, vous ne payez qu'à la réception. Aucun risque financier !" },
+      { q: "Quels modes de paiement acceptez-vous ?", a: "En espèces à la réception : au livreur Sendit, ou au magasin si vous retirez votre commande. Ou par virement bancaire. Vous ne payez rien avant d'avoir commandé et d'avoir été appelé.", virement: true },
+      { q: "Quels modes de paiement acceptez-vous ?", a: "En espèces à la réception : au livreur Sendit, ou au magasin si vous retirez votre commande. Vous ne payez rien avant d'avoir commandé et d'avoir été appelé.", virement: false },
+      { q: "Comment payer par virement ?", a: "Choisissez « Virement bancaire » en commandant : notre RIB s'affiche juste après la commande. Mettez votre numéro de commande (LBT-…) en motif du virement. Nous envoyons ou remettons la commande dès que l'argent est arrivé sur notre compte : une capture d'écran ne suffit pas. Attention : LEBTEX ne change jamais de RIB par message.", virement: true },
+      { q: "Y a-t-il un montant maximum en espèces ?", a: `Oui, pour un colis : au-delà de ${formatPrice(PLAFOND_ESPECES_COLIS)} d'espèces, nous vous proposons au téléphone la solution la plus simple (virement, retrait gratuit ou autre arrangement).` },
       { q: "Puis-je obtenir une facture ?", a: "Oui, une facture est disponible sur demande. Contactez-nous via WhatsApp après votre commande." },
     ]
   },
@@ -26,19 +47,22 @@ const FAQS = [
     questions: [
       { q: "Vos produits sont-ils de qualité professionnelle ?", a: "Oui, tous nos produits sont sélectionnés auprès de fournisseurs certifiés. Nous proposons des produits pour professionnels et particuliers." },
       { q: "Proposez-vous des prix de gros ?", a: "Oui ! Nous proposons des tarifs semi-gros et gros selon les quantités commandées. Contactez-nous pour un devis personnalisé." },
-      { q: "Les couleurs correspondent-elles aux photos ?", a: "Nous faisons notre maximum pour que les photos soient fidèles. Des légères variations sont possibles selon les écrans. En cas de doute, contactez-nous avant commande." },
+      { q: "Les couleurs correspondent-elles aux photos ?", a: "Nous faisons notre maximum pour que les photos soient fidèles. De légères variations sont possibles selon les écrans, et entre deux bains de teinture. En cas de doute, contactez-nous avant de commander." },
       { q: "Puis-je commander des échantillons ?", a: "Oui, contactez-nous sur WhatsApp pour commander des échantillons avant de passer une grande commande." },
     ]
   },
   {
     category: "Retours & SAV",
     questions: [
-      { q: "Puis-je retourner un produit ?", a: "Oui, vous avez 14 jours après réception pour retourner un produit non utilisé dans son emballage d'origine. Les frais de retour sont à votre charge." },
-      { q: "Que faire si je reçois un produit défectueux ?", a: "Contactez-nous immédiatement via WhatsApp avec des photos. Nous remplaçons ou remboursons tout produit défectueux gratuitement." },
-      { q: "Comment annuler ma commande ?", a: "Contactez-nous dans les 2h suivant la commande via WhatsApp ou téléphone. Après expédition, l'annulation n'est plus possible." },
+      { q: "Puis-je retourner un produit ?", a: "Oui, vous avez 14 jours après réception pour retourner un article non utilisé, dans son emballage d'origine. Le tissu coupé au mètre à votre demande n'est ni repris ni échangé. Si vous changez d'avis, le transport du retour est à votre charge." },
+      { q: "Que faire si je reçois un produit abîmé ou une erreur ?", a: "Envoyez-nous des photos sur WhatsApp dans les 48 h. Nous remplaçons l'article à nos frais, ou nous vous remboursons." },
+      { q: "Comment annuler ma commande ?", a: "Écrivez-nous sur WhatsApp ou appelez-nous avant l'expédition : l'annulation est gratuite. Pour un rouleau entier, la commande devient ferme quand vous acceptez le prix du transport." },
     ]
   },
 ];
+
+/** `virement` : réponse montrée seulement quand le virement est proposé (true) ou ne l'est pas (false). */
+type Question = { q: string; a: string; virement?: boolean };
 
 function FaqItem({ q, a }: { q: string; a: string }) {
   const [open, setOpen] = useState(false);
@@ -63,8 +87,15 @@ function FaqItem({ q, a }: { q: string; a: string }) {
 
 export default function FAQPage() {
   const [activeCategory, setActiveCategory] = useState('all');
-  const categories = ['all', ...FAQS.map(f => f.category)];
-  const filtered = activeCategory === 'all' ? FAQS : FAQS.filter(f => f.category === activeCategory);
+  const { reglages, charge } = useReglagesReception();
+  // Tant que les réglages ne sont pas lus, on ne promet pas le virement.
+  const virementActif = charge && reglages.virement.actif;
+  const faqs = FAQS.map(f => ({
+    ...f,
+    questions: (f.questions as Question[]).filter(q => q.virement === undefined || q.virement === virementActif),
+  }));
+  const categories = ['all', ...faqs.map(f => f.category)];
+  const filtered = activeCategory === 'all' ? faqs : faqs.filter(f => f.category === activeCategory);
 
   return (
     <div style={{ fontFamily: 'Inter, sans-serif', background: '#FBF8F3' }} className="min-h-screen">
@@ -86,7 +117,7 @@ export default function FAQPage() {
             <button
               key={cat}
               onClick={() => setActiveCategory(cat)}
-              className={`px-4 py-2 rounded-full text-sm font-semibold whitespace-nowrap transition-all ${
+              className={`min-h-[44px] px-4 py-2 rounded-full text-sm font-semibold whitespace-nowrap transition-all ${
                 activeCategory === cat
                   ? 'bg-[#C8102E] text-white'
                   : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
@@ -107,8 +138,8 @@ export default function FAQPage() {
               {section.category}
             </h2>
             <div className="space-y-3">
-              {section.questions.map((item, i) => (
-                <FaqItem key={i} q={item.q} a={item.a} />
+              {section.questions.map((item) => (
+                <FaqItem key={`${item.q}-${item.virement ?? ''}`} q={item.q} a={item.a} />
               ))}
             </div>
           </div>
@@ -117,7 +148,7 @@ export default function FAQPage() {
         {/* Contact CTA */}
         <div className="mt-12 bg-[#0F0F0F] rounded-2xl p-8 text-center text-white">
           <h3 className="text-2xl font-bold mb-2" style={{ fontFamily: 'Outfit, sans-serif' }}>Vous n'avez pas trouvé votre réponse ?</h3>
-          <p className="text-gray-400 mb-6">Notre équipe est disponible 6j/7 pour vous aider</p>
+          <p className="text-gray-300 mb-6">Notre équipe vous répond du lundi au samedi, de 8h30 à 18h30.</p>
           <div className="flex flex-col sm:flex-row gap-3 justify-center">
             <a href="https://wa.me/212760998347" target="_blank" rel="noopener noreferrer"
               className="flex items-center justify-center gap-2 bg-[#25D366] hover:bg-[#1da851] text-white px-6 py-3 rounded-xl font-semibold transition-colors">

@@ -139,6 +139,11 @@ export interface ShopProduct {
   conditionnementGros?: string;
   stockArticleId?: string;
   stockArticleIds?: Record<string, string>;
+  /**
+   * Rouleau entier ou article encombrant : Sendit ne le livre pas. Le client
+   * choisit retrait ou transport, organisé par téléphone ; aucun frais de colis affiché.
+   */
+  volumineux?: boolean;
 
   createdAt?: any;
   updatedAt?: any;
@@ -178,17 +183,45 @@ export interface CartItem {
   maxStock: number;
   /** Sur une ligne de commande : prix unitaire réellement facturé (prix de gros compris). */
   unitPrice?: number;
+  /** Copié du produit à l'ajout au panier : article volumineux (cf. ShopProduct.volumineux). */
+  volumineux?: boolean;
 }
 
 export type OrderStatus =
   | 'pending'       // En attente de confirmation
   | 'confirmed'     // Confirmé
   | 'processing'    // En préparation
+  | 'ready_for_pickup' // Prête à retirer (retrait en magasin)
   | 'shipped'       // Expédié
   | 'out_for_delivery' // En cours de livraison
   | 'delivered'     // Livré
   | 'cancelled'     // Annulé
   | 'returned';     // Retourné
+
+/**
+ * Comment le client reçoit sa commande :
+ * - domicile  : colis Sendit (petits articles), frais selon la ville ;
+ * - retrait   : gratuit, au magasin (Derb Omar pour les petits articles, CHRIFA pour les volumineux) ;
+ * - transport : volumineux livré par la camionnette (Casablanca) ou un transporteur jusqu'à son
+ *               dépôt dans la ville du client ; organisé et chiffré par téléphone.
+ */
+export type ModeReception = 'domicile' | 'retrait' | 'transport';
+
+/** Magasins où l'on retire une commande. */
+export type LieuRetrait = 'derb_omar' | 'chrifa';
+
+/** cod = espèces à la livraison ou au retrait ; virement ; carte (quand un prestataire sera branché). */
+export type MoyenPaiement = 'cod' | 'virement' | 'carte';
+
+export interface ReceptionCommande {
+  mode: ModeReception;
+  /** Si retrait : le magasin (déduit du contenu : volumineux → chrifa). */
+  lieuRetrait?: LieuRetrait;
+  /** La commande contient au moins un article volumineux. */
+  volumineux: boolean;
+  /** Si transport : ce que le client préfère (confirmé à l'appel). */
+  preferenceTransport?: 'camionnette' | 'transporteur';
+}
 
 export interface ShippingAddress {
   fullName: string;
@@ -215,7 +248,16 @@ export interface ShopOrder {
   couponCode?: string;
   total: number;
   shippingAddress: ShippingAddress;
-  paymentMethod: 'cod'; // Cash on delivery
+  /** Moyen de paiement choisi à la commande (les anciennes commandes : 'cod'). */
+  paymentMethod: MoyenPaiement;
+  /** Mode de réception (absent sur les commandes d'avant le 29/09/2026 : colis à domicile). */
+  reception?: ReceptionCommande;
+  /**
+   * Colis Sendit créé par l'équipe, écrit par le serveur (/api/shop/sendit/envoyer).
+   * Pour l'affichage seulement : tant que firestore.rules ne l'interdit pas à la création,
+   * un client peut l'écrire lui-même ; l'envoi et le webhook ne lisent que shop_orders_interne.
+   */
+  livraison?: { transporteur: 'sendit'; code: string };
   notes?: string;
   trackingNotes?: TrackingNote[];
   whatsappSent?: boolean;
@@ -260,33 +302,49 @@ export interface ShopCustomer {
   createdAt?: any;
 }
 
-// Delivery zones in Morocco
+/**
+ * @deprecated Plus utilisé par le site : frais et délais se calculent dans
+ * src/lib/livraison-boutique.ts (FRAIS_ZONE, DELAI_ZONE, zoneDeVille). Valeurs
+ * alignées sur la grille Sendit du 29/09/2026 (20 / 35 / 45 DH), pour qu'un
+ * ancien import n'affiche pas un faux prix.
+ */
 export const DELIVERY_ZONES = {
-  casablanca: { name: 'Casablanca', fee: 25, days: '24-48h' },
-  rabat: { name: 'Rabat - Salé', fee: 35, days: '1-2 jours' },
-  marrakech: { name: 'Marrakech', fee: 35, days: '2-3 jours' },
-  fes: { name: 'Fès - Meknès', fee: 35, days: '2-3 jours' },
-  tanger: { name: 'Tanger', fee: 35, days: '2-3 jours' },
-  agadir: { name: 'Agadir', fee: 35, days: '2-3 jours' },
-  oujda: { name: 'Oujda', fee: 40, days: '3-4 jours' },
-  other: { name: 'Autres villes', fee: 50, days: '3-5 jours' },
+  casablanca: { name: 'Casablanca', fee: 20, days: '24-48h' },
+  rabat: { name: 'Rabat - Salé', fee: 35, days: '1-3 jours ouvrés' },
+  marrakech: { name: 'Marrakech', fee: 35, days: '1-3 jours ouvrés' },
+  fes: { name: 'Fès - Meknès', fee: 35, days: '1-3 jours ouvrés' },
+  tanger: { name: 'Tanger', fee: 35, days: '1-3 jours ouvrés' },
+  agadir: { name: 'Agadir', fee: 35, days: '1-3 jours ouvrés' },
+  oujda: { name: 'Oujda', fee: 35, days: '1-3 jours ouvrés' },
+  other: { name: 'Villes éloignées et autres villes', fee: 45, days: '2-4 jours ouvrés' },
 } as const;
 
+/** @deprecated Voir ZoneLivraison dans src/lib/livraison-boutique.ts. */
 export type DeliveryZone = keyof typeof DELIVERY_ZONES;
 
+/**
+ * Villes proposées au formulaire de commande : les plus demandées d'abord, puis
+ * les autres par ordre alphabétique. Ne jamais renommer une entrée : les adresses
+ * enregistrées des clients pré-remplissent la liste avec ce texte exact. Le palier
+ * de prix de chaque ville est dans src/lib/livraison-boutique.ts.
+ */
 export const MOROCCAN_CITIES = [
   'Casablanca', 'Rabat', 'Salé', 'Marrakech', 'Fès', 'Meknès',
-  'Tanger', 'Agadir', 'Oujda', 'Kenitra', 'Tétouan', 'El Jadida',
-  'Safi', 'Mohammedia', 'Khouribga', 'Béni Mellal', 'Nador',
-  'Laâyoune', 'Dakhla', 'Settat', 'Berrechid', 'Khémisset',
-  'Inezgane', 'Taza', 'Guelmim', 'Larache', 'Ksar el-Kébir',
-  'Berkane', 'Al Hoceima', 'Taourirt', 'Khénifra', 'Sidi Kacem',
+  'Tanger', 'Agadir', 'Oujda',
+  'Al Hoceima', 'Béni Mellal', 'Berkane', 'Berrechid', 'Bouskoura',
+  'Chefchaouen', 'Dakhla', 'Dar Bouazza', 'El Jadida', 'Errachidia',
+  'Essaouira', 'Guelmim', 'Inezgane', 'Kenitra', 'Khémisset',
+  'Khénifra', 'Khouribga', 'Ksar el-Kébir', 'Laâyoune', 'Larache',
+  'Médiouna', 'Mohammedia', 'Nador', 'Ouarzazate', 'Safi', 'Settat',
+  'Sidi Kacem', 'Taourirt', 'Taroudant', 'Taza', 'Témara', 'Tétouan',
+  'Tiznit',
 ];
 
 export const ORDER_STATUS_LABELS: Record<OrderStatus, string> = {
   pending: 'En attente',
   confirmed: 'Confirmé',
   processing: 'En préparation',
+  ready_for_pickup: 'Prête à retirer',
   shipped: 'Expédié',
   out_for_delivery: 'En livraison',
   delivered: 'Livré',
@@ -298,6 +356,7 @@ export const ORDER_STATUS_COLORS: Record<OrderStatus, string> = {
   pending: '#F59E0B',
   confirmed: '#3B82F6',
   processing: '#8B5CF6',
+  ready_for_pickup: '#14B8A6',
   shipped: '#06B6D4',
   out_for_delivery: '#F97316',
   delivered: '#10B981',

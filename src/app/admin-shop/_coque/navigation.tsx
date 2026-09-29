@@ -3,7 +3,8 @@
 // ─── Navigation de l'admin boutique ──────────────────────────────────────────
 // Ordinateur : barre latérale fixe. Téléphone : barre du bas à 5 cases
 // (Commandes, Tableau, Produits, Clients, Plus) ; « Plus » ouvre un panneau avec
-// le reste (Catégories, Catalogue, Accès équipe, la boutique, Publier, la déconnexion).
+// le reste (Catégories, Catalogue, Réception & paiement, Accès équipe, la boutique,
+// Publier, la déconnexion).
 // Commandes vient en premier et porte la pastille du nombre à confirmer.
 
 import { useEffect, useRef, useState, type ReactNode } from 'react';
@@ -18,6 +19,7 @@ import {
   Package,
   Shield,
   ShoppingBag,
+  Truck,
   Users,
   X,
 } from 'lucide-react';
@@ -32,13 +34,14 @@ const ICONES: Record<VueAdmin, (c: string) => ReactNode> = {
   categories: c => <Grid3X3 className={c} />,
   clients: c => <Users className={c} />,
   catalogue: c => <BookOpen className={c} />,
+  reception: c => <Truck className={c} />,
   equipe: c => <KeyRound className={c} />,
 };
 
 /** Ordre du menu : le travail du jour d'abord. */
 const ORDRE: VueAdmin[] = ['commandes', 'tableau', 'produits', 'categories', 'clients', 'catalogue'];
 /** Section basse de la barre latérale : les réglages, qu'on ouvre rarement, loin du travail du jour. */
-const REGLAGES: VueAdmin[] = ['equipe'];
+const REGLAGES: VueAdmin[] = ['reception', 'equipe'];
 
 /** Barre du bas : 4 écrans + « Plus ». Libellés courts : « Commandes » tient en 12 px dans une case de 75 px. */
 const BARRE_BAS: { vue: VueAdmin; libelle: string }[] = [
@@ -47,7 +50,7 @@ const BARRE_BAS: { vue: VueAdmin; libelle: string }[] = [
   { vue: 'produits', libelle: 'Produits' },
   { vue: 'clients', libelle: 'Clients' },
 ];
-const DANS_PLUS: VueAdmin[] = ['categories', 'catalogue', 'equipe'];
+const DANS_PLUS: VueAdmin[] = ['categories', 'catalogue', 'reception', 'equipe'];
 
 export function NavigationAdmin({
   vue,

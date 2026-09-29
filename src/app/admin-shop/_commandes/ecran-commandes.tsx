@@ -17,6 +17,7 @@ import type { ShopOrder } from '@/lib/shop-types';
 import {
   commandesDeLaFile, compteParFile, dateDe, enRetard, FILES, type FileCommandes,
 } from '@/lib/commandes-boutique';
+import { REGLAGES_RECEPTION_DEFAUT, type ReglagesReception } from '@/lib/reglages-reception';
 import type { ActionsCommandes } from './actions-commandes';
 import { estAppareilMobile, type EtatAlertes } from './use-alerte-nouvelles-commandes';
 import { CarteCommande } from './carte-commande';
@@ -24,6 +25,7 @@ import { FicheCommande, FicheEnAttente, FicheIntrouvable } from './fiche-command
 import { BOUTON_SECONDAIRE, FrontiereCommande, Squelettes, useGrandEcran, useMaintenant } from './elements';
 import { fileAUnSeulStatut, fileParDefaut, fileParPages, VIDE_PAR_FILE } from './outils-ecran';
 import { telechargerBonsLivraison } from './documents-commande';
+import { FeuilleDeRouteCamionnette } from './documents-transport';
 
 const TAILLE_PAGE = 50;
 
@@ -60,6 +62,11 @@ export interface EcranCommandesProps {
    * par défaut). Faux pour l'espace équipe : le bandeau téléphone ne le promet pas.
    */
   prevenuParEmail?: boolean;
+  /**
+   * Écran de l'administrateur (/admin-shop) : la fiche montre les frais Sendit facturés
+   * à LEBTEX. Faux par défaut, donc dans /staff. Le serveur revérifie chaque action.
+   */
+  estAdmin?: boolean;
 }
 
 /** Cle d'une version de la commande : une frontière d'erreur retente quand elle change. */
@@ -67,7 +74,7 @@ const versionDe = (o: ShopOrder) => `${o.id}|${o.status}|${dateDe(o.updatedAt)?.
 
 export function EcranCommandes({
   orders, chargement, erreur, actions, commandeOuverteId, onOuvrir, nonVues, alertes, fileDemandee, onReessayer,
-  prevenuParEmail = true,
+  prevenuParEmail = true, estAdmin = false,
 }: EcranCommandesProps) {
   const { toast } = useToast();
   const maintenant = useMaintenant(30_000);
@@ -163,6 +170,19 @@ export function EcranCommandes({
   const bandeauOrdinateur = !mobile && alertes.permission === 'default'
     && (bandeauEcarte === null || (bandeauEcarte > 0 && Date.now() - bandeauEcarte > PLUS_TARD_MS));
 
+  // ─── Magasins de retrait (réglages « Réception & paiement ») ────────────────
+  // Le WhatsApp d'une carte cite l'adresse du magasin (« commande prête ») : celle
+  // réglée par le patron, pas celle par défaut. Illisibles : les valeurs par défaut.
+  const [reglages, setReglages] = useState<ReglagesReception | undefined>(undefined);
+  useEffect(() => {
+    if (!actions.lireReglagesReception) return;
+    let actif = true;
+    actions.lireReglagesReception()
+      .then(r => { if (actif) setReglages(r); })
+      .catch(() => { /* valeurs par défaut */ });
+    return () => { actif = false; };
+  }, [actions]);
+
   // ─── Impression des bons de la file « À préparer » ──────────────────────────
   const [impression, setImpression] = useState<{ etat: 'repos' | 'preparation' | 'erreur'; message?: string }>({ etat: 'repos' });
   const aPreparer = useMemo(() => commandesDeLaFile(orders, 'a_preparer', '', maintenant), [orders, maintenant]);
@@ -171,7 +191,9 @@ export function EcranCommandes({
     if (impression.etat === 'preparation' || !aPreparer.length) return;
     setImpression({ etat: 'preparation' });
     try {
-      await telechargerBonsLivraison(aPreparer);
+      // Les adresses des magasins réglées par le patron ; illisibles, le bon prend celles par défaut.
+      const lus = await actions.lireReglagesReception?.().catch(() => undefined);
+      await telechargerBonsLivraison(aPreparer, { reglages: lus ?? reglages });
       setImpression({ etat: 'repos' });
     } catch (e) {
       setImpression({ etat: 'erreur', message: (e as Error)?.message || 'Les bons n’ont pas pu être préparés.' });
@@ -214,6 +236,7 @@ export function EcranCommandes({
             pleinEcran={pleinEcran}
             onFermer={fermer}
             onOuvrir={ouvrir}
+            estAdmin={estAdmin}
           />
         </FrontiereCommande>
       );
@@ -257,6 +280,8 @@ export function EcranCommandes({
               const actif = !enRecherche && file === f.id;
               const urgent = f.id === 'a_confirmer' && nbEnRetard > 0;
               const n = comptes[f.id];
+              // Rouleaux à organiser : pastille ambre, c'est un appel à passer.
+              const aOrganiser = f.id === 'transport' && n > 0;
               return (
                 <button
                   key={f.id}
@@ -273,7 +298,7 @@ export function EcranCommandes({
                   {f.libelle}
                   <span
                     className={`inline-flex h-[22px] min-w-[22px] items-center justify-center rounded-full px-1.5 text-xs font-bold tabular-nums ${
-                      actif ? 'bg-white/25 text-white' : urgent ? 'bg-red-500 text-white' : n > 0 && f.id !== 'toutes' && f.id !== 'livrees' && f.id !== 'annulees' ? 'bg-white/15 text-gray-100' : 'bg-white/5 text-gray-300'
+                      actif ? 'bg-white/25 text-white' : urgent ? 'bg-red-500 text-white' : aOrganiser ? 'bg-amber-400/25 text-amber-100' : n > 0 && f.id !== 'toutes' && f.id !== 'livrees' && f.id !== 'annulees' ? 'bg-white/15 text-gray-100' : 'bg-white/5 text-gray-300'
                     }`}
                   >
                     {chargement ? '…' : erreur && !orders.length ? '—' : n}
@@ -428,6 +453,11 @@ export function EcranCommandes({
               )}
             </div>
           )}
+
+          {/* Transport à organiser / À préparer : la tournée de la camionnette, pour les commandes cochées */}
+          {!enRecherche && (file === 'transport' || file === 'a_preparer') && (
+            <FeuilleDeRouteCamionnette orders={orders} actions={actions} reglages={reglages ?? REGLAGES_RECEPTION_DEFAUT} />
+          )}
         </div>
 
         {/* Cartes */}
@@ -455,6 +485,7 @@ export function EcranCommandes({
                     selectionnee={!!o.id && o.id === commandeOuverteId}
                     afficherStatut={afficherStatut}
                     onOuvrir={ouvrir}
+                    reglages={reglages}
                   />
                 </FrontiereCommande>
               ))}

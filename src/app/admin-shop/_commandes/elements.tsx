@@ -4,7 +4,8 @@
 
 import { Component, useEffect, useState, useSyncExternalStore, type ErrorInfo, type ReactNode } from 'react';
 import { AlertTriangle, ImageOff } from 'lucide-react';
-import { ORDER_STATUS_COLORS, type OrderStatus } from '@/lib/shop-types';
+import { ORDER_STATUS_COLORS, type OrderStatus, type ShopOrder } from '@/lib/shop-types';
+import { libelleMode, LIBELLES_PAIEMENT, moyenPaiementDe, receptionDe } from '@/lib/commandes-boutique';
 import { imageUtilisable, statutLisible } from './outils-ecran';
 
 /** Horloge de l'écran : les âges (« il y a 35 min ») et les retards restent vrais sans recharger. */
@@ -70,8 +71,11 @@ export async function copierTexte(texte: string): Promise<boolean> {
   }
 }
 
-/** Pastille de statut : point de couleur et texte clair, lisible sur fond sombre quelle que soit la couleur. */
-export function BadgeStatut({ statut, className = '' }: { statut: OrderStatus; className?: string }) {
+/**
+ * Pastille de statut : point de couleur et texte clair, lisible sur fond sombre quelle que soit la couleur.
+ * `libelle` : le statut dans les mots du mode (« Retirée » plutôt que « Livrée »).
+ */
+export function BadgeStatut({ statut, className = '', libelle }: { statut: OrderStatus; className?: string; libelle?: string }) {
   const couleur = ORDER_STATUS_COLORS[statut] || '#6B7280';
   return (
     <span
@@ -79,7 +83,42 @@ export function BadgeStatut({ statut, className = '' }: { statut: OrderStatus; c
       style={{ background: `${couleur}26`, borderColor: `${couleur}66` }}
     >
       <span aria-hidden className="h-2 w-2 rounded-full shrink-0" style={{ background: couleur }} />
-      {statutLisible(statut)}
+      {libelle || statutLisible(statut)}
+    </span>
+  );
+}
+
+const TONS_BADGE = {
+  ambre: 'border-amber-400/50 bg-amber-400/15 text-amber-100',
+  bleu: 'border-sky-400/40 bg-sky-400/10 text-sky-100',
+  vert: 'border-emerald-400/40 bg-emerald-400/10 text-emerald-100',
+  gris: 'border-white/15 bg-white/5 text-gray-200',
+} as const;
+
+/**
+ * VOLUMINEUX, mode de réception et moyen de paiement. `compact` (cartes de la liste) :
+ * seulement ce qui change le travail — un rouleau, un retrait, un transport, un virement.
+ */
+export function BadgesReception({
+  commande, compact = false, className = '',
+}: { commande: Pick<ShopOrder, 'reception' | 'items' | 'paymentMethod'>; compact?: boolean; className?: string }) {
+  const r = receptionDe(commande);
+  const moyen = moyenPaiementDe(commande);
+  const badges: { texte: string; ton: keyof typeof TONS_BADGE }[] = [];
+  if (r.volumineux) badges.push({ texte: 'VOLUMINEUX', ton: 'ambre' });
+  if (!compact || r.mode !== 'domicile') badges.push({ texte: libelleMode(r), ton: r.mode === 'domicile' ? 'gris' : 'bleu' });
+  if (!compact || moyen !== 'cod') badges.push({ texte: LIBELLES_PAIEMENT[moyen], ton: moyen === 'cod' ? 'gris' : 'vert' });
+  if (!badges.length) return null;
+  return (
+    <span className={`flex flex-wrap items-center gap-1.5 ${className}`}>
+      {badges.map(b => (
+        <span
+          key={b.texte}
+          className={`inline-flex items-center rounded-md border px-2 py-0.5 text-xs font-bold tracking-wide whitespace-nowrap ${TONS_BADGE[b.ton]}`}
+        >
+          {b.texte}
+        </span>
+      ))}
     </span>
   );
 }

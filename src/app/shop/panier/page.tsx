@@ -37,7 +37,9 @@ import {
 } from "@/lib/shop-utils";
 import type { CartItem } from "@/lib/shop-types";
 import type { Language } from "@/lib/translations";
+import { commandeVolumineuse } from "@/lib/livraison-boutique";
 import FreeDeliveryProgress from "@/components/shop/FreeDeliveryProgress";
+import { useReglagesReception } from "@/lib/use-reglages-reception";
 
 // ─── Constants ──────────────────────────────────────────────────────────────
 // Au-delà, les variantes d'un produit sont repliées derrière « Voir les N autres »
@@ -442,6 +444,12 @@ export default function PanierPage() {
   const hasUnpricedItems = items.some((item) => getCartItemUnitPrice(item, productQtyMap[item.productId]) <= 0);
   // La ville n'est connue qu'au checkout : le total n'inclut pas la livraison
   const deliveryStage = getFreeDeliveryProgress(subtotal).stage;
+  // Un rouleau entier dans le panier : pas de colis Sendit, donc pas de livraison offerte ;
+  // retrait gratuit ou transport chiffré au téléphone.
+  const volumineux = useMemo(() => commandeVolumineuse(items), [items]);
+  // Le virement n'est cité que s'il est proposé au formulaire (RIB saisi par le patron).
+  const { reglages, charge: reglagesCharges } = useReglagesReception();
+  const virementPropose = reglagesCharges && reglages.virement.actif;
   const totalLabel = hasPrices ? formatPrice(subtotal) : t('price_on_request');
   const isAr = language === "ar";
 
@@ -512,7 +520,7 @@ export default function PanierPage() {
           {/* ── Left: products ── */}
           <div className="lg:col-span-2 space-y-3">
             {/* Free delivery progress */}
-            {hasPrices && <FreeDeliveryProgress subtotal={subtotal} />}
+            {(hasPrices || volumineux) && <FreeDeliveryProgress subtotal={subtotal} volumineux={volumineux} />}
 
             {/* Toolbar */}
             <div className="flex items-center justify-between px-1 pt-1">
@@ -580,7 +588,7 @@ export default function PanierPage() {
                 <div className="flex items-start justify-between gap-3 text-sm text-[#6B6B6B]">
                   <div>
                     <span>{t('delivery_cost')}</span>
-                    {deliveryStage !== "everywhere" && (
+                    {!volumineux && deliveryStage !== "everywhere" && (
                       <p className="text-xs">
                         {isAr
                           ? `الدار البيضاء: مجاني من ${formatPrice(CASABLANCA_FREE_DELIVERY_THRESHOLD)} · باقي المدن: من ${formatPrice(FREE_DELIVERY_THRESHOLD)}`
@@ -588,15 +596,21 @@ export default function PanierPage() {
                       </p>
                     )}
                   </div>
-                  <span
-                    className={`font-semibold text-right ${deliveryStage === "none" ? "text-[#0F0F0F]" : "text-[#10B981]"}`}
-                  >
-                    {deliveryStage === "everywhere"
-                      ? t('delivery_free')
-                      : deliveryStage === "casablanca"
-                        ? t('delivery_free_casa')
-                        : t('delivery_calc')}
-                  </span>
+                  {volumineux ? (
+                    <span className="font-semibold text-right text-[#0F0F0F]">
+                      {isAr ? "استلام مجاني أو نقل يُحدد بالهاتف" : "Retrait gratuit ou transport à confirmer"}
+                    </span>
+                  ) : (
+                    <span
+                      className={`font-semibold text-right ${deliveryStage === "none" ? "text-[#0F0F0F]" : "text-[#10B981]"}`}
+                    >
+                      {deliveryStage === "everywhere"
+                        ? t('delivery_free')
+                        : deliveryStage === "casablanca"
+                          ? t('delivery_free_casa')
+                          : t('delivery_calc')}
+                    </span>
+                  )}
                 </div>
 
                 {/* Total */}
@@ -606,8 +620,10 @@ export default function PanierPage() {
                     <span className="block text-2xl font-black text-[#C8102E] tabular-nums leading-tight shop-font-display">
                       {totalLabel}
                     </span>
-                    <span className="text-[10px] text-[#6B6B6B]">
-                      {deliveryStage === "everywhere"
+                    <span className="text-xs text-[#6B6B6B]">
+                      {volumineux
+                        ? isAr ? "تتضمن الضرائب · بدون النقل" : "Taxes incluses · hors transport"
+                        : deliveryStage === "everywhere"
                         ? isAr ? "التوصيل مجاني · تتضمن الضرائب" : "Livraison offerte · Taxes incluses"
                         : isAr ? "تتضمن الضرائب · بدون التوصيل" : "Taxes incluses · hors livraison"}
                     </span>
@@ -625,16 +641,27 @@ export default function PanierPage() {
 
                 {/* Guarantees */}
                 <div className="grid grid-cols-3 gap-2 pt-3 border-t border-[#E8E4DF]">
+                  {/* Un rouleau : le transport s'organise au téléphone, pas de « livraison rapide ». */}
                   {[
-                    { icon: <Shield className="w-4 h-4" />, label: isAr ? "الدفع عند الاستلام" : "Paiement à la livraison" },
+                    {
+                      icon: <Shield className="w-4 h-4" />,
+                      label: volumineux
+                        ? virementPropose
+                          ? isAr ? "نقداً أو بتحويل بنكي" : "Espèces ou virement"
+                          : isAr ? "الدفع عند الاستلام" : "Paiement à la réception"
+                        : isAr ? "الدفع عند الاستلام" : "Paiement à la livraison",
+                    },
                     { icon: <RefreshCw className="w-4 h-4" />, label: isAr ? "إرجاع 14 يوم" : "Retour 14 jours" },
-                    { icon: <Truck className="w-4 h-4" />, label: isAr ? "توصيل سريع" : "Livraison rapide" },
+                    {
+                      icon: <Truck className="w-4 h-4" />,
+                      label: volumineux ? (isAr ? "استلام مجاني" : "Retrait gratuit") : (isAr ? "توصيل سريع" : "Livraison rapide"),
+                    },
                   ].map(({ icon, label }) => (
                     <div key={label} className="flex flex-col items-center gap-1 text-center">
                       <div className="w-8 h-8 rounded-full bg-[#FBF8F3] border border-[#E8E4DF] flex items-center justify-center text-[#D4A843]">
                         {icon}
                       </div>
-                      <span className="text-[10px] text-[#6B6B6B] leading-tight">{label}</span>
+                      <span className="text-xs text-[#6B6B6B] leading-tight">{label}</span>
                     </div>
                   ))}
                 </div>
@@ -651,7 +678,7 @@ export default function PanierPage() {
       >
         <div className="px-4 py-2.5 flex items-center gap-3">
           <div className="min-w-0">
-            <p className="text-[11px] text-[#6B6B6B] leading-tight">
+            <p className="text-xs text-[#6B6B6B] leading-tight">
               {t('total')} · {articlesLabel(itemCount, language)}
             </p>
             <p className="text-lg font-black text-[#C8102E] tabular-nums leading-tight truncate shop-font-display">

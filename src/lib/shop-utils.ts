@@ -1,5 +1,13 @@
-import { DELIVERY_ZONES, MOROCCAN_CITIES } from './shop-types';
-import type { DeliveryZone, ShopProduct } from './shop-types';
+import { MOROCCAN_CITIES } from './shop-types';
+import type { ShopProduct } from './shop-types';
+import {
+  SEUIL_OFFERTE_AUTRES,
+  SEUIL_OFFERTE_CASABLANCA,
+  delaiColis,
+  estCasablanca,
+  fraisColis,
+  livraisonOfferte,
+} from './livraison-boutique';
 import { translations, type Language } from './translations';
 
 // Format price in MAD
@@ -45,45 +53,31 @@ export function formatPriceShort(amount: number): string {
   return `${safe.toFixed(2)} MAD`;
 }
 
+// ─── Livraison : anciens noms, gardés pour les écrans qui les importent ────────
+// Tout se calcule dans livraison-boutique.ts (grille Sendit 20 / 35 / 45 DH,
+// livraison offerte dès 300 DH à Casablanca et 650 DH ailleurs).
+
 export function isCasablanca(city: string): boolean {
-  const cityLower = city.toLowerCase().trim();
-  return cityLower.includes('casablanca') || cityLower.includes('casa');
+  return estCasablanca(city);
 }
 
-// Calculate delivery fee based on city
+/** Frais d'un colis Sendit pour la ville, avant livraison offerte. */
 export function getDeliveryFee(city: string): number {
-  const cityLower = city.toLowerCase().trim();
-  if (isCasablanca(city)) return DELIVERY_ZONES.casablanca.fee;
-  if (cityLower.includes('rabat') || cityLower.includes('salé') || cityLower.includes('sale')) return DELIVERY_ZONES.rabat.fee;
-  if (cityLower.includes('marrakech')) return DELIVERY_ZONES.marrakech.fee;
-  if (cityLower.includes('fès') || cityLower.includes('fes') || cityLower.includes('meknès') || cityLower.includes('meknes')) return DELIVERY_ZONES.fes.fee;
-  if (cityLower.includes('tanger')) return DELIVERY_ZONES.tanger.fee;
-  if (cityLower.includes('agadir')) return DELIVERY_ZONES.agadir.fee;
-  if (cityLower.includes('oujda')) return DELIVERY_ZONES.oujda.fee;
-  return DELIVERY_ZONES.other.fee;
+  return fraisColis(city);
 }
 
-// Get delivery days estimate
+/** Délai annoncé pour la ville (« 24-48h », « 1-3 jours ouvrés »…). */
 export function getDeliveryDays(city: string): string {
-  const cityLower = city.toLowerCase().trim();
-  if (cityLower.includes('casablanca') || cityLower.includes('casa')) return DELIVERY_ZONES.casablanca.days;
-  if (cityLower.includes('rabat') || cityLower.includes('salé') || cityLower.includes('sale')) return DELIVERY_ZONES.rabat.days;
-  if (cityLower.includes('marrakech')) return DELIVERY_ZONES.marrakech.days;
-  if (cityLower.includes('fès') || cityLower.includes('fes') || cityLower.includes('meknès') || cityLower.includes('meknes')) return DELIVERY_ZONES.fes.days;
-  if (cityLower.includes('tanger')) return DELIVERY_ZONES.tanger.days;
-  if (cityLower.includes('agadir')) return DELIVERY_ZONES.agadir.days;
-  if (cityLower.includes('oujda')) return DELIVERY_ZONES.oujda.days;
-  return DELIVERY_ZONES.other.days;
+  return delaiColis(city);
 }
 
-// Free delivery thresholds: Casablanca first, then the rest of Morocco
-export const FREE_DELIVERY_THRESHOLD = 500; // MAD, toutes villes
-export const CASABLANCA_FREE_DELIVERY_THRESHOLD = 100; // MAD
+// Seuils de livraison offerte : Casablanca d'abord, puis le reste du Maroc
+export const FREE_DELIVERY_THRESHOLD = SEUIL_OFFERTE_AUTRES; // MAD, toutes villes
+export const CASABLANCA_FREE_DELIVERY_THRESHOLD = SEUIL_OFFERTE_CASABLANCA; // MAD
 
 // Sans ville connue (panier), seul le seuil national est garanti
 export function isEligibleForFreeDelivery(subtotal: number, city?: string): boolean {
-  const threshold = city && isCasablanca(city) ? CASABLANCA_FREE_DELIVERY_THRESHOLD : FREE_DELIVERY_THRESHOLD;
-  return subtotal >= threshold;
+  return livraisonOfferte(subtotal, city);
 }
 
 // Palier de livraison gratuite atteint et reste à acheter pour le suivant (ville inconnue)

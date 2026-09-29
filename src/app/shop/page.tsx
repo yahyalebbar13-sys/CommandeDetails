@@ -27,7 +27,7 @@ import {
   getProductDisplayPrice,
   hasActivePromo,
 } from '@/lib/shop-utils';
-import { DELIVERY_ZONES } from '@/lib/shop-types';
+import { DELAI_ZONE } from '@/lib/livraison-boutique';
 import type { ShopProduct } from '@/lib/shop-types';
 import ProductCard from '@/components/shop/ProductCard';
 import { useLanguage } from '@/contexts/language-context';
@@ -232,7 +232,7 @@ export default function ShopPage() {
       {/* SECTION 2: TRUST STRIP (livraison, paiement, retour)              */}
       {/* ═══════════════════════════════════════════════════════════════════ */}
       <div className="bg-[#C8102E] py-2.5 px-4">
-        <div className="flex items-center justify-center flex-wrap gap-x-5 gap-y-1.5 text-white text-[11px] sm:text-xs font-bold">
+        <div className="flex items-center justify-center flex-wrap gap-x-5 gap-y-1.5 text-white text-xs font-bold">
           <span className="flex items-center gap-1.5">
             <Truck className="w-3.5 h-3.5 shrink-0" />
             {t('free_delivery_casa', { amount: casaThreshold })}
@@ -304,19 +304,19 @@ export default function ShopPage() {
                 <Truck className="w-7 h-7 sm:w-8 sm:h-8" />
               </div>
               <div className="min-w-0">
-                <p className="text-[11px] font-bold uppercase tracking-widest text-[#F3D58B]">
+                <p className="text-xs font-bold uppercase tracking-widest text-[#F3D58B]">
                   {isAr ? 'الدار البيضاء' : 'Casablanca'}
                 </p>
                 <p className="text-xl sm:text-2xl lg:text-3xl font-black leading-tight" style={{ fontFamily: 'Outfit, sans-serif' }}>
                   {isAr ? 'توصيل مجاني ابتداءً من ' : 'Livraison GRATUITE à partir de '}
                   <span className="text-[#F3D58B]">{casaThreshold}</span>
                 </p>
-                <p className="text-white/80 text-xs sm:text-sm mt-1">
+                <p className="text-white/90 text-xs sm:text-sm mt-1">
                   {isAr ? 'خلال ' : 'Livrée en '}
-                  <bdi>{DELIVERY_ZONES.casablanca.days}</bdi>
+                  <bdi>{DELAI_ZONE.casablanca}</bdi>
                   {isAr
-                    ? ` · الدفع عند الاستلام · باقي المدن: مجاني من ${nationalThreshold}`
-                    : ` · Paiement à la livraison · Autres villes : gratuite à partir de ${nationalThreshold}`}
+                    ? ` · الدفع عند الاستلام · الاستلام من المحل مجاناً · باقي المدن: مجاني من ${nationalThreshold}`
+                    : ` · Paiement à la réception · Retrait gratuit · Autres villes : offerte dès ${nationalThreshold}`}
                 </p>
               </div>
             </div>
@@ -382,7 +382,7 @@ export default function ShopPage() {
               icon={<Tag className="w-5 h-5 text-[#D4A843]" />}
               title={isAr ? 'أسعار صغيرة' : 'Petits prix'}
               badge={
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-[#D4A843]/15 text-[#8a6a1f] border border-[#D4A843]/30">
+                <span className="px-2 py-0.5 rounded-full text-xs font-black bg-[#D4A843]/15 text-[#8a6a1f] border border-[#D4A843]/30">
                   {isAr ? `أقل من ${casaThreshold}` : `Moins de ${casaThreshold}`}
                 </span>
               }
@@ -518,13 +518,13 @@ export default function ShopPage() {
             },
             {
               icon: <Banknote className="w-5 h-5 text-emerald-600" />,
-              title: isAr ? 'الدفع عند الاستلام' : 'Paiement à la livraison',
-              text: isAr ? 'تدفع نقداً عند استلام طلبك' : 'Vous payez en cash à la réception',
+              title: isAr ? 'الدفع عند الاستلام' : 'Paiement à la réception',
+              text: isAr ? 'نقداً عند التوصيل أو في المحل، أو بتحويل بنكي' : 'En espèces à la livraison ou au retrait, ou par virement',
             },
             {
               icon: <RotateCcw className="w-5 h-5 text-[#D4A843]" />,
               title: isAr ? 'إرجاع خلال 14 يوم' : 'Retour 14 jours',
-              text: isAr ? 'منتج غير مستعمل في غلافه الأصلي' : 'Produit non utilisé, dans son emballage',
+              text: isAr ? 'منتج غير مستعمل في غلافه الأصلي، ما عدا القماش المقصوص بالمتر' : 'Article non utilisé, hors tissu coupé au mètre',
             },
             {
               icon: <Package className="w-5 h-5 text-[#0F0F0F]" />,

@@ -33,6 +33,7 @@ import {
   hasActivePromo,
   buildWhatsAppLink,
 } from '@/lib/shop-utils';
+import { TEXTE_TRANSPORT_VOLUMINEUX, TEXTE_TRANSPORT_VOLUMINEUX_AR } from '@/lib/livraison-boutique';
 import { useShopCartActions } from '@/contexts/shop-cart-context';
 import { useShopProducts } from '@/contexts/shop-products-context';
 import { useLanguage } from '@/contexts/language-context';
@@ -1146,6 +1147,7 @@ export default function ProductPage({ params }: { params: Promise<{ id: string }
         variantId: vKey,
       } : undefined,
       maxStock: stock,
+      volumineux: !!product.volumineux,
     });
     setQty(product.minOrderQty || 1);
     setAdded(true);
@@ -1153,7 +1155,8 @@ export default function ProductPage({ params }: { params: Promise<{ id: string }
   };
 
   const handleAddVariantsToCart = (items: CartItem[]) => {
-    addItems(items);
+    // Le sélecteur de variantes ne connaît pas la fiche : la case « volumineux » est posée ici.
+    addItems(items.map(item => ({ ...item, volumineux: !!product.volumineux })));
     setAdded(true);
     setTimeout(() => { setAdded(false); openCart(); }, 1200);
   };
@@ -1383,26 +1386,44 @@ export default function ProductPage({ params }: { params: Promise<{ id: string }
                 </div>
               )}
 
+              {/* ── Rouleau entier : pas de colis Sendit, donc pas de « livraison gratuite » ── */}
+              {product.volumineux && (
+                <div className="mt-4 flex gap-3 p-4 rounded-2xl bg-amber-50 border border-amber-200">
+                  <Truck className="w-5 h-5 text-amber-700 flex-shrink-0 mt-0.5" />
+                  <p className="text-sm text-neutral-800 leading-relaxed" dir={language === 'ar' ? 'rtl' : 'ltr'}>
+                    {language === 'ar' ? TEXTE_TRANSPORT_VOLUMINEUX_AR : TEXTE_TRANSPORT_VOLUMINEUX}
+                  </p>
+                </div>
+              )}
+
               {/* ── Reassurance Micro-Banner ── */}
               <div className="grid grid-cols-3 gap-2 py-4 my-4 border-y border-neutral-100 text-center">
-                <div className="flex flex-col items-center">
-                  <Truck className="w-4 h-4 text-emerald-600 mb-1" />
-                  <span className="text-[11px] font-bold text-neutral-900">{language === 'ar' ? 'توصيل مجاني' : 'Livraison gratuite'}</span>
-                  <span className="text-[10px] text-neutral-400">
-                    {language === 'ar'
-                      ? `الدار البيضاء من ${formatPrice(CASABLANCA_FREE_DELIVERY_THRESHOLD)}`
-                      : `Casablanca à partir de ${formatPrice(CASABLANCA_FREE_DELIVERY_THRESHOLD)}`}
-                  </span>
-                </div>
+                {product.volumineux ? (
+                  <div className="flex flex-col items-center">
+                    <Truck className="w-4 h-4 text-amber-700 mb-1" />
+                    <span className="text-xs font-bold text-neutral-900">{language === 'ar' ? 'استلام مجاني' : 'Retrait gratuit'}</span>
+                    <span className="text-xs text-neutral-500">{language === 'ar' ? 'أو نقل عبر الهاتف' : 'ou transport par téléphone'}</span>
+                  </div>
+                ) : (
+                  <div className="flex flex-col items-center">
+                    <Truck className="w-4 h-4 text-emerald-600 mb-1" />
+                    <span className="text-xs font-bold text-neutral-900">{language === 'ar' ? 'توصيل مجاني' : 'Livraison gratuite'}</span>
+                    <span className="text-xs text-neutral-500">
+                      {language === 'ar'
+                        ? `الدار البيضاء من ${formatPrice(CASABLANCA_FREE_DELIVERY_THRESHOLD)}`
+                        : `Casablanca à partir de ${formatPrice(CASABLANCA_FREE_DELIVERY_THRESHOLD)}`}
+                    </span>
+                  </div>
+                )}
                 <div className="flex flex-col items-center border-x border-neutral-100">
                   <ShieldCheck className="w-4 h-4 text-emerald-600 mb-1" />
-                  <span className="text-[11px] font-bold text-neutral-900">{language === 'ar' ? 'جودة مضمونة' : 'Qualité garantie'}</span>
-                  <span className="text-[10px] text-neutral-400">{language === 'ar' ? 'معايير صناعية' : 'Certifié pro'}</span>
+                  <span className="text-xs font-bold text-neutral-900">{language === 'ar' ? 'جودة مضمونة' : 'Qualité garantie'}</span>
+                  <span className="text-xs text-neutral-500">{language === 'ar' ? 'معايير صناعية' : 'Certifié pro'}</span>
                 </div>
                 <div className="flex flex-col items-center">
                   <PackageCheck className="w-4 h-4 text-[#C8102E] mb-1" />
-                  <span className="text-[11px] font-bold text-neutral-900">{language === 'ar' ? 'تعبئة مخصصة' : 'Vente en gros'}</span>
-                  <span className="text-[10px] text-neutral-400">{language === 'ar' ? 'أسعار تفضيلية' : 'Sur mesure'}</span>
+                  <span className="text-xs font-bold text-neutral-900">{language === 'ar' ? 'تعبئة مخصصة' : 'Vente en gros'}</span>
+                  <span className="text-xs text-neutral-500">{language === 'ar' ? 'أسعار تفضيلية' : 'Sur mesure'}</span>
                 </div>
               </div>
 

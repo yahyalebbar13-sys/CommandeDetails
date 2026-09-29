@@ -22,6 +22,7 @@ import {
   getFreeDeliveryProgress,
 } from "@/lib/shop-utils";
 import type { CartItem } from "@/lib/shop-types";
+import { commandeVolumineuse } from "@/lib/livraison-boutique";
 import FreeDeliveryProgress from "@/components/shop/FreeDeliveryProgress";
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
@@ -266,6 +267,9 @@ export default function CartDrawer() {
     useShopCart();
   const { t, language } = useLanguage();
   const deliveryStage = getFreeDeliveryProgress(subtotal).stage;
+  // Un rouleau entier dans le panier : pas de colis Sendit, donc ni barre « livraison offerte »
+  // ni frais de colis ; le retrait est gratuit, le transport se chiffre au téléphone.
+  const volumineux = useMemo(() => commandeVolumineuse(items), [items]);
   useEffect(() => {
     if (!isOpen) return;
     const handler = (e: KeyboardEvent) => {
@@ -337,7 +341,7 @@ export default function CartDrawer() {
                 {t('cart_title')}
               </h2>
               {itemCount > 0 && (
-                <p className="text-[11px] text-gray-400 leading-none mt-0.5">
+                <p className="text-xs text-gray-500 leading-none mt-0.5">
                   {itemCount} article{itemCount !== 1 ? "s" : ""}
                 </p>
               )}
@@ -409,7 +413,9 @@ export default function CartDrawer() {
               style={{ paddingBottom: "max(1.25rem, env(safe-area-inset-bottom))" }}
             >
               {/* Free delivery bar (bottom) when subtotal > 0 */}
-              {subtotal > 0 && <FreeDeliveryProgress subtotal={subtotal} compact />}
+              {(subtotal > 0 || volumineux) && (
+                <FreeDeliveryProgress subtotal={subtotal} compact volumineux={volumineux} />
+              )}
 
               {/* Order summary */}
               <div className="space-y-1.5">
@@ -423,17 +429,23 @@ export default function CartDrawer() {
                 </div>
                 <div className="flex items-center justify-between text-sm">
                   <span className="text-gray-500">{t('delivery_cost')}</span>
-                  <span
-                    className={`text-xs font-semibold ${
-                      deliveryStage === "none" ? "text-gray-500" : "text-emerald-500"
-                    }`}
-                  >
-                    {deliveryStage === "everywhere"
-                      ? t('delivery_free')
-                      : deliveryStage === "casablanca"
-                        ? t('delivery_free_casa')
-                        : t('delivery_calc')}
-                  </span>
+                  {volumineux ? (
+                    <span className="text-xs font-semibold text-gray-600 text-right">
+                      {language === "ar" ? "استلام مجاني أو نقل يُحدد بالهاتف" : "Retrait gratuit ou transport à confirmer"}
+                    </span>
+                  ) : (
+                    <span
+                      className={`text-xs font-semibold ${
+                        deliveryStage === "none" ? "text-gray-500" : "text-emerald-500"
+                      }`}
+                    >
+                      {deliveryStage === "everywhere"
+                        ? t('delivery_free')
+                        : deliveryStage === "casablanca"
+                          ? t('delivery_free_casa')
+                          : t('delivery_calc')}
+                    </span>
+                  )}
                 </div>
                 <div
                   className="h-px my-1"
@@ -476,11 +488,9 @@ export default function CartDrawer() {
               </Link>
 
               {/* Payment assurance */}
-              <div className="flex items-center justify-center gap-2 text-xs text-gray-400">
+              <div className="flex items-center justify-center gap-2 text-xs text-gray-500">
                 <Banknote className="w-3.5 h-3.5" style={{ color: "#10B981" }} />
                 <span>{t('cod_payment')}</span>
-                <span className="text-gray-200">·</span>
-                <span>💵 Cash on Delivery</span>
               </div>
             </div>
           </>

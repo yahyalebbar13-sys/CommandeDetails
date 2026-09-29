@@ -3,7 +3,7 @@
 // un rechargement garde l'écran, et le lien de l'e-mail « nouvelle commande »
 // (/admin-shop?commande=ID) ouvre directement la fiche.
 
-export type VueAdmin = 'commandes' | 'tableau' | 'produits' | 'categories' | 'clients' | 'catalogue' | 'equipe';
+export type VueAdmin = 'commandes' | 'tableau' | 'produits' | 'categories' | 'clients' | 'catalogue' | 'reception' | 'equipe';
 
 export const VUE_PAR_DEFAUT: VueAdmin = 'commandes';
 
@@ -14,6 +14,8 @@ export const TITRES_VUES: Record<VueAdmin, string> = {
   categories: 'Catégories',
   clients: 'Clients',
   catalogue: 'Catalogue',
+  // Magasins de retrait, virement (RIB), camionnette, carte : réglé par le patron, lu par la boutique.
+  reception: 'Réception & paiement',
   // Le compte partagé de l'équipe (/staff) : créé, modifié, désactivé par le patron seul.
   equipe: 'Accès équipe',
 };
@@ -21,7 +23,7 @@ export const TITRES_VUES: Record<VueAdmin, string> = {
 const VUES = Object.keys(TITRES_VUES) as VueAdmin[];
 
 /** Anciennes adresses encore en favori (l'ancien identifiant anglais). */
-const ALIAS: Record<string, VueAdmin> = { dashboard: 'tableau', 'tableau-de-bord': 'tableau' };
+const ALIAS: Record<string, VueAdmin> = { dashboard: 'tableau', 'tableau-de-bord': 'tableau', paiement: 'reception', livraison: 'reception' };
 
 export function vueValide(v: string | null | undefined): VueAdmin | null {
   if (!v) return null;

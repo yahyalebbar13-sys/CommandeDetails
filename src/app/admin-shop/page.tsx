@@ -1574,7 +1574,7 @@ function ProduitsView() {
       securite: merged.securite || '',
       resistance: merged.resistance || '',
       compatibleAvec: merged.compatibleAvec || '',
-      paysFabrication: merged.paysFabrication || '',
+      volumineux: !!merged.volumineux,
     });
     // Initialize variant editor from current product variants
     setEditVariants((merged.variants || []).map(v => ({
@@ -1666,6 +1666,8 @@ function ProduitsView() {
       if (editForm.isFeatured !== undefined) base.isFeatured = editForm.isFeatured;
       if (editForm.isNew !== undefined) base.isNew = editForm.isNew;
       if (editForm.isPromo !== undefined) base.isPromo = editForm.isPromo;
+      // Toujours écrit (vrai ou faux) : décocher doit aussi l'emporter sur la fiche d'origine.
+      if (editForm.volumineux !== undefined) base.volumineux = !!editForm.volumineux;
       base.variants = builtVariants;
       if (builtVariants.length > 0) {
         base.inStock = builtVariants.some((v: any) => v.stock > 0);
@@ -1921,6 +1923,7 @@ Cette action est irréversible.`)) return;
                         {merged.isNew && <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-400 font-bold">✨ Nouveau</span>}
                         {merged.isPromo && <span className="text-[10px] px-1.5 py-0.5 rounded bg-red-500/15 text-red-400 font-bold">🏷️ Promo</span>}
                         {!merged.inStock && <span className="text-[10px] px-1.5 py-0.5 rounded bg-red-500/15 text-red-400 font-bold">Rupture</span>}
+                        {merged.volumineux && <span className="text-xs px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-300 font-bold" title="Jamais par colis Sendit">Volumineux</span>}
                         {(() => {
                           const stockId = (overrides[product.id] as any)?.stockArticleId || (merged as any).stockArticleId;
                           if (!stockId) return null;
@@ -2127,6 +2130,12 @@ Cette action est irréversible.`)) return;
                       </div>
                     </div>
                   </div>
+
+                  {/* Rouleau entier : jamais par colis Sendit (retrait ou transport organisé par téléphone) */}
+                  <CaseVolumineux
+                    coche={!!editForm.volumineux}
+                    onChange={(v) => setEditForm(prev => ({ ...prev, volumineux: v }))}
+                  />
 
                   {/* Images */}
                   <div className="mt-4">
@@ -2560,6 +2569,34 @@ Cette action est irréversible.`)) return;
   );
 }
 
+// Case de l'éditeur de produit : un rouleau entier ne part jamais en colis Sendit.
+// La boutique masque alors les frais et la livraison offerte, et propose retrait
+// (CHRIFA) ou transport organisé par téléphone.
+function CaseVolumineux({ coche, onChange }: { coche: boolean; onChange: (v: boolean) => void }) {
+  return (
+    <label
+      className={`mt-4 flex items-start gap-3 min-h-[44px] px-3 py-3 rounded-xl border cursor-pointer transition-all ${
+        coche ? 'bg-amber-500/15 border-amber-500/40' : 'bg-white/5 border-white/10 hover:border-white/20'
+      }`}
+    >
+      <input
+        type="checkbox"
+        checked={coche}
+        onChange={e => onChange(e.target.checked)}
+        className="mt-0.5 w-5 h-5 flex-shrink-0 accent-amber-500"
+      />
+      <span>
+        <span className={`block text-sm font-semibold ${coche ? 'text-amber-300' : 'text-gray-200'}`}>
+          Article volumineux (rouleau entier) — jamais par colis Sendit
+        </span>
+        <span className="block text-xs text-gray-400 mt-0.5">
+          Pas de frais de colis ni de « livraison offerte » : le client choisit le retrait à CHRIFA ou un transport organisé par téléphone.
+        </span>
+      </span>
+    </label>
+  );
+}
+
 // ─── Modal: Nouveau Produit ───────────────────────────────────────────────────
 function NouveauProduitModal({
   onClose,
@@ -2584,6 +2621,7 @@ function NouveauProduitModal({
     isFeatured: false,
     isNew: true,
     isPromo: false,
+    volumineux: false,
     minOrderQty: '1',
     // Fiche technique
     material: '',
@@ -2728,6 +2766,7 @@ function NouveauProduitModal({
         rating: 5,
         reviewCount: 0,
         minOrderQty: parseInt(form.minOrderQty) || 1,
+        ...(form.volumineux ? { volumineux: true } : {}),
         // Only include optional fields when they have values
         ...(form.shortDescription.trim() ? { shortDescription: form.shortDescription.trim() } : {}),
         ...(form.catalogueName?.trim() ? { catalogueName: form.catalogueName.trim() } : {}),
@@ -2761,7 +2800,8 @@ function NouveauProduitModal({
       await setDoc(doc(db, 'shop_custom_products', id), product);
       const imgCount = (product.images as string[]).length;
       const colorCount = (product.variants as any[]).length;
-      onCreated(product);
+      // Les variantes sont construites champ par champ (buildVariant) : même forme que ProductVariant.
+      onCreated(product as unknown as ShopProduct);
       alert(`✅ Produit enregistré !\n📷 ${imgCount} image${imgCount !== 1 ? 's' : ''}\n🎨 ${colorCount} couleur${colorCount !== 1 ? 's' : ''}\n\nIl apparaîtra dans la boutique dans quelques secondes.`);
     } catch (err: any) {
       setError('Erreur lors de la sauvegarde: ' + err.message);
@@ -3018,6 +3058,8 @@ function NouveauProduitModal({
               ))}
             </div>
           </div>
+
+          <CaseVolumineux coche={form.volumineux} onChange={(v) => setForm(p => ({ ...p, volumineux: v }))} />
 
           {/* ── Couleurs par Taille & Modèle ─────────────────────────────────────── */}
           <div className="space-y-4">

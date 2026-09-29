@@ -2,6 +2,7 @@
 
 import React, { createContext, useContext, useReducer, useEffect, useCallback, useRef, useMemo } from 'react';
 import type { CartItem } from '@/lib/shop-types';
+import { useShopProducts } from '@/contexts/shop-products-context';
 
 // ─── State ────────────────────────────────────────────────────────────────────
 interface CartState {
@@ -65,6 +66,12 @@ export function summarizeCartProduct(items: CartItem[], productTotalQty: number)
   return { total, minUnit, maxUnit };
 }
 
+// Un nouvel ajout recopie la case « volumineux » du produit sur la ligne existante :
+// c'est la valeur la plus récente de la fiche.
+function volumineuxDe(item: CartItem): Pick<CartItem, 'volumineux'> | Record<string, never> {
+  return item.volumineux === undefined ? {} : { volumineux: item.volumineux };
+}
+
 type CartAction =
   | { type: 'ADD_ITEM'; payload: CartItem }
   | { type: 'ADD_ITEMS'; payload: CartItem[] }
@@ -86,7 +93,7 @@ function cartReducer(state: CartState, action: CartAction): CartState {
       if (existing >= 0) {
         const items = [...state.items];
         const newQty = capQty(items[existing].quantity + action.payload.quantity, items[existing].maxStock);
-        items[existing] = { ...items[existing], quantity: newQty };
+        items[existing] = { ...items[existing], quantity: newQty, ...volumineuxDe(action.payload) };
         return { ...state, items, isOpen: true };
       }
       return { ...state, items: [...state.items, action.payload], isOpen: true };
@@ -98,7 +105,7 @@ function cartReducer(state: CartState, action: CartAction): CartState {
         const existing = items.findIndex(i => cartKey(i.productId, i.variant) === key);
         if (existing >= 0) {
           const newQty = capQty(items[existing].quantity + newItem.quantity, items[existing].maxStock);
-          items[existing] = { ...items[existing], quantity: newQty };
+          items[existing] = { ...items[existing], quantity: newQty, ...volumineuxDe(newItem) };
         } else {
           items.push(newItem);
         }
@@ -210,26 +217,40 @@ export function ShopCartProvider({ children }: { children: React.ReactNode }) {
     closeCart: () => dispatch({ type: 'CLOSE_CART' }),
   }), []);
 
-  const itemCount = useMemo(() => state.items.reduce((s, i) => s + (i.quantity || 1), 0), [state.items]);
+  // La case « volumineux » est copiée à l'ajout, mais la fiche du catalogue fait foi :
+  // un panier gardé d'avant la case (ou d'avant que l'admin la coche) ne doit pas
+  // partir par colis Sendit. Un produit absent du catalogue garde la valeur copiée.
+  const { products } = useShopProducts();
+  const volumineuxParProduit = useMemo(() => {
+    const parId = new Map<string, boolean>();
+    for (const p of products) parId.set(p.id, !!p.volumineux);
+    return parId;
+  }, [products]);
+  const items = useMemo(() => state.items.map(item => {
+    const volumineux = volumineuxParProduit.get(item.productId);
+    return volumineux === undefined || volumineux === !!item.volumineux ? item : { ...item, volumineux };
+  }), [state.items, volumineuxParProduit]);
+
+  const itemCount = useMemo(() => items.reduce((s, i) => s + (i.quantity || 1), 0), [items]);
 
   // Total qty per productId (the wholesale threshold applies across all variants of a product)
-  const productQtyMap = useMemo(() => state.items.reduce((acc, item) => {
+  const productQtyMap = useMemo(() => items.reduce((acc, item) => {
     acc[item.productId] = (acc[item.productId] || 0) + (item.quantity || 1);
     return acc;
-  }, {} as Record<string, number>), [state.items]);
+  }, {} as Record<string, number>), [items]);
 
-  const subtotal = useMemo(() => state.items.reduce(
+  const subtotal = useMemo(() => items.reduce(
     (s, item) => s + getCartItemUnitPrice(item, productQtyMap[item.productId]) * (item.quantity || 1),
     0
-  ), [state.items, productQtyMap]);
+  ), [items, productQtyMap]);
 
   const stateValue = useMemo(() => ({
-    items: state.items,
+    items,
     isOpen: state.isOpen,
     itemCount,
     subtotal,
     productQtyMap,
-  }), [state.items, state.isOpen, itemCount, subtotal, productQtyMap]);
+  }), [items, state.isOpen, itemCount, subtotal, productQtyMap]);
 
   return (
     <CartActionsContext.Provider value={actions}>

@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import Link from 'next/link';
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import {
   getAuth,
@@ -32,6 +33,8 @@ import {
   type OrderStatus,
 } from '@/lib/shop-types';
 import { formatPrice } from '@/lib/shop-utils';
+import { moyenPaiementDe, prixUnitaireLigne, receptionDe, totalLigne, transportPrevu } from '@/lib/commandes-boutique';
+import { useReglagesReception } from '@/lib/use-reglages-reception';
 import {
   LogOut,
   Package,
@@ -51,7 +54,8 @@ import {
   ShoppingBag,
   MessageCircle,
   Loader2,
-
+  Store,
+  Landmark,
 } from 'lucide-react';
 
 // ─── Firebase init ─────────────────────────────────────────────────────────────
@@ -60,35 +64,69 @@ const db = getFirestore(app);
 const auth = getAuth(app);
 
 // ─── Status timeline steps ─────────────────────────────────────────────────────
-const STATUS_STEPS: OrderStatus[] = [
-  'pending',
-  'confirmed',
-  'processing',
-  'shipped',
-  'out_for_delivery',
-  'delivered',
-];
+// Les étapes dépendent du mode de réception : un retrait n'est jamais « expédié ».
+// « Prête à retirer » veut toujours dire « prête dans un magasin LEBTEX » : un rouleau
+// envoyé par transporteur passe de « expédiée » à « livrée » (récupérée au dépôt).
+function etapesCommande(order: ShopOrder): OrderStatus[] {
+  const { mode } = receptionDe(order);
+  if (mode === 'retrait') return ['pending', 'confirmed', 'processing', 'ready_for_pickup', 'delivered'];
+  if (mode === 'transport' && transportPrevu(order) === 'transporteur') {
+    return ['pending', 'confirmed', 'processing', 'shipped', 'delivered'];
+  }
+  return ['pending', 'confirmed', 'processing', 'shipped', 'out_for_delivery', 'delivered'];
+}
 
 const STATUS_ICONS: Record<string, React.ReactNode> = {
   pending: <Clock className="w-4 h-4" />,
   confirmed: <CheckCircle2 className="w-4 h-4" />,
   processing: <Package className="w-4 h-4" />,
+  ready_for_pickup: <Store className="w-4 h-4" />,
   shipped: <Truck className="w-4 h-4" />,
   out_for_delivery: <MapPin className="w-4 h-4" />,
   delivered: <CheckCircle2 className="w-4 h-4" />,
 };
 
-function getStepIndex(status: OrderStatus): number {
-  const idx = STATUS_STEPS.indexOf(status);
-  return idx === -1 ? 0 : idx;
+// Rang dans l'avancement : un statut absent du parcours (ex. « En livraison » sur un
+// retrait) se place sur la dernière étape qu'il a franchie.
+const RANG_STATUT: Partial<Record<OrderStatus, number>> = {
+  pending: 0, confirmed: 1, processing: 2, ready_for_pickup: 3, shipped: 3, out_for_delivery: 4, delivered: 5,
+};
+
+function getStepIndex(etapes: OrderStatus[], status: OrderStatus): number {
+  const exact = etapes.indexOf(status);
+  if (exact !== -1) return exact;
+  const rang = RANG_STATUT[status] ?? 0;
+  let idx = 0;
+  etapes.forEach((s, i) => {
+    if ((RANG_STATUT[s] ?? 0) <= rang) idx = i;
+  });
+  return idx;
 }
 
 // ─── Order Card ────────────────────────────────────────────────────────────────
 function OrderCard({ order }: { order: ShopOrder }) {
   const [expanded, setExpanded] = useState(false);
-  const stepIdx = getStepIndex(order.status);
+  const { reglages } = useReglagesReception();
+  const etapes = etapesCommande(order);
+  const stepIdx = getStepIndex(etapes, order.status);
+  const reception = receptionDe(order);
+  const transport = transportPrevu(order);
+  const lieu = reglages.lieux[reception.lieu];
+  const fraisLivraison = Number(order.deliveryFee) || 0;
+  // Retrait : gratuit. Transport d'un rouleau : prix donné au téléphone, « à confirmer » tant qu'il vaut 0.
+  const ligneLivraison =
+    reception.mode === 'retrait'
+      ? 'Gratuit (retrait)'
+      : reception.mode === 'transport' && fraisLivraison === 0
+        ? 'À confirmer par téléphone'
+        : fraisLivraison === 0
+          ? 'Offerte'
+          : formatPrice(fraisLivraison);
   const statusColor = ORDER_STATUS_COLORS[order.status] || '#6B7280';
-  const statusLabel = ORDER_STATUS_LABELS[order.status] || order.status;
+  const statusLabel =
+    order.status === 'delivered' && reception.mode === 'retrait'
+      ? 'Retirée'
+      : ORDER_STATUS_LABELS[order.status] || order.status;
 
   const date = order.createdAt?.toDate
     ? order.createdAt.toDate().toLocaleDateString('fr-MA', {
@@ -146,7 +184,7 @@ function OrderCard({ order }: { order: ShopOrder }) {
       {/* Mini status timeline */}
       <div className="px-5 pb-4">
         <div className="flex items-center gap-0">
-          {STATUS_STEPS.filter((s) => s !== 'cancelled' && s !== 'returned').map((step, i) => {
+          {etapes.map((step, i) => {
             const done = i <= stepIdx && order.status !== 'cancelled';
             const active = i === stepIdx && order.status !== 'cancelled';
             return (
@@ -164,13 +202,14 @@ function OrderCard({ order }: { order: ShopOrder }) {
                     style={{
                       background: done ? statusColor : '#E5E7EB',
                       color: done ? 'white' : '#9CA3AF',
-                      ringColor: active ? statusColor : 'transparent',
-                    }}
+                      // « ringColor » n'existe pas en CSS : l'anneau de Tailwind (ring-2) lit cette variable.
+                      ['--tw-ring-color' as string]: active ? statusColor : 'transparent',
+                    } as React.CSSProperties}
                   >
                     {STATUS_ICONS[step]}
                   </div>
                 </div>
-                {i < STATUS_STEPS.filter((s) => s !== 'cancelled' && s !== 'returned').length - 1 && (
+                {i < etapes.length - 1 && (
                   <div
                     className="flex-1 h-0.5 transition-all duration-500"
                     style={{ background: i < stepIdx ? statusColor : '#E5E7EB' }}
@@ -215,13 +254,16 @@ function OrderCard({ order }: { order: ShopOrder }) {
                       )}
                     </div>
                   </div>
+                  {/* Le prix réellement facturé (prix de gros compris), comme sur la page de confirmation. */}
                   <div className="text-right">
-                    <p className="text-sm font-semibold text-[#0F0F0F]">
-                      {formatPrice(item.price * item.quantity)}
-                    </p>
-                    <p className="text-xs text-gray-500">
-                      {item.quantity} × {formatPrice(item.price)}
-                    </p>
+                    {prixUnitaireLigne(item) > 0 ? (
+                      <>
+                        <p className="text-sm font-semibold text-[#0F0F0F]">{formatPrice(totalLigne(item))}</p>
+                        <p className="text-xs text-gray-500">{item.quantity} × {formatPrice(prixUnitaireLigne(item))}</p>
+                      </>
+                    ) : (
+                      <p className="text-xs font-semibold text-gray-500">Prix à confirmer</p>
+                    )}
                   </div>
                 </div>
               ))}
@@ -234,9 +276,9 @@ function OrderCard({ order }: { order: ShopOrder }) {
               <span>Sous-total</span>
               <span>{formatPrice(order.subtotal)}</span>
             </div>
-            <div className="flex justify-between text-sm text-gray-600">
-              <span>Livraison</span>
-              <span>{formatPrice(order.deliveryFee)}</span>
+            <div className="flex justify-between gap-3 text-sm text-gray-600">
+              <span>{reception.mode === 'retrait' ? 'Retrait' : reception.mode === 'transport' ? 'Transport' : 'Livraison'}</span>
+              <span className="text-right">{ligneLivraison}</span>
             </div>
             {order.discount ? (
               <div className="flex justify-between text-sm text-green-600">
@@ -250,17 +292,42 @@ function OrderCard({ order }: { order: ShopOrder }) {
             </div>
           </div>
 
-          {/* Shipping address */}
-          {order.shippingAddress && (
+          {/* Virement choisi, commande en cours : le RIB est sur la page de la commande. */}
+          {moyenPaiementDe(order) === 'virement' && order.id && !['delivered', 'cancelled', 'returned'].includes(order.status) && (
+            <Link
+              href={`/shop/confirmation/${order.id}`}
+              className="flex min-h-[44px] items-center gap-2 rounded-xl border border-[#E8E4DF] bg-white px-4 py-3 text-sm font-semibold text-[#1A1A1A] hover:border-[#C8102E]"
+            >
+              <Landmark className="w-4 h-4 text-[#C8102E]" /> Voir le RIB et payer par virement
+            </Link>
+          )}
+
+          {/* Où la commande arrive : magasin de retrait, dépôt du transporteur ou adresse */}
+          {reception.mode === 'retrait' ? (
+            <div className="flex items-start gap-3 p-3 bg-blue-50 rounded-xl">
+              <Store className="w-4 h-4 text-blue-500 flex-shrink-0 mt-0.5" />
+              <div className="text-sm text-gray-700">
+                <p className="font-semibold">Retrait à {lieu.nom}</p>
+                <p>{lieu.adresse}</p>
+                <p>{lieu.horaires}</p>
+              </div>
+            </div>
+          ) : order.shippingAddress && (
             <div className="flex items-start gap-3 p-3 bg-blue-50 rounded-xl">
               <MapPin className="w-4 h-4 text-blue-500 flex-shrink-0 mt-0.5" />
               <div className="text-sm text-gray-700">
                 <p className="font-semibold">{order.shippingAddress.fullName}</p>
-                <p>{order.shippingAddress.address}</p>
-                <p>
-                  {order.shippingAddress.city}
-                  {order.shippingAddress.postalCode && `, ${order.shippingAddress.postalCode}`}
-                </p>
+                {reception.mode === 'transport' && transport === 'transporteur' ? (
+                  <p>Jusqu&apos;au dépôt du transporteur{order.shippingAddress.city ? ` à ${order.shippingAddress.city}` : ''}</p>
+                ) : (
+                  <>
+                    <p>{order.shippingAddress.address}</p>
+                    <p>
+                      {order.shippingAddress.city}
+                      {order.shippingAddress.postalCode && `, ${order.shippingAddress.postalCode}`}
+                    </p>
+                  </>
+                )}
                 <p className="text-blue-600 mt-1">📞 {order.shippingAddress.phone}</p>
               </div>
             </div>

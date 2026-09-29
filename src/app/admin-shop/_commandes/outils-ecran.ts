@@ -4,19 +4,26 @@
 // src/lib/commandes-boutique.ts ; ici, seulement ce que l'écran ajoute.
 
 import type { OrderStatus, ShopOrder } from '@/lib/shop-types';
+import type { ReglagesReception } from '@/lib/reglages-reception';
 import { firebaseConfig } from '@/firebase/config';
 import {
   FILES,
   messageConfirmation,
   messageStatut,
+  dateDe,
+  moyenPaiementDe,
   msDe,
   nombreArticles,
+  prixCamionnette,
+  receptionDe,
   STATUTS_SENSIBLES,
   telInternational,
   telLisible,
   telephonesCommande,
+  transportPrevu,
   varianteLisible,
   type FileCommandes,
+  type OptionsMessage,
 } from '@/lib/commandes-boutique';
 
 // ─── Statuts, au féminin : on parle d'« une commande » ───────────────────────
@@ -27,6 +34,7 @@ export const LIBELLES_STATUT: Record<OrderStatus, string> = {
   pending: 'En attente',
   confirmed: 'Confirmée',
   processing: 'En préparation',
+  ready_for_pickup: 'Prête à retirer',
   shipped: 'Expédiée',
   out_for_delivery: 'En livraison',
   delivered: 'Livrée',
@@ -38,21 +46,72 @@ export function statutLisible(s: OrderStatus): string {
   return LIBELLES_STATUT[s] || String(s ?? '');
 }
 
+/**
+ * Le statut dans les mots du mode : une commande retirée n'est pas « livrée »,
+ * un rouleau parti avec le transporteur n'est pas « expédié » par Sendit.
+ */
+export function statutLisiblePour(o: Pick<ShopOrder, 'reception' | 'items'>, s: OrderStatus): string {
+  const { mode } = receptionDe(o);
+  if (mode === 'retrait' && s === 'delivered') return 'Retirée';
+  if (mode === 'transport' && s === 'shipped') return 'Partie (transport)';
+  if (mode === 'transport' && s === 'delivered') return 'Livrée / récupérée';
+  return statutLisible(s);
+}
+
 /** Livrée, annulée, retournée : en sortir, c'est rouvrir la commande (on demande d'abord). */
 export function estStatutFinal(s: OrderStatus): boolean {
   return STATUTS_SENSIBLES.includes(s);
 }
 
-/** Ce que dit le bloc « argent » de la fiche selon où en est la commande. */
-export function encaissement(s: OrderStatus): { titre: string; ligne: string; pied: string; aEncaisser: boolean } {
+/**
+ * Ce que dit le bloc « argent » de la fiche selon où en est la commande, son mode
+ * de réception et son paiement (sans commande : un colis payé à la livraison).
+ */
+export function encaissement(
+  s: OrderStatus,
+  options: {
+    commande?: Pick<ShopOrder, 'reception' | 'items' | 'paymentMethod'> & Partial<Pick<ShopOrder, 'shippingAddress'>>;
+    paiementRecu?: boolean;
+  } = {},
+): { titre: string; ligne: string; pied: string; aEncaisser: boolean } {
+  const c = options.commande;
+  const r = c ? receptionDe(c) : null;
+  // Un rouleau commandé « à domicile » ne part pas par Sendit : son argent se règle comme un transport.
+  const mode = !r ? 'domicile' : r.mode === 'domicile' && r.volumineux ? 'transport' : r.mode;
+  const moyen = c ? moyenPaiementDe(c) : 'cod';
+  // Transporteur (autre ville) : le client récupère au dépôt, le chauffeur LEBTEX ne vient pas.
+  const parTransporteur = mode === 'transport' && !!c && transportPrevu({ ...c, shippingAddress: c.shippingAddress ?? ({} as ShopOrder['shippingAddress']) }) === 'transporteur';
   switch (s) {
     case 'delivered':
-      return { titre: 'Encaissé', ligne: 'Total encaissé', pied: 'Payée à la livraison.', aEncaisser: false };
+      return {
+        titre: 'Encaissé', ligne: 'Total encaissé', aEncaisser: false,
+        pied: moyen === 'virement' ? 'Payée par virement.' : moyen === 'carte' ? 'Payée par carte.' : mode === 'retrait' ? 'Payée au retrait.' : 'Payée à la livraison.',
+      };
     case 'cancelled':
       return { titre: 'Rien à encaisser', ligne: 'Total (non dû)', pied: 'Rien à encaisser : commande annulée.', aEncaisser: false };
     case 'returned':
       return { titre: 'Rien à encaisser', ligne: 'Total (non dû)', pied: 'Rien à encaisser : colis retourné.', aEncaisser: false };
     default:
+      if (options.paiementRecu) {
+        return { titre: 'Déjà payée', ligne: 'Total déjà payé', pied: 'Paiement reçu : rien à encaisser à la remise.', aEncaisser: false };
+      }
+      if (moyen === 'virement') {
+        return { titre: 'À recevoir', ligne: 'Total à recevoir par virement', pied: 'Rien ne sort avant que l’argent soit vu sur le compte (jamais sur une capture d’écran).', aEncaisser: true };
+      }
+      if (moyen === 'carte') {
+        return { titre: 'À recevoir', ligne: 'Total à payer par carte', pied: 'Paiement par carte : à vérifier avant de remettre la marchandise.', aEncaisser: true };
+      }
+      if (mode === 'retrait') return { titre: 'À encaisser', ligne: 'Total à encaisser', pied: 'Paiement au retrait, en espèces.', aEncaisser: true };
+      if (mode === 'transport') {
+        return {
+          titre: 'À encaisser',
+          ligne: 'Total des articles',
+          pied: parTransporteur
+            ? 'Plus le transport convenu au téléphone. Paiement convenu au téléphone : virement conseillé, ou encaissé par le transporteur habituel (montant écrit sur le bon de remise).'
+            : 'Plus le transport convenu au téléphone. Espèces au chauffeur LEBTEX ou virement.',
+          aEncaisser: true,
+        };
+      }
       return { titre: 'À encaisser', ligne: 'Total à encaisser', pied: 'Paiement à la livraison, en espèces.', aEncaisser: true };
   }
 }
@@ -102,8 +161,8 @@ export function ordinal(n: number): string {
 }
 
 /** Le message WhatsApp qui a du sens maintenant : confirmer si en attente, sinon annoncer le statut. */
-export function messageWhatsAppDuMoment(o: ShopOrder, maintenant = Date.now()): string {
-  return o.status === 'pending' ? messageConfirmation(o, maintenant) : messageStatut(o, o.status);
+export function messageWhatsAppDuMoment(o: ShopOrder, maintenant = Date.now(), options: OptionsMessage = {}): string {
+  return o.status === 'pending' ? messageConfirmation(o, maintenant, options) : messageStatut(o, o.status, options);
 }
 
 export interface HistoriqueClient {
@@ -195,6 +254,8 @@ export function imageUtilisable(src?: string | null): boolean {
 export const VIDE_PAR_FILE: Record<FileCommandes, string> = {
   a_confirmer: 'Rien à confirmer. Les nouvelles commandes arrivent ici, avec une alerte.',
   a_preparer: 'Rien à préparer. Les commandes confirmées arrivent ici.',
+  transport: 'Aucun rouleau ni transport à organiser. Les commandes avec un article volumineux arrivent ici.',
+  a_retirer: 'Aucune commande n’attend son client au magasin.',
   en_livraison: 'Aucun colis chez le livreur en ce moment.',
   livrees: 'Aucune commande livrée pour l’instant.',
   annulees: 'Aucune commande annulée ni retournée.',
@@ -205,6 +266,8 @@ export const VIDE_PAR_FILE: Record<FileCommandes, string> = {
 export function fileParDefaut(comptes: Record<FileCommandes, number>): FileCommandes {
   if (comptes.a_confirmer > 0) return 'a_confirmer';
   if (comptes.a_preparer > 0) return 'a_preparer';
+  if (comptes.transport > 0) return 'transport';
+  if (comptes.a_retirer > 0) return 'a_retirer';
   if (comptes.en_livraison > 0) return 'en_livraison';
   return 'toutes';
 }
@@ -217,4 +280,42 @@ export function fileParPages(file: FileCommandes): boolean {
 /** La file a-t-elle un seul statut ? (alors le badge de statut sur la carte ne dit rien de plus) */
 export function fileAUnSeulStatut(file: FileCommandes): boolean {
   return (FILES.find(f => f.id === file)?.statuts.length ?? 0) === 1;
+}
+
+// ─── Papiers des rouleaux et tournée de la camionnette (documents-transport.tsx) ─
+
+/**
+ * « 1 250 », « 150,5 DH », « 38 kg » → nombre ; vide ou illisible → null. Les espaces
+ * (y compris insécables) sont ignorés : on tape les milliers comme on les lit.
+ */
+export function nombreSaisi(v: string): number | null {
+  const m = /^(\d+(?:[.,]\d+)?)(?:dh|mad|kg|dirhams?)?$/i.exec(String(v ?? '').replace(/[\s\u00a0\u202f]/g, ''));
+  return m ? Number(m[1].replace(',', '.')) : null;
+}
+
+/** Statuts d'une commande qui peut monter dans la camionnette. */
+export const STATUTS_TOURNEE: OrderStatus[] = ['confirmed', 'processing', 'shipped', 'out_for_delivery'];
+/** Cochées d'office : préparées pour la tournée, ou déjà remises au chauffeur. */
+export const STATUTS_COCHES: OrderStatus[] = ['processing', 'shipped', 'out_for_delivery'];
+
+/** Rouleaux et transports qui partent avec la camionnette LEBTEX (Casablanca et périphérie). */
+export function commandesCamionnette(orders: ShopOrder[]): ShopOrder[] {
+  return orders
+    .filter(o => {
+      const r = receptionDe(o);
+      const transport = r.mode === 'transport' || (r.mode === 'domicile' && r.volumineux);
+      return transport && !!o.id && STATUTS_TOURNEE.includes(o.status) && transportPrevu(o) === 'camionnette';
+    })
+    .sort((a, b) => (dateDe(a.createdAt)?.getTime() ?? 0) - (dateDe(b.createdAt)?.getTime() ?? 0));
+}
+
+/**
+ * Ce que le chauffeur encaisse par défaut : le total de la commande, plus la camionnette
+ * quand elle n'y est pas encore (la commande part à 0 DH de transport, le prix se fixe au
+ * téléphone). Modifiable arrêt par arrêt : c'est ce qui a été convenu qui compte.
+ */
+export function aEncaisserParDefaut(o: ShopOrder, reglages: ReglagesReception): number {
+  const total = Number(o.total) || 0;
+  const transportDejaCompte = (Number(o.deliveryFee) || 0) > 0;
+  return total + (transportDejaCompte ? 0 : prixCamionnette(o, reglages) ?? 0);
 }

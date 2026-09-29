@@ -11,7 +11,9 @@
 //
 // Pur (ni Firebase ni React) : testé par scripts/test-ecran-commandes-boutique.ts.
 
-import { ORDER_STATUS_LABELS, type CartItem, type OrderStatus, type ShopOrder, type TrackingNote } from '@/lib/shop-types';
+import {
+  ORDER_STATUS_LABELS, type CartItem, type MoyenPaiement, type OrderStatus, type ReceptionCommande, type ShopOrder, type TrackingNote,
+} from '@/lib/shop-types';
 
 const STATUTS = Object.keys(ORDER_STATUS_LABELS) as OrderStatus[];
 
@@ -85,13 +87,44 @@ function article(v: unknown): CartItem | null {
   };
   // Le prix réellement facturé n'existe que sur les commandes récentes : absent, on ne l'invente pas.
   if (typeof v.unitPrice === 'number' && Number.isFinite(v.unitPrice)) ligne.unitPrice = v.unitPrice;
+  // Rouleau entier : seulement un vrai booléen (« false », 1… ne comptent pas).
+  if (v.volumineux === true) ligne.volumineux = true;
   return ligne;
+}
+
+const MOYENS: MoyenPaiement[] = ['cod', 'virement', 'carte'];
+
+/**
+ * Le mode de réception, seulement avec ses valeurs permises. Absent (commande d'avant
+ * le 29/09/2026) : absent, les écrans le lisent comme un colis à domicile.
+ */
+function reception(v: unknown): ReceptionCommande | undefined {
+  if (!estObjet(v)) return undefined;
+  const mode = v.mode === 'retrait' || v.mode === 'transport' ? v.mode : 'domicile';
+  const lieu = v.lieuRetrait === 'derb_omar' || v.lieuRetrait === 'chrifa' ? v.lieuRetrait : undefined;
+  const preference = v.preferenceTransport === 'camionnette' || v.preferenceTransport === 'transporteur' ? v.preferenceTransport : undefined;
+  return {
+    mode,
+    volumineux: v.volumineux === true,
+    ...(lieu ? { lieuRetrait: lieu } : {}),
+    ...(preference ? { preferenceTransport: preference } : {}),
+  };
 }
 
 function ligneDeSuivi(v: unknown): TrackingNote | null {
   if (!estObjet(v) || !STATUTS.includes(v.status as OrderStatus)) return null;
   // Pas d'`auteur` : dans ce document, il peut venir du client.
   return { status: v.status as OrderStatus, message: texte(v.message, 500), timestamp: horodatage(v.timestamp) ?? null };
+}
+
+/**
+ * Le colis Sendit noté dans la commande, pour l'affichage. Jamais une preuve : le
+ * client peut écrire ce champ ; le panneau Sendit lit le vrai code côté serveur.
+ */
+function livraison(v: unknown): ShopOrder['livraison'] {
+  if (!estObjet(v) || v.transporteur !== 'sendit') return undefined;
+  const code = texte(v.code, 40).trim();
+  return /^[A-Za-z0-9-]{3,40}$/.test(code) ? { transporteur: 'sendit', code } : undefined;
 }
 
 /** La commande telle que les écrans peuvent l'afficher sans risque de planter. */
@@ -122,7 +155,9 @@ export function normaliserCommande(id: string, brut: unknown): ShopOrder {
       region: texteOuAbsent(a.region, 120),
       postalCode: texteOuAbsent(a.postalCode, 20),
     },
-    paymentMethod: 'cod',
+    paymentMethod: MOYENS.includes(d.paymentMethod as MoyenPaiement) ? (d.paymentMethod as MoyenPaiement) : 'cod',
+    ...(reception(d.reception) ? { reception: reception(d.reception) } : {}),
+    ...(livraison(d.livraison) ? { livraison: livraison(d.livraison) } : {}),
     notes: texteOuAbsent(d.notes, 2000),
     trackingNotes: (Array.isArray(d.trackingNotes) ? d.trackingNotes : [])
       .map(ligneDeSuivi)
