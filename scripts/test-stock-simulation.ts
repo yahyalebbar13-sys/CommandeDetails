@@ -6,7 +6,7 @@
 import {
   planifierSimulation, entrepotsDeLArticle, variantesArticle, variantesEtReste, nomArticle,
   estMouvementSimulation, noteSimulation, jourDuChargement, joursDepuis,
-  QUANTITE_PAR_LIGNE, MAX_VARIANTES, MAX_LIGNES, MARQUE_SIMULATION,
+  QUANTITE_PAR_LIGNE, MAX_LIGNES, MARQUE_SIMULATION,
 } from '../src/lib/stock-simulation';
 
 let pass = 0;
@@ -31,12 +31,16 @@ check('un produit multicouleur donne une ligne par coloris',
   variantesArticle(couleurs('c1', 'Doublure', ['NOIR', 'BEIGE', 'BLANC'])).map(v => v.label).join(',') === 'NOIR,BEIGE,BLANC');
 check('les doublons de casse sont fusionnés',
   variantesArticle(couleurs('c2', 'X', ['Rouge', 'ROUGE', 'Bleu'])).length === 2);
-check('au-delà de six coloris, on s’arrête',
-  variantesArticle(couleurs('c3', 'Y', ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'])).length === MAX_VARIANTES);
-check('et on sait combien de coloris on a laissés de côté',
-  variantesEtReste(couleurs('c4', 'Y2', ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'])).ecartees === 2);
-check('le plan additionne les variantes écartées',
-  planifierSimulation([couleurs('c5', 'Z', ['A', 'B', 'C', 'D', 'E', 'F', 'G'])], ['E1']).variantesEcartees === 1);
+// Le plafond de six coloris a disparu : un coloris resté à zéro ne se vend pas, ne se transfère
+// pas, ne se compte pas — et c'est le coloris rare qui fait sortir les défauts.
+check('TOUS les coloris sont chargés, même au-delà de six',
+  variantesArticle(couleurs('c3', 'Y', ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'])).length === 8);
+check('quarante coloris font quarante variantes',
+  variantesArticle(couleurs('c4', 'Y2', Array.from({ length: 40 }, (_, i) => `COL${i}`))).length === 40);
+check('le plan compte les variantes chargées',
+  planifierSimulation([couleurs('c5', 'Z', ['A', 'B', 'C', 'D', 'E', 'F', 'G'])], ['E1']).variantes === 7);
+check('et il pose une ligne par coloris',
+  planifierSimulation([couleurs('c6', 'Z2', ['A', 'B', 'C', 'D', 'E', 'F', 'G'])], ['E1']).lignes.length === 7);
 check('un article « various » sans ventilation lisible compte comme simple',
   variantesArticle({ id: 'v', nameFR: 'Z', color: 'various', colorBreakdown: [] }).length === 1);
 
@@ -89,6 +93,27 @@ check('le plafond est presque atteint, pas gaspillé',
   planGros.lignes.length > MAX_LIGNES - 12, String(planGros.lignes.length));
 check('les références écartées sont comptées',
   planGros.referencesEcartees === 4000 - planGros.references);
+
+// Une référence à cent coloris ne doit pas priver de stock tout ce qui la suit dans le
+// catalogue : on la saute, et on continue avec les suivantes.
+{
+  const enorme = couleurs('mastodonte', 'Produit à cent coloris',
+    Array.from({ length: 100 }, (_, i) => `COL${i}`));
+  const petits = Array.from({ length: 20 }, (_, i) => couleurs(`p${i}`, `Petit ${i}`, ['A', 'B']));
+  const plan = planifierSimulation([enorme, ...petits], ['E1'], QUANTITE_PAR_LIGNE, 50);
+  check('la référence trop grosse est sautée',
+    !plan.lignes.some(l => l.article.id === 'mastodonte'), JSON.stringify(plan.references));
+  check('mais les suivantes sont bien chargées', plan.references === 20, String(plan.references));
+  check('et on dit laquelle a été écartée, et de combien',
+    plan.plusGrosseEcartee?.lignes === 100, JSON.stringify(plan.plusGrosseEcartee));
+  check('le plafond reste tenu', plan.lignes.length <= 50, String(plan.lignes.length));
+}
+{
+  // Quand tout tient, rien n'est écarté et rien n'est signalé.
+  const plan = planifierSimulation([couleurs('c', 'Petit', ['A', 'B', 'C'])], ['E1']);
+  check('aucune référence écartée quand tout tient', plan.referencesEcartees === 0);
+  check('et rien à signaler', plan.plusGrosseEcartee === null);
+}
 check('une référence est chargée en entier ou pas du tout',
   Array.from(new Set(planGros.lignes.map(l => l.article.id)))
     .every(id => {

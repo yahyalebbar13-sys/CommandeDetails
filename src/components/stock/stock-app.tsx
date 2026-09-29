@@ -3978,9 +3978,10 @@ export default function StockApp() {
               charger le stock de test : c'est de là que part la marchandise.
             </Encadre>
           ) : (
-            <div className="mt-3 grid grid-cols-2 sm:grid-cols-4 gap-2">
+            <div className="mt-3 grid grid-cols-2 sm:grid-cols-5 gap-2">
               {[
                 ['Références', planSimulation.references.toLocaleString('fr-MA')],
+                ['Couleurs / variantes', planSimulation.variantes.toLocaleString('fr-MA')],
                 ['Lignes de stock', planSimulation.lignes.length.toLocaleString('fr-MA')],
                 ['Unités posées', planSimulation.unites.toLocaleString('fr-MA')],
                 ['Entrepôts', String(entrepotsSimulation.length)],
@@ -3995,18 +3996,16 @@ export default function StockApp() {
 
           {planSimulation.referencesEcartees > 0 && (
             <Encadre ton="attention" className="mt-3">
-              {planSimulation.referencesEcartees.toLocaleString('fr-MA')} référence(s) ne seront pas chargées : au-delà
-              de {MAX_LIGNES.toLocaleString('fr-MA')} lignes de stock — mouvements déjà en base compris — l'écran
-              devient poussif : le calcul relit tous les mouvements pour chaque article. Les références chargées
-              sont les premières du catalogue.
+              {planSimulation.referencesEcartees.toLocaleString('fr-MA')} référence(s) ne seront pas chargées :
+              au-delà de {MAX_LIGNES.toLocaleString('fr-MA')} lignes de stock — mouvements déjà en base compris —
+              l'écran devient poussif, le calcul relisant tous les mouvements pour chaque article. Chaque référence
+              part avec TOUTES ses couleurs ou pas du tout : celles qui ne tiennent pas dans ce qui reste sont
+              sautées, et les suivantes continuent d'être chargées.
+              {planSimulation.plusGrosseEcartee && (
+                <> La plus grosse écartée : <span className="font-black">{planSimulation.plusGrosseEcartee.nom}</span>,
+                {' '}{planSimulation.plusGrosseEcartee.lignes.toLocaleString('fr-MA')} lignes à elle seule.</>
+              )}
             </Encadre>
-          )}
-
-          {planSimulation.variantesEcartees > 0 && (
-            <p className="text-[10px] font-semibold text-stone-400 mt-2">
-              {planSimulation.variantesEcartees.toLocaleString('fr-MA')} variante(s) au-delà de la sixième ne
-              recevront pas de stock : elles resteront visibles à zéro.
-            </p>
           )}
 
           {essaiEnCours && (
