@@ -369,6 +369,33 @@ export default function StockSaleFlow({
   const [activeOption, setActiveOption] = useState<{ dimension: 'quality' | 'size'; value: string } | null>(null);
   const [activeVariant, setActiveVariant] = useState<StockItem | null>(null);
   const [customPrices, setCustomPrices] = useState<Record<string, number>>({});
+  /** Le texte tapé pour retrouver une couleur dans la fenêtre du produit. */
+  const [rechercheCouleur, setRechercheCouleur] = useState('');
+
+  /**
+   * Les couleurs du produit ouvert : celles de la qualité ou de la taille choisie, filtrées par
+   * la recherche, triées par nom.
+   *
+   * La recherche ignore les accents et la casse — on tape « ecru » pour trouver « ÉCRU » — et
+   * porte aussi sur le code couleur, qui est souvent ce que le client cite : « le 580 ».
+   */
+  const couleursDuProduit = useMemo(
+    () => variantModal.variants.filter(v => (activeOption ? v[activeOption.dimension] === activeOption.value : true)).length,
+    [variantModal.variants, activeOption],
+  );
+
+  const couleursAffichees = useMemo(() => {
+    const cherche = rechercheCouleur.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim();
+    return variantModal.variants
+      .filter(v => (activeOption ? v[activeOption.dimension] === activeOption.value : true))
+      .filter(v => {
+        if (!cherche) return true;
+        const texte = `${v.color || ''} ${v.productName || ''} ${v.nameFR || ''}`
+          .normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+        return texte.includes(cherche);
+      })
+      .sort((a, b) => (a.color || a.productName).localeCompare(b.color || b.productName, 'fr'));
+  }, [variantModal.variants, activeOption, rechercheCouleur]);
 
   // Grouped list of products for the main grid
   const groupedProducts = useMemo(() => {
@@ -1393,6 +1420,7 @@ export default function StockSaleFlow({
                             const options = Array.from(new Set(group.variants.map(v => v[dimension]).filter(Boolean))) as string[];
                             setActiveOption(options.length > 0 ? { dimension, value: options[0] } : null);
                             setActiveVariant(null);
+                            setRechercheCouleur('');
                             setVariantModal({ open: true, productName: group.name, variants: group.variants, categoryId: group.categoryId });
                           }}
                           className="w-full text-left px-5 py-4 hover:bg-violet-50/50 transition-colors flex items-center gap-4 group">
@@ -2381,7 +2409,7 @@ export default function StockSaleFlow({
       </Dialog>
 
       {/* ── Modal sélection variantes ── */}
-      <Dialog open={variantModal.open} onOpenChange={o => !o && setVariantModal({ open: false, productName: '', variants: [], categoryId: '' })}>
+      <Dialog open={variantModal.open} onOpenChange={o => { if (!o) { setVariantModal({ open: false, productName: '', variants: [], categoryId: '' }); setRechercheCouleur(''); } }}>
         <DialogContent className="sm:max-w-2xl rounded-3xl border-none shadow-2xl p-0 overflow-hidden bg-stone-50">
           <div className="bg-white p-5 border-b border-stone-100 flex justify-between items-center sticky top-0 z-10 shadow-sm">
             <div>
@@ -2422,7 +2450,7 @@ export default function StockSaleFlow({
                     {sizes.map(size => {
                       const sizeQty = variantModal.variants.filter(v => v[dimension] === size).reduce((s, v) => s + v.currentQty, 0);
                       return (
-                        <button key={size} onClick={() => setActiveOption({ dimension, value: size })}
+                        <button key={size} onClick={() => { setActiveOption({ dimension, value: size }); setRechercheCouleur(''); }}
                           className={`px-5 py-2.5 rounded-xl text-sm font-black transition-all ${
                             activeOption?.value === size 
                               ? 'bg-stone-900 text-white shadow-lg' 
@@ -2504,6 +2532,32 @@ export default function StockSaleFlow({
               <p className="text-[11px] font-medium text-stone-500 leading-snug mt-0.5 mb-3">
                 Touchez une ligne pour indiquer la quantité. Une couleur à 0 n'est pas vendable.
               </p>
+
+              {/* Chercher une couleur. Un produit peut en porter cinquante : les faire défiler
+                  pour trouver « BLEU CIEL » est intenable au comptoir, client devant soi. */}
+              {couleursDuProduit > 6 && (
+                <div className="relative mb-3">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-stone-400 pointer-events-none" />
+                  <input
+                    type="text"
+                    value={rechercheCouleur}
+                    onChange={e => setRechercheCouleur(e.target.value)}
+                    placeholder={`Chercher parmi ${couleursDuProduit} couleurs…`}
+                    aria-label="Chercher une couleur"
+                    className="w-full h-11 pl-10 pr-10 rounded-2xl border-2 border-stone-200 bg-white text-sm font-bold text-stone-800 placeholder:font-medium placeholder:text-stone-400 focus:border-stone-900 focus:outline-none"
+                  />
+                  {rechercheCouleur && (
+                    <button
+                      type="button"
+                      onClick={() => setRechercheCouleur('')}
+                      title="Effacer la recherche"
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 w-7 h-7 rounded-lg text-stone-400 hover:text-stone-700 hover:bg-stone-100 flex items-center justify-center"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  )}
+                </div>
+              )}
               
               <div className="bg-white rounded-2xl border border-stone-200 overflow-hidden shadow-sm">
                 <table className="w-full text-left">
@@ -2515,10 +2569,7 @@ export default function StockSaleFlow({
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-stone-100">
-                    {variantModal.variants
-                      .filter(v => activeOption ? v[activeOption.dimension] === activeOption.value : true)
-                      .sort((a, b) => (a.color || a.productName).localeCompare(b.color || b.productName))
-                      .map((v) => {
+                    {couleursAffichees.map((v) => {
                         const inCartLine = cart.find(l => l.item.articleId === v.articleId);
                         const isEmpty = v.currentQty === 0;
   
@@ -2557,6 +2608,22 @@ export default function StockSaleFlow({
                           </tr>
                         );
                       })}
+                    {couleursAffichees.length === 0 && (
+                      <tr>
+                        <td colSpan={3} className="px-4 py-10 text-center">
+                          <p className="text-[12px] font-black text-stone-500 uppercase tracking-wide">
+                            Aucune couleur ne correspond à « {rechercheCouleur} »
+                          </p>
+                          <button
+                            type="button"
+                            onClick={() => setRechercheCouleur('')}
+                            className="mt-3 h-9 px-4 rounded-xl bg-stone-900 text-white text-[10px] font-black uppercase tracking-widest"
+                          >
+                            Voir les {couleursDuProduit} couleurs
+                          </button>
+                        </td>
+                      </tr>
+                    )}
                   </tbody>
                 </table>
               </div>

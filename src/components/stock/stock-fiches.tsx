@@ -4,7 +4,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import {
   Layers, Package, ArrowRight, ArrowDownToLine, ArrowUpFromLine,
   ChevronLeft, AlertTriangle, CheckCircle2, BarChart3,
-  Boxes, TrendingUp, Hash, Calendar, Tag, Info, Warehouse, Search, Filter, Plus
+  Boxes, TrendingUp, Hash, Calendar, Tag, Info, Warehouse, Search, Filter, Plus, X
 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
@@ -225,6 +225,27 @@ function ProductFiche({
   const currentGroupVariants = variantsByGroup.find(v => v[0] === selectedGroup)?.[1] || [];
   const firstGroupVar = currentGroupVariants[0] || article;
 
+  /**
+   * La recherche de couleur dans la fiche. Elle ignore les accents et la casse — « ecru »
+   * trouve « ÉCRU » — et porte aussi sur la taille et la qualité, qui sont dans le meme tableau.
+   */
+  const [rechercheVariante, setRechercheVariante] = useState('');
+  /** « ecru » doit trouver « ÉCRU » : on compare sans accents et sans casse. */
+  const sansAccent = (v: unknown) =>
+    String(v ?? '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+
+  const variantesAffichees = useMemo(() => {
+    const cherche = sansAccent(rechercheVariante).trim();
+    if (!cherche) return currentGroupVariants;
+    return currentGroupVariants.filter((v: any) => sansAccent(
+      `${libelleVariante(v.color)} ${libelleVariante(v.size)} ${qualiteDeLArticle(v) || ''} ${v.nameFR || ''} ${v.productName || ''}`,
+    ).includes(cherche));
+  }, [currentGroupVariants, rechercheVariante]);
+
+  // Changer de déclinaison rouvre une autre liste : la recherche précédente n'a plus d'objet, et
+  // laisserait un tableau vide sans qu'on comprenne pourquoi.
+  useEffect(() => { setRechercheVariante(''); }, [selectedGroup]);
+
   // ── Ce qu'EST le produit, en tête de fiche ───────────────────────────────
   const qualitesDistinctes = useMemo(
     () => Array.from(new Set(variants.map(v => qualiteDeLArticle(v)).filter(Boolean))) as string[],
@@ -378,13 +399,38 @@ function ProductFiche({
         )}
 
         <div className="bg-white rounded-3xl border border-stone-100 shadow-sm overflow-hidden animate-in fade-in duration-300">
-          <div className="px-6 py-4 border-b border-stone-50 bg-stone-50/50 flex items-center gap-2">
-            <Package className="w-4 h-4 text-stone-500" />
+          <div className="px-6 py-4 border-b border-stone-50 bg-stone-50/50 flex items-center gap-3 flex-wrap">
+            <Package className="w-4 h-4 text-stone-500 shrink-0" />
             <h4 className="text-[11px] font-black text-stone-700 uppercase tracking-wider">
               {hasQualities 
                 ? `Couleurs & Variantes · ${selectedGroup}`
                 : selectedGroup === 'STANDARD' ? 'État des Variantes' : `Couleurs pour la taille : ${selectedGroup}`}
             </h4>
+            {/* Chercher une couleur. Un produit peut en porter cinquante : sans ce champ, il
+                faut faire défiler la fiche entière pour savoir ce qui reste d'un coloris. */}
+            {currentGroupVariants.length > 6 && (
+              <div className="relative ml-auto w-full sm:w-64">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-stone-400 pointer-events-none" />
+                <input
+                  type="text"
+                  value={rechercheVariante}
+                  onChange={e => setRechercheVariante(e.target.value)}
+                  placeholder={`Chercher parmi ${currentGroupVariants.length} variantes…`}
+                  aria-label="Chercher une couleur"
+                  className="w-full h-9 pl-9 pr-8 rounded-xl border border-stone-200 bg-white text-[11px] font-bold text-stone-800 placeholder:font-medium placeholder:text-stone-400 focus:border-stone-900 focus:outline-none"
+                />
+                {rechercheVariante && (
+                  <button
+                    type="button"
+                    onClick={() => setRechercheVariante('')}
+                    title="Effacer la recherche"
+                    className="absolute right-2 top-1/2 -translate-y-1/2 w-6 h-6 rounded-lg text-stone-400 hover:text-stone-700 hover:bg-stone-100 flex items-center justify-center"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </div>
+            )}
           </div>
           <div className="overflow-x-auto">
             <table className="w-full text-xs">
@@ -401,7 +447,7 @@ function ProductFiche({
                 </tr>
               </thead>
               <tbody className="divide-y divide-stone-50">
-                {currentGroupVariants.map((v: any, i: number) => {
+                {variantesAffichees.map((v: any, i: number) => {
                   const isRupt = v.currentQty <= 0;
                   const isAlerte = v.minThreshold != null && v.currentQty <= v.minThreshold;
                   return (
@@ -454,6 +500,22 @@ function ProductFiche({
                     </tr>
                   );
                 })}
+                {variantesAffichees.length === 0 && (
+                  <tr>
+                    <td colSpan={afficheTaille ? 8 : 7} className="px-6 py-10 text-center">
+                      <p className="text-[11px] font-black text-stone-500 uppercase tracking-wide">
+                        Aucune variante ne correspond à « {rechercheVariante} »
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => setRechercheVariante('')}
+                        className="mt-3 h-9 px-4 rounded-xl bg-stone-900 text-white text-[10px] font-black uppercase tracking-widest"
+                      >
+                        Voir les {currentGroupVariants.length} variantes
+                      </button>
+                    </td>
+                  </tr>
+                )}
               </tbody>
             </table>
           </div>
