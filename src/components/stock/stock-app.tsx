@@ -1731,6 +1731,32 @@ export default function StockApp() {
     await updateDoc(doc(firestore, 'users', effectiveUid, 'saleOrders', id), { status });
   }, [user, firestore, adminUid]);
 
+  /**
+   * Les prix de vente saisis après coup sur un bon de commande.
+   *
+   * Une commande peut se prendre sans prix : le client négocie encore, ou la direction tranchera.
+   * C'était jusqu'ici impossible — la caisse comparait au prix de revient et refusait — et une
+   * commande enregistrée ne pouvait plus bouger que de statut. Elle peut maintenant recevoir ses
+   * prix, tant qu'elle n'est pas facturée.
+   */
+  const handleUpdateOrderPrices = useCallback(async (
+    id: string, items: any[], totalAmount: number, totalAfterDiscount: number,
+  ) => {
+    if (!user || !firestore) return;
+    const effectiveUid = adminUid || user.uid;
+    await updateDoc(doc(firestore, 'users', effectiveUid, 'saleOrders', id),
+      cleanUndefined({ items, totalAmount, totalAfterDiscount }));
+    logAudit(firestore, effectiveUid, {
+      action: 'ORDER_UPDATED',
+      userId: user.uid,
+      userEmail: user.email || '',
+      entityType: 'saleOrder',
+      entityId: id,
+      description: `Prix de vente saisis · ${items.length} ligne(s) · ${totalAfterDiscount.toLocaleString('fr-MA', { minimumFractionDigits: 2 })} MAD`,
+      metadata: { totalAmount, totalAfterDiscount, lignesSansPrix: items.filter(i => !(Number(i?.unitPrice) > 0)).length },
+    } as any);
+  }, [user, firestore, adminUid]);
+
   const handleConvertToInvoice = useCallback(async (order: SaleOrder) => {
     if (!user || !firestore) return;
     const effectiveUid = adminUid || user.uid;
@@ -1747,6 +1773,9 @@ export default function StockApp() {
       totalAfterDiscount: order.totalAfterDiscount,
       paidAmount: 0,
       remainingBalance: order.totalAfterDiscount,
+      // Une facture à zéro reste « Non payé », volontairement. La marquer réglée la ferait
+      // disparaître des écrans : une commande facturée sans prix est une vente perdue, et
+      // personne ne s'en apercevrait. Rouge, elle se voit — et on vient demander pourquoi.
       status: 'UNPAID',
       date: getLocalDateString(),
       notes: order.notes,
@@ -2931,6 +2960,7 @@ export default function StockApp() {
                 clients={clients}
                 onUpdateStatus={handleUpdateOrderStatus}
                 onConvertToInvoice={handleConvertToInvoice}
+                onUpdateOrderPrices={handleUpdateOrderPrices}
                 onNavigate={setActiveView}
               />
             )}

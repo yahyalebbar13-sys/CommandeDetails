@@ -456,8 +456,10 @@ export async function exportSaleOrderPDF(
         color: valeurImprimable(item.color, '—'),
         size: valeurImprimable(item.size, '—'),
         qty: `${qte}${item.unitOfMeasure ? ` ${item.unitOfMeasure}` : ''}`,
-        unitPrice: `${fmt(pu)} MAD`,
-        total: `${fmt(Number(item.totalPrice) || qte * pu)} MAD`,
+        // Une ligne dont le prix n'est pas encore arrêté s'imprime « à fixer » : « 0,00 MAD »
+        // se lirait « gratuit », et c'est ce papier que le client emporte.
+        unitPrice: pu > 0 ? `${fmt(pu)} MAD` : 'à fixer',
+        total: pu > 0 ? `${fmt(Number(item.totalPrice) || qte * pu)} MAD` : '—',
       };
     }),
     summaryRows: [
@@ -468,6 +470,9 @@ export async function exportSaleOrderPDF(
         ? [{ label: `Remise${order?.discount ? ` ${order.discount} %` : ''}`, value: `-${fmt(remise)} MAD` }]
         : []),
       { label: 'TOTAL GÉNÉRAL', value: `${fmt(total)} MAD` },
+      ...(items.some((it: any) => !(Number(it?.unitPrice) > 0))
+        ? [{ label: 'Lignes restant à chiffrer', value: `${items.filter((it: any) => !(Number(it?.unitPrice) > 0)).length} — total partiel` }]
+        : []),
       { label: 'État', value: 'Commande préparée — marchandise non encore sortie du stock' },
     ],
     footer: "LEBTEX SARL AU — Commande préparée : la marchandise reste en stock jusqu'à l'enlèvement, et ce document ne vaut pas facture.",

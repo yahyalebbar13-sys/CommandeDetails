@@ -35,11 +35,24 @@ interface StockClientsProps {
 
 const fmt$ = (n: number) => n.toLocaleString('fr-MA', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
+/**
+ * Les catégories de client, écrites UNE fois.
+ *
+ * Elles étaient recopiées à quatre endroits — le badge, le filtre, le formulaire de création et
+ * celui de modification — si bien qu'en ajouter une demandait de les retrouver tous. Les trois
+ * listes déroulantes se construisent maintenant d'ici : une ligne de plus ici, et elle apparaît
+ * partout.
+ */
 const CATEGORY_BADGE: Record<string, { label: string; cls: string }> = {
   GROSSISTE:       { label: 'Grossiste',       cls: 'bg-violet-100 text-violet-700' },
   SEMI_GROSSISTE:  { label: 'Semi-grossiste',  cls: 'bg-blue-100 text-blue-700' },
-  DETAILLANT:      { label: 'Détaillant',       cls: 'bg-emerald-100 text-emerald-700' },
+  DETAILLANT:      { label: 'Détaillant',      cls: 'bg-emerald-100 text-emerald-700' },
+  // Une société qui achète pour son propre atelier, pas pour revendre.
+  ENTREPRISE:      { label: 'Entreprise',      cls: 'bg-amber-100 text-amber-700' },
 };
+
+/** Les choix proposés dans les listes déroulantes, dans l'ordre du tableau ci-dessus. */
+const CATEGORIES_CLIENT = Object.entries(CATEGORY_BADGE).map(([valeur, { label }]) => ({ valeur, label }));
 
 /** Le nom du mode de règlement tel qu'on le dit au magasin, pour l'en-tête de chaque ligne. */
 const LIBELLE_MODE: Record<string, string> = {
@@ -650,9 +663,9 @@ export default function StockClients({ clients, orders, invoices, payments, user
                     <SelectValue placeholder="Catégorie" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="GROSSISTE">Grossiste</SelectItem>
-                    <SelectItem value="SEMI_GROSSISTE">Semi-grossiste</SelectItem>
-                    <SelectItem value="DETAILLANT">Détaillant</SelectItem>
+                    {CATEGORIES_CLIENT.map(c => (
+                      <SelectItem key={c.valeur} value={c.valeur}>{c.label}</SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </Champ>
@@ -1448,9 +1461,9 @@ export default function StockClients({ clients, orders, invoices, payments, user
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="ALL">Toutes les catégories</SelectItem>
-            <SelectItem value="GROSSISTE">Grossiste</SelectItem>
-            <SelectItem value="SEMI_GROSSISTE">Semi-grossiste</SelectItem>
-            <SelectItem value="DETAILLANT">Détaillant</SelectItem>
+            {CATEGORIES_CLIENT.map(c => (
+              <SelectItem key={c.valeur} value={c.valeur}>{c.label}</SelectItem>
+            ))}
           </SelectContent>
         </Select>
         <Button
@@ -1658,9 +1671,9 @@ export default function StockClients({ clients, orders, invoices, payments, user
                   <Select value={form.category || undefined} onValueChange={v => setForm(f => ({ ...f, category: v }))}>
                     <SelectTrigger id="new-category" className={CLASSE_CHAMP}><SelectValue placeholder="Catégorie..." /></SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="GROSSISTE">Grossiste</SelectItem>
-                      <SelectItem value="SEMI_GROSSISTE">Semi-grossiste</SelectItem>
-                      <SelectItem value="DETAILLANT">Détaillant</SelectItem>
+                      {CATEGORIES_CLIENT.map(c => (
+                        <SelectItem key={c.valeur} value={c.valeur}>{c.label}</SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </Champ>

@@ -4,6 +4,7 @@ import React, { useState, useMemo } from 'react';
 import { LOGO_B64 } from '@/lib/logo-b64';
 import { imprimerHtml, messageImpression, echapperHtml } from '@/lib/impression';
 import { valeurImprimable } from '@/lib/specification-produit';
+import { sansPrix } from '@/lib/commande-sans-prix';
 import { Search, Eye, Printer, CreditCard, X, Download, Mail, Send, Plus, Trash2, ScanLine, Camera, Calendar, Banknote, FileCheck, FileText, Landmark, MoreHorizontal, Undo2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -369,7 +370,9 @@ export default function StockInvoices({ invoices, clients, payments, onRecordPay
     </tr></thead>
     <tbody>${(inv.items || []).map(item => `<tr>
       <td><strong>${echapperHtml(item.productName)}</strong></td><td>${echapperHtml(valeurImprimable(item.color, '—'))}</td><td>${echapperHtml(valeurImprimable(item.size, '—'))}</td>
-      <td>${echapperHtml(item.qty)} ${echapperHtml(item.unitOfMeasure)}</td><td>${fmt$(item.unitPrice)}</td><td><strong>${fmt$(item.totalPrice)}</strong></td>
+      <td>${echapperHtml(item.qty)} ${echapperHtml(item.unitOfMeasure)}</td>
+      <td>${sansPrix(item) ? '<em style="color:#a16207">non chiffré</em>' : fmt$(item.unitPrice)}</td>
+      <td><strong>${sansPrix(item) ? '<em style="color:#a16207">&mdash;</em>' : fmt$(item.totalPrice)}</strong></td>
     </tr>`).join('')}</tbody></table>
     <div style="text-align:right;border-top:1px solid #e7e5e4;padding-top:12px">
       <div style="color:#78716c;margin-bottom:4px;font-size:12px">Sous-total HT : ${fmt$(inv.totalAmount)}</div>

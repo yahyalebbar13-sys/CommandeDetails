@@ -457,7 +457,9 @@ export type TransferOrder = {
 };
 
 // ── Types de catégorisation client ────────────────────────────────────────────
-export type ClientCategory = 'GROSSISTE' | 'SEMI_GROSSISTE' | 'DETAILLANT';
+// ENTREPRISE : une société qui achète pour son propre usage — un atelier, une confection — et
+// non pour revendre. Elle se distingue des trois autres, qui sont des degrés de revente.
+export type ClientCategory = 'GROSSISTE' | 'SEMI_GROSSISTE' | 'DETAILLANT' | 'ENTREPRISE';
 
 export type Client = {
   id: string;
@@ -632,6 +634,9 @@ export type AuditAction =
   | 'TRANSFER_CREATED' | 'TRANSFER_VALIDATED'
   | 'INVENTORY_RECONCILED'
   | 'RETURN_PROCESSED'
+  // Un bon de commande peut se prendre sans prix et en recevoir un plus tard : ce passage-la
+  // se journalise, c'est lui qui fixe ce que le client devra.
+  | 'ORDER_UPDATED'
   | 'SETTINGS_UPDATED';
 
 export type AuditLogEntry = {
@@ -639,7 +644,7 @@ export type AuditLogEntry = {
   action: AuditAction;
   userId: string;
   userEmail: string;
-  entityType: 'stockMovement' | 'sale' | 'invoice' | 'payment' | 'client' | 'transfer' | 'settings';
+  entityType: 'stockMovement' | 'sale' | 'invoice' | 'payment' | 'client' | 'transfer' | 'saleOrder' | 'settings';
   entityId: string;
   description: string;
   metadata?: Record<string, any>;  // Additional context (amounts, quantities, etc.)

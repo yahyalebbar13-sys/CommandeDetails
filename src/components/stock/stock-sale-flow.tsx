@@ -23,6 +23,7 @@ import { stockItemVariant } from '@/lib/warehouse-locations';
 import { uniteDecimale, pasDeSaisie, libelleUnite } from '@/lib/unites-pole';
 import { useToast } from '@/hooks/use-toast';
 import { useConfirm } from '@/hooks/use-confirm';
+import { sansPrix } from '@/lib/commande-sans-prix';
 import { useOnlineStatus } from '@/hooks/use-online-status';
 import {
   SectionFormulaire, Champ, Encadre, LigneResume, Recapitulatif, BoutonValider, CLASSE_CHAMP,
@@ -64,17 +65,7 @@ function escapeHtml(str: string | undefined | null): string {
     .replace(/'/g, '&#039;');
 }
 
-/**
- * Une ligne vendue en dessous de ce que la marchandise a coûté.
- *
- * Le prix de revient n'a rien à faire dans /stock : il ne s'affiche nulle part, ni en clair, ni
- * dans une infobulle, ni dans un récapitulatif. Il ne sert qu'ici, à répondre par oui ou par non.
- * Ce que l'écran en dit se limite à « Vente à perte ».
- */
-const venteAPerte = (item: StockItem, unitPrice: number): boolean => {
-  const revient = Number(item.purchasePricePerUnit) || 0;
-  return revient > 0 && unitPrice < revient;
-};
+
 
 // ── Quantités selon l'unité ──
 // Le TAFFETA se vend au mètre, et au mètre près ou au centimètre : 2,5 m est une vente normale.
@@ -264,6 +255,8 @@ export default function StockSaleFlow({
   const subTotal = cart.reduce((s, l) => s + l.qty * l.unitPrice, 0);
   const discountAmt = subTotal * (discount / 100);
   const total = subTotal - discountAmt;
+  /** Les lignes dont le prix reste à fixer : elles ne bloquent rien, elles se rappellent. */
+  const lignesSansPrix = cart.filter(l => sansPrix(l)).length;
   // Une coupe de 2,5 m est UN article : additionner les mètres aux pièces afficherait « 5,5 articles ».
   const cartCount = cart.reduce((s, l) => s + (uniteDecimale(l.item.unitOfMeasure) ? 1 : l.qty), 0);
 
@@ -622,38 +615,26 @@ export default function StockSaleFlow({
     } finally { setCreatingClient(false); }
   };
 
-  /**
-   * Le garde-fou de la vente à perte. C'est une règle de gestion, elle reste : un vendeur est
-   * refusé, seul un administrateur peut passer outre. Les messages nomment les articles concernés
-   * et s'arrêtent là — aucun montant d'achat ne sort d'ici.
-   */
-  const autoriserVenteAPerte = useCallback(async (): Promise<boolean> => {
-    const lignesAPerte = cart.filter(l => venteAPerte(l.item, l.unitPrice));
-    if (lignesAPerte.length === 0) return true;
-
-    const articles = lignesAPerte.map(l => l.item.nameFR || l.item.productName).join(', ');
-    const combien = `${lignesAPerte.length} article${lignesAPerte.length > 1 ? 's' : ''}`;
-
-    if (userRole !== 'ADMIN') {
-      toast({
-        variant: 'destructive',
-        title: 'Vente à perte',
-        description: `${combien} en vente à perte : ${articles}.\nSeul un administrateur peut valider une vente à perte. Remontez le prix, ou faites-la valider.`,
-      });
-      return false;
-    }
-    return await confirm({
-      title: 'Vente à perte',
-      description: `${combien} en vente à perte : ${articles}.\n\nContinuer quand même ?`,
-      confirmLabel: 'Valider malgré la perte',
-      variant: 'destructive',
-    });
-  }, [cart, userRole, toast, confirm]);
-
   const handleFinalize = async () => {
     if (cart.length === 0 || saving) return;
 
-    if (!(await autoriserVenteAPerte())) return;
+    // Une VENTE, elle, sort la marchandise du stock et se facture : sans prix, elle est perdue,
+    // et rien ne permet de la rattraper après coup. Ce n'est plus un refus — le prix minimum a
+    // disparu — mais c'est une question posée clairement. Pour prendre une commande dont le prix
+    // n'est pas arrêté, le bon chemin est juste en dessous : « Préparer la commande ».
+    if (lignesSansPrix > 0) {
+      const ok = await confirm({
+        title: 'Prix de vente manquant',
+        description: `${lignesSansPrix === 1 ? "Une ligne n'a pas de prix" : `${lignesSansPrix} lignes n'ont pas de prix`}.\n\n`
+          + 'Elles seront facturées à zéro, et la marchandise sortira quand même du stock. '
+          + 'Une vente enregistrée ne peut plus recevoir de prix.\n\n'
+          + 'Pour une commande dont le prix reste à fixer, utilisez « Préparer la commande » : '
+          + 'elle attendra son prix sans rien sortir du stock.',
+        confirmLabel: 'Vendre quand même',
+        variant: 'destructive',
+      });
+      if (!ok) return;
+    }
 
     const isFullCredit = paymentStatus === 'UNPAID';
     const validLines = isFullCredit ? [] : paymentLines.filter(l => (parseFloat(l.amount) || 0) > 0);
@@ -928,7 +909,6 @@ export default function StockSaleFlow({
    */
   const handlePrepareOrder = async () => {
     if (cart.length === 0 || preparingOrder || saving) return;
-    if (!(await autoriserVenteAPerte())) return;
 
     setPreparingOrder(true);
     try {
@@ -1662,7 +1642,6 @@ export default function StockSaleFlow({
                         ? 'Ce prix sera repris sur toutes les couleurs de ce produit déjà au panier.'
                         : "Prix hors remise. La remise s'applique plus bas, sur le total de la vente."
                     }
-                    erreur={unitPrice > 0 && venteAPerte(item, unitPrice) ? 'Vente à perte.' : null}
                   >
                     <div className="relative">
                       <Input id={`prix-${item.articleId}`} type="number" min={0} step="any" value={unitPrice || ''}
@@ -2236,6 +2215,18 @@ export default function StockSaleFlow({
                   Attention, une commande préparée ne réserve rien — une vente passée entre-temps
                   peut prendre les mêmes pièces.
                 </Encadre>
+
+                {/* Une commande peut partir sans prix : c'est fait pour. On le dit, et on
+                    rappelle où le prix se saisira, pour que personne ne facture un bon à zéro. */}
+                {lignesSansPrix > 0 && (
+                  <Encadre ton="attention" titre="Prix de vente à saisir">
+                    {lignesSansPrix === 1 ? 'Une ligne n\'a pas de prix' : `${lignesSansPrix} lignes n'ont pas de prix`} :
+                    la commande sera enregistrée telle quelle, sans montant. Vous saisirez les prix
+                    dans <span className="font-black">Commandes préparées</span>, avant de la facturer —
+                    elle y reste signalée tant qu'ils manquent.
+                  </Encadre>
+                )}
+
                 <Button
                   type="button"
                   variant="outline"
@@ -2244,7 +2235,11 @@ export default function StockSaleFlow({
                   className="w-full h-12 rounded-2xl border-2 border-violet-300 bg-white text-violet-800 hover:bg-violet-50 text-[13px] font-black tracking-wide gap-2 disabled:opacity-40"
                 >
                   <ClipboardList className="w-4 h-4" />
-                  {preparingOrder ? 'Enregistrement de la commande…' : `Préparer la commande — ${fmt$(total)} MAD`}
+                  {preparingOrder
+                    ? 'Enregistrement de la commande…'
+                    : lignesSansPrix > 0
+                      ? 'Préparer la commande — prix à saisir'
+                      : `Préparer la commande — ${fmt$(total)} MAD`}
                 </Button>
                 {!isOnline && (
                   <p className="text-[11px] font-bold text-stone-500 text-center leading-snug">

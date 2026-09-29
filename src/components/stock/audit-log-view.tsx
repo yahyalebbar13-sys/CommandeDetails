@@ -25,6 +25,7 @@ const ACTION_STYLE: Record<string, { label: string; cls: string }> = {
   TRANSFER_VALIDATED:   { label: 'Transfert Validé',  cls: 'bg-emerald-100 text-emerald-700' },
   INVENTORY_RECONCILED: { label: 'Inventaire',        cls: 'bg-amber-100 text-amber-700' },
   RETURN_PROCESSED:     { label: 'Retour Client',     cls: 'bg-orange-100 text-orange-700' },
+  ORDER_UPDATED:        { label: 'Prix Commande',     cls: 'bg-amber-100 text-amber-700' },
   SETTINGS_UPDATED:     { label: 'Paramètres',        cls: 'bg-stone-100 text-stone-600' },
 };
 

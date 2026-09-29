@@ -92,6 +92,25 @@ const mouvements = [
   check('il porte l’identité LEBTEX', c.texte.includes('LEBTEX'));
   check('aucun émoji', !/[←-⯿️]/.test(c.texte));
 
+  console.log('\n── Un bon de commande dont le prix n’est pas encore fixé ──');
+  // Une commande peut se prendre sans prix : le client négocie, ou la direction tranchera.
+  // Le papier qu'il emporte ne doit pas lui annoncer « 0,00 MAD », qui se lit « gratuit ».
+  await exportSaleOrderPDF({
+    ...commande,
+    id: 'cmd-sans-prix',
+    totalAmount: 1400, totalAfterDiscount: 1400,
+    items: [
+      { productName: 'DOUBLURE POLYESTER', color: 'NOIR', qty: 200, unitPrice: 0, totalPrice: 0, unitOfMeasure: 'm' },
+      { productName: 'CURSEUR N5', color: 'various', qty: 100, unitPrice: 14, totalPrice: 1400, unitOfMeasure: 'pcs' },
+    ],
+  });
+  const sp = lire();
+  check('la ligne sans prix annonce « à fixer »', /à fixer/i.test(sp.texte), sp.texte.slice(0, 400));
+  check('elle n’annonce pas « 0,00 MAD »', !/(?<![\d.,])0,00 MAD/.test(sp.texte), sp.texte.slice(0, 400));
+  check('le document prévient que le total est partiel',
+    /chiffrer|partiel/i.test(sp.texte), sp.texte.slice(0, 500));
+  check('la ligne chiffrée garde son prix', sp.texte.includes('14,00') || sp.texte.includes('1.400') || sp.texte.includes('1 400'));
+
   console.log('\n── Rapport des mouvements ──');
   await exportMovementsPDF(mouvements);
   const m = lire();
