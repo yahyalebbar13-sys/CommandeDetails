@@ -248,7 +248,7 @@ export async function exportArrivalPackingPDF(params: ArrivalPackingParams): Pro
     const colis = articles.map(a => colisageDe.get(a.id)?.colisEnGros).find(Boolean)!;
     return { un: colis.nom, plusieurs: colis.pluriel };
   })();
-  const totalBarrettes = articles.reduce((s, a) => s + (colisageDe.get(a.id)?.barrettes || 0), 0);
+  const totalBarrettes = Math.round(articles.reduce((s, a) => s + (colisageDe.get(a.id)?.barrettes || 0), 0) * 100) / 100;
 
   // ── Sur quoi se calcule la part de chaque référence ──────────────────────
   // Le carton d'abord : c'est la seule mesure qui parle à un magasinier, parce que c'est ce qui
@@ -329,7 +329,9 @@ export async function exportArrivalPackingPDF(params: ArrivalPackingParams): Pro
 
   /** Le compte d'un colis pour une ligne de ventilation, ou un tiret. */
   const compteDuColis = (c: Colisage | null, cle: string): string => {
-    if (cle === 'barrette') return '—';   // une barrette se monte par référence, pas par couleur
+    // Les barrettes d'une couleur comptent autant que celles d'une référence, et souvent moins
+    // d'une : « 0,25 » dit la place au sol de ce coloris. Arrondi à l'entier, il disparaîtrait.
+    if (cle === 'barrette') return c?.barrettes ? nf(c.barrettes.total) : '—';
     const trouve = c?.comptages.find(x => x.colis.cle === cle);
     if (!trouve) return '—';
     return trouve.reste > 0 ? `${nf(trouve.entiers, 0)}+1` : nf(trouve.entiers, 0);
@@ -437,7 +439,7 @@ export async function exportArrivalPackingPDF(params: ArrivalPackingParams): Pro
         l.cartons > 0
           ? pdfText(`${nf(l.cartons, 0)}${l.incomplets > 0 ? ` (+${l.incomplets} réf.)` : ''}`)
           : (l.incomplets > 0 ? 'à préciser' : '—'),
-        l.barrettes > 0 ? nf(l.barrettes, 0) : '—',
+        l.barrettes > 0 ? nf(l.barrettes) : '—',
         baseFiable ? `${(l.p * 100).toFixed(1).replace('.', ',')} %` : '—',
         { content: '', styles: { cellPadding: 0 } },
       ]),
@@ -445,7 +447,7 @@ export async function exportArrivalPackingPDF(params: ArrivalPackingParams): Pro
         'TOTAL', String(articles.length),
         pdfText(Object.entries(totalsByUnit).map(([u, t]) => `${nf(t.qty)} ${u}`).join(' + ')),
         totalCartons > 0 ? nf(totalCartons, 0) : '—',
-        totalBarrettes > 0 ? nf(totalBarrettes, 0) : '—',
+        totalBarrettes > 0 ? nf(totalBarrettes) : '—',
         baseFiable ? '100 %' : '—', '',
       ]],
       theme: 'grid',
@@ -608,7 +610,7 @@ export async function exportArrivalPackingPDF(params: ArrivalPackingParams): Pro
        * qu'on pointe : le même que sur la feuille de contrôle.
        */
       const celluleColis = (ca: ColisageArticle, cle: string): string => {
-        if (cle === 'barrette') return ca.barrettes ? nf(ca.barrettes, 0) : '—';
+        if (cle === 'barrette') return ca.barrettes ? nf(ca.barrettes) : '—';
         const trouve = ca.comptages.find(x => x.colis.cle === cle);
         if (!trouve) return '—';
         return nf(trouve.aCompter, 0);

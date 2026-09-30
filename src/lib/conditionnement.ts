@@ -392,6 +392,12 @@ export interface ComptageColis {
 
 export interface Barrettes {
   niveau: TypeDeColis;
+  /**
+   * Le compte réel, virgule comprise : 14,5 barrettes, ou 0,25 pour une couleur qui n'en remplit
+   * qu'un quart. C'est ce chiffre-là qui dit la place au sol, et il vaut souvent moins de 1 —
+   * arrondi à l'entier, une couleur rare n'en aurait aucune et disparaîtrait du document.
+   */
+  total: number;
   /** Les barrettes complètes. */
   entieres: number;
   /** Les colis qui restent, en dessous d'une barrette pleine. */
@@ -474,6 +480,7 @@ export function colisage(quantite: number, echelle: Echelle): Colisage {
       const colisEntiers = compte.aCompter;
       barrettes = {
         niveau: compte.colis,
+        total: Math.round((colisEntiers / emp.parBarrette) * 100) / 100,
         entieres: Math.floor(colisEntiers / emp.parBarrette),
         resteColis: colisEntiers % emp.parBarrette,
         parBarrette: emp.parBarrette,
@@ -555,7 +562,8 @@ export function colisageArticle(
   const carton = colisEnGros ? comptages.find(c => c.colis.cle === colisEnGros.cle) : undefined;
   const avecBarrettes = source.filter(c => c.barrettes);
   const barrettes = avecBarrettes.length === source.length && source.length > 0
-    ? avecBarrettes.reduce((s, c) => s + (c.barrettes?.entieres || 0), 0) : null;
+    ? Math.round(avecBarrettes.reduce((s, c) => s + (c.barrettes?.total || 0), 0) * 100) / 100
+    : null;
 
   return {
     global, parQualite, comptages, colisEnGros,
@@ -625,7 +633,8 @@ export function barrettesTexte(b: Barrettes): string {
     ? ` + ${nf(b.resteColis, 0)} ${b.resteColis > 1 ? b.niveau.pluriel : b.niveau.nom}`
     : '';
   if (b.entieres === 0) {
-    return `pas de barrette pleine (${nf(b.parBarrette, 0)} ${b.niveau.pluriel})${reste}`;
+    // Moins d'une barrette reste une information : c'est la place que la couleur prend au sol.
+    return `${nf(b.total)} barrette (${nf(b.parBarrette, 0)} ${b.niveau.pluriel})${reste}`;
   }
   return `${nf(b.entieres, 0)} barrette${b.entieres > 1 ? 's' : ''}${reste}`;
 }

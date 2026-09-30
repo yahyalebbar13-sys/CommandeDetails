@@ -186,6 +186,36 @@ console.log('\n── La barrette change selon le produit ET l’emballage ─�
   eq('une règle à moitié saisie ne produit pas de barrette', c.barrettes, null);
 }
 
+console.log('\n── Une barrette peut valoir moins de un ──');
+{
+  // Un coloris rare ne remplit pas une barrette. Arrondi à l'entier il n'en aurait aucune et
+  // disparaîtrait du document — or il occupe bien une place au sol.
+  const c = calc({
+    quantity: 2400, unitOfMeasure: 'pcs', pcsPerBag: 20, bagsPerCarton: 10,
+    stackPerRow: 4, stackRows: 12,
+  }, 'zipper');
+  eq('12 cartons pour 48 par barrette', c.cartons?.aCompter, 12);
+  eq('un quart de barrette', c.barrettes?.total, 0.25);
+  eq('aucune barrette pleine', c.barrettes?.entieres, 0);
+  check('et le texte le dit sans mentir', barrettesTexte(c.barrettes!).startsWith('0,25 barrette'),
+    barrettesTexte(c.barrettes!));
+}
+{
+  const c = calc({
+    quantity: 48000, unitOfMeasure: 'pcs', pcsPerBag: 20, bagsPerCarton: 10,
+    stackPerRow: 4, stackRows: 12,
+  }, 'zipper');
+  eq('240 cartons font 5 barrettes tout rond', c.barrettes?.total, 5);
+}
+{
+  const c = calc({
+    quantity: 50400, unitOfMeasure: 'pcs', pcsPerBag: 20, bagsPerCarton: 10,
+    stackPerRow: 4, stackRows: 12,
+  }, 'zipper');
+  eq('252 cartons font 5,25 barrettes', c.barrettes?.total, 5.25);
+  eq('dont 5 pleines', c.barrettes?.entieres, 5);
+}
+
 console.log('\n── Les saisies imparfaites ──');
 eq('« 20 » vaut 20', nombreSaisi('20'), 20);
 eq('« 20 pcs » vaut 20', nombreSaisi('20 pcs'), 20);
