@@ -10,6 +10,7 @@ import {
   TrendingUp, TrendingDown, DollarSign, Calculator, Lock, ShieldCheck
 } from 'lucide-react';
 import { exportDPPDF } from '@/lib/pdf-export';
+import { regroupeParPole } from '@/lib/regroupement-dp';
 import { useFirebase } from '@/firebase';
 import { doc, getDoc, setDoc, collection, onSnapshot } from 'firebase/firestore';
 
@@ -86,6 +87,9 @@ export default function DPView({
     setSelectedFactureId(facturesAffichees[0]?.id ?? null);
   }, [facturesAffichees, selectedFactureId, dossierDemande, mode, confirmees]);
   const [puMap, setPuMap] = useState<Record<string, string>>({});
+  // PU tels qu'enregistrés : décident du découpage des lignes (regroupement-dp).
+  // Pas les PU en cours de saisie, pour qu'une ligne ne change pas sous les doigts.
+  const [puMapEnregistre, setPuMapEnregistre] = useState<Record<string, string>>({});
   // Nom imprimé sur la déclaration, par catégorie. Propre à la DP : ne touche
   // jamais la catégorie, les produits ni les arrivages.
   const [nomMap, setNomMap] = useState<Record<string, string>>({});
@@ -114,6 +118,7 @@ export default function DPView({
     setSavedCoutRevient(null);
     setSavedCoutVente(null);
     setPuMap({});
+    setPuMapEnregistre({});
     setNomMap({});
     setFreightInput('');
     setLockedDP(null);
@@ -121,7 +126,7 @@ export default function DPView({
       .then(snap => {
         if (snap.exists()) {
           const data = snap.data();
-          if (data.puMap)               setPuMap(data.puMap);
+          if (data.puMap)               { setPuMap(data.puMap); setPuMapEnregistre(data.puMap); }
           if (data.nomMap)              setNomMap(data.nomMap);
           if (data.coutRevientTtcTotal) setSavedCoutRevient(Number(data.coutRevientTtcTotal));
           if (data.coutVenteTtcTotal)   setSavedCoutVente(Number(data.coutVenteTtcTotal));
@@ -132,13 +137,6 @@ export default function DPView({
       .catch(err => console.error('DP load error:', err))
       .finally(() => setLoading(false));
   }, [selectedFactureId, firestore, user]);
-
-  // ── Pole grouping: only Zipper and Slider are grouped by generalCategoryId (pole).
-  // All other categories stay as individual sub-categories (PS).
-  const isPoleCategory = (catName: string, genCatName: string): boolean => {
-    const upper = (catName + ' ' + genCatName).toUpperCase();
-    return upper.includes('ZIPPER') || upper.includes('SLIDER');
-  };
 
   const categoryLines = useMemo(() => {
     if (!selectedFactureId) return [];
@@ -152,8 +150,8 @@ export default function DPView({
       const subCat = subCategories.find((c: any) => c.name === rawCat);
       const genCatId: string | null = subCat?.generalCategoryId || a.generalCategoryId || null;
       const genCatName = genCatId ? (generalCategories.find((g: any) => g.id === genCatId)?.name || '') : '';
-      // Only group by pole if the category is Zipper or Slider
-      const shouldGroup = !!genCatId && isPoleCategory(rawCat, genCatName);
+      // Zipper, Slider, Label, Buckle : une ligne par pôle, au kilo (regroupement-dp)
+      const shouldGroup = !!genCatId && regroupeParPole(rawCat, genCatName, puMapEnregistre);
       const key = shouldGroup ? `GEN:${genCatId}` : rawCat;
       const isGrouped = shouldGroup;
       if (!map[key]) map[key] = { qty: 0, nw: 0, fob: 0, unit: isGrouped ? 'KG' : (a.unitOfMeasure || 'U'), firstCatName: rawCat, genCatId: isGrouped ? genCatId : null, isGrouped };
@@ -179,7 +177,7 @@ export default function DPView({
           : null;
         return { categoryId: displayId, totalQty: effectiveQty, totalNW: nw, fobValue: fob, unit, customsValuePerKg, suggestedPU, isPole: isGrouped };
       });
-  }, [articles, selectedFactureId, subCategories, generalCategories]);
+  }, [articles, selectedFactureId, subCategories, generalCategories, puMapEnregistre]);
 
   // ── Save to Firebase ──
   const handleSave = useCallback(async () => {

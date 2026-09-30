@@ -11,6 +11,7 @@ import { exportCostSalePDF, exportCoutVenteSimplePDF } from '@/lib/pdf-export';
 import { useFirebase } from '@/firebase';
 import { doc, getDoc, getDocs, collection, setDoc } from 'firebase/firestore';
 import { ArticleOverride } from './article-override-modal';
+import { regroupeParPole } from '@/lib/regroupement-dp';
 
 // The 4 checklist IDs that must all be true to unlock a dossier in Cost Sale
 const REQUIRED_CHECKS = ['douane_ok', 'facture_mad_ok', 'nw_cbm_ok', 'dp_ok'];
@@ -106,12 +107,6 @@ export default function CostSaleView({ articles, factures, subCategories, genera
       .finally(() => setLoading(false));
   }, [selectedFactureId, firestore, user]);
 
-  // ── Only Zipper and Slider are grouped by generalCategoryId (pole).
-  // All other categories stay as individual sub-categories (PS).
-  const isPoleCategory = (catName: string, genCatName: string): boolean => {
-    const upper = (catName + ' ' + genCatName).toUpperCase();
-    return upper.includes('ZIPPER') || upper.includes('SLIDER');
-  };
 
   // Build per-category lines. Also collect the first override found for each category key,
   // so customs overrides from cost-analysis propagate into cost-sale.
@@ -125,8 +120,8 @@ export default function CostSaleView({ articles, factures, subCategories, genera
       const subCat = subCategories.find((c: any) => c.name === rawCat);
       const genCatId: string | null = subCat?.generalCategoryId || a.generalCategoryId || null;
       const genCatName = genCatId ? (generalCategories.find((g: any) => g.id === genCatId)?.name || '') : '';
-      // Only group by pole if the category is Zipper or Slider
-      const shouldGroup = !!genCatId && isPoleCategory(rawCat, genCatName);
+      // Même découpage que la déclaration provisoire (regroupement-dp)
+      const shouldGroup = !!genCatId && regroupeParPole(rawCat, genCatName, puMap);
       const key = shouldGroup ? `GEN:${genCatId}` : rawCat;
       const isGrouped = shouldGroup;
       // Capture first override for this category key
@@ -157,7 +152,7 @@ export default function CostSaleView({ articles, factures, subCategories, genera
         const uniqueColor = colors.size === 1 ? [...colors][0] : null;
         return { categoryId: displayId, totalQty: effectiveQty, totalNW: nw, totalCBM: cbm, unit, cat, isPole: isGrouped, ov: firstOverride, uniqueSize, uniqueColor };
       });
-  }, [articles, selectedFactureId, subCategories, generalCategories, overrides]);
+  }, [articles, selectedFactureId, subCategories, generalCategories, overrides, puMap]);
 
   const analysis = useMemo(() => {
     if (!selectedFacture || categoryLines.length === 0) return null;
