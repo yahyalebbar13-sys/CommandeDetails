@@ -6,14 +6,14 @@ import { getFirestore, doc, setDoc } from 'firebase/firestore';
 import { firebaseConfig } from '@/firebase/config';
 import { SHOP_PRODUCTS_DATA, SHOP_CATEGORIES } from '@/lib/shop-products-data';
 import type { ShopProduct, ShopCategory } from '@/lib/shop-types';
-import { getDiscountPercent, hasActivePromo } from '@/lib/shop-utils';
+import { getProductPromo } from '@/lib/shop-utils';
 import shopStaticData from '@/lib/shop-firebase-dump.json';
 
 // Produits affichés avec un prix barré, plus forte remise d'abord
-function selectPromoProducts<T extends Pick<ShopProduct, 'price' | 'comparePrice'>>(products: T[], limit: number): T[] {
+function selectPromoProducts<T extends Pick<ShopProduct, 'price' | 'comparePrice' | 'variants'>>(products: T[], limit: number): T[] {
   return products
-    .filter(p => hasActivePromo(p.comparePrice, p.price))
-    .sort((a, b) => getDiscountPercent(b.price, b.comparePrice!) - getDiscountPercent(a.price, a.comparePrice!))
+    .filter(p => getProductPromo(p).active)
+    .sort((a, b) => getProductPromo(b).percent - getProductPromo(a).percent)
     .slice(0, limit);
 }
 

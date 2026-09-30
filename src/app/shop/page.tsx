@@ -21,9 +21,8 @@ import {
 } from 'lucide-react';
 import {
   formatPrice,
-  getDiscountPercent,
   getProductDisplayPrice,
-  hasActivePromo,
+  getProductPromo,
 } from '@/lib/shop-utils';
 import { DELAI_ZONE, FRAIS_ZONE } from '@/lib/livraison-boutique';
 import type { ShopProduct } from '@/lib/shop-types';
@@ -41,9 +40,7 @@ const PETIT_PRIX_MAX = 100;
 const MORE_PRODUCTS_STEP = 20;
 
 function discountOf(product: ShopProduct) {
-  return hasActivePromo(product.comparePrice, product.price)
-    ? getDiscountPercent(product.price, product.comparePrice as number)
-    : 0;
+  return getProductPromo(product).percent;
 }
 
 // ─── Section header ───────────────────────────────────────────────────────────

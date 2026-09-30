@@ -74,7 +74,7 @@ function volumineuxDe(item: CartItem): Pick<CartItem, 'volumineux'> | Record<str
 
 type CartAction =
   | { type: 'ADD_ITEM'; payload: CartItem }
-  | { type: 'ADD_ITEMS'; payload: CartItem[] }
+  | { type: 'ADD_ITEMS'; payload: CartItem[]; ouvrir?: boolean }
   | { type: 'REMOVE_ITEM'; payload: { productId: string; variantId?: string } }
   | { type: 'UPDATE_QTY'; payload: { productId: string; variantId?: string; quantity: number } }
   | { type: 'CLEAR_CART' }
@@ -110,7 +110,8 @@ function cartReducer(state: CartState, action: CartAction): CartState {
           items.push(newItem);
         }
       }
-      return { ...state, items, isOpen: true };
+      // La fiche produit ajoute sans ouvrir le tiroir, pour enchaîner plusieurs couleurs
+      return { ...state, items, isOpen: action.ouvrir === false ? state.isOpen : true };
     }
     case 'REMOVE_ITEM': {
       const { productId, variantId } = action.payload;
@@ -168,7 +169,7 @@ interface CartStateValue {
 
 interface CartActionsValue {
   addItem: (item: CartItem) => void;
-  addItems: (items: CartItem[]) => void;
+  addItems: (items: CartItem[], options?: { ouvrir?: boolean }) => void;
   removeItem: (productId: string, variantId?: string) => void;
   updateQty: (productId: string, quantity: number, variantId?: string) => void;
   clearCart: () => void;
@@ -208,7 +209,7 @@ export function ShopCartProvider({ children }: { children: React.ReactNode }) {
 
   const actions = useMemo(() => ({
     addItem: (item: CartItem) => dispatch({ type: 'ADD_ITEM', payload: item }),
-    addItems: (items: CartItem[]) => dispatch({ type: 'ADD_ITEMS', payload: items }),
+    addItems: (items: CartItem[], options?: { ouvrir?: boolean }) => dispatch({ type: 'ADD_ITEMS', payload: items, ouvrir: options?.ouvrir }),
     removeItem: (productId: string, variantId?: string) => dispatch({ type: 'REMOVE_ITEM', payload: { productId, variantId } }),
     updateQty: (productId: string, quantity: number, variantId?: string) => dispatch({ type: 'UPDATE_QTY', payload: { productId, variantId, quantity } }),
     clearCart: () => dispatch({ type: 'CLEAR_CART' }),

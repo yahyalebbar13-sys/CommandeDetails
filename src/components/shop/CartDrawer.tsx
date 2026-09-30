@@ -21,6 +21,7 @@ import {
   formatPriceRange,
 } from "@/lib/shop-utils";
 import type { CartItem } from "@/lib/shop-types";
+import { libelleLignePanier } from "@/lib/shop-variantes";
 import { FRAIS_ZONE, commandeVolumineuse } from "@/lib/livraison-boutique";
 import InfoLivraison from "@/components/shop/InfoLivraison";
 
@@ -44,7 +45,8 @@ function CartProductGroup({
   const first = items[0];
   const nameToDisplay = language === 'ar' && first.productNameAr ? first.productNameAr : first.productName;
   const totalQty = items.reduce((s, i) => s + i.quantity, 0);
-  const hasMultipleVariants = items.length > 1 || (items.length === 1 && first.variant?.color);
+  // Une ligne seule garde sa pastille dès qu'elle a un modèle, une taille ou une couleur
+  const hasMultipleVariants = items.length > 1 || Boolean(first.variant && (first.variant.model || first.variant.size || first.variant.color));
   const { total, minUnit, maxUnit } = summarizeCartProduct(items, totalProductQty);
 
   const handleRemoveAll = () => {
@@ -106,9 +108,7 @@ function CartProductGroup({
       {hasMultipleVariants ? (
         <div className="flex flex-wrap gap-1.5 mt-1 ml-0">
           {items.map((item) => {
-            const colorLabel = language === 'ar' && item.variant?.colorAr ? item.variant.colorAr : item.variant?.color;
-            const sizeLabel = language === 'ar' && item.variant?.sizeAr ? item.variant.sizeAr : item.variant?.size;
-            const label = [colorLabel, sizeLabel].filter(Boolean).join(' · ') || 'Standard';
+            const label = libelleLignePanier(item.variant, language) || (language === 'ar' ? 'قياسي' : 'Standard');
             const vKey = item.variant?.variantId || [item.variant?.model, item.variant?.size, item.variant?.color].filter(Boolean).join('__');
 
             return (
@@ -124,7 +124,7 @@ function CartProductGroup({
                   />
                 )}
                 {/* Label */}
-                <span className="text-gray-600 font-medium truncate max-w-[70px]">{label}</span>
+                <span className="text-gray-600 font-medium truncate max-w-[11rem]" title={label}>{label}</span>
 
                 {/* Qty stepper */}
                 <div className="flex items-center ml-0.5 bg-white border border-gray-200 rounded-full overflow-hidden">
@@ -138,7 +138,7 @@ function CartProductGroup({
                   <span className="w-5 text-center text-[11px] font-bold text-gray-800 tabular-nums">{item.quantity}</span>
                   <button
                     onClick={() => onUpdateQty(item.productId, item.quantity + 1, vKey || undefined)}
-                    disabled={item.quantity >= item.maxStock}
+                    disabled={item.maxStock > 0 && item.quantity >= item.maxStock}
                     className="w-5 h-5 flex items-center justify-center text-gray-400 hover:text-gray-700 disabled:opacity-30 touch-manipulation"
                   >
                     <Plus className="w-2.5 h-2.5" />
@@ -179,7 +179,7 @@ function CartProductGroup({
                 const vKey = first.variant?.variantId || [first.variant?.model, first.variant?.size, first.variant?.color].filter(Boolean).join('__');
                 onUpdateQty(first.productId, first.quantity + 1, vKey || undefined);
               }}
-              disabled={first.quantity >= first.maxStock}
+              disabled={first.maxStock > 0 && first.quantity >= first.maxStock}
               className="w-7 h-7 flex items-center justify-center text-gray-500 hover:text-gray-800 hover:bg-gray-100 transition-colors disabled:opacity-30 disabled:cursor-not-allowed touch-manipulation"
               aria-label="Augmenter"
             >

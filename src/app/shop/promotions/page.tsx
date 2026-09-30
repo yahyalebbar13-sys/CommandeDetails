@@ -1,30 +1,35 @@
 "use client";
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import Link from 'next/link';
 import { Tag, Clock, Zap, ShoppingBag } from 'lucide-react';
 import { useShopProducts } from '@/contexts/shop-products-context';
 import {
   formatPrice,
   formatProductPrice,
-  getDiscountPercent,
-  hasActivePromo,
+  getProductPromo,
 } from '@/lib/shop-utils';
 import { useShopCartActions } from '@/contexts/shop-cart-context';
 import { useLanguage } from '@/contexts/language-context';
 import type { ShopProduct } from '@/lib/shop-types';
+import { ajoutRapide } from '@/lib/shop-variantes';
 import { DELAI_ZONE, FRAIS_ZONE } from '@/lib/livraison-boutique';
 
 const PromoCard = React.memo(function PromoCard({ product }: { product: ShopProduct }) {
   const { language } = useLanguage();
   const { addItem } = useShopCartActions();
   const [added, setAdded] = useState(false);
-  const isPromo = hasActivePromo(product.comparePrice, product.price);
-  const discount = isPromo ? getDiscountPercent(product.price, product.comparePrice as number) : 0;
+  // Remise calculée sur le prix affiché (celui des variantes), comme sur la fiche
+  const { active: isPromo, percent: discount, saving } = getProductPromo(product);
+
+  // Un produit à choisir (taille, couleur…) ne s'ajoute plus sans sa variante : le bouton mène à la fiche
+  const ajout = useMemo(() => ajoutRapide(product), [product]);
+  const aChoisir = ajout.mode === 'choisir';
 
   const handleAdd = (e: React.MouseEvent) => {
+    if (ajout.mode !== 'direct') return;
     e.preventDefault();
     e.stopPropagation();
-    addItem({ productId: product.id, productName: product.name, productImage: product.images?.[0] || '', price: product.price, quantity: product.minOrderQty || 1, maxStock: product.stockQty ?? 999, volumineux: !!product.volumineux });
+    addItem(ajout.item);
     setAdded(true);
     setTimeout(() => setAdded(false), 2000);
   };
@@ -57,14 +62,14 @@ const PromoCard = React.memo(function PromoCard({ product }: { product: ShopProd
               added ? 'bg-[#10B981] text-white' : 'bg-white text-gray-900 active:bg-gray-100'
             }`}
           >
-            {added ? <span className="text-[10px] font-bold">✓</span> : <ShoppingBag className="w-4 h-4" />}
+            {added ? <span className="text-[10px] font-bold">✓</span> : aChoisir ? <span className="text-[11px] font-bold text-[#C8102E]">{language === 'ar' ? 'اختر' : 'Choisir'}</span> : <ShoppingBag className="w-4 h-4" />}
           </button>
         )}
         {/* Desktop Quick add overlay */}
         <div className="hidden lg:block absolute inset-x-0 bottom-0 p-3 opacity-0 group-hover:opacity-100 transition-opacity z-10 pointer-events-none">
           <button onClick={handleAdd}
             className={`pointer-events-auto w-full py-2 rounded-xl text-sm font-bold transition-all cursor-pointer ${added ? 'bg-[#10B981] text-white' : 'bg-[#0F0F0F] text-white hover:bg-[#C8102E]'}`}>
-            {added ? '✓ Ajouté !' : '+ Ajouter au panier'}
+            {added ? '✓ Ajouté !' : aChoisir ? (language === 'ar' ? 'اختر الخيار' : 'Choisir une option') : '+ Ajouter au panier'}
           </button>
         </div>
       </div>
@@ -76,7 +81,7 @@ const PromoCard = React.memo(function PromoCard({ product }: { product: ShopProd
           {isPromo && (
             <div className="flex flex-col">
               <span className="text-xs text-[#6B6B6B] line-through">{formatPrice(product.comparePrice as number)}</span>
-              <span className="text-xs text-[#10B981] font-bold">Économisez {formatPrice((product.comparePrice as number) - product.price)}</span>
+              <span className="text-xs text-[#10B981] font-bold">Économisez {formatPrice(saving)}</span>
             </div>
           )}
         </div>
@@ -92,7 +97,7 @@ export default function PromotionsPage() {
   const newProducts = getNewProducts(100);
   const featuredProducts = getFeaturedProducts(100);
   const maxDiscount = promoProducts.reduce(
-    (max, p) => (hasActivePromo(p.comparePrice, p.price) ? Math.max(max, getDiscountPercent(p.price, p.comparePrice as number)) : max),
+    (max, p) => Math.max(max, getProductPromo(p).percent),
     0
   );
 

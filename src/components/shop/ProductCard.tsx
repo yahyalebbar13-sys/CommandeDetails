@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { ShoppingCart, Star, StarHalf, AlertCircle, CheckCircle2, Flame } from 'lucide-react';
@@ -9,10 +9,10 @@ import { useLanguage } from '@/contexts/language-context';
 import {
   formatPrice,
   formatProductPrice,
-  getDiscountPercent,
-  hasActivePromo,
+  getProductPromo,
 } from '@/lib/shop-utils';
 import type { ShopProduct } from '@/lib/shop-types';
+import { ajoutRapide } from '@/lib/shop-variantes';
 
 // Tiny base64 blur placeholder (1×1 px gris clair) — évite le layout shift
 const BLUR_DATA_URL =
@@ -60,31 +60,26 @@ export default React.memo(function ProductCard({ product, showAddToCart = true }
   const [imgLoaded, setImgLoaded] = useState(false);
 
   const primaryImage = product.images?.[0] || `https://picsum.photos/seed/${product.id}/600/600`;
-  const isPromo = hasActivePromo(product.comparePrice, product.price);
-  const discountPercent = isPromo ? getDiscountPercent(product.price, product.comparePrice as number) : 0;
+  // Remise calculée sur le prix affiché (celui des variantes), comme sur la fiche
+  const { active: isPromo, percent: discountPercent } = getProductPromo(product);
   const isLowStock = product.inStock && product.stockQty > 0 && product.stockQty <= LOW_STOCK_THRESHOLD;
   const hasWholesalePrice = Boolean(product.wholesalePrice && product.wholesalePrice > 0 && product.wholesalePrice < product.price && product.minOrderQty && product.minOrderQty > 1);
+
+  // Un produit à choisir (taille, couleur…) ne s'ajoute plus sans sa variante : la carte mène à la fiche
+  const ajout = useMemo(() => ajoutRapide(product), [product]);
 
   const handleAddToCart = useCallback(
     (e: React.MouseEvent) => {
       e.preventDefault();
       e.stopPropagation();
-      if (!product.inStock) return;
+      if (!product.inStock || ajout.mode !== 'direct') return;
 
-      addItem({
-        productId: product.id,
-        productName: product.name,
-        productImage: primaryImage,
-        price: product.price,
-        quantity: product.minOrderQty ?? 1,
-        maxStock: product.stockQty,
-        volumineux: !!product.volumineux,
-      });
+      addItem({ ...ajout.item, productImage: ajout.item.productImage || primaryImage });
 
       setAdded(true);
       setTimeout(() => setAdded(false), 2000);
     },
-    [addItem, product, primaryImage]
+    [addItem, ajout, product.inStock, primaryImage]
   );
 
   const productUrl = `/shop/produit/${product.id}`;
@@ -149,7 +144,7 @@ export default React.memo(function ProductCard({ product, showAddToCart = true }
         </h3>
 
         {/* Price row + cart button */}
-        <div className="flex items-end justify-between mt-1">
+        <div className="flex flex-wrap items-end justify-between gap-x-2 gap-y-1 mt-1">
           <div className="flex flex-col">
             <div className="flex flex-wrap items-baseline gap-x-1.5">
               <span className="text-[15px] font-extrabold text-[#C8102E] leading-tight whitespace-nowrap">
@@ -178,13 +173,23 @@ export default React.memo(function ProductCard({ product, showAddToCart = true }
             )}
           </div>
 
+          {/* Produit à choisir : le toucher suit le lien de la carte vers la fiche */}
+          {showAddToCart && product.inStock && ajout.mode === 'choisir' && (
+            <span
+              aria-hidden="true"
+              className="flex-shrink-0 h-10 px-2.5 rounded-lg border-2 border-[#C8102E] bg-white text-[#C8102E] text-xs font-bold grid place-items-center"
+            >
+              {language === 'ar' ? 'اختر' : 'Choisir'}
+            </span>
+          )}
+
           {/* Cart button — Temu style: small bordered square */}
-          {showAddToCart && product.inStock && (
+          {showAddToCart && product.inStock && ajout.mode === 'direct' && (
             <button
               onClick={handleAddToCart}
               disabled={added}
-              aria-label="Ajouter au panier"
-              className={`flex-shrink-0 w-8 h-8 rounded-lg border flex items-center justify-center transition-all duration-200 active:scale-90 cursor-pointer ${
+              aria-label={language === 'ar' ? 'أضف للسلة' : 'Ajouter au panier'}
+              className={`flex-shrink-0 w-10 h-10 rounded-lg border flex items-center justify-center transition-all duration-200 active:scale-90 cursor-pointer ${
                 added
                   ? 'bg-emerald-500 border-emerald-500 text-white'
                   : 'bg-white border-gray-200 text-gray-500 hover:border-[#C8102E] hover:text-[#C8102E]'

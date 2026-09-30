@@ -2,6 +2,7 @@ import { MOROCCAN_CITIES } from './shop-types';
 import type { ShopProduct } from './shop-types';
 import { delaiColis, estCasablanca, fraisColis } from './livraison-boutique';
 import { translations, type Language } from './translations';
+import { prixProduitAffiche } from './shop-variantes';
 
 // Format price in MAD
 export function formatPrice(amount: number): string {
@@ -25,13 +26,21 @@ export function getVariantPrice(basePrice: number, variant?: { price?: number } 
   return typeof variant?.price === 'number' && variant.price > 0 ? variant.price : basePrice;
 }
 
-// Prix affiché sur les cartes produit. Un produit sans prix de base mais avec des
-// variantes chiffrées affiche la moins chère (« Dès X ») plutôt que « Sur demande ».
+// Prix affiché sur les cartes produit : celui qui sera facturé. Quand les variantes
+// achetables n'ont pas toutes le même prix, la moins chère avec « À partir de ».
 export function getProductDisplayPrice(product: Pick<ShopProduct, 'price' | 'variants'>): { amount: number; isFrom: boolean } {
-  if (typeof product.price === 'number' && product.price > 0) return { amount: product.price, isFrom: false };
-  const variantPrices = (product.variants || []).map(v => getVariantPrice(0, v)).filter(p => p > 0);
-  if (variantPrices.length === 0) return { amount: 0, isFrom: false };
-  return { amount: Math.min(...variantPrices), isFrom: new Set(variantPrices).size > 1 };
+  const { montant, aPartirDe } = prixProduitAffiche(product);
+  return { amount: montant, isFrom: aPartirDe };
+}
+
+// Promotion d'une carte produit : calculée sur le prix affiché (celui qui sera facturé),
+// et seulement quand ce prix est exact (pas « À partir de »), comme sur la fiche produit.
+export function getProductPromo(product: Pick<ShopProduct, 'price' | 'variants' | 'comparePrice'>): { active: boolean; percent: number; saving: number } {
+  const { amount, isFrom } = getProductDisplayPrice(product);
+  const active = !isFrom && hasActivePromo(product.comparePrice, amount);
+  if (!active) return { active: false, percent: 0, saving: 0 };
+  const compare = product.comparePrice as number;
+  return { active: true, percent: getDiscountPercent(amount, compare), saving: compare - amount };
 }
 
 export function formatProductPrice(product: Pick<ShopProduct, 'price' | 'variants'>, language: Language): string {
