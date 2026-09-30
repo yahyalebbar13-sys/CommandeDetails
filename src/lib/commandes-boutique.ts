@@ -335,9 +335,18 @@ export const MENTION_LIGNE_ROULEAU = 'Rouleau · CHRIFA';
 /**
  * Livraison offerte avant le 29/09/2026 (100 DH à Casablanca, 500 DH ailleurs) : une
  * commande de cette époque (sans `reception`) à 0 DH au-dessus de ces seuils était
- * vraiment offerte. On ne lui applique pas les nouveaux seuils (300 / 650 DH).
+ * vraiment offerte. On ne lui applique pas les seuils suivants.
  */
 export const ANCIENS_SEUILS_OFFERTE = { casablanca: 100, autres: 500 } as const;
+
+/** Du 29/09/2026 à la fin de la livraison offerte : 300 DH à Casablanca, 650 DH ailleurs. */
+export const SEUILS_OFFERTE_SEPTEMBRE = { casablanca: 300, autres: 650 } as const;
+
+/**
+ * Fin de toute livraison offerte : le 30/09/2026 à midi (heure du Maroc). Une commande
+ * passée après paie toujours son colis ; une commande d'avant garde la règle de sa date.
+ */
+export const FIN_LIVRAISON_OFFERTE = Date.UTC(2026, 8, 30, 11, 0);
 
 /** Commande passée avant les modes de réception (champ `reception` absent). */
 export function commandeAncienne(o: Pick<ShopOrder, 'reception'>): boolean {
@@ -345,20 +354,29 @@ export function commandeAncienne(o: Pick<ShopOrder, 'reception'>): boolean {
 }
 
 /**
- * Frais de colis que la commande devrait porter : 0 si la livraison est offerte,
- * sinon le palier de la ville ; null quand on ne compare pas (ancienne commande
- * payée selon l'ancienne grille, 25 à 50 DH). Le seuil se calcule sur la somme des
- * lignes, jamais sur le sous-total (écrit par le navigateur du client).
+ * Frais de colis que la commande devrait porter : le palier de la ville ; 0 seulement pour
+ * une commande d'avant la fin de la livraison offerte qui atteignait le seuil de sa date ;
+ * null quand on ne compare pas (ancienne commande payée selon l'ancienne grille, 25 à
+ * 50 DH). Le seuil se calcule sur la somme des lignes, jamais sur le sous-total (écrit par
+ * le navigateur du client). Sans date (commande tout juste écrite) : règle d'aujourd'hui.
  */
-export function fraisColisAttendus(o: Pick<ShopOrder, 'reception' | 'items' | 'shippingAddress' | 'deliveryFee'>): number | null {
+export function fraisColisAttendus(
+  o: Pick<ShopOrder, 'reception' | 'items' | 'shippingAddress' | 'deliveryFee'> & { createdAt?: unknown },
+): number | null {
   const ville = String(o?.shippingAddress?.city ?? '');
   const lignes = totalDesLignes(o);
+  const casa = estCasablanca(ville);
   if (commandeAncienne(o)) {
     if ((Number(o.deliveryFee) || 0) > 0) return null;
-    const seuil = estCasablanca(ville) ? ANCIENS_SEUILS_OFFERTE.casablanca : ANCIENS_SEUILS_OFFERTE.autres;
+    const seuil = casa ? ANCIENS_SEUILS_OFFERTE.casablanca : ANCIENS_SEUILS_OFFERTE.autres;
     return lignes >= seuil ? 0 : fraisColis(ville);
   }
-  return fraisLivraison({ mode: 'domicile', ville, sousTotal: lignes });
+  const date = dateDe(o?.createdAt)?.getTime();
+  if (date !== undefined && date < FIN_LIVRAISON_OFFERTE) {
+    const seuil = casa ? SEUILS_OFFERTE_SEPTEMBRE.casablanca : SEUILS_OFFERTE_SEPTEMBRE.autres;
+    if (lignes >= seuil) return 0;
+  }
+  return fraisLivraison({ mode: 'domicile', ville });
 }
 
 /**
@@ -638,12 +656,14 @@ const lieuDe = (o: Pick<ShopOrder, 'reception' | 'items'>, reglages?: ReglagesRe
 
 /**
  * Frais du colis tels qu'on les annonce : « 20 MAD », « offerte », ou « à confirmer » si 0 sans raison.
- * Une commande d'avant le 29/09/2026 garde l'ancienne livraison offerte (100 / 500 DH).
+ * « offerte » ne sort plus que pour une commande d'avant le 30/09/2026 qui atteignait le seuil de sa date.
  */
-export function fraisColisAnnonces(o: Pick<ShopOrder, 'reception' | 'items' | 'shippingAddress' | 'deliveryFee'>): string {
+export function fraisColisAnnonces(
+  o: Pick<ShopOrder, 'reception' | 'items' | 'shippingAddress' | 'deliveryFee'> & { createdAt?: unknown },
+): string {
   const frais = Number(o.deliveryFee) || 0;
   if (frais > 0) return formatPrice(frais);
-  // 0 DH : normal si la livraison est offerte ; sinon le prix se vérifie à l'appel (frais calculés par le navigateur).
+  // 0 DH : normal pour une ancienne commande offerte ; sinon le prix se vérifie à l'appel (frais calculés par le navigateur).
   return fraisColisAttendus(o) === 0 ? 'offerte' : 'à confirmer';
 }
 
@@ -859,10 +879,10 @@ export const GARDE_RETRAIT_JOURS_OUVRES = 7;
 
 /**
  * Prix de la camionnette LEBTEX pour cette commande, d'après les réglages : Casablanca ou
- * périphérie, 0 si elle est offerte (sous-total atteint), null hors zone ou camionnette arrêtée.
+ * périphérie (jamais offerte, décision du 30/09/2026), null hors zone ou camionnette arrêtée.
  */
 export function prixCamionnette(
-  o: Pick<ShopOrder, 'shippingAddress' | 'subtotal'>,
+  o: Pick<ShopOrder, 'shippingAddress'>,
   reglages: ReglagesReception = REGLAGES_RECEPTION_DEFAUT,
 ): number | null {
   const cam = reglages.camionnette;
@@ -870,7 +890,6 @@ export function prixCamionnette(
   const ville = String(o.shippingAddress?.city ?? '');
   const zone = estCasablanca(ville) ? 'casablanca' : estPeripherieCasablanca(ville) ? 'peripherie' : null;
   if (!zone) return null;
-  if (cam.offerteDes > 0 && (Number(o.subtotal) || 0) >= cam.offerteDes) return 0;
   return zone === 'casablanca' ? cam.prixCasablanca : cam.prixPeripherie;
 }
 

@@ -6,12 +6,11 @@ import {
 } from 'lucide-react';
 import { formatPrice } from '@/lib/shop-utils';
 import {
-  DELAI_ZONE, FRAIS_ZONE, GRANDES_VILLES, LIBELLE_ZONE, PERIPHERIE_CASABLANCA,
-  SEUIL_OFFERTE_AUTRES, SEUIL_OFFERTE_CASABLANCA, VILLES_ELOIGNEES,
+  DELAI_ZONE, FRAIS_ZONE, GRANDES_VILLES, LIBELLE_ZONE, PERIPHERIE_CASABLANCA, VILLES_ELOIGNEES,
 } from '@/lib/livraison-boutique';
 import { PLAFOND_ESPECES_COLIS } from '@/lib/commandes-boutique';
 
-// Page statique : tous les prix, seuils et délais viennent de livraison-boutique.ts,
+// Page statique : tous les prix et délais viennent de livraison-boutique.ts,
 // la même source que le panier et le formulaire de commande. Rien à recopier ici
 // quand la grille change. Le virement n'est proposé au formulaire que si le patron a
 // saisi son RIB : la page le dit (« si l'option est proposée »), sans le promettre.
@@ -19,12 +18,9 @@ import { PLAFOND_ESPECES_COLIS } from '@/lib/commandes-boutique';
 export const metadata: Metadata = {
   title: 'Livraison, retrait et paiement | LEBTEX',
   description:
-    `Colis livrés par Sendit partout au Maroc dès ${FRAIS_ZONE.casablanca} MAD, offerts dès ${SEUIL_OFFERTE_CASABLANCA} MAD à Casablanca. ` +
+    `Colis livrés par Sendit partout au Maroc : ${FRAIS_ZONE.casablanca} MAD à Casablanca en ${DELAI_ZONE.casablanca}, dès ${FRAIS_ZONE.standard} MAD ailleurs. ` +
     'Retrait gratuit à Casablanca. Rouleaux entiers : transport organisé par téléphone.',
 };
-
-const casa = formatPrice(SEUIL_OFFERTE_CASABLANCA);
-const ailleurs = formatPrice(SEUIL_OFFERTE_AUTRES);
 
 /** Les 3 façons de recevoir une commande. */
 const FACONS = [
@@ -34,7 +30,7 @@ const FACONS = [
     exemples: 'Fermetures, boutons, fils, élastiques, rubans, tissu coupé',
     comment: 'À domicile, en colis Sendit',
     prix: `${formatPrice(FRAIS_ZONE.casablanca)} à ${formatPrice(FRAIS_ZONE.eloignee)} selon la ville`,
-    prixNote: `Offerte dès ${casa} à Casablanca, dès ${ailleurs} ailleurs`,
+    prixNote: 'Un seul colis pour toute la commande, payé à la réception',
     delai: '24 h à 4 jours ouvrés',
   },
   {
@@ -63,19 +59,16 @@ const PALIERS = [
     zone: 'casablanca' as const,
     villes: 'Casablanca',
     note: `${formatPrice(FRAIS_ZONE.eloignee)} dans quelques zones éloignées de Casablanca, confirmé à l’appel`,
-    seuil: casa,
   },
   {
     zone: 'standard' as const,
     villes: [...PERIPHERIE_CASABLANCA, ...GRANDES_VILLES].join(', '),
     note: '',
-    seuil: ailleurs,
   },
   {
     zone: 'eloignee' as const,
     villes: `${VILLES_ELOIGNEES.join(', ')}, et toute ville qui n’est pas citée`,
     note: '',
-    seuil: ailleurs,
   },
 ];
 
@@ -107,8 +100,8 @@ export default function LivraisonPage() {
           </h1>
           <p className="text-gray-300 text-base sm:text-lg">Colis livrés par Sendit • Retrait gratuit à Casablanca • Paiement à la réception</p>
           <div className="mt-6 inline-flex flex-wrap items-center justify-center gap-x-2 gap-y-1 bg-[#D4A843]/20 border border-[#D4A843]/30 rounded-3xl sm:rounded-full px-5 py-2">
-            <span className="text-[#D4A843] font-bold">🎉 Livraison offerte dès {casa} à Casablanca</span>
-            <span className="text-[#E9C77A] text-sm">· dès {ailleurs} partout ailleurs (colis)</span>
+            <span className="text-[#D4A843] font-bold">🚚 {formatPrice(FRAIS_ZONE.casablanca)} à Casablanca, en {DELAI_ZONE.casablanca}</span>
+            <span className="text-[#E9C77A] text-sm">· dès {formatPrice(FRAIS_ZONE.standard)} partout ailleurs</span>
           </div>
         </div>
       </div>
@@ -192,7 +185,6 @@ export default function LivraisonPage() {
                   {formatPrice(FRAIS_ZONE[p.zone])}
                 </p>
                 <p className="text-sm font-semibold text-[#1A1A1A] mt-1">Délai : {DELAI_ZONE[p.zone]}</p>
-                <p className="text-xs font-semibold text-[#0F7A55] mt-1">Offerte dès {p.seuil} d’achat</p>
                 {p.note && <p className="text-xs text-[#6B6B6B] mt-2">{p.note}</p>}
                 <p className="text-sm text-[#6B6B6B] mt-4 pt-4 border-t border-[#F3EFE8] leading-relaxed">{p.villes}</p>
               </div>
@@ -200,7 +192,7 @@ export default function LivraisonPage() {
           </div>
           <p className="text-xs text-[#6B6B6B] mt-3 flex items-start gap-1.5">
             <AlertCircle className="w-4 h-4 shrink-0" />
-            Les délais se comptent en jours ouvrés, à partir de l’appel de confirmation. La livraison offerte vaut pour les colis Sendit ; le retrait est toujours gratuit.
+            Les délais se comptent en jours ouvrés, à partir de l’appel de confirmation. Le prix du colis est le même quel que soit le montant de la commande ; le retrait est toujours gratuit.
           </p>
         </section>
 

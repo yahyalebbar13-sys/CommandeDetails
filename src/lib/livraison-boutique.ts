@@ -9,7 +9,9 @@
 //   villes, 45 DH dans les villes éloignées. Une ville que la liste ne connaît
 //   pas (« Autre ville » tapée à la main) paie 45 DH : au téléphone, le prix ne
 //   peut que baisser, jamais monter.
-// - Livraison des colis offerte dès 300 DH à Casablanca et 650 DH ailleurs.
+// - Plus aucune livraison offerte (décision du 30/09/2026) : le colis se paie
+//   toujours, quel que soit le montant. Seul le retrait au magasin est gratuit.
+//   Les commandes passées avant gardent la règle de leur date (commandes-boutique.ts).
 // - Un rouleau entier (article « volumineux ») ne part jamais par Sendit : pas
 //   de frais affichés, le transport s'organise par téléphone.
 //
@@ -41,10 +43,6 @@ export const LIBELLE_ZONE: Record<ZoneLivraison, string> = {
   standard: 'Périphérie de Casablanca et grandes villes',
   eloignee: 'Villes éloignées et autres villes',
 };
-
-/** Livraison des colis offerte à partir de ces montants d'achat (DH). */
-export const SEUIL_OFFERTE_CASABLANCA = 300;
-export const SEUIL_OFFERTE_AUTRES = 650;
 
 // ─── Les villes par palier (sendit.ma/tarifs, lu le 28/09/2026) ──────────────
 // Les noms sont écrits comme sur le site ; la recherche ignore accents, casse,
@@ -189,7 +187,7 @@ export function estPeripherieCasablanca(ville: string): boolean {
   return CLES_PERIPHERIE.has(cleVille(ville));
 }
 
-/** Frais d'un colis Sendit pour cette ville, avant toute livraison offerte. */
+/** Frais d'un colis Sendit pour cette ville, payés par le client. */
 export function fraisColis(ville: string): number {
   return FRAIS_ZONE[zoneDeVille(ville)];
 }
@@ -198,14 +196,11 @@ export function delaiColis(ville: string): string {
   return DELAI_ZONE[zoneDeVille(ville)];
 }
 
-/** Sans ville connue (panier), seul le seuil national est sûr. */
-export function seuilOfferte(ville?: string): number {
-  return ville && estCasablanca(ville) ? SEUIL_OFFERTE_CASABLANCA : SEUIL_OFFERTE_AUTRES;
-}
-
-export function livraisonOfferte(sousTotal: number, ville?: string): boolean {
-  return typeof sousTotal === 'number' && Number.isFinite(sousTotal) && sousTotal >= seuilOfferte(ville);
-}
+/** « 20 MAD à Casablanca · 35 MAD périphérie et grandes villes · 45 MAD ailleurs » : la grille en une ligne (même unité que les prix du site). */
+export const RESUME_FRAIS =
+  `${FRAIS_ZONE.casablanca} MAD à Casablanca · ${FRAIS_ZONE.standard} MAD périphérie et grandes villes · ${FRAIS_ZONE.eloignee} MAD ailleurs`;
+export const RESUME_FRAIS_AR =
+  `${FRAIS_ZONE.casablanca} درهم في الدار البيضاء · ${FRAIS_ZONE.standard} درهم في الضواحي والمدن الكبرى · ${FRAIS_ZONE.eloignee} درهم في باقي المدن`;
 
 /** Un seul rouleau entier suffit : la commande ne part pas par colis. */
 export function commandeVolumineuse(items: { volumineux?: boolean }[]): boolean {
@@ -224,22 +219,23 @@ export function lieuRetraitPour(volumineux: boolean): LieuRetrait {
 
 /**
  * Frais de réception à ajouter au total :
- * - domicile : colis Sendit, 0 si la livraison est offerte ;
+ * - domicile : colis Sendit, toujours le palier de la ville, quel que soit le montant ;
  * - retrait : toujours gratuit ;
  * - transport : null, le prix se donne au téléphone (jamais « 0 », jamais « gratuit »).
  * Un mode inconnu se lit comme « domicile » : c'est ce qu'étaient toutes les anciennes commandes.
  */
-export function fraisLivraison(p: { mode: ModeReception; ville: string; sousTotal: number }): number | null {
+export function fraisLivraison(p: { mode: ModeReception; ville: string }): number | null {
   if (p.mode === 'retrait') return 0;
   if (p.mode === 'transport') return null;
-  return livraisonOfferte(p.sousTotal, p.ville) ? 0 : fraisColis(p.ville);
+  return fraisColis(p.ville);
 }
 
+/** 0 n'arrive plus que pour le retrait au magasin : « Gratuit ». */
 export function libelleFrais(frais: number | null): string {
   if (frais === null || typeof frais !== 'number' || !Number.isFinite(frais) || frais < 0) {
     return 'À confirmer par téléphone';
   }
-  return frais === 0 ? 'Offerte' : `${frais} DH`;
+  return frais === 0 ? 'Gratuit' : `${frais} DH`;
 }
 
 /** Notice commune aux rouleaux entiers : fiche produit, panier, formulaire, confirmation. */

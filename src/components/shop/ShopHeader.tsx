@@ -27,11 +27,10 @@ import { useLanguage } from "@/contexts/language-context";
 import { useShopProducts } from "@/contexts/shop-products-context";
 import SmartSearch from "@/components/shop/SmartSearch";
 import {
-  CASABLANCA_FREE_DELIVERY_THRESHOLD,
-  FREE_DELIVERY_THRESHOLD,
   formatPrice,
   formatProductPrice,
 } from "@/lib/shop-utils";
+import { DELAI_ZONE, FRAIS_ZONE } from "@/lib/livraison-boutique";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface NavLink {
@@ -61,16 +60,18 @@ const PROMO_SEPARATOR = "\u00a0\u00a0|\u00a0\u00a0";
 // « Expédition sous 24 h » tant que Sendit n'a pas donné son heure de ramassage à
 // Derb Omar : l'ancienne promesse « avant 14h → le jour même » n'était pas tenue.
 const PROMO_TEXT_FR = [
-  `🚚 Livraison GRATUITE à Casablanca à partir de ${formatPrice(CASABLANCA_FREE_DELIVERY_THRESHOLD)}`,
-  `🇲🇦 Partout au Maroc : gratuite à partir de ${formatPrice(FREE_DELIVERY_THRESHOLD)}`,
+  `🚚 Livraison ${formatPrice(FRAIS_ZONE.casablanca)} à Casablanca en ${DELAI_ZONE.casablanca}`,
+  `🇲🇦 Partout au Maroc dès ${formatPrice(FRAIS_ZONE.standard)}`,
+  "💵 Paiement à la réception",
   "📦 Expédition sous 24 h (jours ouvrés)",
   "🏬 Retrait gratuit à Casablanca",
   "💬 WhatsApp: +212 760 998 347",
 ].join(PROMO_SEPARATOR);
 
 const PROMO_TEXT_AR = [
-  `🚚 توصيل مجاني في الدار البيضاء من ${CASABLANCA_FREE_DELIVERY_THRESHOLD} درهم`,
-  `🇲🇦 لجميع المدن مجاني من ${FREE_DELIVERY_THRESHOLD} درهم`,
+  `🚚 التوصيل ${FRAIS_ZONE.casablanca} درهم في الدار البيضاء خلال ${DELAI_ZONE.casablanca}`,
+  `🇲🇦 لجميع المدن من ${FRAIS_ZONE.standard} درهم`,
+  "💵 الدفع عند الاستلام",
   "📦 الشحن خلال 24 ساعة (أيام العمل)",
   "🏬 الاستلام مجاناً من محلنا في الدار البيضاء",
   "💬 واتساب: 0760998347",

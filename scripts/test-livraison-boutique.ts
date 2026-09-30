@@ -1,4 +1,4 @@
-// La livraison de la boutique : frais par ville, livraison offerte, modes de
+// La livraison de la boutique : frais par ville (jamais offerts), modes de
 // réception, rouleaux entiers, et les réglages de réception (RIB, camionnette).
 //
 // Ce que le client voit avant de commander : un prix faux ici, c'est un appel
@@ -7,19 +7,18 @@
 //   npx tsx scripts/test-livraison-boutique.ts
 
 import {
-  DELAI_ZONE, FRAIS_ZONE, GRANDES_VILLES, PERIPHERIE_CASABLANCA, SEUIL_OFFERTE_AUTRES,
-  SEUIL_OFFERTE_CASABLANCA, TEXTE_TRANSPORT_VOLUMINEUX, VILLES_ELOIGNEES,
+  DELAI_ZONE, FRAIS_ZONE, GRANDES_VILLES, PERIPHERIE_CASABLANCA, RESUME_FRAIS,
+  TEXTE_TRANSPORT_VOLUMINEUX, VILLES_ELOIGNEES,
   commandeVolumineuse, delaiColis, estCasablanca, estPeripherieCasablanca, fraisColis,
-  fraisLivraison, libelleFrais, lieuRetraitPour, livraisonOfferte, modesPossibles,
-  normaliserVille, seuilOfferte, zoneDeVille,
+  fraisLivraison, libelleFrais, lieuRetraitPour, modesPossibles,
+  normaliserVille, zoneDeVille,
 } from '../src/lib/livraison-boutique';
 import {
   REGLAGES_RECEPTION_DEFAUT, lireReglagesReception, ribLisible, ribValide,
 } from '../src/lib/reglages-reception';
-import {
-  CASABLANCA_FREE_DELIVERY_THRESHOLD, FREE_DELIVERY_THRESHOLD, getDeliveryDays, getDeliveryFee,
-  getFreeDeliveryProgress, isCasablanca, isEligibleForFreeDelivery,
-} from '../src/lib/shop-utils';
+import * as shopUtils from '../src/lib/shop-utils';
+import { getDeliveryDays, getDeliveryFee, isCasablanca } from '../src/lib/shop-utils';
+import * as livraison from '../src/lib/livraison-boutique';
 import { DELIVERY_ZONES, MOROCCAN_CITIES } from '../src/lib/shop-types';
 
 let pass = 0;
@@ -42,8 +41,8 @@ console.log('\n── La grille Sendit : 20 / 35 / 45 DH ──');
   eq('délai Casablanca', DELAI_ZONE.casablanca, '24-48h');
   eq('délai standard', DELAI_ZONE.standard, '1-3 jours ouvrés');
   eq('délai éloigné', DELAI_ZONE.eloignee, '2-4 jours ouvrés');
-  eq('seuil Casablanca', SEUIL_OFFERTE_CASABLANCA, 300);
-  eq('seuil autres villes', SEUIL_OFFERTE_AUTRES, 650);
+  eq('la grille en une ligne, en MAD comme les prix du site', RESUME_FRAIS,
+    '20 MAD à Casablanca · 35 MAD périphérie et grandes villes · 45 MAD ailleurs');
 }
 
 console.log('\n── Chaque ville du plan tombe dans son palier ──');
@@ -107,45 +106,34 @@ console.log('\n── Casablanca et sa périphérie ──');
   check('ville vide : ni l’un ni l’autre', !estCasablanca('') && !estPeripherieCasablanca(''));
 }
 
-console.log('\n── Livraison offerte : 300 DH à Casablanca, 650 DH ailleurs, pile au seuil ──');
+console.log('\n── Plus aucune livraison offerte (30/09/2026) ──');
 {
-  check('Casablanca 299 DH : payante', !livraisonOfferte(299, 'Casablanca'));
-  check('Casablanca 300 DH pile : offerte', livraisonOfferte(300, 'Casablanca'));
-  check('Casablanca 299,99 DH : payante', !livraisonOfferte(299.99, 'Casablanca'));
-  check('Rabat 300 DH : payante', !livraisonOfferte(300, 'Rabat'));
-  check('Rabat 649 DH : payante', !livraisonOfferte(649, 'Rabat'));
-  check('Rabat 650 DH pile : offerte', livraisonOfferte(650, 'Rabat'));
-  check('Mohammedia 300 DH : payante (le seuil 300 est pour Casablanca seule)', !livraisonOfferte(300, 'Mohammedia'));
-  check('ville inconnue 650 DH : offerte', livraisonOfferte(650, 'Tinghir'));
-  check('sans ville, 300 DH : pas garantie', !livraisonOfferte(300));
-  check('sans ville, 650 DH : offerte partout', livraisonOfferte(650));
-  check('sous-total NaN : jamais offerte', !livraisonOfferte(NaN, 'Casablanca'));
-  check('sous-total Infinity : jamais offerte', !livraisonOfferte(Infinity, 'Casablanca'));
-  eq('seuil sans ville', seuilOfferte(), 650);
-  eq('seuil ville vide', seuilOfferte(''), 650);
-  eq('seuil Casablanca', seuilOfferte('casa'), 300);
-  eq('seuil Fès', seuilOfferte('Fès'), 650);
+  for (const nom of ['SEUIL_OFFERTE_CASABLANCA', 'SEUIL_OFFERTE_AUTRES', 'livraisonOfferte', 'seuilOfferte']) {
+    check(`livraison-boutique n'exporte plus ${nom}`, !(nom in livraison));
+  }
+  for (const nom of ['FREE_DELIVERY_THRESHOLD', 'CASABLANCA_FREE_DELIVERY_THRESHOLD', 'isEligibleForFreeDelivery', 'getFreeDeliveryProgress']) {
+    check(`shop-utils n'exporte plus ${nom}`, !(nom in shopUtils));
+  }
 }
 
 console.log('\n── Frais selon le mode de réception ──');
 {
-  eq('domicile Casablanca 150 DH : 20', fraisLivraison({ mode: 'domicile', ville: 'Casablanca', sousTotal: 150 }), 20);
-  eq('domicile Casablanca 300 DH : 0', fraisLivraison({ mode: 'domicile', ville: 'Casablanca', sousTotal: 300 }), 0);
-  eq('domicile Bouskoura 400 DH : 35', fraisLivraison({ mode: 'domicile', ville: 'Bouskoura', sousTotal: 400 }), 35);
-  eq('domicile Tétouan 649 DH : 45', fraisLivraison({ mode: 'domicile', ville: 'Tétouan', sousTotal: 649 }), 45);
-  eq('domicile Tétouan 650 DH : 0', fraisLivraison({ mode: 'domicile', ville: 'Tétouan', sousTotal: 650 }), 0);
-  eq('retrait : toujours 0', fraisLivraison({ mode: 'retrait', ville: 'Tétouan', sousTotal: 10 }), 0);
-  eq('retrait sans ville : 0', fraisLivraison({ mode: 'retrait', ville: '', sousTotal: 10 }), 0);
-  eq('transport : null (à confirmer)', fraisLivraison({ mode: 'transport', ville: 'Casablanca', sousTotal: 5000 }), null);
-  eq('transport petit panier : null quand même', fraisLivraison({ mode: 'transport', ville: 'Agadir', sousTotal: 10 }), null);
-  eq('mode inconnu (ancienne commande) : lu comme domicile', fraisLivraison({ mode: undefined as any, ville: 'Rabat', sousTotal: 100 }), 35);
+  eq('domicile Casablanca : 20', fraisLivraison({ mode: 'domicile', ville: 'Casablanca' }), 20);
+  eq('domicile Bouskoura : 35', fraisLivraison({ mode: 'domicile', ville: 'Bouskoura' }), 35);
+  eq('domicile Tétouan : 45', fraisLivraison({ mode: 'domicile', ville: 'Tétouan' }), 45);
+  eq('domicile, gros panier : toujours payant (plus de seuil)', fraisLivraison({ mode: 'domicile', ville: 'Casablanca', sousTotal: 5000 } as any), 20);
+  eq('retrait : toujours 0', fraisLivraison({ mode: 'retrait', ville: 'Tétouan' }), 0);
+  eq('retrait sans ville : 0', fraisLivraison({ mode: 'retrait', ville: '' }), 0);
+  eq('transport : null (à confirmer)', fraisLivraison({ mode: 'transport', ville: 'Casablanca' }), null);
+  eq('transport, autre ville : null quand même', fraisLivraison({ mode: 'transport', ville: 'Agadir' }), null);
+  eq('mode inconnu (ancienne commande) : lu comme domicile', fraisLivraison({ mode: undefined as any, ville: 'Rabat' }), 35);
 }
 
 console.log('\n── Le libellé des frais ──');
 {
   eq('20 DH', libelleFrais(20), '20 DH');
   eq('45 DH', libelleFrais(45), '45 DH');
-  eq('0 : Offerte', libelleFrais(0), 'Offerte');
+  eq('0 (retrait) : Gratuit, jamais « Offerte »', libelleFrais(0), 'Gratuit');
   eq('null : à confirmer', libelleFrais(null), 'À confirmer par téléphone');
   eq('NaN : à confirmer, jamais « NaN DH »', libelleFrais(NaN), 'À confirmer par téléphone');
   eq('négatif : à confirmer', libelleFrais(-5), 'À confirmer par téléphone');
@@ -197,17 +185,8 @@ console.log('\n── Les anciens noms de shop-utils suivent la nouvelle grille 
   eq('getDeliveryFee inconnue', getDeliveryFee('Tinghir'), 45);
   eq('getDeliveryDays Casablanca', getDeliveryDays('Casablanca'), '24-48h');
   eq('getDeliveryDays Rabat', getDeliveryDays('Rabat'), '1-3 jours ouvrés');
-  eq('FREE_DELIVERY_THRESHOLD', FREE_DELIVERY_THRESHOLD, 650);
-  eq('CASABLANCA_FREE_DELIVERY_THRESHOLD', CASABLANCA_FREE_DELIVERY_THRESHOLD, 300);
   check('isCasablanca(« casa »)', isCasablanca('casa'));
   check('isCasablanca ne reconnaît plus « Casanova » par morceau', !isCasablanca('Casanova'));
-  check('isEligibleForFreeDelivery 300 Casablanca', isEligibleForFreeDelivery(300, 'Casablanca'));
-  check('isEligibleForFreeDelivery 300 sans ville : non', !isEligibleForFreeDelivery(300));
-  const p100 = getFreeDeliveryProgress(100);
-  eq('progression 100 DH : aucun palier, 200 DH à faire', [p100.stage, p100.remaining, Math.round(p100.progress)], ['none', 200, 33]);
-  eq('progression 300 DH : Casablanca débloquée, 350 DH à faire', getFreeDeliveryProgress(300).stage, 'casablanca');
-  eq('progression 300 DH : reste', getFreeDeliveryProgress(300).remaining, 350);
-  eq('progression 650 DH : partout', getFreeDeliveryProgress(650), { stage: 'everywhere', remaining: 0, progress: 100 });
   eq('DELIVERY_ZONES (déprécié) aligné : Casablanca', DELIVERY_ZONES.casablanca.fee, 20);
   eq('DELIVERY_ZONES (déprécié) aligné : autres', DELIVERY_ZONES.other.fee, 45);
 }
@@ -235,7 +214,9 @@ console.log('\n── Réglages de réception : lecture tolérante ──');
   check('par défaut : virement caché (pas de RIB)', !d.virement.actif);
   check('par défaut : carte cachée (pas de prestataire)', !d.carte.actif);
   check('par défaut : deux lieux de retrait actifs', d.lieux.derb_omar.actif && d.lieux.chrifa.actif);
-  eq('par défaut : camionnette 50 / 80 DH, offerte dès 2 000 DH', [d.camionnette.prixCasablanca, d.camionnette.prixPeripherie, d.camionnette.offerteDes], [50, 80, 2000]);
+  eq('par défaut : camionnette 50 / 80 DH', [d.camionnette.prixCasablanca, d.camionnette.prixPeripherie], [50, 80]);
+  check('la camionnette n’a plus de seuil « offerte dès »', !('offerteDes' in d.camionnette));
+  check('un vieux document avec offerteDes : ignoré', !('offerteDes' in lireReglagesReception({ camionnette: { offerteDes: 2000 } }).camionnette));
   eq('par défaut : tournées', d.camionnette.jours, 'mardi et jeudi');
 
   const ok = lireReglagesReception({ virement: { actif: true, titulaire: ' LEBTEX SARL AU ', banque: 'Banque', rib: '011 780 0000123456789012 34' } });
@@ -247,11 +228,10 @@ console.log('\n── Réglages de réception : lecture tolérante ──');
   check('« actif » en texte : virement caché', !lireReglagesReception({ virement: { actif: 'true', titulaire: 'LEBTEX', rib: '011780000012345678901234' } }).virement.actif);
   check('actif faux : virement caché', !lireReglagesReception({ virement: { actif: false, titulaire: 'LEBTEX', rib: '011780000012345678901234' } }).virement.actif);
 
-  const c = lireReglagesReception({ camionnette: { actif: false, prixCasablanca: -10, prixPeripherie: 'x', offerteDes: 0, jours: '   ' } });
+  const c = lireReglagesReception({ camionnette: { actif: false, prixCasablanca: -10, prixPeripherie: 'x', jours: '   ' } });
   check('camionnette désactivable', !c.camionnette.actif);
   eq('prix négatif : valeur par défaut', c.camionnette.prixCasablanca, 50);
   eq('prix en texte : valeur par défaut', c.camionnette.prixPeripherie, 80);
-  eq('offerte dès 0 (jamais offerte) : gardé', c.camionnette.offerteDes, 0);
   eq('jours vides : valeur par défaut', c.camionnette.jours, 'mardi et jeudi');
   eq('prix NaN : valeur par défaut', lireReglagesReception({ camionnette: { prixCasablanca: NaN } }).camionnette.prixCasablanca, 50);
 

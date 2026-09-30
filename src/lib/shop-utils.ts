@@ -1,13 +1,6 @@
 import { MOROCCAN_CITIES } from './shop-types';
 import type { ShopProduct } from './shop-types';
-import {
-  SEUIL_OFFERTE_AUTRES,
-  SEUIL_OFFERTE_CASABLANCA,
-  delaiColis,
-  estCasablanca,
-  fraisColis,
-  livraisonOfferte,
-} from './livraison-boutique';
+import { delaiColis, estCasablanca, fraisColis } from './livraison-boutique';
 import { translations, type Language } from './translations';
 
 // Format price in MAD
@@ -54,14 +47,14 @@ export function formatPriceShort(amount: number): string {
 }
 
 // ─── Livraison : anciens noms, gardés pour les écrans qui les importent ────────
-// Tout se calcule dans livraison-boutique.ts (grille Sendit 20 / 35 / 45 DH,
-// livraison offerte dès 300 DH à Casablanca et 650 DH ailleurs).
+// Tout se calcule dans livraison-boutique.ts (grille Sendit 20 / 35 / 45 DH, jamais
+// offerte depuis le 30/09/2026 ; seul le retrait au magasin est gratuit).
 
 export function isCasablanca(city: string): boolean {
   return estCasablanca(city);
 }
 
-/** Frais d'un colis Sendit pour la ville, avant livraison offerte. */
+/** Frais d'un colis Sendit pour la ville. */
 export function getDeliveryFee(city: string): number {
   return fraisColis(city);
 }
@@ -69,28 +62,6 @@ export function getDeliveryFee(city: string): number {
 /** Délai annoncé pour la ville (« 24-48h », « 1-3 jours ouvrés »…). */
 export function getDeliveryDays(city: string): string {
   return delaiColis(city);
-}
-
-// Seuils de livraison offerte : Casablanca d'abord, puis le reste du Maroc
-export const FREE_DELIVERY_THRESHOLD = SEUIL_OFFERTE_AUTRES; // MAD, toutes villes
-export const CASABLANCA_FREE_DELIVERY_THRESHOLD = SEUIL_OFFERTE_CASABLANCA; // MAD
-
-// Sans ville connue (panier), seul le seuil national est garanti
-export function isEligibleForFreeDelivery(subtotal: number, city?: string): boolean {
-  return livraisonOfferte(subtotal, city);
-}
-
-// Palier de livraison gratuite atteint et reste à acheter pour le suivant (ville inconnue)
-export function getFreeDeliveryProgress(subtotal: number) {
-  if (subtotal >= FREE_DELIVERY_THRESHOLD) {
-    return { stage: 'everywhere' as const, remaining: 0, progress: 100 };
-  }
-  const target = subtotal >= CASABLANCA_FREE_DELIVERY_THRESHOLD ? FREE_DELIVERY_THRESHOLD : CASABLANCA_FREE_DELIVERY_THRESHOLD;
-  return {
-    stage: subtotal >= CASABLANCA_FREE_DELIVERY_THRESHOLD ? ('casablanca' as const) : ('none' as const),
-    remaining: target - subtotal,
-    progress: Math.min((subtotal / target) * 100, 100),
-  };
 }
 
 // Generate order number
@@ -151,7 +122,7 @@ export function buildWhatsAppLink(
     msg += `📋 Sous-total : ${formatPrice(subtotal)}\n`;
   }
   if (deliveryFee !== undefined) {
-    msg += `🚚 Livraison : ${deliveryFee === 0 ? 'GRATUITE ✅' : formatPrice(deliveryFee)}\n`;
+    msg += `🚚 Livraison : ${deliveryFee > 0 ? formatPrice(deliveryFee) : 'à confirmer'}\n`;
   }
   msg += `💰 *Total à payer : ${formatPrice(total)}*\n`;
 

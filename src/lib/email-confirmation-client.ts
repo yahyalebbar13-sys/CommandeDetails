@@ -163,7 +163,7 @@ export function emailConfirmationClient(
   const pageCommande = lienPageCommande(o.id);
 
   // Les frais : jamais « 0 » ni « gratuite » pour un transport qui se chiffre au téléphone,
-  // ni pour un colis à 0 DH qui n'a pas atteint le seuil de livraison offerte.
+  // ni pour un colis à 0 DH (plus de livraison offerte depuis le 30/09/2026).
   const frais = Number(o.deliveryFee) || 0;
   const ligneFrais = mode === 'retrait'
     ? { libelle: 'Retrait', valeur: frais > 0 ? formatPrice(frais) : 'gratuit' }
@@ -171,7 +171,7 @@ export function emailConfirmationClient(
       ? { libelle: 'Transport', valeur: frais > 0 ? formatPrice(frais) : 'à confirmer par téléphone' }
       : {
         libelle: `Livraison${ville ? ` (${ville})` : ''}`,
-        // Seuil sur la somme des lignes ; ancienne commande : ancienne livraison offerte (100 / 500 DH).
+        // « offerte » : seulement une commande d'avant le 30/09/2026 qui atteignait le seuil de sa date.
         valeur: frais > 0
           ? formatPrice(frais)
           : fraisColisAnnonces({ ...o, items: lignes }) === 'offerte' ? 'offerte' : 'à confirmer par téléphone',

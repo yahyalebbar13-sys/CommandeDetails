@@ -20,7 +20,7 @@ import {
   alerteEspeces, commandeAncienne, commandeMixte, CONSIGNE_COMMANDE_MIXTE, dateHeure, detailsVariante, fraisColisAnnonces,
   fraisColisAttendus, libelleMode, lienAppel, lienWhatsAppClient, lignesCollentAuSousTotal, lignesSansPrix, MENTION_LIGNE_ROULEAU,
   messageConfirmation, moyenPaiementDe, NOMS_LIEUX, nombreArticles, prixUnitaireLigne, receptionDe, telLisible, telephonesCommande,
-  totalDesLignes, totalLigne, transportPrevu, varianteLisible, type LigneCommande,
+  totalLigne, transportPrevu, varianteLisible, type LigneCommande,
 } from './commandes-boutique';
 import { fraisLivraison } from './livraison-boutique';
 import { REGLAGES_RECEPTION_DEFAUT, type ReglagesReception } from './reglages-reception';
@@ -72,7 +72,7 @@ export interface ControleFrais {
 }
 
 export function controleFraisCommande(
-  o: Pick<ShopOrder, 'reception' | 'items' | 'shippingAddress' | 'deliveryFee'>,
+  o: Pick<ShopOrder, 'reception' | 'items' | 'shippingAddress' | 'deliveryFee'> & { createdAt?: unknown },
 ): ControleFrais {
   const r = receptionDe(o);
   const brut = Number(o.deliveryFee);
@@ -80,14 +80,14 @@ export function controleFraisCommande(
   // Un rouleau commandé « à domicile » ne partira pas par Sendit : son transport se fixe au téléphone.
   const mode = r.volumineux && r.mode === 'domicile' ? 'transport' : r.mode;
   if (mode === 'domicile') {
-    // Colis : seuil de livraison offerte sur la somme des lignes (jamais le sous-total écrit par
-    // le client). Ancienne commande payée selon l'ancienne grille (25 à 50 DH) : rien à comparer.
+    // Colis : le palier de la ville, plus jamais offert depuis le 30/09/2026 (une commande d'avant
+    // garde la règle de sa date). Ancienne commande payée selon l'ancienne grille (25 à 50 DH) : rien à comparer.
     const attendus = fraisColisAttendus(o);
     if (attendus === null && commandeAncienne(o)) return { attendus: saisis, saisis, ecart: 0 };
     const cible = attendus ?? 0;
     return { attendus, saisis, ecart: Math.round((saisis - cible) * 100) / 100 };
   }
-  const attendus = fraisLivraison({ mode, ville: String(o.shippingAddress?.city ?? ''), sousTotal: totalDesLignes(o) });
+  const attendus = fraisLivraison({ mode, ville: String(o.shippingAddress?.city ?? '') });
   const ecart = attendus === null ? saisis : Math.round((saisis - attendus) * 100) / 100;
   return { attendus, saisis, ecart };
 }
@@ -158,7 +158,7 @@ function fraisPourLeCommercant(o: ShopOrder): { libelle: string; valeur: string 
   if (r.mode === 'transport' || r.volumineux) {
     return { libelle: 'Transport', valeur: frais > 0 ? formatPrice(frais) : 'à confirmer par téléphone' };
   }
-  // Seuil sur la somme des lignes ; ancienne commande : ancienne livraison offerte (100 / 500 DH).
+  // « offerte » : seulement une commande d'avant le 30/09/2026 qui atteignait le seuil de sa date.
   const annonce = fraisColisAnnonces(o);
   return {
     libelle: `Livraison${ville ? ` (${ville})` : ''}`,

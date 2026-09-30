@@ -16,11 +16,10 @@ import {
   Heart,
 } from "lucide-react";
 import {
-  CASABLANCA_FREE_DELIVERY_THRESHOLD,
-  FREE_DELIVERY_THRESHOLD,
   formatPrice,
   getWhatsAppContact,
 } from "@/lib/shop-utils";
+import { DELAI_ZONE, FRAIS_ZONE } from "@/lib/livraison-boutique";
 import { useShopProducts } from "@/contexts/shop-products-context";
 
 // ─── Data ─────────────────────────────────────────────────────────────────────
@@ -386,12 +385,12 @@ export default function ShopFooter() {
                   className="text-xs font-semibold"
                   style={{ color: "#D4A843" }}
                 >
-                  Livraison gratuite
+                  Livraison partout au Maroc
                 </span>
               </div>
               <p className="text-xs" style={{ color: "#9CA3AF" }}>
-                Colis offert à Casablanca dès {formatPrice(CASABLANCA_FREE_DELIVERY_THRESHOLD)} d&apos;achat, partout au Maroc
-                dès {formatPrice(FREE_DELIVERY_THRESHOLD)}. Retrait gratuit à Casablanca.
+                Casablanca {formatPrice(FRAIS_ZONE.casablanca)} en {DELAI_ZONE.casablanca}, autres villes
+                dès {formatPrice(FRAIS_ZONE.standard)}. Retrait gratuit à Casablanca.
               </p>
             </div>
           </div>

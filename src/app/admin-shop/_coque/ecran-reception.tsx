@@ -38,7 +38,7 @@ const LIEUX: { cle: LieuRetrait; titre: string; aide: string }[] = [
 interface Formulaire {
   lieux: Record<LieuRetrait, LieuDeRetrait>;
   virement: { actif: boolean; titulaire: string; banque: string; rib: string };
-  camionnette: { actif: boolean; prixCasablanca: string; prixPeripherie: string; offerteDes: string; jours: string };
+  camionnette: { actif: boolean; prixCasablanca: string; prixPeripherie: string; jours: string };
 }
 
 function versFormulaire(r: ReglagesReception, virementActifDemande: boolean): Formulaire {
@@ -50,7 +50,6 @@ function versFormulaire(r: ReglagesReception, virementActifDemande: boolean): Fo
       actif: r.camionnette.actif,
       prixCasablanca: String(r.camionnette.prixCasablanca),
       prixPeripherie: String(r.camionnette.prixPeripherie),
-      offerteDes: String(r.camionnette.offerteDes),
       jours: r.camionnette.jours,
     },
   };
@@ -83,7 +82,7 @@ function problemes(f: Formulaire): Record<string, string> {
     if (!f.virement.titulaire.trim()) p['virement.titulaire'] = 'Le titulaire du compte est obligatoire pour proposer le virement.';
     if (!rib) p['virement.rib'] = 'Le RIB est obligatoire pour proposer le virement.';
   }
-  for (const champ of ['prixCasablanca', 'prixPeripherie', 'offerteDes'] as const) {
+  for (const champ of ['prixCasablanca', 'prixPeripherie'] as const) {
     if (nombreLu(f.camionnette[champ]) === null) p[`camionnette.${champ}`] = 'Un montant en DH (0 ou plus).';
   }
   if (f.camionnette.actif && !f.camionnette.jours.trim()) p['camionnette.jours'] = 'Indiquez les jours de tournée (ex. mardi et jeudi).';
@@ -108,7 +107,6 @@ function versDocument(f: Formulaire) {
       actif: f.camionnette.actif,
       prixCasablanca: nombreLu(f.camionnette.prixCasablanca) ?? 0,
       prixPeripherie: nombreLu(f.camionnette.prixPeripherie) ?? 0,
-      offerteDes: nombreLu(f.camionnette.offerteDes) ?? 0,
       jours: f.camionnette.jours.trim(),
     },
     // Pas de prestataire de paiement en ligne aujourd'hui : l'écran ne peut pas l'allumer.
@@ -408,9 +406,9 @@ export function EcranReception({ db, zoneSendit }: {
         <TitreSection
           icone={<Truck className="h-5 w-5" />}
           titre="Camionnette LEBTEX"
-          sousTitre="Rouleaux livrés à Casablanca et en périphérie (Mohammedia, Bouskoura, Dar Bouazza, Médiouna). Prix annoncé au téléphone."
+          sousTitre="Rouleaux livrés à Casablanca et en périphérie (Mohammedia, Bouskoura, Dar Bouazza, Médiouna). Prix annoncé au téléphone, jamais offert."
         />
-        <div className="grid gap-4 sm:grid-cols-3">
+        <div className="grid gap-4 sm:grid-cols-2">
           <Champ libelle="Prix à Casablanca (DH)" erreur={erreurDe('camionnette.prixCasablanca')}>
             {(id, d) => <input id={id} aria-describedby={d} inputMode="decimal" value={form.camionnette.prixCasablanca}
               onChange={e => maj(f => ({ ...f, camionnette: { ...f.camionnette, prixCasablanca: e.target.value } }))} className={CHAMP} />}
@@ -419,17 +417,13 @@ export function EcranReception({ db, zoneSendit }: {
             {(id, d) => <input id={id} aria-describedby={d} inputMode="decimal" value={form.camionnette.prixPeripherie}
               onChange={e => maj(f => ({ ...f, camionnette: { ...f.camionnette, prixPeripherie: e.target.value } }))} className={CHAMP} />}
           </Champ>
-          <Champ libelle="Offerte dès (DH)" aide="0 = jamais offerte." erreur={erreurDe('camionnette.offerteDes')}>
-            {(id, d) => <input id={id} aria-describedby={d} inputMode="decimal" value={form.camionnette.offerteDes}
-              onChange={e => maj(f => ({ ...f, camionnette: { ...f.camionnette, offerteDes: e.target.value } }))} className={CHAMP} />}
-          </Champ>
-          <div className="sm:col-span-3">
+          <div className="sm:col-span-2">
             <Champ libelle="Jours de tournée" aide="En clair : c’est ce que dit le message de la veille." erreur={erreurDe('camionnette.jours')}>
               {(id, d) => <input id={id} aria-describedby={d} value={form.camionnette.jours} maxLength={80} placeholder="mardi et jeudi"
                 onChange={e => maj(f => ({ ...f, camionnette: { ...f.camionnette, jours: e.target.value } }))} className={CHAMP} />}
             </Champ>
           </div>
-          <div className="sm:col-span-3">
+          <div className="sm:col-span-2">
             <Case
               coche={form.camionnette.actif}
               onChange={v => maj(f => ({ ...f, camionnette: { ...f.camionnette, actif: v } }))}

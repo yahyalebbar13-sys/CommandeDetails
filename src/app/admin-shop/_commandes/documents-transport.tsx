@@ -204,7 +204,7 @@ export function DocumentsReception({ commande: o, reglages, paiementRecu }: {
 
   const prixLu = nombreSaisi(prix);
   const erreurPrix = tente && (boite === 'devis' || (boite === 'remise' && paiementTransport === 'a_l_arrivee')) && prixLu === null
-    ? 'Le prix annoncé au client, en DH (0 si offert).'
+    ? 'Le prix annoncé au client, en DH.'
     : undefined;
   const erreurTransporteur = tente === 'remise' && !transporteur.trim() ? 'Le nom du transporteur est obligatoire sur le bon de remise.' : undefined;
   const aEncaisserLu = aEncaisserRemise.trim() ? nombreSaisi(aEncaisserRemise) : 0;
@@ -319,11 +319,11 @@ export function DocumentsReception({ commande: o, reglages, paiementRecu }: {
               libelle="Prix du transport (DH)"
               valeur={prix}
               onChange={setPrix}
-              exemple="ex. 80 (0 = offert)"
+              exemple="ex. 80"
               inputMode="decimal"
               requis
               erreur={erreurPrix}
-              aide={modeTransport === 'camionnette' && prixCam !== null ? `Réglages : ${prixCam === 0 ? 'offerte pour cette commande' : `${prixCam} DH`}.` : undefined}
+              aide={modeTransport === 'camionnette' && prixCam !== null ? `Réglages : ${prixCam} DH.` : undefined}
             />
             <Champ libelle="Poids estimé (kg)" valeur={poids} onChange={setPoids} exemple="facultatif" inputMode="decimal" />
             <Champ libelle="Nombre de colis" valeur={colis} onChange={setColis} exemple="facultatif" inputMode="numeric" />

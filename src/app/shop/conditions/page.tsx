@@ -2,13 +2,11 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import type { ReactNode } from 'react';
 import { formatPrice } from '@/lib/shop-utils';
-import {
-  DELAI_ZONE, FRAIS_ZONE, PERIPHERIE_CASABLANCA, SEUIL_OFFERTE_AUTRES, SEUIL_OFFERTE_CASABLANCA,
-} from '@/lib/livraison-boutique';
+import { DELAI_ZONE, FRAIS_ZONE, PERIPHERIE_CASABLANCA } from '@/lib/livraison-boutique';
 import { PLAFOND_ESPECES_COLIS } from '@/lib/commandes-boutique';
 
 // Conditions de vente de lebtex.ma (lien obligatoire du formulaire de commande).
-// Les prix, seuils et délais viennent de livraison-boutique.ts, comme au panier.
+// Les prix et délais viennent de livraison-boutique.ts, comme au panier.
 // Choix du patron (29/09/2026) : pas d'arrhes, pas d'avance obligatoire, pas de
 // paiement imposé avant le départ hors de Casablanca ; on propose, on n'impose pas.
 // Le plafond d'espèces d'un colis est une règle de LEBTEX, jamais présentée comme
@@ -47,8 +45,6 @@ function Liste({ items }: { items: ReactNode[] }) {
 const lien = 'text-[#C8102E] font-semibold underline hover:no-underline';
 
 export default function ConditionsPage() {
-  const casa = formatPrice(SEUIL_OFFERTE_CASABLANCA);
-  const ailleurs = formatPrice(SEUIL_OFFERTE_AUTRES);
   return (
     <div style={{ fontFamily: 'Inter, sans-serif', background: '#FBF8F3' }} className="min-h-screen">
       <div className="bg-[#0F0F0F] text-white py-12 sm:py-14">
@@ -90,7 +86,7 @@ export default function ConditionsPage() {
             <Liste items={[
               'Les prix affichés sont les prix à payer, en dirhams (MAD). Aucune taxe ne s’y ajoute.',
               <>Colis livré par Sendit : {formatPrice(FRAIS_ZONE.casablanca)} à Casablanca ; {formatPrice(FRAIS_ZONE.standard)} dans la périphérie de Casablanca ({PERIPHERIE_CASABLANCA.join(', ')}) et les grandes villes ; {formatPrice(FRAIS_ZONE.eloignee)} dans les villes éloignées et toute ville absente de notre liste. Quelques zones éloignées de Casablanca sont à {formatPrice(FRAIS_ZONE.eloignee)} : nous vous le disons à l’appel, avant l’envoi.</>,
-              `Livraison du colis offerte dès ${casa} d’achat à Casablanca, et dès ${ailleurs} partout ailleurs.`,
+              'Le prix du colis ne dépend que de la ville : il est le même quel que soit le montant de la commande.',
               'Retrait en magasin : toujours gratuit.',
               'Rouleau entier ou grosse quantité : le prix du transport vous est annoncé au téléphone, avant tout envoi. Il n’est jamais ajouté sans votre accord.',
             ]} />

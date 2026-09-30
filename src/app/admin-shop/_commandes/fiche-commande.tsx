@@ -446,7 +446,7 @@ function ChangerReception({
   /** Ce que la grille ou les réglages proposent pour ce mode (modifiable). */
   const fraisProposes = (m: ModeReception, t: 'camionnette' | 'transporteur'): number | null => {
     if (m === 'retrait') return 0;
-    if (m === 'domicile') return fraisLivraison({ mode: 'domicile', ville: villeClient, sousTotal: articles });
+    if (m === 'domicile') return fraisLivraison({ mode: 'domicile', ville: villeClient });
     return t === 'camionnette' ? prixCamionnette(o, reglages) : null;
   };
   const choisirMode = (m: ModeReception, t = transport) => {
@@ -571,7 +571,7 @@ function ChangerReception({
               className="mt-1 h-11 w-full rounded-xl border border-white/15 bg-[#1A1A1A] px-3 text-base text-gray-100 placeholder:text-gray-400 focus:border-white/40 focus:outline-none"
             />
             <p className="mt-1 text-sm text-gray-400">
-              {mode === 'domicile' && `Grille : ${libelleFrais(fraisLivraison({ mode: 'domicile', ville: villeClient, sousTotal: articles }))} (45 DH dans une zone éloignée).`}
+              {mode === 'domicile' && `Grille : ${libelleFrais(fraisLivraison({ mode: 'domicile', ville: villeClient }))} (45 DH dans une zone éloignée).`}
               {mode === 'retrait' && 'Le retrait est gratuit.'}
               {mode === 'transport' && (transport === 'camionnette'
                 ? `Réglages : ${prixCamionnette(o, reglages) === null ? 'hors zone de la camionnette' : `${prixCamionnette(o, reglages)} DH`}.`
@@ -905,8 +905,8 @@ export function FicheCommande({
 
   // ─── Réception : frais, camionnette, contrôle du serveur ───────────────────
   const villeClient = String(adresse?.city ?? '');
-  // Seuil de livraison offerte sur la somme des lignes (jamais le sous-total écrit par le
-  // client) ; une commande d'avant le 29/09/2026 garde l'ancienne livraison offerte.
+  // Plus de livraison offerte depuis le 30/09/2026 ; une commande d'avant garde la règle de sa
+  // date (seuil sur la somme des lignes, jamais sur le sous-total écrit par le client).
   const fraisTexte = reception.mode === 'retrait'
     ? (o.deliveryFee ? formatPrice(o.deliveryFee) : 'gratuit')
     : reception.mode === 'transport' || reception.volumineux
@@ -1357,11 +1357,11 @@ export function FicheCommande({
                 <p className="font-semibold text-gray-100">Camionnette LEBTEX — Casablanca et périphérie</p>
                 {cam.actif ? (
                   <p className="mt-0.5">
-                    {cam.prixCasablanca} DH à Casablanca, {cam.prixPeripherie} DH en périphérie (Mohammedia, Bouskoura, Dar Bouazza, Médiouna…)
-                    {cam.offerteDes > 0 ? `, offerte dès ${cam.offerteDes.toLocaleString('fr-FR')} DH` : ''}. Tournées : {cam.jours}.{' '}
+                    {cam.prixCasablanca} DH à Casablanca, {cam.prixPeripherie} DH en périphérie (Mohammedia, Bouskoura, Dar Bouazza, Médiouna…).
+                    Tournées : {cam.jours}.{' '}
                     Pour cette commande :{' '}
                     <strong className="text-gray-100">
-                      {prixCam === null ? 'hors zone de la camionnette' : prixCam === 0 ? 'offerte' : `${prixCam} DH (${zoneCamionnette})`}
+                      {prixCam === null ? 'hors zone de la camionnette' : `${prixCam} DH (${zoneCamionnette})`}
                     </strong>.
                     {' '}Espèces au chauffeur : {PLAFOND_ESPECES_TOURNEE.toLocaleString('fr-FR')} DH au plus par tournée.
                   </p>

@@ -2570,7 +2570,7 @@ Cette action est irréversible.`)) return;
 }
 
 // Case de l'éditeur de produit : un rouleau entier ne part jamais en colis Sendit.
-// La boutique masque alors les frais et la livraison offerte, et propose retrait
+// La boutique masque alors les frais de colis, et propose retrait
 // (CHRIFA) ou transport organisé par téléphone.
 function CaseVolumineux({ coche, onChange }: { coche: boolean; onChange: (v: boolean) => void }) {
   return (
@@ -2590,7 +2590,7 @@ function CaseVolumineux({ coche, onChange }: { coche: boolean; onChange: (v: boo
           Article volumineux (rouleau entier) — jamais par colis Sendit
         </span>
         <span className="block text-xs text-gray-400 mt-0.5">
-          Pas de frais de colis ni de « livraison offerte » : le client choisit le retrait à CHRIFA ou un transport organisé par téléphone.
+          Pas de frais de colis : le client choisit le retrait à CHRIFA ou un transport organisé par téléphone.
         </span>
       </span>
     </label>

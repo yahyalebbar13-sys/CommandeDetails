@@ -33,7 +33,7 @@ import {
   type OrderStatus,
 } from '@/lib/shop-types';
 import { formatPrice } from '@/lib/shop-utils';
-import { moyenPaiementDe, prixUnitaireLigne, receptionDe, totalLigne, transportPrevu } from '@/lib/commandes-boutique';
+import { fraisColisAnnonces, moyenPaiementDe, prixUnitaireLigne, receptionDe, totalLigne, transportPrevu } from '@/lib/commandes-boutique';
 import { useReglagesReception } from '@/lib/use-reglages-reception';
 import {
   LogOut,
@@ -114,14 +114,15 @@ function OrderCard({ order }: { order: ShopOrder }) {
   const lieu = reglages.lieux[reception.lieu];
   const fraisLivraison = Number(order.deliveryFee) || 0;
   // Retrait : gratuit. Transport d'un rouleau : prix donné au téléphone, « à confirmer » tant qu'il vaut 0.
+  // Colis à 0 : « Offerte » seulement pour une commande d'avant le 30/09/2026 qui y avait droit.
   const ligneLivraison =
     reception.mode === 'retrait'
       ? 'Gratuit (retrait)'
-      : reception.mode === 'transport' && fraisLivraison === 0
-        ? 'À confirmer par téléphone'
-        : fraisLivraison === 0
+      : fraisLivraison > 0
+        ? formatPrice(fraisLivraison)
+        : reception.mode === 'domicile' && fraisColisAnnonces(order) === 'offerte'
           ? 'Offerte'
-          : formatPrice(fraisLivraison);
+          : 'À confirmer par téléphone';
   const statusColor = ORDER_STATUS_COLORS[order.status] || '#6B7280';
   const statusLabel =
     order.status === 'delivered' && reception.mode === 'retrait'

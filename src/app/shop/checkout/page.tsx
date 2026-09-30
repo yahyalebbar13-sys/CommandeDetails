@@ -46,8 +46,6 @@ import {
 } from "@/lib/shop-utils";
 import {
   FRAIS_ZONE,
-  SEUIL_OFFERTE_CASABLANCA,
-  SEUIL_OFFERTE_AUTRES,
   TEXTE_TRANSPORT_VOLUMINEUX,
   commandeVolumineuse,
   delaiColis,
@@ -56,9 +54,7 @@ import {
   fraisLivraison,
   libelleFrais,
   lieuRetraitPour,
-  livraisonOfferte,
   modesPossibles,
-  seuilOfferte,
 } from "@/lib/livraison-boutique";
 import { PLAFOND_ESPECES_COLIS } from "@/lib/commandes-boutique";
 import { useReglagesReception } from "@/lib/use-reglages-reception";
@@ -133,7 +129,6 @@ function transportPour(ville: string): PreferenceTransport {
 function calculerChoix(
   form: FormData,
   volumineux: boolean,
-  sousTotal: number,
   reglages: ReglagesReception
 ): ChoixReception {
   const ville = villeSaisie(form);
@@ -149,7 +144,7 @@ function calculerChoix(
       ? modes[0]
       : null;
   const preferenceTransport = transportPour(ville);
-  const frais = mode ? fraisLivraison({ mode, ville, sousTotal }) : null;
+  const frais = mode ? fraisLivraison({ mode, ville }) : null;
   return {
     ville,
     volumineux,
@@ -165,7 +160,7 @@ function calculerChoix(
 }
 
 /**
- * Frais tels que le client les lit : « 35 MAD », « Offerte », « À confirmer par téléphone ».
+ * Frais tels que le client les lit : « 35 MAD », « Gratuit » (retrait), « À confirmer par téléphone ».
  * Même unité que les prix du site (formatPrice) : jamais « 35 DH » à côté de « 685 MAD ».
  */
 function prixFrais(frais: number | null): string {
@@ -291,7 +286,7 @@ function OptionCarte({
   icone,
   titre,
   prix,
-  prixOfferte,
+  prixGratuit,
   children,
 }: {
   name: string;
@@ -300,7 +295,8 @@ function OptionCarte({
   icone: React.ReactNode;
   titre: string;
   prix?: string;
-  prixOfferte?: boolean;
+  /** « Gratuit » en vert : le retrait au magasin, le seul mode sans frais. */
+  prixGratuit?: boolean;
   children?: React.ReactNode;
 }) {
   return (
@@ -325,7 +321,7 @@ function OptionCarte({
             {titre}
           </span>
           {prix && (
-            <span className={`text-sm font-bold tabular-nums ${prixOfferte ? "text-green-700" : "text-[#0F0F0F]"}`}>
+            <span className={`text-sm font-bold tabular-nums ${prixGratuit ? "text-green-700" : "text-[#0F0F0F]"}`}>
               {prix}
             </span>
           )}
@@ -365,7 +361,6 @@ function validate(form: FormData, choix: ChoixReception): FormErrors {
 interface Totaux {
   titreLigne: string;
   valeurLigne: string;
-  offerte: boolean;
   total: number;
   legendeTotal: string;
 }
@@ -394,7 +389,6 @@ function calculerTotaux(choix: ChoixReception, subtotal: number, paiement: Moyen
   return {
     titreLigne,
     valeurLigne,
-    offerte: mode === "domicile" && fraisConnus && frais === 0,
     total: subtotal + (fraisConnus && frais !== null ? frais : 0),
     legendeTotal,
   };
@@ -412,7 +406,7 @@ function ResumeAvantValidation({ subtotal, choix, paiement }: { subtotal: number
       </div>
       <div className="flex items-start justify-between gap-3 text-sm">
         <span className="text-[#6B6B6B]">{t.titreLigne}</span>
-        <span className={`font-semibold text-right ${t.offerte || choix.mode === "retrait" ? "text-green-700" : "text-[#0F0F0F]"}`}>{t.valeurLigne}</span>
+        <span className={`font-semibold text-right ${choix.mode === "retrait" ? "text-green-700" : "text-[#0F0F0F]"}`}>{t.valeurLigne}</span>
       </div>
       <div className="border-t border-[#E8E4DF] pt-2 flex items-start justify-between gap-3">
         <span className="font-bold text-[#0F0F0F]">Total</span>
@@ -438,15 +432,7 @@ function SummaryPanel({ items, subtotal, productQtyMap, choix, paiement }: Summa
   const { ville, mode, frais, fraisConnus } = choix;
   const itemCount = items.reduce((s, i) => s + i.quantity, 0);
   const hasUnpricedItems = items.some((item) => getCartItemUnitPrice(item, productQtyMap?.[item.productId] || item.quantity) <= 0);
-  const { titreLigne, valeurLigne, offerte, total, legendeTotal } = calculerTotaux(choix, subtotal, paiement);
-
-  // Incitation : seulement pour un colis, la seule livraison que l'on offre.
-  const incitation =
-    mode === "domicile" && subtotal > 0 && !(ville && livraisonOfferte(subtotal, ville))
-      ? ville
-        ? `Plus que ${formatPrice(seuilOfferte(ville) - subtotal)} pour la livraison offerte${estCasablanca(ville) ? " à Casablanca" : ""}`
-        : `Livraison offerte dès ${formatPrice(SEUIL_OFFERTE_CASABLANCA)} à Casablanca, dès ${formatPrice(SEUIL_OFFERTE_AUTRES)} ailleurs`
-      : null;
+  const { titreLigne, valeurLigne, total, legendeTotal } = calculerTotaux(choix, subtotal, paiement);
 
   const rassurance =
     paiement === "carte"
@@ -542,18 +528,12 @@ function SummaryPanel({ items, subtotal, productQtyMap, choix, paiement }: Summa
           </span>
           <span
             className={`font-semibold text-right ${
-              offerte || mode === "retrait" ? "text-green-700" : fraisConnus && frais !== null ? "text-[#0F0F0F] tabular-nums" : "text-xs text-[#6B6B6B]"
+              mode === "retrait" ? "text-green-700" : fraisConnus && frais !== null ? "text-[#0F0F0F] tabular-nums" : "text-xs text-[#6B6B6B]"
             }`}
           >
             {valeurLigne}
           </span>
         </div>
-        {incitation && (
-          <p className="flex items-start gap-1.5 rounded-lg bg-emerald-50 border border-emerald-100 px-2.5 py-2 text-xs font-medium text-emerald-800">
-            <Truck className="w-3.5 h-3.5 mt-px flex-shrink-0" />
-            {incitation}
-          </p>
-        )}
         {mode === "domicile" && ville && (
           <div className="flex items-center justify-between text-xs text-[#6B6B6B]">
             <span className="flex items-center gap-1.5">
@@ -613,8 +593,8 @@ export default function CheckoutPage() {
 
   const volumineux = useMemo(() => commandeVolumineuse(items), [items]);
   const choix = useMemo(
-    () => calculerChoix(form, volumineux, subtotal, reglages),
-    [form, volumineux, subtotal, reglages]
+    () => calculerChoix(form, volumineux, reglages),
+    [form, volumineux, reglages]
   );
   // Un moyen de paiement retiré des réglages entre-temps retombe sur les espèces.
   const paiement: MoyenPaiement =
@@ -961,9 +941,8 @@ export default function CheckoutPage() {
                         if (m === "domicile") {
                           const prixConnu = !!choix.ville;
                           const fraisDomicile = prixConnu
-                            ? fraisLivraison({ mode: "domicile", ville: choix.ville, sousTotal: subtotal })
+                            ? fraisLivraison({ mode: "domicile", ville: choix.ville })
                             : null;
-                          const offerte = prixConnu && fraisDomicile === 0;
                           return (
                             <OptionCarte
                               key={m}
@@ -973,21 +952,15 @@ export default function CheckoutPage() {
                               icone={<Truck className="w-4 h-4" />}
                               titre="À domicile par Sendit"
                               prix={prixConnu ? prixFrais(fraisDomicile) : `${formatPrice(FRAIS_ZONE.casablanca)} à ${formatPrice(FRAIS_ZONE.eloignee)}`}
-                              prixOfferte={offerte}
                             >
                               <p>
                                 Livraison à votre adresse{prixConnu ? `, sous ${delaiColis(choix.ville)}` : ", prix selon la ville"}.
                                 {" "}{paiement === "cod" ? "Vous payez à la réception : le" : "Le"} colis ne s&apos;ouvre pas avant le paiement.
                               </p>
                               {/* Plan §3.1 : Sendit facture plus cher quelques quartiers excentrés ; on le dit avant l'appel. */}
-                              {prixConnu && !offerte && estCasablanca(choix.ville) && (
+                              {prixConnu && estCasablanca(choix.ville) && (
                                 <p className="text-xs text-[#6B6B6B]">
                                   {formatPrice(FRAIS_ZONE.eloignee)} dans quelques zones éloignées de Casablanca, confirmé à l&apos;appel.
-                                </p>
-                              )}
-                              {prixConnu && !offerte && subtotal > 0 && (
-                                <p className="text-xs font-semibold text-emerald-700">
-                                  Offerte dès {formatPrice(seuilOfferte(choix.ville))} d&apos;achats
                                 </p>
                               )}
                             </OptionCarte>
@@ -1003,7 +976,7 @@ export default function CheckoutPage() {
                               icone={<Store className="w-4 h-4" />}
                               titre={`Retrait gratuit à ${lieu.nom}`}
                               prix="Gratuit"
-                              prixOfferte
+                              prixGratuit
                             >
                               <p>{lieu.adresse} · {lieu.horaires}.</p>
                               <p>L&apos;adresse exacte et le jour vous sont confirmés par WhatsApp.</p>

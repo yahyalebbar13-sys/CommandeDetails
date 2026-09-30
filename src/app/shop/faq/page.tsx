@@ -3,18 +3,14 @@ import Link from 'next/link';
 import { useState } from 'react';
 import { ChevronDown, ChevronUp, MessageCircle, Phone } from 'lucide-react';
 import { formatPrice } from '@/lib/shop-utils';
-import {
-  DELAI_ZONE, FRAIS_ZONE, PERIPHERIE_CASABLANCA, SEUIL_OFFERTE_AUTRES, SEUIL_OFFERTE_CASABLANCA,
-} from '@/lib/livraison-boutique';
+import { DELAI_ZONE, FRAIS_ZONE, PERIPHERIE_CASABLANCA } from '@/lib/livraison-boutique';
 import { PLAFOND_ESPECES_COLIS } from '@/lib/commandes-boutique';
 import { useReglagesReception } from '@/lib/use-reglages-reception';
 
-// Les prix, seuils et délais viennent de livraison-boutique.ts : la FAQ dit
+// Les prix et délais viennent de livraison-boutique.ts : la FAQ dit
 // toujours la même chose que le panier et le formulaire de commande. Les réponses
 // qui parlent du virement ne s'affichent que si le virement est proposé au
 // formulaire (RIB saisi par le patron dans « Réception & paiement »).
-const casa = formatPrice(SEUIL_OFFERTE_CASABLANCA);
-const ailleurs = formatPrice(SEUIL_OFFERTE_AUTRES);
 const prix = (zone: keyof typeof FRAIS_ZONE) => formatPrice(FRAIS_ZONE[zone]);
 
 const FAQS = [
@@ -23,7 +19,7 @@ const FAQS = [
     questions: [
       { q: "Qui livre mes colis ?", a: "Nos colis sont livrés par Sendit, dans toutes les villes du Maroc. Le livreur vous appelle avant de passer." },
       { q: "Quels sont les délais de livraison ?", a: `Nous expédions sous 24 h (jours ouvrés) après l'appel de confirmation. Casablanca : ${DELAI_ZONE.casablanca}. Périphérie de Casablanca et grandes villes : ${DELAI_ZONE.standard}. Villes éloignées : ${DELAI_ZONE.eloignee}.` },
-      { q: "Quels sont les frais de livraison ?", a: `Casablanca : ${prix('casablanca')} (${prix('eloignee')} dans quelques zones éloignées, confirmé à l'appel). Périphérie de Casablanca (${PERIPHERIE_CASABLANCA.join(', ')}) et grandes villes : ${prix('standard')}. Villes éloignées et autres villes : ${prix('eloignee')}. La livraison est offerte dès ${casa} d'achat à Casablanca, et dès ${ailleurs} partout ailleurs.` },
+      { q: "Quels sont les frais de livraison ?", a: `Casablanca : ${prix('casablanca')} (${prix('eloignee')} dans quelques zones éloignées, confirmé à l'appel). Périphérie de Casablanca (${PERIPHERIE_CASABLANCA.join(', ')}) et grandes villes : ${prix('standard')}. Villes éloignées et autres villes : ${prix('eloignee')}. Un seul prix par colis, quel que soit le montant de la commande. Le retrait au magasin, lui, est toujours gratuit.` },
       { q: "Puis-je ouvrir le colis avant de payer ?", a: "Non : chez Sendit, le colis ne s'ouvre pas et ne s'essaie pas avant le paiement. Si vous voulez voir un article avant, demandez-nous des photos sur WhatsApp. Un problème à l'ouverture (article abîmé, erreur de notre part) ? Envoyez-nous une photo dans les 48 h : nous remplaçons à nos frais." },
       { q: "Puis-je retirer ma commande ?", a: "Oui, le retrait est gratuit à Casablanca, pour toute commande : les petits articles au magasin de Derb Omar, les rouleaux à notre dépôt CHRIFA. Choisissez « Retrait gratuit » en commandant. Nous vous envoyons l'adresse exacte et le lien Google Maps par WhatsApp quand la commande est prête. Elle vous attend 7 jours ouvrés." },
       { q: "Livrez-vous les rouleaux ?", a: "Oui, mais pas en colis : un rouleau entier est trop grand pour Sendit. Nous vous appelons pour organiser le transport : retrait gratuit à notre dépôt CHRIFA, livraison par notre camionnette à Casablanca et environs, ou envoi par un transporteur jusqu'à son dépôt dans votre ville, où vous récupérez la marchandise. Le prix vous est annoncé au téléphone ; rien n'est envoyé avant votre accord." },

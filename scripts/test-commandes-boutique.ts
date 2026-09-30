@@ -10,7 +10,7 @@ import {
   alerteEspeces, champsParDefaut, etapeSuivante, etatPaiementLisible, ETAPE_SUIVANTE, joursOuvresApres, jourLisible,
   libelleMode, MESSAGE_CLIENT, messageClient, messageModele, modelesPour, MOTIFS_ANNULATION, moyenPaiementDe, prixCamionnette, prixLu,
   receptionDe, transportAOrganiser, transportPrevu, volumineuxEnColis,
-  commandeMixte, fraisColisAttendus, numeroCommandeAffichable, numeroCommandeValide, texteClientSur,
+  commandeMixte, fraisColisAnnonces, fraisColisAttendus, FIN_LIVRAISON_OFFERTE, numeroCommandeAffichable, numeroCommandeValide, texteClientSur,
 } from '../src/lib/commandes-boutique';
 import { REGLAGES_RECEPTION_DEFAUT, type ReglagesReception } from '../src/lib/reglages-reception';
 import type { OrderStatus, ShopOrder } from '../src/lib/shop-types';
@@ -323,8 +323,8 @@ console.log('\n── Camionnette et virement dans les messages ──');
 check('camionnette : 50 DH à Casablanca, 80 DH en périphérie, hors zone ailleurs',
   prixCamionnette(tr) === 50 && prixCamionnette(transport({ id: 'mo', shippingAddress: adresseDe('Mohammedia') })) === 80
   && prixCamionnette(trFes) === null);
-check('camionnette offerte dès 2 000 DH, arrêtée = null',
-  prixCamionnette(transport({ id: 'big', subtotal: 2500 })) === 0
+check('camionnette jamais offerte (même à 2 500 DH), arrêtée = null',
+  prixCamionnette(transport({ id: 'big', subtotal: 2500 })) === 50
   && prixCamionnette(tr, { ...REGLAGES_RECEPTION_DEFAUT, camionnette: { ...REGLAGES_RECEPTION_DEFAUT.camionnette, actif: false } }) === null);
 check('veille de tournée : date et prix pré-remplis ; 0 s’écrit « offert »',
   champsParDefaut('veille_tournee', MAINTENANT, 50).prixTransport === '50' && champsParDefaut('veille_tournee', MAINTENANT, 0).prixTransport === 'offert'
@@ -368,6 +368,21 @@ check('rouleau + petits articles : mixte', commandeMixte({ items: [rouleau, lign
 check('nouvelle commande sous le seuil : 20 DH attendus (sur les lignes)', fraisColisAttendus(commande({ id: 'f1', subtotal: 5000, deliveryFee: 0, reception: { mode: 'domicile', volumineux: false } })) === 20);
 check('ancienne commande au-dessus de 100 DH à Casablanca : 0 attendu (offerte)', fraisColisAttendus(commande({ id: 'f2', deliveryFee: 0 })) === 0);
 check('ancienne commande payée 25 DH (ancienne grille) : pas de comparaison', fraisColisAttendus(commande({ id: 'f3' })) === null);
+
+// Fin de la livraison offerte le 30/09/2026 à midi : une commande d'avant garde la règle de sa date.
+const lignes400 = [{ productId: 'p9', productName: 'Tissu', productImage: '', price: 40, unitPrice: 40, quantity: 10, maxStock: 99 }];
+const colis400 = (id: string, createdAt: unknown) =>
+  commande({ id, items: lignes400, subtotal: 400, deliveryFee: 0, total: 400, reception: { mode: 'domicile', volumineux: false }, createdAt });
+check('fin de la livraison offerte : le 30/09/2026 à midi (heure du Maroc)', new Date(FIN_LIVRAISON_OFFERTE).toISOString() === '2026-09-30T11:00:00.000Z');
+check('400 DH à Casablanca le 29/09 : 0 attendu (offerte à cette date)', fraisColisAttendus(colis400('o1', new Date(Date.UTC(2026, 8, 29, 15)))) === 0);
+check('400 DH à Casablanca après midi le 30/09 : 20 DH attendus', fraisColisAttendus(colis400('o2', new Date(FIN_LIVRAISON_OFFERTE + 60_000))) === 20);
+check('sans date (commande tout juste écrite) : règle d’aujourd’hui, 20 DH', fraisColisAttendus(colis400('o3', undefined)) === 20);
+check('horodatage Firestore {seconds} du 29/09 : lu, 0 attendu', fraisColisAttendus(colis400('o4', { seconds: Date.UTC(2026, 8, 29, 10) / 1000 })) === 0);
+check('650 DH à Rabat après la fin : 35 DH attendus, plus de seuil',
+  fraisColisAttendus({ ...colis400('o5', new Date(FIN_LIVRAISON_OFFERTE + 1)), items: [{ ...lignes400[0], quantity: 20 }], shippingAddress: { fullName: 'x', phone: '0612345678', address: '1 rue', city: 'Rabat' } }) === 35);
+check('colis à 0 DH d’avant : « offerte » ; d’après : « à confirmer »',
+  fraisColisAnnonces(colis400('o6', new Date(Date.UTC(2026, 8, 29, 15)))) === 'offerte'
+  && fraisColisAnnonces(colis400('o7', new Date(FIN_LIVRAISON_OFFERTE + 60_000))) === 'à confirmer');
 
 console.log(`\n${pass} réussis, ${fail} échoués`);
 process.exit(fail ? 1 : 0);

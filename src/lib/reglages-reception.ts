@@ -32,8 +32,6 @@ export interface ReglagesReception {
     /** Prix à Casablanca et en périphérie (Mohammedia, Bouskoura, Dar Bouazza, Médiouna…), en DH. */
     prixCasablanca: number;
     prixPeripherie: number;
-    /** Offerte à partir de ce montant de commande (DH). 0 = jamais offerte. */
-    offerteDes: number;
     /** Jours de tournée, en clair : « mardi et jeudi ». */
     jours: string;
   };
@@ -76,7 +74,7 @@ export const REGLAGES_RECEPTION_DEFAUT: ReglagesReception = {
     },
   },
   virement: { actif: false, titulaire: '', banque: '', rib: '' },
-  camionnette: { actif: true, prixCasablanca: 50, prixPeripherie: 80, offerteDes: 2000, jours: 'mardi et jeudi' },
+  camionnette: { actif: true, prixCasablanca: 50, prixPeripherie: 80, jours: 'mardi et jeudi' },
   carte: { actif: false },
 };
 
@@ -132,7 +130,6 @@ export function lireReglagesReception(brut: unknown): ReglagesReception {
       actif: booleen(c.actif, d.camionnette.actif),
       prixCasablanca: nombre(c.prixCasablanca, d.camionnette.prixCasablanca),
       prixPeripherie: nombre(c.prixPeripherie, d.camionnette.prixPeripherie),
-      offerteDes: nombre(c.offerteDes, d.camionnette.offerteDes),
       jours: texte(c.jours, d.camionnette.jours, 80),
     },
     carte: { actif: booleen(b.carte?.actif, false) },

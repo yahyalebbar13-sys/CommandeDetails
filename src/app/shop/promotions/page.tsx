@@ -4,8 +4,6 @@ import Link from 'next/link';
 import { Tag, Clock, Zap, ShoppingBag } from 'lucide-react';
 import { useShopProducts } from '@/contexts/shop-products-context';
 import {
-  CASABLANCA_FREE_DELIVERY_THRESHOLD,
-  FREE_DELIVERY_THRESHOLD,
   formatPrice,
   formatProductPrice,
   getDiscountPercent,
@@ -14,6 +12,7 @@ import {
 import { useShopCartActions } from '@/contexts/shop-cart-context';
 import { useLanguage } from '@/contexts/language-context';
 import type { ShopProduct } from '@/lib/shop-types';
+import { DELAI_ZONE, FRAIS_ZONE } from '@/lib/livraison-boutique';
 
 const PromoCard = React.memo(function PromoCard({ product }: { product: ShopProduct }) {
   const { language } = useLanguage();
@@ -132,7 +131,7 @@ export default function PromotionsPage() {
                 { icon: Tag, val: `${promoProducts.length}`, label: 'Articles en promo' },
                 { icon: Zap, val: maxDiscount > 0 ? `Jusqu'à -${maxDiscount}%` : 'Petits prix', label: 'De réduction' },
                 { icon: Clock, val: 'Limité', label: 'Stocks disponibles' },
-                { icon: ShoppingBag, val: formatPrice(CASABLANCA_FREE_DELIVERY_THRESHOLD), label: 'Livraison gratuite Casa' },
+                { icon: ShoppingBag, val: formatPrice(FRAIS_ZONE.casablanca), label: 'Livraison Casablanca' },
               ].map(({ icon: Icon, val, label }) => (
                 <div key={label} className="bg-white/10 backdrop-blur-sm border border-white/20 rounded-xl p-3">
                   <p className="font-black text-lg text-white">{val}</p>
@@ -158,13 +157,13 @@ export default function PromotionsPage() {
           ))}
         </div>
 
-        {/* Free delivery reminder */}
+        {/* Livraison : le vrai prix, et le retrait gratuit */}
         <div className="bg-[#D4A843]/10 border border-[#D4A843]/30 rounded-2xl p-4 mb-8 flex items-center gap-3">
-          <span className="text-2xl">🎉</span>
+          <span className="text-2xl">🚚</span>
           <div>
-            <p className="font-bold text-[#1A1A1A]">Livraison GRATUITE à Casablanca à partir de {formatPrice(CASABLANCA_FREE_DELIVERY_THRESHOLD)}</p>
+            <p className="font-bold text-[#1A1A1A]">Livraison {formatPrice(FRAIS_ZONE.casablanca)} à Casablanca, en {DELAI_ZONE.casablanca}</p>
             <p className="text-sm text-[#6B6B6B]">
-              Partout au Maroc à partir de {formatPrice(FREE_DELIVERY_THRESHOLD)} · combinez plusieurs articles en promotion
+              Partout au Maroc dès {formatPrice(FRAIS_ZONE.standard)} · retrait gratuit en magasin · un seul colis pour tous vos articles
             </p>
           </div>
           <Link href="/shop/boutique" className="ml-auto shrink-0 px-4 py-2 bg-[#D4A843] text-white text-sm font-bold rounded-xl hover:bg-[#b8922e] transition-colors">

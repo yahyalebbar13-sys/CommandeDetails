@@ -517,7 +517,7 @@ function ligneFrais(commande: ShopOrder): [string, string] {
   if (r.mode === 'retrait') return ['Retrait', frais > 0 ? montant(frais) : 'Gratuit'];
   if (r.mode === 'transport' || r.volumineux) return ['Transport', frais > 0 ? montant(frais) : 'À confirmer'];
   if (frais > 0) return ['Livraison', montant(frais)];
-  // Seuil sur la somme des lignes ; ancienne commande : ancienne livraison offerte (100 / 500 DH).
+  // « Offerte » : seulement une commande d'avant le 30/09/2026 qui atteignait le seuil de sa date.
   return ['Livraison', fraisColisAnnonces(commande) === 'offerte' ? 'Offerte' : 'À vérifier'];
 }
 

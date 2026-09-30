@@ -20,14 +20,12 @@ import {
   LayoutGrid,
 } from 'lucide-react';
 import {
-  CASABLANCA_FREE_DELIVERY_THRESHOLD,
-  FREE_DELIVERY_THRESHOLD,
   formatPrice,
   getDiscountPercent,
   getProductDisplayPrice,
   hasActivePromo,
 } from '@/lib/shop-utils';
-import { DELAI_ZONE } from '@/lib/livraison-boutique';
+import { DELAI_ZONE, FRAIS_ZONE } from '@/lib/livraison-boutique';
 import type { ShopProduct } from '@/lib/shop-types';
 import ProductCard from '@/components/shop/ProductCard';
 import { useLanguage } from '@/contexts/language-context';
@@ -38,6 +36,8 @@ const DEALS_COUNT = 12;
 const POPULAR_COUNT = 10;
 const SMALL_PRICES_COUNT = 12;
 const NEW_COUNT = 10;
+/** « Petits prix » : les articles à moins de 100 MAD. */
+const PETIT_PRIX_MAX = 100;
 const MORE_PRODUCTS_STEP = 20;
 
 function discountOf(product: ShopProduct) {
@@ -166,7 +166,7 @@ export default function ShopPage() {
       available
         .filter(p => {
           const { amount } = getProductDisplayPrice(p);
-          return amount > 0 && amount < CASABLANCA_FREE_DELIVERY_THRESHOLD;
+          return amount > 0 && amount < PETIT_PRIX_MAX;
         })
         .sort((a, b) => getProductDisplayPrice(a).amount - getProductDisplayPrice(b).amount),
       SMALL_PRICES_COUNT
@@ -186,8 +186,10 @@ export default function ShopPage() {
     };
   }, [products, getPromoProducts]);
 
-  const casaThreshold = formatPrice(CASABLANCA_FREE_DELIVERY_THRESHOLD);
-  const nationalThreshold = formatPrice(FREE_DELIVERY_THRESHOLD);
+  // Plus de livraison offerte (30/09/2026) : on annonce le vrai prix, bas et clair.
+  const prixCasa = formatPrice(FRAIS_ZONE.casablanca);
+  const prixVilles = formatPrice(FRAIS_ZONE.standard);
+  const petitPrix = formatPrice(PETIT_PRIX_MAX);
 
   return (
     <main className="min-h-screen bg-[#FBF8F3]" style={{ fontFamily: 'Inter, sans-serif' }}>
@@ -235,11 +237,11 @@ export default function ShopPage() {
         <div className="flex items-center justify-center flex-wrap gap-x-5 gap-y-1.5 text-white text-xs font-bold">
           <span className="flex items-center gap-1.5">
             <Truck className="w-3.5 h-3.5 shrink-0" />
-            {t('free_delivery_casa', { amount: casaThreshold })}
+            {t('delivery_casa_price', { amount: prixCasa })}
           </span>
           <span className="hidden sm:flex items-center gap-1.5 font-normal text-white/85">
             <MapPin className="w-3.5 h-3.5 shrink-0" />
-            {isAr ? `لجميع المدن من ${nationalThreshold}` : `Partout au Maroc à partir de ${nationalThreshold}`}
+            {isAr ? 'استلام مجاني من المحل' : 'Retrait gratuit en magasin'}
           </span>
           <span className="hidden sm:flex items-center gap-1.5 font-normal text-white/85">
             <Banknote className="w-3.5 h-3.5 shrink-0" /> {t('trust_payment')}
@@ -291,7 +293,7 @@ export default function ShopPage() {
       </section>
 
       {/* ═══════════════════════════════════════════════════════════════════ */}
-      {/* SECTION 4: LIVRAISON GRATUITE À CASABLANCA                        */}
+      {/* SECTION 4: LIVRAISON RAPIDE, PRIX CLAIR                           */}
       {/* ═══════════════════════════════════════════════════════════════════ */}
       <section className="px-4 sm:px-6 lg:px-12 pt-4">
         <div className="relative overflow-hidden rounded-2xl text-white bg-gradient-to-br from-[#C8102E] via-[#a00d25] to-[#4a0611]">
@@ -308,15 +310,15 @@ export default function ShopPage() {
                   {isAr ? 'الدار البيضاء' : 'Casablanca'}
                 </p>
                 <p className="text-xl sm:text-2xl lg:text-3xl font-black leading-tight" style={{ fontFamily: 'Outfit, sans-serif' }}>
-                  {isAr ? 'توصيل مجاني ابتداءً من ' : 'Livraison GRATUITE à partir de '}
-                  <span className="text-[#F3D58B]">{casaThreshold}</span>
+                  {isAr ? 'توصيل خلال ' : 'Livrée en '}
+                  <bdi className="text-[#F3D58B]">{DELAI_ZONE.casablanca}</bdi>
+                  {isAr ? ' مقابل ' : ' pour '}
+                  <span className="text-[#F3D58B]">{prixCasa}</span>
                 </p>
                 <p className="text-white/90 text-xs sm:text-sm mt-1">
-                  {isAr ? 'خلال ' : 'Livrée en '}
-                  <bdi>{DELAI_ZONE.casablanca}</bdi>
                   {isAr
-                    ? ` · الدفع عند الاستلام · الاستلام من المحل مجاناً · باقي المدن: مجاني من ${nationalThreshold}`
-                    : ` · Paiement à la réception · Retrait gratuit · Autres villes : offerte dès ${nationalThreshold}`}
+                    ? `باقي المدن من ${prixVilles} · الدفع عند الاستلام · استلام مجاني من المحل`
+                    : `Autres villes dès ${prixVilles} · Paiement à la réception · Retrait gratuit en magasin`}
                 </p>
               </div>
             </div>
@@ -324,7 +326,7 @@ export default function ShopPage() {
               href="/shop/boutique"
               className="inline-flex items-center justify-center gap-2 px-5 py-3 rounded-xl bg-white text-[#C8102E] font-black text-sm shadow-lg flex-shrink-0 hover:bg-[#FBF8F3] transition-colors touch-manipulation"
             >
-              {isAr ? 'اطلب الآن' : "J'en profite"} <ArrowRight className="w-4 h-4" />
+              {isAr ? 'اطلب الآن' : 'Commander'} <ArrowRight className="w-4 h-4" />
             </Link>
           </div>
         </div>
@@ -373,7 +375,7 @@ export default function ShopPage() {
       )}
 
       {/* ═══════════════════════════════════════════════════════════════════ */}
-      {/* SECTION 7: PETITS PRIX (< seuil Casablanca)                       */}
+      {/* SECTION 7: PETITS PRIX (< 100 MAD)                                */}
       {/* ═══════════════════════════════════════════════════════════════════ */}
       {sections.smallPrices.length > 0 && (
         <section className="pt-6 px-4 sm:px-6 lg:px-12">
@@ -383,13 +385,13 @@ export default function ShopPage() {
               title={isAr ? 'أسعار صغيرة' : 'Petits prix'}
               badge={
                 <span className="px-2 py-0.5 rounded-full text-xs font-black bg-[#D4A843]/15 text-[#8a6a1f] border border-[#D4A843]/30">
-                  {isAr ? `أقل من ${casaThreshold}` : `Moins de ${casaThreshold}`}
+                  {isAr ? `أقل من ${petitPrix}` : `Moins de ${petitPrix}`}
                 </span>
               }
               subtitle={
                 isAr
-                  ? `أكمل سلتك إلى ${casaThreshold} واستفد من التوصيل المجاني في الدار البيضاء`
-                  : `Complétez votre panier jusqu'à ${casaThreshold} : livraison gratuite à Casablanca`
+                  ? 'أزرار، خيوط، أشرطة: كل ما يحتاجه المشغل بثمن صغير'
+                  : "Boutons, fils, rubans : l'essentiel de l'atelier à petit prix"
               }
               href="/shop/boutique?tri=prix-asc"
               linkLabel={isAr ? 'عرض الكل' : 'Voir tout'}
@@ -511,10 +513,10 @@ export default function ShopPage() {
           {[
             {
               icon: <Truck className="w-5 h-5 text-[#C8102E]" />,
-              title: isAr ? 'توصيل مجاني' : 'Livraison gratuite',
+              title: isAr ? 'توصيل لكل المغرب' : 'Livraison partout au Maroc',
               text: isAr
-                ? `الدار البيضاء من ${casaThreshold}، باقي المدن من ${nationalThreshold}`
-                : `Casablanca à partir de ${casaThreshold}, partout au Maroc à partir de ${nationalThreshold}`,
+                ? `الدار البيضاء ${prixCasa} خلال ${DELAI_ZONE.casablanca}، باقي المدن من ${prixVilles}`
+                : `Casablanca ${prixCasa} en ${DELAI_ZONE.casablanca}, autres villes dès ${prixVilles}`,
             },
             {
               icon: <Banknote className="w-5 h-5 text-emerald-600" />,

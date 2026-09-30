@@ -10,7 +10,7 @@ import { getFirestore, doc, getDoc } from 'firebase/firestore';
 import { firebaseConfig } from '@/firebase/config';
 import { formatPrice, getWhatsAppContact } from '@/lib/shop-utils';
 import {
-  detailsVariante, moyenPaiementDe, numeroCommandeAffichable, prixUnitaireLigne, receptionDe, texteClientSur, totalLigne,
+  detailsVariante, fraisColisAnnonces, moyenPaiementDe, numeroCommandeAffichable, prixUnitaireLigne, receptionDe, texteClientSur, totalLigne,
   transportPrevu, varianteLisible, type ReceptionLue,
 } from '@/lib/commandes-boutique';
 import { delaiColis, TEXTE_TRANSPORT_VOLUMINEUX } from '@/lib/livraison-boutique';
@@ -214,14 +214,15 @@ export default function ConfirmationPage({ params }: { params: Promise<{ id: str
   const transportAConfirmer = reception.mode === 'transport' && fraisLivraison === 0;
   const steps = etapesPour(reception, transport, paiement, ville, reglages);
 
+  // Colis à 0 : « Offerte » seulement pour une commande d'avant le 30/09/2026 qui y avait droit.
   const ligneLivraison =
     reception.mode === 'retrait'
       ? 'Gratuit (retrait)'
-      : transportAConfirmer
-        ? 'À confirmer par téléphone'
-        : fraisLivraison === 0
+      : fraisLivraison > 0
+        ? formatPrice(fraisLivraison)
+        : reception.mode === 'domicile' && fraisColisAnnonces(order) === 'offerte'
           ? 'Offerte'
-          : formatPrice(fraisLivraison);
+          : 'À confirmer par téléphone';
 
   const lignePaiement =
     paiement === 'virement'

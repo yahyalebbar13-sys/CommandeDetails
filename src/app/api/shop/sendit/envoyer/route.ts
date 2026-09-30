@@ -121,8 +121,8 @@ const auteurLisible = (role: Role, auteur: string) => (role === 'staff' && auteu
 
 /**
  * Frais de colis que la grille donne pour cette commande (pour avertir si le client a payé
- * moins) : seuil de livraison offerte calculé sur la somme des lignes, jamais sur le
- * sous-total écrit par le client ; ancienne commande : ancienne livraison offerte.
+ * moins) : plus de livraison offerte depuis le 30/09/2026 ; une commande d'avant garde la
+ * règle de sa date (seuil sur la somme des lignes, jamais sur le sous-total du client).
  */
 function fraisAttendus(c: CommandePourSendit): number | null {
   if (c.mode !== 'domicile') return null;

@@ -24,7 +24,6 @@ import {
   PackageCheck
 } from 'lucide-react';
 import {
-  CASABLANCA_FREE_DELIVERY_THRESHOLD,
   formatPrice,
   formatPriceOrOnRequest,
   formatProductPrice,
@@ -33,7 +32,7 @@ import {
   hasActivePromo,
   buildWhatsAppLink,
 } from '@/lib/shop-utils';
-import { TEXTE_TRANSPORT_VOLUMINEUX, TEXTE_TRANSPORT_VOLUMINEUX_AR } from '@/lib/livraison-boutique';
+import { DELAI_ZONE, FRAIS_ZONE, TEXTE_TRANSPORT_VOLUMINEUX, TEXTE_TRANSPORT_VOLUMINEUX_AR } from '@/lib/livraison-boutique';
 import { useShopCartActions } from '@/contexts/shop-cart-context';
 import { useShopProducts } from '@/contexts/shop-products-context';
 import { useLanguage } from '@/contexts/language-context';
@@ -1386,7 +1385,7 @@ export default function ProductPage({ params }: { params: Promise<{ id: string }
                 </div>
               )}
 
-              {/* ── Rouleau entier : pas de colis Sendit, donc pas de « livraison gratuite » ── */}
+              {/* ── Rouleau entier : pas de colis Sendit, le transport s'organise par téléphone ── */}
               {product.volumineux && (
                 <div className="mt-4 flex gap-3 p-4 rounded-2xl bg-amber-50 border border-amber-200">
                   <Truck className="w-5 h-5 text-amber-700 flex-shrink-0 mt-0.5" />
@@ -1407,11 +1406,11 @@ export default function ProductPage({ params }: { params: Promise<{ id: string }
                 ) : (
                   <div className="flex flex-col items-center">
                     <Truck className="w-4 h-4 text-emerald-600 mb-1" />
-                    <span className="text-xs font-bold text-neutral-900">{language === 'ar' ? 'توصيل مجاني' : 'Livraison gratuite'}</span>
+                    <span className="text-xs font-bold text-neutral-900">
+                      {language === 'ar' ? `التوصيل ${formatPrice(FRAIS_ZONE.casablanca)}` : `Livraison ${formatPrice(FRAIS_ZONE.casablanca)}`}
+                    </span>
                     <span className="text-xs text-neutral-500">
-                      {language === 'ar'
-                        ? `الدار البيضاء من ${formatPrice(CASABLANCA_FREE_DELIVERY_THRESHOLD)}`
-                        : `Casablanca à partir de ${formatPrice(CASABLANCA_FREE_DELIVERY_THRESHOLD)}`}
+                      {language === 'ar' ? `الدار البيضاء خلال ${DELAI_ZONE.casablanca}` : `Casablanca en ${DELAI_ZONE.casablanca}`}
                     </span>
                   </div>
                 )}

@@ -3,15 +3,13 @@
 import React, { useState, useCallback } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
-import { ShoppingCart, Star, StarHalf, AlertCircle, CheckCircle2, Flame, Truck } from 'lucide-react';
+import { ShoppingCart, Star, StarHalf, AlertCircle, CheckCircle2, Flame } from 'lucide-react';
 import { useShopCartActions } from '@/contexts/shop-cart-context';
 import { useLanguage } from '@/contexts/language-context';
 import {
-  CASABLANCA_FREE_DELIVERY_THRESHOLD,
   formatPrice,
   formatProductPrice,
   getDiscountPercent,
-  getProductDisplayPrice,
   hasActivePromo,
 } from '@/lib/shop-utils';
 import type { ShopProduct } from '@/lib/shop-types';
@@ -66,9 +64,6 @@ export default React.memo(function ProductCard({ product, showAddToCart = true }
   const discountPercent = isPromo ? getDiscountPercent(product.price, product.comparePrice as number) : 0;
   const isLowStock = product.inStock && product.stockQty > 0 && product.stockQty <= LOW_STOCK_THRESHOLD;
   const hasWholesalePrice = Boolean(product.wholesalePrice && product.wholesalePrice > 0 && product.wholesalePrice < product.price && product.minOrderQty && product.minOrderQty > 1);
-  // Un seul exemplaire suffit à atteindre le seuil de livraison gratuite à Casablanca.
-  // Jamais pour un rouleau entier : il ne part pas en colis, la livraison offerte ne le concerne pas.
-  const unlocksFreeCasaDelivery = !product.volumineux && product.inStock && getProductDisplayPrice(product).amount >= CASABLANCA_FREE_DELIVERY_THRESHOLD;
 
   const handleAddToCart = useCallback(
     (e: React.MouseEvent) => {
@@ -203,13 +198,6 @@ export default React.memo(function ProductCard({ product, showAddToCart = true }
             </button>
           )}
         </div>
-
-        {unlocksFreeCasaDelivery && (
-          <span className="mt-0.5 flex items-center gap-1 text-[10px] font-semibold text-emerald-600">
-            <Truck className="w-3 h-3 flex-shrink-0" />
-            {language === 'ar' ? 'توصيل مجاني للدار البيضاء' : 'Livraison gratuite Casa'}
-          </span>
-        )}
 
         {/* Rating — bottom, uniquement s'il y a au moins un avis réel (sinon 5 étoiles
             avec "0" à côté ressemble à une fausse note) */}

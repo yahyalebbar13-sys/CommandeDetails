@@ -19,11 +19,10 @@ import {
   formatPrice,
   formatPriceOrOnRequest,
   formatPriceRange,
-  getFreeDeliveryProgress,
 } from "@/lib/shop-utils";
 import type { CartItem } from "@/lib/shop-types";
-import { commandeVolumineuse } from "@/lib/livraison-boutique";
-import FreeDeliveryProgress from "@/components/shop/FreeDeliveryProgress";
+import { FRAIS_ZONE, commandeVolumineuse } from "@/lib/livraison-boutique";
+import InfoLivraison from "@/components/shop/InfoLivraison";
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
@@ -266,9 +265,8 @@ export default function CartDrawer() {
   const { items, isOpen, subtotal, itemCount, closeCart, removeItem, updateQty, productQtyMap } =
     useShopCart();
   const { t, language } = useLanguage();
-  const deliveryStage = getFreeDeliveryProgress(subtotal).stage;
-  // Un rouleau entier dans le panier : pas de colis Sendit, donc ni barre « livraison offerte »
-  // ni frais de colis ; le retrait est gratuit, le transport se chiffre au téléphone.
+  // Un rouleau entier dans le panier : pas de colis Sendit, donc pas de frais de colis ;
+  // le retrait est gratuit, le transport se chiffre au téléphone.
   const volumineux = useMemo(() => commandeVolumineuse(items), [items]);
   useEffect(() => {
     if (!isOpen) return;
@@ -373,9 +371,6 @@ export default function CartDrawer() {
           <>
             {/* Scrollable item list */}
             <div className="flex-1 overflow-y-auto shop-scrollbar px-4 py-2">
-              {/* Free delivery nudge (top) */}
-
-
               {/* Items grouped by product */}
               <div>
                 {(() => {
@@ -412,10 +407,8 @@ export default function CartDrawer() {
             <div className="flex-shrink-0 px-4 pt-3 pb-5 border-t border-gray-100 bg-white space-y-3"
               style={{ paddingBottom: "max(1.25rem, env(safe-area-inset-bottom))" }}
             >
-              {/* Free delivery bar (bottom) when subtotal > 0 */}
-              {(subtotal > 0 || volumineux) && (
-                <FreeDeliveryProgress subtotal={subtotal} compact volumineux={volumineux} />
-              )}
+              {/* Rouleau entier : la notice du transport, en une ligne */}
+              {volumineux && <InfoLivraison compact volumineux />}
 
               {/* Order summary */}
               <div className="space-y-1.5">
@@ -434,16 +427,8 @@ export default function CartDrawer() {
                       {language === "ar" ? "استلام مجاني أو نقل يُحدد بالهاتف" : "Retrait gratuit ou transport à confirmer"}
                     </span>
                   ) : (
-                    <span
-                      className={`text-xs font-semibold ${
-                        deliveryStage === "none" ? "text-gray-500" : "text-emerald-500"
-                      }`}
-                    >
-                      {deliveryStage === "everywhere"
-                        ? t('delivery_free')
-                        : deliveryStage === "casablanca"
-                          ? t('delivery_free_casa')
-                          : t('delivery_calc')}
+                    <span className="text-xs font-semibold text-gray-500 tabular-nums">
+                      {t('delivery_from', { amount: formatPrice(FRAIS_ZONE.casablanca) })}
                     </span>
                   )}
                 </div>

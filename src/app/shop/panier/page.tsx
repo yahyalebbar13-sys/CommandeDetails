@@ -31,14 +31,11 @@ import {
   formatPrice,
   formatPriceOrOnRequest,
   formatPriceRange,
-  getFreeDeliveryProgress,
-  CASABLANCA_FREE_DELIVERY_THRESHOLD,
-  FREE_DELIVERY_THRESHOLD,
 } from "@/lib/shop-utils";
 import type { CartItem } from "@/lib/shop-types";
 import type { Language } from "@/lib/translations";
-import { commandeVolumineuse } from "@/lib/livraison-boutique";
-import FreeDeliveryProgress from "@/components/shop/FreeDeliveryProgress";
+import { FRAIS_ZONE, commandeVolumineuse } from "@/lib/livraison-boutique";
+import InfoLivraison from "@/components/shop/InfoLivraison";
 import { useReglagesReception } from "@/lib/use-reglages-reception";
 
 // ─── Constants ──────────────────────────────────────────────────────────────
@@ -442,10 +439,9 @@ export default function PanierPage() {
   const groups = useMemo(() => groupCartItemsByProduct(items), [items]);
   const hasPrices = subtotal > 0;
   const hasUnpricedItems = items.some((item) => getCartItemUnitPrice(item, productQtyMap[item.productId]) <= 0);
-  // La ville n'est connue qu'au checkout : le total n'inclut pas la livraison
-  const deliveryStage = getFreeDeliveryProgress(subtotal).stage;
-  // Un rouleau entier dans le panier : pas de colis Sendit, donc pas de livraison offerte ;
-  // retrait gratuit ou transport chiffré au téléphone.
+  // La ville n'est connue qu'au checkout : le total n'inclut pas la livraison.
+  // Un rouleau entier dans le panier : pas de colis Sendit ; retrait gratuit ou
+  // transport chiffré au téléphone.
   const volumineux = useMemo(() => commandeVolumineuse(items), [items]);
   // Le virement n'est cité que s'il est proposé au formulaire (RIB saisi par le patron).
   const { reglages, charge: reglagesCharges } = useReglagesReception();
@@ -519,8 +515,8 @@ export default function PanierPage() {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 lg:gap-8 items-start">
           {/* ── Left: products ── */}
           <div className="lg:col-span-2 space-y-3">
-            {/* Free delivery progress */}
-            {(hasPrices || volumineux) && <FreeDeliveryProgress subtotal={subtotal} volumineux={volumineux} />}
+            {/* Ce que coûte la réception (grille des colis, retrait gratuit), ou la notice d'un rouleau */}
+            <InfoLivraison volumineux={volumineux} />
 
             {/* Toolbar */}
             <div className="flex items-center justify-between px-1 pt-1">
@@ -588,11 +584,9 @@ export default function PanierPage() {
                 <div className="flex items-start justify-between gap-3 text-sm text-[#6B6B6B]">
                   <div>
                     <span>{t('delivery_cost')}</span>
-                    {!volumineux && deliveryStage !== "everywhere" && (
+                    {!volumineux && (
                       <p className="text-xs">
-                        {isAr
-                          ? `الدار البيضاء: مجاني من ${formatPrice(CASABLANCA_FREE_DELIVERY_THRESHOLD)} · باقي المدن: من ${formatPrice(FREE_DELIVERY_THRESHOLD)}`
-                          : `Casablanca : gratuite à partir de ${formatPrice(CASABLANCA_FREE_DELIVERY_THRESHOLD)} · Autres villes : à partir de ${formatPrice(FREE_DELIVERY_THRESHOLD)}`}
+                        {isAr ? "حسب المدينة · الاستلام من المحل مجاني" : "Selon la ville · retrait gratuit"}
                       </p>
                     )}
                   </div>
@@ -601,14 +595,8 @@ export default function PanierPage() {
                       {isAr ? "استلام مجاني أو نقل يُحدد بالهاتف" : "Retrait gratuit ou transport à confirmer"}
                     </span>
                   ) : (
-                    <span
-                      className={`font-semibold text-right ${deliveryStage === "none" ? "text-[#0F0F0F]" : "text-[#10B981]"}`}
-                    >
-                      {deliveryStage === "everywhere"
-                        ? t('delivery_free')
-                        : deliveryStage === "casablanca"
-                          ? t('delivery_free_casa')
-                          : t('delivery_calc')}
+                    <span className="font-semibold text-right text-[#0F0F0F] tabular-nums">
+                      {t('delivery_from', { amount: formatPrice(FRAIS_ZONE.casablanca) })}
                     </span>
                   )}
                 </div>
@@ -623,8 +611,6 @@ export default function PanierPage() {
                     <span className="text-xs text-[#6B6B6B]">
                       {volumineux
                         ? isAr ? "تتضمن الضرائب · بدون النقل" : "Taxes incluses · hors transport"
-                        : deliveryStage === "everywhere"
-                        ? isAr ? "التوصيل مجاني · تتضمن الضرائب" : "Livraison offerte · Taxes incluses"
                         : isAr ? "تتضمن الضرائب · بدون التوصيل" : "Taxes incluses · hors livraison"}
                     </span>
                   </div>

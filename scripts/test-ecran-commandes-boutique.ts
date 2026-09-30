@@ -188,7 +188,7 @@ check('ni autre ville, ni retrait, ni petit colis, ni non confirmée, ni livrée
   !['t3', 't4', 't5', 't6', 't7', 't9'].some(id => idsTournee.includes(id)));
 check('à encaisser : total + camionnette (Casablanca 50, périphérie 80)',
   aEncaisserParDefaut(casa, REGLAGES) === 850 && aEncaisserParDefaut(mohammedia, REGLAGES) === 880);
-check('camionnette offerte dès 2 000 DH', aEncaisserParDefaut(rouleau('t10', { subtotal: 2500, total: 2500 }), REGLAGES) === 2500);
+check('camionnette jamais offerte : 2 500 DH + 50 DH', aEncaisserParDefaut(rouleau('t10', { subtotal: 2500, total: 2500 }), REGLAGES) === 2550);
 check('transport déjà compté dans le total : pas deux fois', aEncaisserParDefaut(rouleau('t11', { deliveryFee: 50, total: 850 }), REGLAGES) === 850);
 check('camionnette arrêtée dans les réglages : le total seul',
   aEncaisserParDefaut(casa, lireReglagesReception({ camionnette: { actif: false } })) === 800);
