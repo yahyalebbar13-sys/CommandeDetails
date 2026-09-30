@@ -10,6 +10,7 @@ import { useLanguage } from '@/contexts/language-context';
 import type { ShopProduct, ShopCategory } from '@/lib/shop-types';
 import { normaliserRecherche, texte, texteRecherche } from '@/lib/shop-textes';
 import ProductCard from '@/components/shop/ProductCard';
+import { comparerNouveautes, melangerProduits, useGraineMelange } from '@/lib/melange-produits';
 
 // ─── Boutique Content Component ──────────────────────────────────────────────
 function BoutiqueContent() {
@@ -30,6 +31,8 @@ function BoutiqueContent() {
   const [activeSubCat, setActiveSubCat] = useState<string | null>(null);
   const [showScrollTop, setShowScrollTop] = useState(false);
   const [visibleCount, setVisibleCount] = useState(48);
+  // Ordre « Pertinence » : mélangé à chaque visite, rayons alternés (lib/melange-produits)
+  const graine = useGraineMelange();
 
   const { products: allProducts, categories: allContextCategories, isLoading } = useShopProducts();
   const SHOP_CATEGORIES = useMemo(() => allContextCategories.filter(c => !c.parentSlug), [allContextCategories]);
@@ -113,10 +116,11 @@ function BoutiqueContent() {
     const sortPrice = (p: ShopProduct) => getProductDisplayPrice(p).amount;
     if (sort === 'prix-asc') filtered.sort((a, b) => (sortPrice(a) || Infinity) - (sortPrice(b) || Infinity) || 0);
     else if (sort === 'prix-desc') filtered.sort((a, b) => sortPrice(b) - sortPrice(a));
-    else if (sort === 'nouveautes') filtered.sort((a, b) => (b.isNew ? 1 : 0) - (a.isNew ? 1 : 0));
+    else if (sort === 'nouveautes') filtered.sort(comparerNouveautes);
+    else filtered = melangerProduits(filtered, graine);
 
     return filtered;
-  }, [allProducts, activeCat, activeSubCat, allContextCategories, deferredSearch, sort, texteParProduit]);
+  }, [allProducts, activeCat, activeSubCat, allContextCategories, deferredSearch, sort, texteParProduit, graine]);
 
   // Reset visibleCount on filter change
   useEffect(() => {
@@ -386,7 +390,8 @@ function BoutiqueContent() {
         ) : (
           /* ── Full Temu-Style Product Grid: WIDER & LARGER DISPLAY ── */
           <div>
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-2.5 sm:gap-4 lg:gap-4.5">
+            {/* Le temps de lire la graine du mélange, la grille reste invisible : pas de saut d'ordre */}
+            <div className={`grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-2.5 sm:gap-4 lg:gap-4.5 transition-opacity duration-200 ${sort === 'pertinence' && graine === null ? 'opacity-0' : 'opacity-100'}`}>
               {displayedProducts.map(product => (
                 <ProductCard key={product.id} product={product} showAddToCart={true} />
               ))}

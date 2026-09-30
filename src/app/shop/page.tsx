@@ -28,6 +28,7 @@ import { delaiZone, FRAIS_ZONE } from '@/lib/livraison-boutique';
 import type { ShopProduct } from '@/lib/shop-types';
 import { texte } from '@/lib/shop-textes';
 import ProductCard from '@/components/shop/ProductCard';
+import { comparerNouveautes, melangerProduits, useGraineMelange } from '@/lib/melange-produits';
 import { useLanguage } from '@/contexts/language-context';
 import { useShopProducts } from '@/contexts/shop-products-context';
 
@@ -147,6 +148,8 @@ export default function ShopPage() {
   const { categories: allContextCategories, products, getPromoProducts } = useShopProducts();
   const SHOP_CATEGORIES = allContextCategories.filter(c => !c.parentSlug);
   const [moreCount, setMoreCount] = useState(MORE_PRODUCTS_STEP);
+  // Vitrine mélangée à chaque visite (populaires et reste du catalogue), rayons alternés
+  const graine = useGraineMelange();
   const isAr = language === 'ar';
 
   // Chaque produit n'apparaît qu'une fois sur la page : une section ne reprend pas
@@ -162,7 +165,7 @@ export default function ShopPage() {
 
     // Même sélection que la page Promotions, pour que « Voir tout » tombe juste
     const deals = take(getPromoProducts(products.length).filter(p => p.inStock !== false), DEALS_COUNT);
-    const popular = take(available.filter(p => p.isFeatured), POPULAR_COUNT);
+    const popular = take(melangerProduits(available.filter(p => p.isFeatured), graine), POPULAR_COUNT);
     const smallPrices = take(
       available
         .filter(p => {
@@ -172,10 +175,10 @@ export default function ShopPage() {
         .sort((a, b) => getProductDisplayPrice(a).amount - getProductDisplayPrice(b).amount),
       SMALL_PRICES_COUNT
     );
-    const newArrivals = take(available.filter(p => p.isNew), NEW_COUNT);
-    // Le reste : disponibles et chiffrés d'abord, ruptures et « sur demande » en dernier
-    const rank = (p: ShopProduct) => (p.inStock === false ? 2 : 0) + (getProductDisplayPrice(p).amount > 0 ? 0 : 1);
-    const rest = products.filter(p => !shown.has(p.id)).sort((a, b) => rank(a) - rank(b));
+    // Nouveautés : les plus récentes d'abord
+    const newArrivals = take(available.filter(p => p.isNew).sort(comparerNouveautes), NEW_COUNT);
+    // Le reste, mélangé : disponibles et chiffrés d'abord, ruptures et « sur demande » en dernier
+    const rest = melangerProduits(products.filter(p => !shown.has(p.id)), graine);
 
     return {
       deals,
@@ -185,7 +188,7 @@ export default function ShopPage() {
       rest,
       maxDiscount: deals.length > 0 ? discountOf(deals[0]) : 0,
     };
-  }, [products, getPromoProducts]);
+  }, [products, getPromoProducts, graine]);
 
   // Plus de livraison offerte (30/09/2026) : on annonce le vrai prix, bas et clair.
   const prixCasa = formatPrice(FRAIS_ZONE.casablanca);

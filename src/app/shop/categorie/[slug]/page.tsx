@@ -8,6 +8,8 @@ import type { ShopProduct, ShopCategory } from '@/lib/shop-types';
 import { texte } from '@/lib/shop-textes';
 import { ShoppingBag, ArrowLeft, Package, Loader2, SlidersHorizontal, X, Layers } from 'lucide-react';
 import ProductCard from '@/components/shop/ProductCard';
+import { getProductDisplayPrice } from '@/lib/shop-utils';
+import { comparerNouveautes, melangerProduits, useGraineMelange } from '@/lib/melange-produits';
 
 
 // ─── Page ──────────────────────────────────────────────────────────────────────
@@ -62,15 +64,16 @@ export default function CategoryPage({ params }: { params: Promise<{ slug: strin
 
   const notFound = !isLoading && !category;
 
-  // Sort products - Memoized for extreme performance
+  // Ordre « Pertinence » : mélangé à chaque visite, rayons alternés (lib/melange-produits).
+  // Prix : celui affiché sur la carte ; les produits « sur demande » restent en fin de liste.
+  const graine = useGraineMelange();
   const sortedProducts = useMemo(() => {
-    return [...products].sort((a, b) => {
-      if (sort === 'prix-asc') return a.price - b.price;
-      if (sort === 'prix-desc') return b.price - a.price;
-      if (sort === 'nouveautes') return (b.isNew ? 1 : 0) - (a.isNew ? 1 : 0);
-      return 0;
-    });
-  }, [products, sort]);
+    const prix = (p: ShopProduct) => getProductDisplayPrice(p).amount;
+    if (sort === 'prix-asc') return [...products].sort((a, b) => (prix(a) || Infinity) - (prix(b) || Infinity));
+    if (sort === 'prix-desc') return [...products].sort((a, b) => prix(b) - prix(a));
+    if (sort === 'nouveautes') return [...products].sort(comparerNouveautes);
+    return melangerProduits(products, graine);
+  }, [products, sort, graine]);
 
   const [visibleCount, setVisibleCount] = useState(24);
   const observerTarget = useRef<HTMLDivElement>(null);
@@ -361,7 +364,8 @@ export default function CategoryPage({ params }: { params: Promise<{ slug: strin
                 {language === 'ar' ? 'جميع المنتجات' : 'Tous les produits'}
               </h2>
             )}
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4">
+            {/* Le temps de lire la graine du mélange, la grille reste invisible : pas de saut d'ordre */}
+            <div className={`grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4 transition-opacity duration-200 ${sort === 'pertinence' && graine === null ? 'opacity-0' : 'opacity-100'}`}>
               {visibleProducts.map(product => {
                 const displayProduct = getProductForCategory(product, activeSubCat || canonicalSlug);
                 return <ProductCard key={product.id} product={displayProduct} />;
