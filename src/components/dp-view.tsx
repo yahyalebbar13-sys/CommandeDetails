@@ -416,8 +416,15 @@ export default function DPView({ articles, factures, subCategories, generalCateg
             const declaredUSD     = Number(selectedFacture?.declaredValue) || 0;
             const freightUSD      = Number(selectedFacture?.freightCost) || Number(selectedFacture?.freight) || 0;
             const invoiceDhs      = Number(selectedFacture?.invoicePaidDhs) || 0;
+            // Écart DP − (facture réelle + fret maritime). Fret réel du dossier,
+            // à défaut celui saisi dans « Freight Included ».
+            const fretEcart       = freightUSD || parseFloat(freightInput) || 0;
+            const factureAvecFret = totalFobDossier + fretEcart;
+            const ecart           = totalMT - factureAvecFret;
+            const ecartPct        = factureAvecFret > 0 ? (ecart / factureAvecFret) * 100 : 0;
+            const ecartVisible    = totalMT > 0 && totalFobDossier > 0;
             return (
-              <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+              <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
                 {/* Valeur facture réelle (FOB) */}
                 <div className="bg-violet-50 border border-violet-200 rounded-2xl px-4 py-3 flex flex-col gap-0.5">
                   <p className="text-[8px] font-black text-violet-500 uppercase tracking-widest">💰 Valeur Facture (FOB)</p>
@@ -428,6 +435,22 @@ export default function DPView({ articles, factures, subCategories, generalCateg
                       : '—'}
                     {totalFobDossier > 0 && <span className="text-[9px] font-bold text-violet-500 ml-1">USD</span>}
                   </p>
+                </div>
+                {/* Écart déclaration provisoire − facture réelle sans fret */}
+                <div className="bg-stone-50 border border-stone-200 rounded-2xl px-4 py-3 flex flex-col gap-0.5">
+                  <p className="text-[8px] font-black text-stone-500 uppercase tracking-widest">⚖️ Écart DP − Facture</p>
+                  <p className="text-[8px] font-bold text-stone-400">Total DP − (facture réelle + fret)</p>
+                  <p className="text-[15px] font-black text-stone-800 mt-1">
+                    {ecartVisible
+                      ? `${ecart > 0 ? '+' : ecart < 0 ? '−' : ''}${Math.abs(ecart).toLocaleString('fr-MA', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                      : '—'}
+                    {ecartVisible && <span className="text-[9px] font-bold text-stone-500 ml-1">USD</span>}
+                  </p>
+                  {ecartVisible && (
+                    <p className="text-[8px] font-bold text-stone-400">
+                      {ecartPct > 0 ? '+' : ecartPct < 0 ? '−' : ''}{Math.abs(ecartPct).toFixed(1)} % · facture + fret : {factureAvecFret.toLocaleString('fr-MA', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} $
+                    </p>
+                  )}
                 </div>
                 {/* Valeur déclarée en douane */}
                 <div className="bg-sky-50 border border-sky-200 rounded-2xl px-4 py-3 flex flex-col gap-0.5">
