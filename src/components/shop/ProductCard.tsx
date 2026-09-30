@@ -13,6 +13,7 @@ import {
 } from '@/lib/shop-utils';
 import type { ShopProduct } from '@/lib/shop-types';
 import { ajoutRapide } from '@/lib/shop-variantes';
+import { nomProduit } from '@/lib/shop-textes';
 
 // Tiny base64 blur placeholder (1×1 px gris clair) — évite le layout shift
 const BLUR_DATA_URL =
@@ -94,7 +95,7 @@ export default React.memo(function ProductCard({ product, showAddToCart = true }
       <div className="relative aspect-square bg-gray-50 overflow-hidden">
         <Image
           src={primaryImage}
-          alt={product.name}
+          alt={nomProduit(product, language)}
           fill
           sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 20vw"
           className="object-cover"

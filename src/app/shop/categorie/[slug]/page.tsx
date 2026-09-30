@@ -5,19 +5,23 @@ import { useRouter } from 'next/navigation';
 import { useLanguage } from '@/contexts/language-context';
 import { useShopProducts } from '@/contexts/shop-products-context';
 import type { ShopProduct, ShopCategory } from '@/lib/shop-types';
+import { texte } from '@/lib/shop-textes';
 import { ShoppingBag, ArrowLeft, Package, Loader2, SlidersHorizontal, X, Layers } from 'lucide-react';
 import ProductCard from '@/components/shop/ProductCard';
 
 
 // ─── Page ──────────────────────────────────────────────────────────────────────
-export default function CategoryPage({ params }: { params: any }) {
+export default function CategoryPage({ params }: { params: Promise<{ slug: string }> }) {
   const router = useRouter();
-  const rawSlug: string = React.use(params).slug as string;
+  const rawSlug: string = React.use(params).slug;
   // Decode URL encoding (e.g. %20 → space) AND normalize to match stored slugs
   const slug = decodeURIComponent(rawSlug);
   const [sort, setSort] = useState('pertinence');
   const [activeSubCat, setActiveSubCat] = useState<string | null>(null);
   const { language } = useLanguage();
+  const isAr = language === 'ar';
+  // Nom d'une catégorie dans la langue du site (repli sur le français)
+  const nomCat = (c: ShopCategory) => texte(c, 'name', language) || c.name;
 
   const { products: allContextProducts, categories: allContextCategories, isLoading, getProductForCategory } = useShopProducts();
 
@@ -110,22 +114,28 @@ export default function CategoryPage({ params }: { params: any }) {
         </div>
         <div className="text-center">
           <h1 className="text-2xl font-black text-[#1A1A1A]" style={{ fontFamily: 'Outfit, sans-serif' }}>
-            Catégorie introuvable
+            {isAr ? 'الفئة غير موجودة' : 'Catégorie introuvable'}
           </h1>
-          <p className="text-gray-500 mt-2">La catégorie « {slug} » n'existe pas.</p>
+          <p className="text-gray-500 mt-2">
+            {isAr ? <>الفئة « <bdi dir="ltr">{slug}</bdi> » غير موجودة.</> : `La catégorie « ${slug} » n'existe pas.`}
+          </p>
         </div>
         <Link
           href="/shop/boutique"
           prefetch={false}
           className="flex items-center gap-2 px-6 py-3 bg-[#C8102E] text-white rounded-xl font-semibold hover:bg-[#a00d25] transition-colors active:scale-95 touch-manipulation"
         >
-          <ArrowLeft className="w-4 h-4" /> Retour à la boutique
+          <ArrowLeft className="w-4 h-4 rtl:rotate-180" /> {isAr ? 'العودة إلى المتجر' : 'Retour à la boutique'}
         </Link>
       </div>
     );
   }
 
   const accentColor = category?.color || '#C8102E';
+  const nomCategorie = category ? nomCat(category) : '';
+  const descriptionCategorie = category ? texte(category, 'description', language) : '';
+  const parent = category?.parentSlug ? allContextCategories.find(c => c.slug === category.parentSlug) : undefined;
+  const sousCatActive = activeSubCat ? subCats.find(c => c.slug === activeSubCat) : undefined;
 
   return (
     <div style={{ fontFamily: 'Inter, sans-serif', background: '#FBF8F3' }} className="min-h-screen">
@@ -135,7 +145,7 @@ export default function CategoryPage({ params }: { params: any }) {
         {category?.image ? (
           <img
             src={category.image as string}
-            alt={category.name}
+            alt={nomCategorie}
             className="absolute inset-0 w-full h-full object-cover"
           />
         ) : (
@@ -153,19 +163,20 @@ export default function CategoryPage({ params }: { params: any }) {
         <div className="relative h-full max-w-7xl mx-auto px-5 sm:px-6 flex flex-col justify-end pb-8">
           {/* Breadcrumb */}
           <nav className="flex items-center gap-2 text-xs text-white/60 mb-3">
-            <Link href="/shop" prefetch={false} className="hover:text-white transition-colors">Accueil</Link>
+            {/* « › » est un signe miroir : le navigateur l'affiche « ‹ » en arabe */}
+            <Link href="/shop" prefetch={false} className="hover:text-white transition-colors">{isAr ? 'الرئيسية' : 'Accueil'}</Link>
             <span>›</span>
-            <Link href="/shop/categories" prefetch={false} className="hover:text-white transition-colors">Catégories</Link>
+            <Link href="/shop/categories" prefetch={false} className="hover:text-white transition-colors">{isAr ? 'الفئات' : 'Catégories'}</Link>
             <span>›</span>
             {category?.parentSlug && (
               <>
                 <Link href={`/shop/categorie/${category.parentSlug}`} prefetch={false} className="hover:text-white transition-colors">
-                  {allContextCategories.find(c => c.slug === category.parentSlug)?.name || category.parentSlug}
+                  {(parent && nomCat(parent)) || category.parentSlug}
                 </Link>
                 <span>›</span>
               </>
             )}
-            <span className="text-white">{category?.name}</span>
+            <span className="text-white">{nomCategorie}</span>
           </nav>
 
           <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
@@ -177,11 +188,11 @@ export default function CategoryPage({ params }: { params: any }) {
                 style={{ fontFamily: 'Outfit, sans-serif' }}
                 dir={language === 'ar' ? 'rtl' : 'ltr'}
               >
-                {language === 'ar' && category?.nameAr ? category.nameAr : category?.name}
+                {nomCategorie}
               </h1>
-              {(category?.description || category?.descriptionAr) && (
+              {descriptionCategorie && (
                 <p className="text-white/70 mt-1.5 max-w-xl text-sm leading-relaxed">
-                  {language === 'ar' && category.descriptionAr ? category.descriptionAr : category.description}
+                  {descriptionCategorie}
                 </p>
               )}
             </div>
@@ -189,7 +200,7 @@ export default function CategoryPage({ params }: { params: any }) {
               className="flex-shrink-0 px-4 py-2 rounded-full text-sm font-semibold text-white border border-white/30 backdrop-blur-sm self-start sm:self-auto"
               style={{ background: `${accentColor}40` }}
             >
-              <ShoppingBag className="inline w-4 h-4 mr-1.5 mb-0.5" />
+              <ShoppingBag className="inline w-4 h-4 me-1.5 mb-0.5" />
               {language === 'ar' ? `${allCategoryProducts.length} منتج` : `${allCategoryProducts.length} produit${allCategoryProducts.length !== 1 ? 's' : ''}`}
             </div>
           </div>
@@ -224,7 +235,7 @@ export default function CategoryPage({ params }: { params: any }) {
                         : 'bg-white border border-[#E8E4DF] text-[#6B6B6B] hover:border-[#C8102E]/30 hover:text-[#C8102E]'
                     }`}
                   >
-                    {language === 'ar' && cat.nameAr ? cat.nameAr : cat.name}
+                    {nomCat(cat)}
                     {count > 0 && (
                       <span className={`text-[10px] font-bold ${activeSubCat === cat.slug ? 'text-white/70' : 'text-gray-400'}`}>
                         ({count})
@@ -244,24 +255,24 @@ export default function CategoryPage({ params }: { params: any }) {
           <div className="flex items-center gap-3">
             <button
               onClick={() => window.history.length > 1 ? window.history.back() : router.push('/shop/categories')}
-              aria-label="Retour"
-              title="Retour"
+              aria-label={isAr ? 'رجوع' : 'Retour'}
+              title={isAr ? 'رجوع' : 'Retour'}
               className="w-10 h-10 flex items-center justify-center bg-white border border-[#E8E4DF] rounded-full hover:bg-[#FBF8F3] hover:border-[#C8102E] transition-all shadow-sm flex-shrink-0 text-[#1A1A1A] hover:text-[#C8102E] active:scale-90 cursor-pointer touch-manipulation"
             >
-              <ArrowLeft className="w-4 h-4" />
+              <ArrowLeft className="w-4 h-4 rtl:rotate-180" />
             </button>
             <p className="text-sm text-[#999] hidden sm:block">
               <strong className="text-[#1A1A1A]">{sortedProducts.length}</strong>{' '}
               {language === 'ar' ? 'منتج' : `produit${sortedProducts.length !== 1 ? 's' : ''}`}
               {activeSubCat && (
-                <span className="ml-1.5">
+                <span className="ms-1.5">
                   {language === 'ar' ? 'في' : 'dans'}{' '}
                   <span className="text-[#C8102E] font-medium">
-                    {subCats.find(c => c.slug === activeSubCat)?.name}
+                    {sousCatActive && nomCat(sousCatActive)}
                   </span>
                   <button
                     onClick={() => setActiveSubCat(null)}
-                    className="ml-1.5 inline-flex items-center justify-center w-4 h-4 rounded-full bg-gray-200 hover:bg-[#C8102E] hover:text-white text-gray-500 transition-colors cursor-pointer"
+                    className="ms-1.5 inline-flex items-center justify-center w-4 h-4 rounded-full bg-gray-200 hover:bg-[#C8102E] hover:text-white text-gray-500 transition-colors cursor-pointer"
                   >
                     <X className="w-2.5 h-2.5" />
                   </button>
@@ -299,6 +310,7 @@ export default function CategoryPage({ params }: { params: any }) {
             {subCats.map(cat => {
               const count = allContextProducts.filter(p => p.categorySlug === cat.slug || p.categorySlug === cat.id).length;
               const catAccentColor = cat.color || accentColor;
+              const descriptionSousCat = texte(cat, 'description', language);
               return (
                 <Link
                   key={cat.id}
@@ -308,7 +320,7 @@ export default function CategoryPage({ params }: { params: any }) {
                 >
                   <div className="relative h-32 sm:h-44 overflow-hidden flex-shrink-0">
                     {cat.image ? (
-                      <img src={cat.image as string} alt={cat.name} loading="lazy" decoding="async" className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" />
+                      <img src={cat.image as string} alt={nomCat(cat)} loading="lazy" decoding="async" className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" />
                     ) : (
                       <div className="w-full h-full flex items-center justify-center" style={{ background: `linear-gradient(135deg, ${catAccentColor}30 0%, ${catAccentColor}10 100%)` }}>
                         <Layers className="w-10 h-10 opacity-30 text-[#1A1A1A]" />
@@ -324,10 +336,10 @@ export default function CategoryPage({ params }: { params: any }) {
                   </div>
                   <div className="p-3 sm:p-5 flex-1 flex flex-col">
                     <h2 className="font-bold text-[#1A1A1A] text-sm sm:text-lg leading-tight group-hover:text-[#C8102E] transition-colors mb-1 sm:mb-2 line-clamp-2" style={{ fontFamily: 'Outfit, sans-serif' }}>
-                      {language === 'ar' && cat.nameAr ? cat.nameAr : cat.name}
+                      {nomCat(cat)}
                     </h2>
-                    {cat.description && (
-                      <p className="text-gray-500 text-xs sm:text-sm leading-relaxed line-clamp-2 flex-1 hidden sm:block">{cat.description}</p>
+                    {descriptionSousCat && (
+                      <p className="text-gray-500 text-xs sm:text-sm leading-relaxed line-clamp-2 flex-1 hidden sm:block">{descriptionSousCat}</p>
                     )}
                     <div className="mt-2 sm:mt-4 pt-2 sm:pt-3 border-t border-[#F0ECE8]">
                       <span className="text-[10px] sm:text-xs font-semibold uppercase tracking-wide" style={{ color: catAccentColor }}>{language === 'ar' ? 'استكشف ←' : 'Explorer →'}</span>
@@ -421,7 +433,7 @@ export default function CategoryPage({ params }: { params: any }) {
                 >
                   <div className="relative h-24 sm:h-28 overflow-hidden">
                     {(cat as any).image ? (
-                      <img src={(cat as any).image} alt={cat.name} loading="lazy" decoding="async" className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" />
+                      <img src={(cat as any).image} alt={nomCat(cat)} loading="lazy" decoding="async" className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" />
                     ) : (
                       <div
                         className="w-full h-full flex items-center justify-center"
@@ -435,7 +447,7 @@ export default function CategoryPage({ params }: { params: any }) {
                   </div>
                   <div className="px-3 py-2.5">
                     <p className="text-xs sm:text-sm font-semibold text-[#1A1A1A] leading-tight line-clamp-2 group-hover:text-[#C8102E] transition-colors" style={{ fontFamily: 'Outfit, sans-serif' }}>
-                      {language === 'ar' && cat.nameAr ? cat.nameAr : cat.name}
+                      {nomCat(cat)}
                     </p>
                   </div>
                 </Link>

@@ -12,18 +12,31 @@ import {
   ShoppingCart,
   Banknote,
   ArrowRight,
+  MessageCircle,
 } from "lucide-react";
-import { useShopCart, summarizeCartProduct } from "@/contexts/shop-cart-context";
+import { useShopCart, summarizeCartProduct, getCartItemUnitPrice } from "@/contexts/shop-cart-context";
+import { lienWhatsAppPanier } from "@/lib/whatsapp-panier";
 import { useLanguage } from "@/contexts/language-context";
+import { useShopProducts } from "@/contexts/shop-products-context";
 import {
   formatPrice,
   formatPriceOrOnRequest,
   formatPriceRange,
 } from "@/lib/shop-utils";
 import type { CartItem } from "@/lib/shop-types";
+import type { Language } from "@/lib/translations";
 import { libelleLignePanier } from "@/lib/shop-variantes";
+import { paire, premierTexte } from "@/lib/shop-textes";
 import { FRAIS_ZONE, commandeVolumineuse } from "@/lib/livraison-boutique";
 import InfoLivraison from "@/components/shop/InfoLivraison";
+
+// « 3 articles » ; en arabe, le nom s'accorde avec le nombre
+function nombreArticles(n: number, language: Language): string {
+  if (language !== "ar") return `${n} article${n !== 1 ? "s" : ""}`;
+  if (n === 1) return "قطعة واحدة";
+  if (n === 2) return "قطعتان";
+  return n >= 3 && n <= 10 ? `${n} قطع` : `${n} قطعة`;
+}
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
@@ -42,8 +55,13 @@ function CartProductGroup({
   totalProductQty: number;
 }) {
   const { language } = useLanguage();
+  const { getProductById } = useShopProducts();
   const first = items[0];
-  const nameToDisplay = language === 'ar' && first.productNameAr ? first.productNameAr : first.productName;
+  // Le nom copié à l'ajout (celui que le checkout enverra), puis le nom arabe du catalogue :
+  // un article ajouté avant la traduction s'affiche aussi en arabe
+  const nameToDisplay =
+    premierTexte(language, { fr: first.productName, ar: first.productNameAr }, paire(getProductById(productId), "name")) ||
+    first.productName;
   const totalQty = items.reduce((s, i) => s + i.quantity, 0);
   // Une ligne seule garde sa pastille dès qu'elle a un modèle, une taille ou une couleur
   const hasMultipleVariants = items.length > 1 || Boolean(first.variant && (first.variant.model || first.variant.size || first.variant.color));
@@ -87,7 +105,7 @@ function CartProductGroup({
             <button
               onClick={handleRemoveAll}
               className="flex-shrink-0 w-6 h-6 rounded-lg flex items-center justify-center text-gray-300 hover:text-red-500 hover:bg-red-50 transition-all"
-              aria-label="Supprimer"
+              aria-label={language === 'ar' ? 'حذف' : 'Supprimer'}
             >
               <Trash2 className="w-3.5 h-3.5" />
             </button>
@@ -95,7 +113,7 @@ function CartProductGroup({
           <div className="flex items-center justify-between gap-2 mt-0.5">
             <p className="text-xs text-gray-400 tabular-nums">
               {formatPriceRange(minUnit, maxUnit, language)}
-              {minUnit > 0 && ' / u'}
+              {minUnit > 0 && (language === 'ar' ? ' / الوحدة' : ' / u')}
             </p>
             {hasMultipleVariants && total > 0 && (
               <p className="text-sm font-bold text-gray-900 tabular-nums">{formatPrice(total)}</p>
@@ -106,7 +124,7 @@ function CartProductGroup({
 
       {/* Variant chips (if has colors) */}
       {hasMultipleVariants ? (
-        <div className="flex flex-wrap gap-1.5 mt-1 ml-0">
+        <div className="flex flex-wrap gap-1.5 mt-1">
           {items.map((item) => {
             const label = libelleLignePanier(item.variant, language) || (language === 'ar' ? 'قياسي' : 'Standard');
             const vKey = item.variant?.variantId || [item.variant?.model, item.variant?.size, item.variant?.color].filter(Boolean).join('__');
@@ -114,7 +132,7 @@ function CartProductGroup({
             return (
               <div
                 key={vKey ? `${item.productId}-${vKey}` : item.productId}
-                className="flex items-center gap-1 bg-gray-50 border border-gray-200 rounded-full pl-1.5 pr-0.5 py-0.5 text-xs"
+                className="flex items-center gap-1 bg-gray-50 border border-gray-200 rounded-full ps-1.5 pe-0.5 py-0.5 text-xs"
               >
                 {/* Color dot */}
                 {item.variant?.colorHex && (
@@ -127,11 +145,12 @@ function CartProductGroup({
                 <span className="text-gray-600 font-medium truncate max-w-[11rem]" title={label}>{label}</span>
 
                 {/* Qty stepper */}
-                <div className="flex items-center ml-0.5 bg-white border border-gray-200 rounded-full overflow-hidden">
+                <div className="flex items-center ms-0.5 bg-white border border-gray-200 rounded-full overflow-hidden">
                   <button
                     onClick={() => onUpdateQty(item.productId, item.quantity - 1, vKey || undefined)}
                     disabled={item.quantity <= 1}
                     className="w-5 h-5 flex items-center justify-center text-gray-400 hover:text-gray-700 disabled:opacity-30 touch-manipulation"
+                    aria-label={language === 'ar' ? 'إنقاص' : 'Diminuer'}
                   >
                     <Minus className="w-2.5 h-2.5" />
                   </button>
@@ -140,6 +159,7 @@ function CartProductGroup({
                     onClick={() => onUpdateQty(item.productId, item.quantity + 1, vKey || undefined)}
                     disabled={item.maxStock > 0 && item.quantity >= item.maxStock}
                     className="w-5 h-5 flex items-center justify-center text-gray-400 hover:text-gray-700 disabled:opacity-30 touch-manipulation"
+                    aria-label={language === 'ar' ? 'زيادة' : 'Augmenter'}
                   >
                     <Plus className="w-2.5 h-2.5" />
                   </button>
@@ -149,6 +169,7 @@ function CartProductGroup({
                 <button
                   onClick={() => onRemove(item.productId, vKey || undefined)}
                   className="w-4 h-4 flex items-center justify-center text-gray-300 hover:text-red-500 rounded-full touch-manipulation"
+                  aria-label={language === 'ar' ? 'حذف' : 'Retirer'}
                 >
                   <X className="w-2.5 h-2.5" />
                 </button>
@@ -167,7 +188,7 @@ function CartProductGroup({
               }}
               disabled={first.quantity <= 1}
               className="w-7 h-7 flex items-center justify-center text-gray-500 hover:text-gray-800 hover:bg-gray-100 transition-colors disabled:opacity-30 disabled:cursor-not-allowed touch-manipulation"
-              aria-label="Diminuer"
+              aria-label={language === 'ar' ? 'إنقاص' : 'Diminuer'}
             >
               <Minus className="w-3 h-3" />
             </button>
@@ -181,7 +202,7 @@ function CartProductGroup({
               }}
               disabled={first.maxStock > 0 && first.quantity >= first.maxStock}
               className="w-7 h-7 flex items-center justify-center text-gray-500 hover:text-gray-800 hover:bg-gray-100 transition-colors disabled:opacity-30 disabled:cursor-not-allowed touch-manipulation"
-              aria-label="Augmenter"
+              aria-label={language === 'ar' ? 'زيادة' : 'Augmenter'}
             >
               <Plus className="w-3 h-3" />
             </button>
@@ -254,7 +275,7 @@ function EmptyCartState({ onClose }: { onClose: () => void }) {
       >
         <ShoppingCart className="w-4 h-4" />
         {t('continue_shopping')}
-        <ChevronRight className="w-4 h-4" />
+        <ChevronRight className="w-4 h-4 rtl:rotate-180" />
       </Link>
     </div>
   );
@@ -315,7 +336,7 @@ export default function CartDrawer() {
       <div
         role="dialog"
         aria-modal="true"
-        aria-label="Mon Panier"
+        aria-label={t('cart_title')}
         className="shop-slide-in-right fixed right-0 top-0 bottom-0 z-[70] flex flex-col bg-white shadow-2xl"
         style={{ width: "min(420px, 100vw)" }}
       >
@@ -340,14 +361,14 @@ export default function CartDrawer() {
               </h2>
               {itemCount > 0 && (
                 <p className="text-xs text-gray-500 leading-none mt-0.5">
-                  {itemCount} article{itemCount !== 1 ? "s" : ""}
+                  {nombreArticles(itemCount, language)}
                 </p>
               )}
             </div>
             {/* Item count badge */}
             {itemCount > 0 && (
               <span
-                className="ml-1 px-2 py-0.5 rounded-full text-white text-xs font-bold"
+                className="ms-1 px-2 py-0.5 rounded-full text-white text-xs font-bold"
                 style={{ backgroundColor: "#C8102E" }}
               >
                 {itemCount}
@@ -358,7 +379,7 @@ export default function CartDrawer() {
           <button
             onClick={closeCart}
             className="w-8 h-8 rounded-xl flex items-center justify-center text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-all"
-            aria-label="Fermer le panier"
+            aria-label={language === 'ar' ? 'إغلاق السلة' : 'Fermer le panier'}
           >
             <X className="w-4.5 h-4.5" style={{ width: "18px", height: "18px" }} />
           </button>
@@ -398,7 +419,7 @@ export default function CartDrawer() {
                 onClick={closeCart}
                 className="flex items-center gap-1.5 text-xs font-medium mt-3 mb-2 py-2.5 px-3 rounded-xl border border-dashed border-gray-200 text-gray-400 hover:text-[#C8102E] hover:border-[#C8102E]/30 hover:bg-red-50/50 transition-all"
               >
-                <ArrowRight className="w-3.5 h-3.5" />
+                <ArrowRight className="w-3.5 h-3.5 rtl:rotate-180" />
                 {t('continue_shopping')}
               </Link>
             </div>
@@ -423,7 +444,7 @@ export default function CartDrawer() {
                 <div className="flex items-center justify-between text-sm">
                   <span className="text-gray-500">{t('delivery_cost')}</span>
                   {volumineux ? (
-                    <span className="text-xs font-semibold text-gray-600 text-right">
+                    <span className="text-xs font-semibold text-gray-600 text-end">
                       {language === "ar" ? "استلام مجاني أو نقل يُحدد بالهاتف" : "Retrait gratuit ou transport à confirmer"}
                     </span>
                   ) : (
@@ -455,7 +476,7 @@ export default function CartDrawer() {
                 onClick={closeCart}
                 className="flex items-center justify-center gap-2 w-full py-3 rounded-2xl bg-white border border-gray-200 text-gray-700 font-bold text-sm transition-all hover:bg-gray-50 hover:border-gray-300 active:scale-[0.98]"
               >
-                Aller au panier
+                {language === 'ar' ? 'الذهاب إلى السلة' : 'Aller au panier'}
               </Link>
               
               {/* Commander CTA */}
@@ -469,8 +490,19 @@ export default function CartDrawer() {
                 }}
               >
                 {t('checkout')}
-                <ChevronRight className="w-5 h-5" />
+                <ChevronRight className="w-5 h-5 rtl:rotate-180" />
               </Link>
+
+              {/* Tout le panier envoyé sur WhatsApp, pour qui préfère commander par message */}
+              <a
+                href={lienWhatsAppPanier(items, item => getCartItemUnitPrice(item, productQtyMap?.[item.productId] || 1), language)}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center justify-center gap-2 w-full py-3 rounded-2xl border-2 border-[#25D366] bg-white text-[#128C7E] font-bold text-sm transition-all hover:bg-[#25D366]/5 active:scale-[0.98]"
+              >
+                <MessageCircle className="w-4 h-4" />
+                {language === 'ar' ? 'اطلب السلة عبر واتساب' : 'Commander le panier par WhatsApp'}
+              </a>
 
               {/* Payment assurance */}
               <div className="flex items-center justify-center gap-2 text-xs text-gray-500">

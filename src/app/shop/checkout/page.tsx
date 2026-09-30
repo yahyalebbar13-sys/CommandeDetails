@@ -38,15 +38,20 @@ import {
   summarizeCartProduct,
 } from "@/contexts/shop-cart-context";
 import { useLanguage } from "@/contexts/language-context";
+import { useShopProducts } from "@/contexts/shop-products-context";
 import {
   formatPrice,
   formatPriceOrOnRequest,
   generateOrderNumber,
   MOROCCAN_CITIES,
 } from "@/lib/shop-utils";
+import { premierTexte } from "@/lib/shop-textes";
+import { libelleLignePanier } from "@/lib/shop-variantes";
+import type { Language } from "@/lib/translations";
 import {
   FRAIS_ZONE,
   TEXTE_TRANSPORT_VOLUMINEUX,
+  TEXTE_TRANSPORT_VOLUMINEUX_AR,
   commandeVolumineuse,
   delaiColis,
   estCasablanca,
@@ -60,11 +65,13 @@ import { PLAFOND_ESPECES_COLIS } from "@/lib/commandes-boutique";
 import { useReglagesReception } from "@/lib/use-reglages-reception";
 import type { ReglagesReception } from "@/lib/reglages-reception";
 import type {
+  CartItem,
   LieuRetrait,
   ModeReception,
   MoyenPaiement,
   ReceptionCommande,
   ShippingAddress,
+  ShopProduct,
 } from "@/lib/shop-types";
 
 // ─── Firebase init ────────────────────────────────────────────────────────────
@@ -163,34 +170,52 @@ function calculerChoix(
  * Frais tels que le client les lit : « 35 MAD », « Gratuit » (retrait), « À confirmer par téléphone ».
  * Même unité que les prix du site (formatPrice) : jamais « 35 DH » à côté de « 685 MAD ».
  */
-function prixFrais(frais: number | null): string {
+function prixFrais(frais: number | null, language: Language): string {
   return frais === null || !Number.isFinite(frais) || frais < 0
-    ? libelleFrais(null)
-    : frais === 0 ? libelleFrais(0) : formatPrice(frais);
+    ? libelleFrais(null, language)
+    : frais === 0 ? libelleFrais(0, language) : formatPrice(frais);
+}
+
+/** Nom arabe d'une ligne du panier : celui copié à l'ajout, sinon celui du catalogue ('' s'il n'y en a pas). */
+function nomArabe(item: CartItem, produit: ShopProduct | undefined): string {
+  return premierTexte("ar", { ar: item.productNameAr }, { ar: produit?.nameAr });
 }
 
 /** Libellé de l'option « espèces », dit dans les mots du mode choisi. */
-function libelleEspeces(choix: ChoixReception): { titre: string; texte: string } {
+function libelleEspeces(choix: ChoixReception, language: Language): { titre: string; texte: string } {
+  const ar = language === "ar";
+  const rien = ar ? "لا تدفع شيئاً الآن." : "Rien à payer maintenant.";
   if (choix.mode === "retrait") {
-    return { titre: "Espèces au retrait", texte: "Vous payez au magasin, au moment du retrait. Rien à payer maintenant." };
+    return ar
+      ? { titre: "نقداً عند الاستلام من المحل", texte: `تدفع في المحل عند استلام طلبك. ${rien}` }
+      : { titre: "Espèces au retrait", texte: `Vous payez au magasin, au moment du retrait. ${rien}` };
   }
   if (choix.mode === "transport") {
-    return choix.preferenceTransport === "camionnette"
-      ? { titre: "Espèces à la livraison", texte: "Vous payez notre chauffeur LEBTEX à la livraison. Rien à payer maintenant." }
-      : { titre: "Espèces à la réception", texte: "Nous convenons avec vous, au téléphone, du moment du paiement. Rien à payer maintenant." };
+    if (choix.preferenceTransport === "camionnette") {
+      return ar
+        ? { titre: "نقداً عند التوصيل", texte: `تدفع لسائق LEBTEX عند التوصيل. ${rien}` }
+        : { titre: "Espèces à la livraison", texte: `Vous payez notre chauffeur LEBTEX à la livraison. ${rien}` };
+    }
+    return ar
+      ? { titre: "نقداً عند الاستلام", texte: `نتفق معك عبر الهاتف على وقت الدفع. ${rien}` }
+      : { titre: "Espèces à la réception", texte: `Nous convenons avec vous, au téléphone, du moment du paiement. ${rien}` };
   }
   if (choix.mode === "domicile") {
-    return { titre: "Espèces à la livraison", texte: "Vous payez le livreur à la réception. Rien à payer maintenant." };
+    return ar
+      ? { titre: "نقداً عند التوصيل", texte: `تدفع لعامل التوصيل عند الاستلام. ${rien}` }
+      : { titre: "Espèces à la livraison", texte: `Vous payez le livreur à la réception. ${rien}` };
   }
-  return { titre: "Espèces à la livraison ou au retrait", texte: "Rien à payer maintenant." };
+  return { titre: ar ? "نقداً عند التوصيل أو الاستلام" : "Espèces à la livraison ou au retrait", texte: rien };
 }
 
 // ─── Progress Steps ───────────────────────────────────────────────────────────
 function ProgressSteps({ step }: { step: 1 | 2 | 3 }) {
+  const { language } = useLanguage();
+  const ar = language === "ar";
   const steps = [
-    { label: "Panier", num: 1 },
-    { label: "Livraison", num: 2 },
-    { label: "Confirmation", num: 3 },
+    { label: ar ? "السلة" : "Panier", num: 1 },
+    { label: ar ? "التوصيل" : "Livraison", num: 2 },
+    { label: ar ? "التأكيد" : "Confirmation", num: 3 },
   ];
   return (
     <div className="flex items-center gap-0">
@@ -252,12 +277,13 @@ interface InputFieldProps {
   children: React.ReactNode;
 }
 function InputField({ label, required, error, children }: InputFieldProps) {
+  const { language } = useLanguage();
   return (
     <div>
       <label className="block text-sm font-medium text-[#0F0F0F] mb-1.5">
         {label}
-        {required && <span className="text-[#C8102E] ml-1">*</span>}
-        {!required && <span className="text-[#6B6B6B] text-xs ml-1.5">(optionnel)</span>}
+        {required && <span className="text-[#C8102E] ms-1">*</span>}
+        {!required && <span className="text-[#6B6B6B] text-xs ms-1.5">{language === "ar" ? "(اختياري)" : "(optionnel)"}</span>}
       </label>
       {children}
       {error && (
@@ -294,7 +320,7 @@ function OptionCarte({
   onSelect: () => void;
   icone: React.ReactNode;
   titre: string;
-  prix?: string;
+  prix?: React.ReactNode;
   /** « Gratuit » en vert : le retrait au magasin, le seul mode sans frais. */
   prixGratuit?: boolean;
   children?: React.ReactNode;
@@ -333,24 +359,27 @@ function OptionCarte({
 }
 
 // ─── Validation ───────────────────────────────────────────────────────────────
-function validate(form: FormData, choix: ChoixReception): FormErrors {
+function validate(form: FormData, choix: ChoixReception, language: Language): FormErrors {
+  const ar = language === "ar";
   const errors: FormErrors = {};
-  if (!form.firstName.trim()) errors.firstName = "Le prénom est requis";
-  if (!form.lastName.trim()) errors.lastName = "Le nom est requis";
+  if (!form.firstName.trim()) errors.firstName = ar ? "الاسم الأول مطلوب" : "Le prénom est requis";
+  if (!form.lastName.trim()) errors.lastName = ar ? "الاسم العائلي مطلوب" : "Le nom est requis";
   if (!form.phone.trim()) {
-    errors.phone = "Le téléphone est requis";
+    errors.phone = ar ? "رقم الهاتف مطلوب" : "Le téléphone est requis";
   } else if (!/^(06|07)\d{8}$/.test(form.phone.replace(/[\s\-]/g, ""))) {
-    errors.phone = "Format invalide — commencez par 06 ou 07 (10 chiffres)";
+    errors.phone = ar
+      ? "رقم غير صحيح — يجب أن يبدأ بـ 06 أو 07 (10 أرقام)"
+      : "Format invalide — commencez par 06 ou 07 (10 chiffres)";
   }
   if (form.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) {
-    errors.email = "Adresse email invalide";
+    errors.email = ar ? "بريد إلكتروني غير صحيح" : "Adresse email invalide";
   }
   // Retrait au magasin : la ville ne change ni les frais ni le lieu, elle devient facultative.
-  if (!form.city && choix.mode !== "retrait") errors.city = "La ville est requise";
-  else if (form.city === AUTRE_VILLE && !form.villeAutre.trim()) errors.villeAutre = "Écrivez le nom de votre ville";
-  if (!choix.mode) errors.mode = "Choisissez comment recevoir votre commande";
-  if (choix.adresseRequise && !form.address.trim()) errors.address = "L'adresse est requise pour la livraison";
-  if (!form.acceptTerms) errors.acceptTerms = "Vous devez accepter les conditions";
+  if (!form.city && choix.mode !== "retrait") errors.city = ar ? "المدينة مطلوبة" : "La ville est requise";
+  else if (form.city === AUTRE_VILLE && !form.villeAutre.trim()) errors.villeAutre = ar ? "اكتب اسم مدينتك" : "Écrivez le nom de votre ville";
+  if (!choix.mode) errors.mode = ar ? "اختر طريقة استلام طلبك" : "Choisissez comment recevoir votre commande";
+  if (choix.adresseRequise && !form.address.trim()) errors.address = ar ? "العنوان مطلوب للتوصيل" : "L'adresse est requise pour la livraison";
+  if (!form.acceptTerms) errors.acceptTerms = ar ? "يجب الموافقة على الشروط" : "Vous devez accepter les conditions";
   return errors;
 }
 
@@ -365,19 +394,34 @@ interface Totaux {
   legendeTotal: string;
 }
 
-function calculerTotaux(choix: ChoixReception, subtotal: number, paiement: MoyenPaiement): Totaux {
+function calculerTotaux(choix: ChoixReception, subtotal: number, paiement: MoyenPaiement, language: Language): Totaux {
   const { ville, mode, frais, fraisConnus, volumineux } = choix;
+  const ar = language === "ar";
+  const selonVille = ar ? "حسب المدينة" : "Selon la ville";
   const titreLigne =
-    mode === "retrait" ? "Retrait" : mode === "transport" ? "Transport" : `Livraison${ville ? ` — ${ville}` : ""}`;
+    mode === "retrait"
+      ? ar ? "الاستلام" : "Retrait"
+      : mode === "transport"
+        ? ar ? "النقل" : "Transport"
+        : `${ar ? "التوصيل" : "Livraison"}${ville ? ` — ${ville}` : ""}`;
   const valeurLigne = !mode
-    ? volumineux ? "Selon le mode choisi" : "Selon la ville"
+    ? volumineux ? (ar ? "حسب الطريقة المختارة" : "Selon le mode choisi") : selonVille
     : mode === "retrait"
-      ? "Gratuit"
+      ? libelleFrais(0, language)
       : !fraisConnus
-        ? "Selon la ville"
-        : prixFrais(frais);
-  const legendeTotal =
-    mode === "transport"
+        ? selonVille
+        : prixFrais(frais, language);
+  const legendeTotal = ar
+    ? mode === "transport"
+      ? "+ ثمن النقل يُحدَّد عبر الهاتف"
+      : !fraisConnus
+        ? volumineux ? "+ حسب الطريقة المختارة" : "+ التوصيل حسب المدينة"
+        : paiement === "virement"
+          ? "بالتحويل البنكي"
+          : paiement === "carte"
+            ? "بالبطاقة البنكية"
+            : mode === "retrait" ? "الدفع عند الاستلام من المحل" : "الدفع عند الاستلام"
+    : mode === "transport"
       ? "+ transport à confirmer par téléphone"
       : !fraisConnus
         ? volumineux ? "+ selon le mode choisi" : "+ livraison selon la ville"
@@ -397,20 +441,21 @@ function calculerTotaux(choix: ChoixReception, subtotal: number, paiement: Moyen
 /** Sous-total, frais et total : le client les voit juste avant « Confirmer ma commande ». */
 function ResumeAvantValidation({ subtotal, choix, paiement }: { subtotal: number; choix: ChoixReception; paiement: MoyenPaiement }) {
   const { language } = useLanguage();
-  const t = calculerTotaux(choix, subtotal, paiement);
+  const ar = language === "ar";
+  const t = calculerTotaux(choix, subtotal, paiement, language);
   return (
-    <div className="lg:hidden mb-5 rounded-2xl border border-[#E8E4DF] bg-[#FBF8F3] px-4 py-3 space-y-2" aria-label="Résumé de la commande">
+    <div className="lg:hidden mb-5 rounded-2xl border border-[#E8E4DF] bg-[#FBF8F3] px-4 py-3 space-y-2" aria-label={ar ? "ملخص الطلب" : "Résumé de la commande"}>
       <div className="flex items-center justify-between gap-3 text-sm">
-        <span className="text-[#6B6B6B]">Sous-total</span>
+        <span className="text-[#6B6B6B]">{ar ? "المجموع الفرعي" : "Sous-total"}</span>
         <span className="font-semibold text-[#0F0F0F] tabular-nums">{formatPriceOrOnRequest(subtotal, language)}</span>
       </div>
       <div className="flex items-start justify-between gap-3 text-sm">
         <span className="text-[#6B6B6B]">{t.titreLigne}</span>
-        <span className={`font-semibold text-right ${choix.mode === "retrait" ? "text-green-700" : "text-[#0F0F0F]"}`}>{t.valeurLigne}</span>
+        <span className={`font-semibold text-end ${choix.mode === "retrait" ? "text-green-700" : "text-[#0F0F0F]"}`}>{t.valeurLigne}</span>
       </div>
       <div className="border-t border-[#E8E4DF] pt-2 flex items-start justify-between gap-3">
-        <span className="font-bold text-[#0F0F0F]">Total</span>
-        <div className="text-right">
+        <span className="font-bold text-[#0F0F0F]">{ar ? "المجموع" : "Total"}</span>
+        <div className="text-end">
           <span className="font-bold text-[#C8102E] text-lg tabular-nums">{formatPriceOrOnRequest(subtotal > 0 ? t.total : 0, language)}</span>
           <p className="text-xs text-[#6B6B6B]">{t.legendeTotal}</p>
         </div>
@@ -429,13 +474,20 @@ interface SummaryPanelProps {
 }
 function SummaryPanel({ items, subtotal, productQtyMap, choix, paiement }: SummaryPanelProps) {
   const { language } = useLanguage();
+  const { getProductById } = useShopProducts();
+  const ar = language === "ar";
   const { ville, mode, frais, fraisConnus } = choix;
   const itemCount = items.reduce((s, i) => s + i.quantity, 0);
   const hasUnpricedItems = items.some((item) => getCartItemUnitPrice(item, productQtyMap?.[item.productId] || item.quantity) <= 0);
-  const { titreLigne, valeurLigne, total, legendeTotal } = calculerTotaux(choix, subtotal, paiement);
+  const { titreLigne, valeurLigne, total, legendeTotal } = calculerTotaux(choix, subtotal, paiement, language);
 
-  const rassurance =
-    paiement === "carte"
+  const rassurance = ar
+    ? paiement === "carte"
+      ? "الدفع بالبطاقة آمن."
+      : paiement === "virement"
+        ? "لا تدفع شيئاً الآن: يظهر رقم حسابنا البنكي (RIB) بعد الطلب."
+        : "لا تدفع شيئاً الآن: تدفع عند استلام طلبك."
+    : paiement === "carte"
       ? "Paiement par carte sécurisé."
       : paiement === "virement"
         ? "Rien à payer maintenant : notre RIB s'affiche après la commande."
@@ -447,10 +499,10 @@ function SummaryPanel({ items, subtotal, productQtyMap, choix, paiement }: Summa
       <div className="px-5 py-4 bg-gradient-to-r from-[#0F0F0F] to-[#1a1a1a]">
         <h2 className="text-white font-bold shop-font-display flex items-center gap-2">
           <Package className="w-4 h-4 text-[#D4A843]" />
-          Votre commande / طلبيتك
+          {ar ? "طلبك" : "Votre commande"}
         </h2>
         <p className="text-gray-400 text-xs mt-0.5">
-          {itemCount} article{itemCount > 1 ? "s" : ""}
+          {ar ? `عدد القطع: ${itemCount}` : `${itemCount} article${itemCount > 1 ? "s" : ""}`}
         </p>
       </div>
 
@@ -463,10 +515,11 @@ function SummaryPanel({ items, subtotal, productQtyMap, choix, paiement }: Summa
           const variantsSummary = productItems
             .filter((item) => item.variant)
             .map((item) => {
-              const label = [item.variant?.model, item.variant?.size, item.variant?.color].filter(Boolean).join(" ");
-              return `${label || "Standard"} ×${item.quantity}`;
+              const label = libelleLignePanier(item.variant, language);
+              return `${label || (ar ? "قياسي" : "Standard")} ×${item.quantity}`;
             })
-            .join(" · ");
+            .join(ar ? "، " : ", ");
+          const nom = (ar && nomArabe(first, getProductById(productId))) || first.productName;
 
           return (
             <div key={productId} className="flex gap-3 px-5 py-3">
@@ -475,7 +528,7 @@ function SummaryPanel({ items, subtotal, productQtyMap, choix, paiement }: Summa
                 {first.productImage ? (
                   <Image
                     src={first.productImage}
-                    alt={first.productName}
+                    alt={nom}
                     fill
                     sizes="48px"
                     className="object-cover"
@@ -486,20 +539,20 @@ function SummaryPanel({ items, subtotal, productQtyMap, choix, paiement }: Summa
                   </div>
                 )}
                 {/* Qty badge */}
-                <span className="absolute -top-1.5 -right-1.5 h-5 min-w-[1.25rem] bg-[#C8102E] text-white text-xs font-bold rounded-full flex items-center justify-center px-1">
+                <span className="absolute -top-1.5 -end-1.5 h-5 min-w-[1.25rem] bg-[#C8102E] text-white text-xs font-bold rounded-full flex items-center justify-center px-1">
                   {productTotalQty}
                 </span>
               </div>
               {/* Info */}
               <div className="flex-1 min-w-0">
-                <p className="text-xs font-semibold text-[#0F0F0F] truncate">{first.productName}</p>
+                <p className="text-xs font-semibold text-[#0F0F0F] truncate">{nom}</p>
                 {variantsSummary && (
                   <p className="text-xs text-[#6B6B6B] mt-0.5 line-clamp-2" title={variantsSummary}>
                     {variantsSummary}
                   </p>
                 )}
                 {first.volumineux && (
-                  <p className="text-xs font-semibold text-amber-700 mt-0.5">Article volumineux</p>
+                  <p className="text-xs font-semibold text-amber-700 mt-0.5">{ar ? "منتج كبير الحجم" : "Article volumineux"}</p>
                 )}
               </div>
               <span className="text-xs font-bold text-[#0F0F0F] flex-shrink-0 tabular-nums">
@@ -513,12 +566,12 @@ function SummaryPanel({ items, subtotal, productQtyMap, choix, paiement }: Summa
       {/* Totals */}
       <div className="px-5 py-4 border-t border-[#E8E4DF] space-y-2.5">
         <div className="flex items-center justify-between text-sm">
-          <span className="text-[#6B6B6B]">Sous-total</span>
+          <span className="text-[#6B6B6B]">{ar ? "المجموع الفرعي" : "Sous-total"}</span>
           <span className="font-semibold text-[#0F0F0F] tabular-nums">{formatPriceOrOnRequest(subtotal, language)}</span>
         </div>
         {subtotal > 0 && hasUnpricedItems && (
           <p className="text-xs text-[#6B6B6B] -mt-1.5">
-            {language === 'ar' ? 'لا يشمل المنتجات حسب الطلب' : 'Hors articles sur demande'}
+            {ar ? 'لا يشمل المنتجات حسب الطلب' : 'Hors articles sur demande'}
           </p>
         )}
         <div className="flex items-start justify-between gap-3 text-sm">
@@ -527,7 +580,7 @@ function SummaryPanel({ items, subtotal, productQtyMap, choix, paiement }: Summa
             {titreLigne}
           </span>
           <span
-            className={`font-semibold text-right ${
+            className={`font-semibold text-end ${
               mode === "retrait" ? "text-green-700" : fraisConnus && frais !== null ? "text-[#0F0F0F] tabular-nums" : "text-xs text-[#6B6B6B]"
             }`}
           >
@@ -538,14 +591,14 @@ function SummaryPanel({ items, subtotal, productQtyMap, choix, paiement }: Summa
           <div className="flex items-center justify-between text-xs text-[#6B6B6B]">
             <span className="flex items-center gap-1.5">
               <Truck className="w-3 h-3" />
-              Délai estimé
+              {ar ? "المدة المتوقعة" : "Délai estimé"}
             </span>
-            <span className="font-medium text-[#0F0F0F]">{delaiColis(ville)}</span>
+            <span className="font-medium text-[#0F0F0F]">{delaiColis(ville, language)}</span>
           </div>
         )}
         <div className="border-t border-[#E8E4DF] pt-2.5 flex items-center justify-between">
-          <span className="font-bold text-[#0F0F0F]">Total</span>
-          <div className="text-right">
+          <span className="font-bold text-[#0F0F0F]">{ar ? "المجموع" : "Total"}</span>
+          <div className="text-end">
             <span className="font-bold text-[#C8102E] text-xl shop-font-display tabular-nums">
               {formatPriceOrOnRequest(subtotal > 0 ? total : 0, language)}
             </span>
@@ -570,6 +623,9 @@ export default function CheckoutPage() {
   const router = useRouter();
   const { items, subtotal, clearCart, productQtyMap } = useShopCart();
   const { reglages } = useReglagesReception();
+  const { language } = useLanguage();
+  const { getProductById } = useShopProducts();
+  const ar = language === "ar";
   const [form, setForm] = useState<FormData>({
     firstName: "",
     lastName: "",
@@ -602,7 +658,7 @@ export default function CheckoutPage() {
       ? "cod"
       : form.paiement;
   const lieu = reglages.lieux[choix.lieuRetrait];
-  const especes = libelleEspeces(choix);
+  const especes = libelleEspeces(choix, language);
   const totalConnu = subtotal + (choix.fraisConnus && choix.frais !== null ? choix.frais : 0);
 
   // Redirect if cart empty
@@ -629,7 +685,7 @@ export default function CheckoutPage() {
       e.preventDefault();
       setSubmitError(null);
 
-      const validationErrors = validate(form, choix);
+      const validationErrors = validate(form, choix, language);
       const mode = choix.mode;
       if (Object.keys(validationErrors).length > 0 || !mode) {
         setErrors(validationErrors);
@@ -681,10 +737,13 @@ export default function CheckoutPage() {
             const cleanVariant = item.variant
               ? Object.fromEntries(Object.entries(item.variant).filter(([_, v]) => v !== undefined))
               : null;
+            // Nom arabe vu par le client dans le récapitulatif ; absent plutôt que vide (Firestore refuse undefined).
+            const productNameAr = nomArabe(item, getProductById(item.productId));
 
             return {
               productId: item.productId || 'unknown',
               productName: item.productName || 'Produit',
+              ...(productNameAr ? { productNameAr } : {}),
               productImage: item.productImage || '/placeholder.png',
               price: item.price || 0,
               // Prix réellement facturé (prix de gros compris), calculé comme le
@@ -734,27 +793,42 @@ export default function CheckoutPage() {
       } catch (err: any) {
         console.error("Erreur Checkout:", err);
         setSubmitError(
-          `Erreur (${err?.code || 'Inconnue'}): ${err?.message || "Veuillez réessayer ou nous contacter sur WhatsApp."}`
+          language === "ar"
+            ? `تعذّر تسجيل الطلب (${err?.code || "خطأ غير معروف"}). حاول مرة أخرى أو تواصل معنا عبر واتساب.`
+            : `Erreur (${err?.code || 'Inconnue'}): ${err?.message || "Veuillez réessayer ou nous contacter sur WhatsApp."}`
         );
         setIsSubmitting(false);
       }
     },
-    [form, choix, paiement, items, subtotal, productQtyMap, clearCart, router]
+    [form, choix, paiement, items, subtotal, productQtyMap, clearCart, router, language, getProductById]
   );
 
   if (items.length === 0 && !orderSuccess) return null;
 
   // Texte de l'option transport : ce qui se passe dépend de la ville.
-  const texteTransport = !choix.ville
-    ? "Choisissez d'abord votre ville."
-    : choix.preferenceTransport === "camionnette"
-      ? reglages.camionnette.actif
-        ? `Notre camionnette LEBTEX vous livre au pied de l'immeuble. Tournées : ${reglages.camionnette.jours}.`
-        : "Livraison à votre adresse, organisée avec vous au téléphone."
-      : `Notre transporteur habituel livre la marchandise à son dépôt, à ${choix.ville}. Vous la récupérez à ce dépôt : nous vous donnons son adresse au téléphone.`;
+  const texteTransport = ar
+    ? !choix.ville
+      ? "اختر مدينتك أولاً."
+      : choix.preferenceTransport === "camionnette"
+        ? reglages.camionnette.actif
+          ? `توصل شاحنة LEBTEX طلبك إلى أسفل العمارة. أيام الجولات: ${reglages.camionnette.jours}.`
+          : "التوصيل إلى عنوانك، ونتفق معك على موعده عبر الهاتف."
+        : `يوصل ناقلنا المعتاد البضاعة إلى مستودعه في ${choix.ville}. تستلمها من هذا المستودع، ونعطيك عنوانه عبر الهاتف.`
+    : !choix.ville
+      ? "Choisissez d'abord votre ville."
+      : choix.preferenceTransport === "camionnette"
+        ? reglages.camionnette.actif
+          ? `Notre camionnette LEBTEX vous livre au pied de l'immeuble. Tournées : ${reglages.camionnette.jours}.`
+          : "Livraison à votre adresse, organisée avec vous au téléphone."
+        : `Notre transporteur habituel livre la marchandise à son dépôt, à ${choix.ville}. Vous la récupérez à ce dépôt : nous vous donnons son adresse au téléphone.`;
 
-  const placeholderNotes =
-    choix.mode === "retrait"
+  const placeholderNotes = ar
+    ? choix.mode === "retrait"
+      ? "مثال: سأمر يوم السبت صباحاً"
+      : choix.mode === "transport"
+        ? "مثال: أفضل وقت للاتصال بك"
+        : "مثال: التوصيل بعد السادسة مساءً، الطابق الثاني"
+    : choix.mode === "retrait"
       ? "Ex : je passerai samedi matin"
       : choix.mode === "transport"
         ? "Ex : meilleur moment pour vous appeler"
@@ -768,16 +842,16 @@ export default function CheckoutPage() {
           <div className="flex items-center gap-2 sm:gap-3 min-w-0">
             <Link
               href="/shop/panier"
-              aria-label="Retour au panier"
-              className="-ml-2 inline-flex min-h-[44px] min-w-[44px] items-center justify-center gap-2 rounded-xl px-2 text-sm text-[#6B6B6B] hover:text-[#C8102E] transition-colors"
+              aria-label={ar ? "العودة إلى السلة" : "Retour au panier"}
+              className="-ms-2 inline-flex min-h-[44px] min-w-[44px] items-center justify-center gap-2 rounded-xl px-2 text-sm text-[#6B6B6B] hover:text-[#C8102E] transition-colors"
             >
-              <ArrowLeft className="w-5 h-5" />
-              <span className="hidden sm:inline">Retour au panier</span>
+              <ArrowLeft className="w-5 h-5 rtl:rotate-180" />
+              <span className="hidden sm:inline">{ar ? "العودة إلى السلة" : "Retour au panier"}</span>
             </Link>
             <span className="hidden sm:inline text-[#E8E4DF]" aria-hidden>|</span>
             <h1 className="text-lg font-bold text-[#0F0F0F] shop-font-display min-w-0">
-              <span className="sm:hidden">Commande</span>
-              <span className="hidden sm:inline">Finaliser la commande / إنهاء الطلب</span>
+              <span className="sm:hidden">{ar ? "الطلب" : "Commande"}</span>
+              <span className="hidden sm:inline">{ar ? "إنهاء الطلب" : "Finaliser la commande"}</span>
             </h1>
           </div>
           <div className="hidden sm:flex">
@@ -798,12 +872,12 @@ export default function CheckoutPage() {
               <div className="bg-white rounded-2xl border border-[#E8E4DF] p-6 shadow-sm">
                 <SectionHeader
                   icon={<User className="w-4 h-4" />}
-                  title="Informations personnelles / المعلومات الشخصية"
-                  subtitle="Vos coordonnées pour le suivi de commande"
+                  title={ar ? "المعلومات الشخصية" : "Informations personnelles"}
+                  subtitle={ar ? "بياناتك لتتبع الطلب" : "Vos coordonnées pour le suivi de commande"}
                 />
                 <div className="space-y-4">
                   <div className="grid grid-cols-2 gap-4">
-                    <InputField label="Prénom" required error={errors.firstName}>
+                    <InputField label={ar ? "الاسم الأول" : "Prénom"} required error={errors.firstName}>
                       <input
                         type="text"
                         value={form.firstName}
@@ -814,7 +888,7 @@ export default function CheckoutPage() {
                         autoComplete="given-name"
                       />
                     </InputField>
-                    <InputField label="Nom" required error={errors.lastName}>
+                    <InputField label={ar ? "الاسم العائلي" : "Nom"} required error={errors.lastName}>
                       <input
                         type="text"
                         value={form.lastName}
@@ -828,11 +902,12 @@ export default function CheckoutPage() {
                   </div>
 
                   <InputField
-                    label="Téléphone principal"
+                    label={ar ? "رقم الهاتف الرئيسي" : "Téléphone principal"}
                     required
                     error={errors.phone}
                   >
-                    <div className="relative">
+                    {/* Un numéro s'écrit de gauche à droite, même sur le site en arabe. */}
+                    <div className="relative" dir="ltr">
                       <div className="absolute left-3 top-1/2 -translate-y-1/2 flex items-center gap-1 pointer-events-none">
                         <span className="text-sm">🇲🇦</span>
                         <span className="text-xs text-[#6B6B6B] font-medium">+212</span>
@@ -851,8 +926,8 @@ export default function CheckoutPage() {
                   </InputField>
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <InputField label="Téléphone secondaire" error={errors.phone2}>
-                      <div className="relative">
+                    <InputField label={ar ? "رقم هاتف إضافي" : "Téléphone secondaire"} error={errors.phone2}>
+                      <div className="relative" dir="ltr">
                         <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#6B6B6B]/40 pointer-events-none" />
                         <input
                           type="tel"
@@ -865,8 +940,8 @@ export default function CheckoutPage() {
                         />
                       </div>
                     </InputField>
-                    <InputField label="Email" error={errors.email}>
-                      <div className="relative">
+                    <InputField label={ar ? "البريد الإلكتروني" : "Email"} error={errors.email}>
+                      <div className="relative" dir="ltr">
                         <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#6B6B6B]/40 pointer-events-none" />
                         <input
                           type="email"
@@ -886,19 +961,19 @@ export default function CheckoutPage() {
               <div className="bg-white rounded-2xl border border-[#E8E4DF] p-6 shadow-sm">
                 <SectionHeader
                   icon={<MapPin className="w-4 h-4" />}
-                  title="Réception de la commande / استلام الطلب"
-                  subtitle="Votre ville, puis la façon de recevoir votre commande"
+                  title={ar ? "استلام الطلب" : "Réception de la commande"}
+                  subtitle={ar ? "مدينتك، ثم طريقة استلام طلبك" : "Votre ville, puis la façon de recevoir votre commande"}
                 />
                 <div className="space-y-5">
                   {choix.volumineux && (
                     <div className="flex gap-3 p-4 rounded-2xl bg-amber-50 border border-amber-200">
                       <Info className="w-5 h-5 text-amber-700 flex-shrink-0 mt-0.5" />
-                      <p className="text-sm text-[#2A2A2A] leading-relaxed">{TEXTE_TRANSPORT_VOLUMINEUX}</p>
+                      <p className="text-sm text-[#2A2A2A] leading-relaxed">{ar ? TEXTE_TRANSPORT_VOLUMINEUX_AR : TEXTE_TRANSPORT_VOLUMINEUX}</p>
                     </div>
                   )}
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <InputField label="Ville / المدينة" required={choix.mode !== "retrait"} error={errors.city}>
+                    <InputField label={ar ? "المدينة" : "Ville"} required={choix.mode !== "retrait"} error={errors.city}>
                       <select
                         value={form.city}
                         onChange={(e) => setField("city", e.target.value)}
@@ -906,22 +981,22 @@ export default function CheckoutPage() {
                         className={inputCls(errors.city)}
                         autoComplete="address-level2"
                       >
-                        <option value="">Sélectionner une ville...</option>
+                        <option value="">{ar ? "اختر مدينة..." : "Sélectionner une ville..."}</option>
                         {MOROCCAN_CITIES.map((city) => (
                           <option key={city} value={city}>
                             {city}
                           </option>
                         ))}
-                        <option value={AUTRE_VILLE}>Autre ville (écrivez-la)</option>
+                        <option value={AUTRE_VILLE}>{ar ? "مدينة أخرى (اكتبها)" : "Autre ville (écrivez-la)"}</option>
                       </select>
                     </InputField>
                     {form.city === AUTRE_VILLE && (
-                      <InputField label="Votre ville" required error={errors.villeAutre}>
+                      <InputField label={ar ? "مدينتك" : "Votre ville"} required error={errors.villeAutre}>
                         <input
                           type="text"
                           value={form.villeAutre}
                           onChange={(e) => setField("villeAutre", e.target.value)}
-                          placeholder="ex : Sidi Bennour"
+                          placeholder={ar ? "مثال: سيدي بنور" : "ex : Sidi Bennour"}
                           data-error={!!errors.villeAutre}
                           className={inputCls(errors.villeAutre)}
                           autoComplete="address-level2"
@@ -933,8 +1008,8 @@ export default function CheckoutPage() {
 
                   <fieldset data-error={!!errors.mode}>
                     <legend className="block text-sm font-medium text-[#0F0F0F] mb-2">
-                      Comment voulez-vous recevoir votre commande ?
-                      <span className="text-[#C8102E] ml-1">*</span>
+                      {ar ? "كيف تريد استلام طلبك؟" : "Comment voulez-vous recevoir votre commande ?"}
+                      <span className="text-[#C8102E] ms-1">*</span>
                     </legend>
                     <div className="space-y-3">
                       {choix.modes.map((m) => {
@@ -950,17 +1025,34 @@ export default function CheckoutPage() {
                               checked={choix.mode === m}
                               onSelect={() => setField("mode", m)}
                               icone={<Truck className="w-4 h-4" />}
-                              titre="À domicile par Sendit"
-                              prix={prixConnu ? prixFrais(fraisDomicile) : `${formatPrice(FRAIS_ZONE.casablanca)} à ${formatPrice(FRAIS_ZONE.eloignee)}`}
+                              titre={ar ? "التوصيل إلى المنزل عبر Sendit" : "À domicile par Sendit"}
+                              prix={
+                                prixConnu
+                                  ? prixFrais(fraisDomicile, language)
+                                  : ar
+                                    ? <bdi dir="ltr">{`${formatPrice(FRAIS_ZONE.casablanca)} – ${formatPrice(FRAIS_ZONE.eloignee)}`}</bdi>
+                                    : `${formatPrice(FRAIS_ZONE.casablanca)} à ${formatPrice(FRAIS_ZONE.eloignee)}`
+                              }
                             >
-                              <p>
-                                Livraison à votre adresse{prixConnu ? `, sous ${delaiColis(choix.ville)}` : ", prix selon la ville"}.
-                                {" "}{paiement === "cod" ? "Vous payez à la réception : le" : "Le"} colis ne s&apos;ouvre pas avant le paiement.
-                              </p>
+                              {ar ? (
+                                <p>
+                                  التوصيل إلى عنوانك{prixConnu ? `، والمدة المتوقعة ${delaiColis(choix.ville, language)}` : "، والثمن حسب المدينة"}.
+                                  {" "}{paiement === "cod" ? "تدفع عند الاستلام: " : ""}لا يُفتح الطرد قبل الدفع.
+                                </p>
+                              ) : (
+                                <p>
+                                  Livraison à votre adresse{prixConnu ? `, sous ${delaiColis(choix.ville)}` : ", prix selon la ville"}.
+                                  {" "}{paiement === "cod" ? "Vous payez à la réception : le" : "Le"} colis ne s&apos;ouvre pas avant le paiement.
+                                </p>
+                              )}
                               {/* Plan §3.1 : Sendit facture plus cher quelques quartiers excentrés ; on le dit avant l'appel. */}
                               {prixConnu && estCasablanca(choix.ville) && (
                                 <p className="text-xs text-[#6B6B6B]">
-                                  {formatPrice(FRAIS_ZONE.eloignee)} dans quelques zones éloignées de Casablanca, confirmé à l&apos;appel.
+                                  {ar ? (
+                                    <><bdi dir="ltr">{formatPrice(FRAIS_ZONE.eloignee)}</bdi> في بعض المناطق البعيدة من الدار البيضاء، نؤكده لك عند الاتصال.</>
+                                  ) : (
+                                    <>{formatPrice(FRAIS_ZONE.eloignee)} dans quelques zones éloignées de Casablanca, confirmé à l&apos;appel.</>
+                                  )}
                                 </p>
                               )}
                             </OptionCarte>
@@ -974,12 +1066,12 @@ export default function CheckoutPage() {
                               checked={choix.mode === m}
                               onSelect={() => setField("mode", m)}
                               icone={<Store className="w-4 h-4" />}
-                              titre={`Retrait gratuit à ${lieu.nom}`}
-                              prix="Gratuit"
+                              titre={ar ? `استلام مجاني من ${lieu.nom}` : `Retrait gratuit à ${lieu.nom}`}
+                              prix={libelleFrais(0, language)}
                               prixGratuit
                             >
                               <p>{lieu.adresse} · {lieu.horaires}.</p>
-                              <p>L&apos;adresse exacte et le jour vous sont confirmés par WhatsApp.</p>
+                              <p>{ar ? "نؤكد لك العنوان بالضبط واليوم عبر واتساب." : "L'adresse exacte et le jour vous sont confirmés par WhatsApp."}</p>
                             </OptionCarte>
                           );
                         }
@@ -990,11 +1082,15 @@ export default function CheckoutPage() {
                             checked={choix.mode === m}
                             onSelect={() => setField("mode", m)}
                             icone={<Truck className="w-4 h-4" />}
-                            titre="Livraison / transport"
-                            prix={prixFrais(null)}
+                            titre={ar ? "التوصيل / النقل" : "Livraison / transport"}
+                            prix={prixFrais(null, language)}
                           >
                             <p>{texteTransport}</p>
-                            <p>Nous vous appelons avec le prix du transport : rien ne part avant votre accord.</p>
+                            <p>
+                              {ar
+                                ? "نتصل بك لنعطيك ثمن النقل: لا يُرسل أي شيء قبل موافقتك."
+                                : "Nous vous appelons avec le prix du transport : rien ne part avant votre accord."}
+                            </p>
                           </OptionCarte>
                         );
                       })}
@@ -1009,12 +1105,12 @@ export default function CheckoutPage() {
 
                   {choix.adresseRequise && (
                     <>
-                      <InputField label="Adresse complète / العنوان الكامل" required error={errors.address}>
+                      <InputField label={ar ? "العنوان الكامل" : "Adresse complète"} required error={errors.address}>
                         <input
                           type="text"
                           value={form.address}
                           onChange={(e) => setField("address", e.target.value)}
-                          placeholder="N° X, Rue ..., Quartier ..."
+                          placeholder={ar ? "رقم ...، زنقة ...، حي ..." : "N° X, Rue ..., Quartier ..."}
                           data-error={!!errors.address}
                           className={inputCls(errors.address)}
                           autoComplete="street-address"
@@ -1022,23 +1118,23 @@ export default function CheckoutPage() {
                       </InputField>
 
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        <InputField label="Région / الجهة" error={errors.region}>
+                        <InputField label={ar ? "الجهة" : "Région"} error={errors.region}>
                           <input
                             type="text"
                             value={form.region}
                             onChange={(e) => setField("region", e.target.value)}
-                            placeholder="ex: Grand Casablanca"
+                            placeholder={ar ? "مثال: الدار البيضاء الكبرى" : "ex: Grand Casablanca"}
                             className={inputCls(errors.region)}
                             autoComplete="address-level1"
                           />
                         </InputField>
-                        <InputField label="Code postal / الرمز البريدي" error={errors.postalCode}>
+                        <InputField label={ar ? "الرمز البريدي" : "Code postal"} error={errors.postalCode}>
                           <input
                             type="text"
                             inputMode="numeric"
                             value={form.postalCode}
                             onChange={(e) => setField("postalCode", e.target.value)}
-                            placeholder="ex: 20000"
+                            placeholder={ar ? "مثال: 20000" : "ex: 20000"}
                             className={`${inputCls(errors.postalCode)} max-w-40`}
                             autoComplete="postal-code"
                             maxLength={5}
@@ -1054,11 +1150,11 @@ export default function CheckoutPage() {
               <div className="bg-white rounded-2xl border border-[#E8E4DF] p-6 shadow-sm">
                 <SectionHeader
                   icon={<ShieldCheck className="w-4 h-4" />}
-                  title="Paiement / الدفع"
-                  subtitle="Choisissez ce qui vous arrange"
+                  title={ar ? "الدفع" : "Paiement"}
+                  subtitle={ar ? "اختر ما يناسبك" : "Choisissez ce qui vous arrange"}
                 />
                 <fieldset className="space-y-3">
-                  <legend className="sr-only">Moyen de paiement</legend>
+                  <legend className="sr-only">{ar ? "طريقة الدفع" : "Moyen de paiement"}</legend>
                   <OptionCarte
                     name="paiement"
                     checked={paiement === "cod"}
@@ -1074,12 +1170,19 @@ export default function CheckoutPage() {
                       checked={paiement === "virement"}
                       onSelect={() => setField("paiement", "virement")}
                       icone={<Landmark className="w-4 h-4" />}
-                      titre="Virement bancaire"
+                      titre={ar ? "تحويل بنكي" : "Virement bancaire"}
                     >
-                      <p>
-                        Notre RIB s&apos;affiche après la commande. Mettez votre numéro de commande en motif du
-                        virement. Nous vous confirmons la réception par WhatsApp.
-                      </p>
+                      {ar ? (
+                        <p>
+                          يظهر رقم حسابنا البنكي (RIB) بعد الطلب. اكتب رقم طلبك في سبب التحويل، وسنؤكد لك الاستلام
+                          عبر واتساب.
+                        </p>
+                      ) : (
+                        <p>
+                          Notre RIB s&apos;affiche après la commande. Mettez votre numéro de commande en motif du
+                          virement. Nous vous confirmons la réception par WhatsApp.
+                        </p>
+                      )}
                     </OptionCarte>
                   )}
                   {reglages.carte.actif && (
@@ -1088,9 +1191,13 @@ export default function CheckoutPage() {
                       checked={paiement === "carte"}
                       onSelect={() => setField("paiement", "carte")}
                       icone={<CreditCard className="w-4 h-4" />}
-                      titre="Carte bancaire"
+                      titre={ar ? "بطاقة بنكية" : "Carte bancaire"}
                     >
-                      <p>Paiement en ligne sécurisé : nous vous envoyons le lien après notre appel de confirmation.</p>
+                      <p>
+                        {ar
+                          ? "دفع آمن عبر الإنترنت: نرسل لك الرابط بعد مكالمة التأكيد."
+                          : "Paiement en ligne sécurisé : nous vous envoyons le lien après notre appel de confirmation."}
+                      </p>
                     </OptionCarte>
                   )}
                 </fieldset>
@@ -1100,11 +1207,19 @@ export default function CheckoutPage() {
                 {choix.mode === "domicile" && paiement === "cod" && totalConnu > PLAFOND_ESPECES_COLIS && (
                   <div className="mt-4 flex gap-2.5 p-3.5 rounded-xl bg-amber-50 border border-amber-200">
                     <Info className="w-4 h-4 text-amber-700 flex-shrink-0 mt-0.5" />
-                    <p className="text-sm text-[#4A4A4A] leading-relaxed">
-                      Au-delà de {formatPrice(PLAFOND_ESPECES_COLIS)} d&apos;espèces pour un colis, nous vous proposons au
-                      téléphone la solution la plus simple (virement, retrait gratuit ou autre arrangement)
-                      {reglages.virement.actif ? " ; vous pouvez aussi choisir le virement dès maintenant." : "."}
-                    </p>
+                    {ar ? (
+                      <p className="text-sm text-[#4A4A4A] leading-relaxed">
+                        إذا تجاوز الدفع نقداً <bdi dir="ltr">{formatPrice(PLAFOND_ESPECES_COLIS)}</bdi> للطرد الواحد، نقترح
+                        عليك عبر الهاتف الحل الأبسط (تحويل بنكي أو استلام مجاني أو ترتيب آخر)
+                        {reglages.virement.actif ? "، ويمكنك أيضاً اختيار التحويل البنكي من الآن." : "."}
+                      </p>
+                    ) : (
+                      <p className="text-sm text-[#4A4A4A] leading-relaxed">
+                        Au-delà de {formatPrice(PLAFOND_ESPECES_COLIS)} d&apos;espèces pour un colis, nous vous proposons au
+                        téléphone la solution la plus simple (virement, retrait gratuit ou autre arrangement)
+                        {reglages.virement.actif ? " ; vous pouvez aussi choisir le virement dès maintenant." : "."}
+                      </p>
+                    )}
                   </div>
                 )}
               </div>
@@ -1113,8 +1228,8 @@ export default function CheckoutPage() {
               <div className="bg-white rounded-2xl border border-[#E8E4DF] p-6 shadow-sm">
                 <SectionHeader
                   icon={<FileText className="w-4 h-4" />}
-                  title="Notes de commande"
-                  subtitle="Une précision pour notre équipe ?"
+                  title={ar ? "ملاحظات الطلب" : "Notes de commande"}
+                  subtitle={ar ? "ملاحظة لفريقنا؟" : "Une précision pour notre équipe ?"}
                 />
                 <textarea
                   value={form.notes}
@@ -1155,17 +1270,31 @@ export default function CheckoutPage() {
                       )}
                     </div>
                   </div>
-                  <span className={`text-sm leading-relaxed ${errors.acceptTerms ? "text-red-600" : "text-[#6B6B6B]"}`}>
-                    J&apos;accepte les{" "}
-                    <Link href="/shop/conditions" className="text-[#C8102E] underline hover:no-underline">
-                      conditions générales de vente
-                    </Link>{" "}
-                    et la{" "}
-                    <Link href="/shop/confidentialite" className="text-[#C8102E] underline hover:no-underline">
-                      politique de confidentialité
-                    </Link>{" "}
-                    de LEBTEX.
-                  </span>
+                  {ar ? (
+                    <span className={`text-sm leading-relaxed ${errors.acceptTerms ? "text-red-600" : "text-[#6B6B6B]"}`}>
+                      أوافق على{" "}
+                      <Link href="/shop/conditions" className="text-[#C8102E] underline hover:no-underline">
+                        الشروط العامة للبيع
+                      </Link>{" "}
+                      و
+                      <Link href="/shop/confidentialite" className="text-[#C8102E] underline hover:no-underline">
+                        سياسة الخصوصية
+                      </Link>{" "}
+                      الخاصة بـ LEBTEX.
+                    </span>
+                  ) : (
+                    <span className={`text-sm leading-relaxed ${errors.acceptTerms ? "text-red-600" : "text-[#6B6B6B]"}`}>
+                      J&apos;accepte les{" "}
+                      <Link href="/shop/conditions" className="text-[#C8102E] underline hover:no-underline">
+                        conditions générales de vente
+                      </Link>{" "}
+                      et la{" "}
+                      <Link href="/shop/confidentialite" className="text-[#C8102E] underline hover:no-underline">
+                        politique de confidentialité
+                      </Link>{" "}
+                      de LEBTEX.
+                    </span>
+                  )}
                 </label>
                 {errors.acceptTerms && (
                   <p className="text-xs text-red-500 -mt-4 mb-4 flex items-center gap-1">
@@ -1194,13 +1323,13 @@ export default function CheckoutPage() {
                   {isSubmitting ? (
                     <>
                       <Loader2 className="w-5 h-5 animate-spin" />
-                      Validation en cours...
+                      {ar ? "جاري التأكيد..." : "Validation en cours..."}
                     </>
                   ) : (
                     <>
                       <CheckCircle2 className="w-5 h-5" />
-                      Confirmer ma commande
-                      <ChevronRight className="w-4 h-4" />
+                      {ar ? "تأكيد طلبي" : "Confirmer ma commande"}
+                      <ChevronRight className="w-4 h-4 rtl:rotate-180" />
                     </>
                   )}
                 </button>
@@ -1208,8 +1337,17 @@ export default function CheckoutPage() {
                 <div className="flex items-center justify-center gap-4 mt-4">
                   <Shield className="w-4 h-4 text-[#D4A843]" />
                   <p className="text-xs text-[#6B6B6B] text-center">
-                    Commande sécurisée · {paiement === "carte" ? "Paiement par carte" : "Rien à payer maintenant"} ·{" "}
-                    <Link href="/shop/conditions" className="underline hover:text-[#C8102E]">Retour sous 14 jours (sauf tissu coupé)</Link>
+                    {ar ? (
+                      <>
+                        طلب آمن · {paiement === "carte" ? "الدفع بالبطاقة" : "لا تدفع شيئاً الآن"} ·{" "}
+                        <Link href="/shop/conditions" className="underline hover:text-[#C8102E]">إرجاع خلال 14 يوماً (ما عدا القماش المقصوص)</Link>
+                      </>
+                    ) : (
+                      <>
+                        Commande sécurisée · {paiement === "carte" ? "Paiement par carte" : "Rien à payer maintenant"} ·{" "}
+                        <Link href="/shop/conditions" className="underline hover:text-[#C8102E]">Retour sous 14 jours (sauf tissu coupé)</Link>
+                      </>
+                    )}
                   </p>
                 </div>
               </div>

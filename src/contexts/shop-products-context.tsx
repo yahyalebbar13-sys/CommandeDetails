@@ -17,6 +17,14 @@ function selectPromoProducts<T extends Pick<ShopProduct, 'price' | 'comparePrice
     .slice(0, limit);
 }
 
+// Tous les champs arabes remplis d'une surcharge (nameAr, applicationsAr, typeProduitAr…) :
+// ajouter un champ arabe ne demande plus de le recopier ici un par un.
+function champsArabes(ov: object): Record<string, string> {
+  return Object.fromEntries(
+    Object.entries(ov).filter(([k, v]) => k.endsWith('Ar') && typeof v === 'string' && v.trim() !== '')
+  ) as Record<string, string>;
+}
+
 const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
@@ -167,6 +175,7 @@ export function ShopProductsProvider({ children }: { children: React.ReactNode }
         ...(ov.stockArticleIds && { stockArticleIds: ov.stockArticleIds }),
         // Booléen : décocher la case doit aussi l'emporter sur la fiche d'origine
         ...(ov.volumineux !== undefined && { volumineux: !!ov.volumineux }),
+        ...champsArabes(ov),
       };
     });
     // Filter out hardcoded products marked hidden by admin
@@ -234,6 +243,7 @@ export function ShopProductsProvider({ children }: { children: React.ReactNode }
           ...(ov.stockArticleId && { stockArticleId: ov.stockArticleId }),
           ...(ov.stockArticleIds && { stockArticleIds: ov.stockArticleIds }),
           ...(ov.volumineux !== undefined && { volumineux: !!ov.volumineux }),
+          ...champsArabes(ov),
         };
       });
     return [...visibleHardcoded, ...mergedCustom];
@@ -244,7 +254,11 @@ export function ShopProductsProvider({ children }: { children: React.ReactNode }
     const mergedHardcoded = SHOP_CATEGORIES.map(c => {
       const ov = categoryOverrides[c.slug];
       if (!ov) return c;
-      return { ...c, ...ov };
+      const merged = { ...c, ...ov };
+      // Rayon renommé dans l'admin sans traduction : l'arabe codé en dur ne correspond plus
+      if (ov.name && ov.name !== c.name && !ov.nameAr) delete merged.nameAr;
+      if (ov.description && ov.description !== c.description && !ov.descriptionAr) delete merged.descriptionAr;
+      return merged;
     });
     
     // Deduplicate custom categories: if two custom cats have the same slug, only keep the first one

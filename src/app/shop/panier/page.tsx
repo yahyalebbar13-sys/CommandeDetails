@@ -17,6 +17,7 @@ import {
   PackageX,
   AlertTriangle,
   X,
+  MessageCircle,
 } from "lucide-react";
 
 import {
@@ -27,12 +28,16 @@ import {
   summarizeCartProduct,
 } from "@/contexts/shop-cart-context";
 import { useLanguage } from "@/contexts/language-context";
+import { useShopProducts } from "@/contexts/shop-products-context";
+import { lienWhatsAppPanier } from "@/lib/whatsapp-panier";
+import { paire, premierTexte } from "@/lib/shop-textes";
+import { libelleCouleur, libelleModele, libelleTaille } from "@/lib/shop-variantes";
 import {
   formatPrice,
   formatPriceOrOnRequest,
   formatPriceRange,
 } from "@/lib/shop-utils";
-import type { CartItem } from "@/lib/shop-types";
+import type { CartItem, ProductVariant } from "@/lib/shop-types";
 import type { Language } from "@/lib/translations";
 import { FRAIS_ZONE, commandeVolumineuse } from "@/lib/livraison-boutique";
 import InfoLivraison from "@/components/shop/InfoLivraison";
@@ -45,22 +50,45 @@ const VISIBLE_VARIANT_ROWS = 5;
 type UpdateQty = (productId: string, quantity: number, variantId?: string) => void;
 type RemoveItem = (productId: string, variantId?: string) => void;
 
+// En arabe, le nom s'accorde avec le nombre (1, 2, de 3 à 10, au-delà)
 function articlesLabel(count: number, language: Language) {
-  return language === "ar" ? `${count} قطعة` : `${count} article${count > 1 ? "s" : ""}`;
+  if (language !== "ar") return `${count} article${count > 1 ? "s" : ""}`;
+  if (count === 1) return "قطعة واحدة";
+  if (count === 2) return "قطعتان";
+  return count >= 3 && count <= 10 ? `${count} قطع` : `${count} قطعة`;
+}
+
+function produitsLabel(count: number, language: Language) {
+  if (language !== "ar") return `${count} produit${count > 1 ? "s" : ""}`;
+  if (count === 1) return "منتج واحد";
+  if (count === 2) return "منتجان";
+  return count >= 3 && count <= 10 ? `${count} منتجات` : `${count} منتجاً`;
+}
+
+function variantesLabel(count: number, language: Language) {
+  if (language !== "ar") return `${count} variantes`;
+  if (count === 1) return "خيار واحد";
+  if (count === 2) return "خياران";
+  return count >= 3 && count <= 10 ? `${count} خيارات` : `${count} خياراً`;
+}
+
+// La variante copiée dans le panier, lue avec les mêmes libellés que la fiche et le tiroir
+// (une couleur connue se traduit même si l'article a été ajouté avant sa version arabe)
+function varianteDe(item: CartItem): ProductVariant | null {
+  const v = item.variant;
+  return v ? ({ ...v, id: v.variantId || "", stock: 0 } as ProductVariant) : null;
 }
 
 // Modèle + taille d'une ligne : sert à sous-grouper les couleurs d'un même produit
 function variantOptionLabel(item: CartItem, language: Language): string {
-  const v = item.variant;
+  const v = varianteDe(item);
   if (!v) return "";
-  const model = language === "ar" && v.modelAr ? v.modelAr : v.model;
-  const size = language === "ar" && v.sizeAr ? v.sizeAr : v.size;
-  return [model?.trim(), size?.trim()].filter(Boolean).join(" · ");
+  return [libelleModele(v, language), libelleTaille(v, language)].filter(Boolean).join(" · ");
 }
 
 function variantColorLabel(item: CartItem, language: Language): string {
-  const v = item.variant;
-  return (language === "ar" && v?.colorAr ? v.colorAr : v?.color)?.trim() || "";
+  const v = varianteDe(item);
+  return v ? libelleCouleur(v, language) : "";
 }
 
 // ─── Qty Stepper ─────────────────────────────────────────────────────────────
@@ -155,17 +183,22 @@ function CartProductGroup({
   onRemove: RemoveItem;
 }) {
   const { language } = useLanguage();
+  const { getProductById } = useShopProducts();
   const [expanded, setExpanded] = useState(false);
   const [confirmRemove, setConfirmRemove] = useState(false);
   const [imgError, setImgError] = useState(false);
 
   const first = items[0];
-  const name = language === "ar" && first.productNameAr ? first.productNameAr : first.productName;
+  // Le nom copié à l'ajout (celui que le checkout enverra), puis le nom arabe du catalogue :
+  // un article ajouté avant la traduction s'affiche aussi en arabe
+  const name =
+    premierTexte(language, { fr: first.productName, ar: first.productNameAr }, paire(getProductById(productId), "name")) ||
+    first.productName;
   const productHref = `/shop/produit/${productId}`;
   const isSimple = items.length === 1 && !first.variant;
   const { total, minUnit, maxUnit } = summarizeCartProduct(items, productTotalQty);
   const standardLabel = language === "ar" ? "قياسي" : "Standard";
-  const unitSuffix = language === "ar" ? "/ قطعة" : "/ unité";
+  const unitSuffix = language === "ar" ? "/ الوحدة" : "/ unité";
 
   // Quand les couleurs se répètent dans plusieurs tailles (ou modèles), on les range sous
   // un en-tête par taille plutôt que de répéter la taille sur chaque ligne.
@@ -189,6 +222,7 @@ function CartProductGroup({
     : items.map((item) => ({ item, header: null }));
   const canCollapse = rows.length > VISIBLE_VARIANT_ROWS + 1;
   const visibleRows = canCollapse && !expanded ? rows.slice(0, VISIBLE_VARIANT_ROWS) : rows;
+  const hiddenRows = rows.length - VISIBLE_VARIANT_ROWS;
 
   const rowLabel = (item: CartItem) => {
     const color = variantColorLabel(item, language);
@@ -199,7 +233,7 @@ function CartProductGroup({
 
   const meta = [
     sharedOption,
-    items.length > 1 ? `${items.length} ${language === "ar" ? "خيارات" : "variantes"}` : "",
+    items.length > 1 ? variantesLabel(items.length, language) : "",
     articlesLabel(productTotalQty, language),
   ]
     .filter(Boolean)
@@ -295,7 +329,7 @@ function CartProductGroup({
                   ? "✓ تم تطبيق سعر الجملة"
                   : "✓ Prix de gros appliqué"
                 : language === "ar"
-                  ? `أضف ${wholesale.minQty - productTotalQty} للحصول على سعر الجملة (${formatPrice(wholesale.price)})`
+                  ? <>أضف {wholesale.minQty - productTotalQty} للحصول على سعر الجملة (<bdi dir="ltr">{formatPrice(wholesale.price)}</bdi> {unitSuffix})</>
                   : `Plus que ${wholesale.minQty - productTotalQty} pour le prix de gros (${formatPrice(wholesale.price)} ${unitSuffix})`}
             </p>
           )}
@@ -355,7 +389,7 @@ function CartProductGroup({
                       onChange={(q) => onUpdateQty(item.productId, q, variantKey)}
                       language={language}
                     />
-                    <span className="hidden sm:block w-24 text-right text-sm font-semibold text-[#0F0F0F] tabular-nums">
+                    <span className="hidden sm:block w-24 text-end text-sm font-semibold text-[#0F0F0F] tabular-nums">
                       {lineTotal}
                     </span>
                     <button
@@ -383,8 +417,12 @@ function CartProductGroup({
                   ? "إخفاء"
                   : "Réduire"
                 : language === "ar"
-                  ? `عرض ${rows.length - VISIBLE_VARIANT_ROWS} خيارات أخرى`
-                  : `Voir les ${rows.length - VISIBLE_VARIANT_ROWS} autres variantes`}
+                  ? hiddenRows === 2
+                    ? "عرض خيارين آخرين"
+                    : hiddenRows <= 10
+                      ? `عرض ${hiddenRows} خيارات أخرى`
+                      : `عرض ${hiddenRows} خياراً آخر`
+                  : `Voir les ${hiddenRows} autres variantes`}
               <ChevronDown className={`w-4 h-4 transition-transform ${expanded ? "rotate-180" : ""}`} />
             </button>
           )}
@@ -423,7 +461,7 @@ function EmptyCart() {
         >
           <ShoppingBag className="w-5 h-5" />
           {t('continue_shopping')}
-          <ChevronRight className="w-4 h-4" />
+          <ChevronRight className="w-4 h-4 rtl:rotate-180" />
         </Link>
       </div>
     </div>
@@ -479,14 +517,14 @@ export default function PanierPage() {
               href="/shop/boutique"
               className="inline-flex items-center gap-1.5 text-sm text-[#6B6B6B] hover:text-[#C8102E] transition-colors"
             >
-              <ArrowLeft className="w-4 h-4" />
+              <ArrowLeft className="w-4 h-4 rtl:rotate-180" />
               {t('continue_shopping')}
             </Link>
             <h1 className="mt-2 text-2xl sm:text-3xl font-bold text-[#0F0F0F] shop-font-display">
               {t('cart_title')}
             </h1>
             <p className="text-sm text-[#6B6B6B] mt-1">
-              {isAr ? `${groups.length} منتجات` : `${groups.length} produit${groups.length > 1 ? "s" : ""}`}
+              {produitsLabel(groups.length, language)}
               {" · "}
               {articlesLabel(itemCount, language)}
             </p>
@@ -496,7 +534,7 @@ export default function PanierPage() {
           <div className="hidden md:flex items-center gap-2 text-xs">
             {steps.map((label, i) => (
               <React.Fragment key={label}>
-                {i > 0 && <ChevronRight className="w-3 h-3 text-[#E8E4DF]" />}
+                {i > 0 && <ChevronRight className="w-3 h-3 text-[#E8E4DF] rtl:rotate-180" />}
                 <span className={`flex items-center gap-1.5 ${i === 0 ? "font-semibold text-[#C8102E]" : "text-[#6B6B6B]"}`}>
                   <span
                     className={`w-5 h-5 rounded-full flex items-center justify-center text-xs ${
@@ -591,11 +629,11 @@ export default function PanierPage() {
                     )}
                   </div>
                   {volumineux ? (
-                    <span className="font-semibold text-right text-[#0F0F0F]">
+                    <span className="font-semibold text-end text-[#0F0F0F]">
                       {isAr ? "استلام مجاني أو نقل يُحدد بالهاتف" : "Retrait gratuit ou transport à confirmer"}
                     </span>
                   ) : (
-                    <span className="font-semibold text-right text-[#0F0F0F] tabular-nums">
+                    <span className="font-semibold text-end text-[#0F0F0F] tabular-nums">
                       {t('delivery_from', { amount: formatPrice(FRAIS_ZONE.casablanca) })}
                     </span>
                   )}
@@ -604,7 +642,7 @@ export default function PanierPage() {
                 {/* Total */}
                 <div className="flex items-end justify-between gap-3 pt-3 border-t border-dashed border-[#E8E4DF]">
                   <span className="text-base font-bold text-[#0F0F0F] shop-font-display">{t('total')}</span>
-                  <div className="text-right">
+                  <div className="text-end">
                     <span className="block text-2xl font-black text-[#C8102E] tabular-nums leading-tight shop-font-display">
                       {totalLabel}
                     </span>
@@ -625,6 +663,17 @@ export default function PanierPage() {
                   {t('checkout')}
                 </Link>
 
+                {/* Tout le panier envoyé sur WhatsApp, pour qui préfère commander par message */}
+                <a
+                  href={lienWhatsAppPanier(items, (item) => getCartItemUnitPrice(item, productQtyMap[item.productId] || 1), language)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="w-full py-3 rounded-xl border-2 border-[#25D366] bg-white text-[#128C7E] font-bold flex items-center justify-center gap-2 hover:bg-[#25D366]/5 transition-colors"
+                >
+                  <MessageCircle className="w-5 h-5" />
+                  {isAr ? "اطلب السلة عبر واتساب" : "Commander le panier par WhatsApp"}
+                </a>
+
                 {/* Guarantees */}
                 <div className="grid grid-cols-3 gap-2 pt-3 border-t border-[#E8E4DF]">
                   {/* Un rouleau : le transport s'organise au téléphone, pas de « livraison rapide ». */}
@@ -637,7 +686,7 @@ export default function PanierPage() {
                           : isAr ? "الدفع عند الاستلام" : "Paiement à la réception"
                         : isAr ? "الدفع عند الاستلام" : "Paiement à la livraison",
                     },
-                    { icon: <RefreshCw className="w-4 h-4" />, label: isAr ? "إرجاع 14 يوم" : "Retour 14 jours" },
+                    { icon: <RefreshCw className="w-4 h-4" />, label: isAr ? "إرجاع خلال 14 يوماً" : "Retour 14 jours" },
                     {
                       icon: <Truck className="w-4 h-4" />,
                       label: volumineux ? (isAr ? "استلام مجاني" : "Retrait gratuit") : (isAr ? "توصيل سريع" : "Livraison rapide"),
@@ -673,10 +722,10 @@ export default function PanierPage() {
           </div>
           <Link
             href="/shop/checkout"
-            className="ml-auto flex-shrink-0 inline-flex items-center gap-1 px-5 py-3 bg-[#C8102E] hover:bg-[#a00d25] text-white text-sm font-bold rounded-xl shadow-lg shadow-[#C8102E]/20 transition-colors shop-btn-press"
+            className="ms-auto flex-shrink-0 inline-flex items-center gap-1 px-5 py-3 bg-[#C8102E] hover:bg-[#a00d25] text-white text-sm font-bold rounded-xl shadow-lg shadow-[#C8102E]/20 transition-colors shop-btn-press"
           >
             {t('checkout')}
-            <ChevronRight className="w-4 h-4" />
+            <ChevronRight className="w-4 h-4 rtl:rotate-180" />
           </Link>
         </div>
       </div>

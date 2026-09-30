@@ -12,67 +12,30 @@ import {
   FileText,
   PackageCheck
 } from 'lucide-react';
-import { formatPrice, formatProductPrice } from '@/lib/shop-utils';
-import { DELAI_ZONE, FRAIS_ZONE, TEXTE_TRANSPORT_VOLUMINEUX, TEXTE_TRANSPORT_VOLUMINEUX_AR } from '@/lib/livraison-boutique';
+import { formatPrice } from '@/lib/shop-utils';
+import { FRAIS_ZONE, TEXTE_TRANSPORT_VOLUMINEUX, TEXTE_TRANSPORT_VOLUMINEUX_AR, delaiZone } from '@/lib/livraison-boutique';
 import ChoixVariante from '@/components/shop/ChoixVariante';
 import { useShopProducts } from '@/contexts/shop-products-context';
 import { useLanguage } from '@/contexts/language-context';
 import { db } from '@/lib/firebase-db';
 import { doc, getDoc } from 'firebase/firestore';
 import type { ProductVariant, ShopProduct } from '@/lib/shop-types';
+import { nomCategorieProduit, nomProduit, paire, premierTexte, texte, texteFiche } from '@/lib/shop-textes';
+import { libelleModele, libelleTaille } from '@/lib/shop-variantes';
 
-// ─── Similar Product Card ──────────────────────────────────────────────────
-function ModernProductCard({ product }: { product: ShopProduct }) {
-  const { language } = useLanguage();
-  return (
-    <Link 
-      href={`/shop/produit/${product.id}`} 
-      className="group flex flex-col bg-white rounded-2xl border border-neutral-200/80 overflow-hidden hover:border-neutral-900/30 hover:shadow-md transition-all duration-300 touch-manipulation"
-    >
-      <div className="aspect-square bg-neutral-50 overflow-hidden relative">
-        <img 
-          src={product.images?.[0] || '/placeholder.png'} 
-          alt={product.name} 
-          loading="lazy" 
-          decoding="async" 
-          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" 
-        />
-        {product.isNew && (
-          <span className="absolute top-2.5 left-2.5 bg-emerald-600 text-white text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full shadow-xs">
-            {language === 'ar' ? 'جديد' : 'Nouveau'}
-          </span>
-        )}
-      </div>
-      <div className="p-3.5 flex flex-col flex-1 justify-between">
-        <div>
-          <p className="text-[11px] font-bold uppercase tracking-wider text-neutral-400 mb-1 truncate">
-            {language === 'ar' && product.categoryNameAr ? product.categoryNameAr : product.categoryName}
-          </p>
-          <h4 
-            className="font-bold text-neutral-900 text-sm line-clamp-2 mb-2 leading-snug group-hover:text-[#C8102E] transition-colors" 
-            style={{ fontFamily: 'Outfit, sans-serif' }}
-          >
-            {language === 'ar' && product.nameAr ? product.nameAr : product.name}
-          </h4>
-        </div>
-        <div className="flex items-center justify-between pt-1 border-t border-neutral-100 mt-2">
-          <span className="text-xs font-black text-[#C8102E]">
-            {formatProductPrice(product, language)}
-          </span>
-          <span className="text-[11px] font-semibold text-neutral-400 group-hover:text-neutral-900 group-hover:translate-x-0.5 transition-all">
-            {language === 'ar' ? '← التفاصيل' : 'Détails →'}
-          </span>
-        </div>
-      </div>
-    </Link>
-  );
+type OngletFiche = 'description' | 'applications' | 'avantages' | 'entretien' | 'commercial';
+
+// Sens d'écriture d'un texte venu des données : de droite à gauche s'il est traduit,
+// de gauche à droite pour le français de repli (sinon sa ponctuation part du mauvais côté)
+function sensDuTexte(valeur: string): 'rtl' | 'ltr' {
+  return /[\u0600-\u06FF]/.test(valeur) ? 'rtl' : 'ltr';
 }
 
 // ─── Main Product Page Component ─────────────────────────────────────────────
 export default function ProductPage({ params }: { params: Promise<{ id: string }> }) {
   const { language } = useLanguage();
   const { id } = React.use(params);
-  const { products, getProductById: ctxGetById, isLoading } = useShopProducts();
+  const { products, categories, getProductById: ctxGetById, isLoading } = useShopProducts();
 
   const [directProduct, setDirectProduct] = useState<any>(null);
   const [directLoading, setDirectLoading] = useState(false);
@@ -108,11 +71,13 @@ export default function ProductPage({ params }: { params: Promise<{ id: string }
   const [exploreProducts, setExploreProducts] = useState<ShopProduct[]>([]);
   const [exploreVisibleCount, setExploreVisibleCount] = useState(24);
   const exploreObserverRef = useRef<HTMLDivElement>(null);
-  const [activeTab, setActiveTab] = useState<'specs' | 'applications' | 'entretien' | 'commercial'>('specs');
+  // null : le premier onglet qui a du contenu
+  const [activeTab, setActiveTab] = useState<OngletFiche | null>(null);
 
   // Le sélecteur (monté avec key={product.id}) signale lui-même la variante retenue au montage
   useEffect(() => {
     setMainImg(0);
+    setActiveTab(null);
   }, [product?.id]);
 
   useEffect(() => {
@@ -193,31 +158,35 @@ export default function ProductPage({ params }: { params: Promise<{ id: string }
   const currentVariant = activeVariant;
 
   // ── Specific Characteristics Overrides ──
-  const effectiveTypeProduit = currentVariant?.typeProduit || product.typeProduit;
-  const effectiveMaterial = currentVariant?.material || currentVariant?.matiereMailles || product.matiereMailles || product.material;
-  const effectiveWidth = currentVariant?.width || currentVariant?.largeurMaille || product.largeurMaille || product.width;
-  const effectiveLength = currentVariant?.longueur || product.longueur;
+  // Dans la langue du site (champ *Ar), sinon le français, avec le même ordre de repli qu'avant
+  const fiche = (champ: string) => texteFiche(product, currentVariant, [champ], language);
+  const effectiveTypeProduit = fiche('typeProduit');
+  const effectiveMaterial = premierTexte(language, paire(currentVariant, 'material'), paire(currentVariant, 'matiereMailles'), paire(product, 'matiereMailles'), paire(product, 'material'));
+  const effectiveWidth = premierTexte(language, paire(currentVariant, 'width'), paire(currentVariant, 'largeurMaille'), paire(product, 'largeurMaille'), paire(product, 'width'));
+  const effectiveLength = fiche('longueur');
   const effectiveWeight = currentVariant?.weight !== undefined ? currentVariant.weight : product.weight;
-  const effectivePackaging = currentVariant?.packaging || product.packaging;
-  const effectiveCompositionRuban = currentVariant?.compositionRuban || product.compositionRuban;
-  const effectiveCondUnitaire = currentVariant?.conditionnementUnitaire || product.conditionnementUnitaire;
-  const effectiveCondGros = currentVariant?.conditionnementGros || product.conditionnementGros;
-  const effectiveResistance = currentVariant?.resistance || product.resistance;
-  const effectiveCompatibleAvec = currentVariant?.compatibleAvec || product.compatibleAvec;
-  const effectiveType = currentVariant?.type || product.type;
-  const effectiveDesign = currentVariant?.design || product.design;
-  const effectiveSecurite = currentVariant?.securite || product.securite;
-  const effectiveApplications = currentVariant?.applications || product.applications;
-  const effectiveAvantages = currentVariant?.avantages || product.avantages;
-  const effectiveConseilsEntretien = currentVariant?.conseilsEntretien || product.conseilsEntretien;
-  const effectiveInfoCommerciale = currentVariant?.informationCommerciale || product.informationCommerciale;
+  const effectivePackaging = fiche('packaging');
+  const effectiveCompositionRuban = fiche('compositionRuban');
+  const effectiveCondUnitaire = fiche('conditionnementUnitaire');
+  const effectiveCondGros = fiche('conditionnementGros');
+  const effectiveResistance = fiche('resistance');
+  const effectiveCompatibleAvec = fiche('compatibleAvec');
+  const effectiveType = fiche('type');
+  const effectiveDesign = fiche('design');
+  const effectiveSecurite = fiche('securite');
+  const effectiveApplications = fiche('applications');
+  const effectiveAvantages = fiche('avantages');
+  const effectiveConseilsEntretien = fiche('conseilsEntretien');
+  const effectiveInfoCommerciale = fiche('informationCommerciale');
+  const descriptionCourte = texte(product, 'shortDescription', language);
+  const descriptionComplete = fiche('description');
 
   const activeSpecs = [
     { label: language === 'ar' ? 'نوع المنتج' : 'Type produit', value: effectiveTypeProduit },
     { label: language === 'ar' ? 'المادة' : 'Matière', value: effectiveMaterial },
     { label: language === 'ar' ? 'العرض' : 'Largeur', value: effectiveWidth },
     { label: language === 'ar' ? 'الطول' : 'Longueur', value: effectiveLength },
-    { label: language === 'ar' ? 'الوزن' : 'Poids', value: effectiveWeight !== undefined && effectiveWeight !== null && effectiveWeight !== '' ? `${effectiveWeight} g` : null },
+    { label: language === 'ar' ? 'الوزن' : 'Poids', value: effectiveWeight !== undefined && effectiveWeight !== null && effectiveWeight !== '' ? `${effectiveWeight} ${language === 'ar' ? 'غ' : 'g'}` : null },
     { label: language === 'ar' ? 'التعبئة' : 'Packaging', value: effectivePackaging },
     { label: language === 'ar' ? 'الشريط' : 'Ruban', value: effectiveCompositionRuban },
     { label: language === 'ar' ? 'تعبئة وحدة' : 'Cond. unité', value: effectiveCondUnitaire },
@@ -228,6 +197,43 @@ export default function ProductPage({ params }: { params: Promise<{ id: string }
     { label: language === 'ar' ? 'التصميم' : 'Design', value: effectiveDesign },
     { label: language === 'ar' ? 'الأمان' : 'Sécurité', value: effectiveSecurite },
   ].filter(s => Boolean(s.value));
+
+  // Pastille de l'en-tête des spécifications : modèle et taille de la variante retenue
+  const pastilleModele = currentVariant ? libelleModele(currentVariant, language) : '';
+  const pastilleTaille = currentVariant && currentVariant.size !== 'Standard' ? libelleTaille(currentVariant, language) : '';
+
+  // Onglets du bas : seuls ceux qui ont un texte ; la description en premier
+  const onglets = ([
+    { id: 'description', libelle: language === 'ar' ? 'الوصف' : 'Description', texte: descriptionComplete },
+    {
+      id: 'applications',
+      libelle: language === 'ar' ? 'الاستخدامات والقطاعات' : 'Applications & Secteurs',
+      titre: language === 'ar' ? 'القطاعات والاستخدامات الموصى بها:' : 'Secteurs d’activité et usages recommandés :',
+      texte: effectiveApplications,
+    },
+    {
+      id: 'avantages',
+      libelle: language === 'ar' ? 'المميزات' : 'Avantages clés',
+      titre: language === 'ar' ? 'أبرز مميزات هذا المنتج:' : 'Points forts et atouts techniques :',
+      texte: effectiveAvantages,
+    },
+    {
+      id: 'entretien',
+      libelle: language === 'ar' ? 'إرشادات العناية' : "Conseils d'entretien",
+      titre: language === 'ar' ? 'نصائح العناية والاستخدام:' : "Conseils d'utilisation et d'entretien :",
+      texte: effectiveConseilsEntretien,
+    },
+    {
+      id: 'commercial',
+      libelle: language === 'ar' ? 'معلومات تجارية' : 'Infos commerciales & Gros',
+      titre: language === 'ar' ? 'شروط التعبئة والطلبات بالجملة:' : 'Informations commerciales, conditionnement & MOQ :',
+      texte: effectiveInfoCommerciale,
+    },
+  ] as { id: OngletFiche; libelle: string; titre?: string; texte: string }[]).filter(o => o.texte);
+  const ongletAffiche = onglets.find(o => o.id === activeTab) || onglets[0];
+
+  const nom = nomProduit(product, language);
+  const nomCategorie = nomCategorieProduit(product, categories, language);
 
   // Galerie : photos du produit, suivies des photos propres aux variantes
   const galleryImages: string[] = Array.from(
@@ -253,24 +259,24 @@ export default function ProductPage({ params }: { params: Promise<{ id: string }
           <div className="flex items-center gap-2 overflow-x-auto no-scrollbar">
             <button 
               onClick={() => window.history.back()} 
-              aria-label="Retour" 
+              aria-label={language === 'ar' ? 'رجوع' : 'Retour'}
               className="w-7 h-7 rounded-full bg-white border border-neutral-200 flex items-center justify-center text-neutral-600 hover:text-neutral-900 hover:border-neutral-400 transition-colors flex-shrink-0 cursor-pointer"
             >
-              <ArrowLeft className="w-3.5 h-3.5" />
+              <ArrowLeft className="w-3.5 h-3.5 rtl:rotate-180" />
             </button>
             <Link href="/shop" className="hover:text-neutral-900 transition-colors whitespace-nowrap">{language === 'ar' ? 'الرئيسية' : 'Accueil'}</Link>
-            <ChevronRight className="w-3 h-3 text-neutral-300 flex-shrink-0" />
+            <ChevronRight className="w-3 h-3 text-neutral-300 flex-shrink-0 rtl:rotate-180" />
             <Link href="/shop/boutique" className="hover:text-neutral-900 transition-colors whitespace-nowrap">{language === 'ar' ? 'المتجر' : 'Boutique'}</Link>
-            <ChevronRight className="w-3 h-3 text-neutral-300 flex-shrink-0" />
+            <ChevronRight className="w-3 h-3 text-neutral-300 flex-shrink-0 rtl:rotate-180" />
             <Link href={`/shop/categorie/${product.categorySlug}`} className="hover:text-neutral-900 transition-colors whitespace-nowrap font-medium text-neutral-700">
-              {language === 'ar' && product.categoryNameAr ? product.categoryNameAr : product.categoryName}
+              <bdi dir={sensDuTexte(nomCategorie)}>{nomCategorie}</bdi>
             </Link>
           </div>
 
           <div className="hidden sm:flex items-center gap-3">
-            <button 
-              onClick={() => setWished(!wished)} 
-              aria-label="Favoris"
+            <button
+              onClick={() => setWished(!wished)}
+              aria-label={language === 'ar' ? 'المفضلة' : 'Favoris'}
               className={`p-1.5 rounded-full border transition-colors cursor-pointer ${wished ? 'bg-rose-50 border-rose-200 text-[#C8102E]' : 'border-neutral-200 text-neutral-400 hover:text-neutral-900 hover:bg-white'}`}
             >
               <Heart className={`w-4 h-4 ${wished ? 'fill-current' : ''}`} />
@@ -289,7 +295,7 @@ export default function ProductPage({ params }: { params: Promise<{ id: string }
               <div className="relative aspect-square rounded-3xl overflow-hidden bg-neutral-50 border border-neutral-200/80 shadow-xs group">
                 <img
                   src={galleryImages[mainImg] || galleryImages[0] || '/placeholder.png'}
-                  alt={product.name}
+                  alt={nom}
                   loading="eager" 
                   decoding="async" 
                   className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" 
@@ -305,7 +311,7 @@ export default function ProductPage({ params }: { params: Promise<{ id: string }
 
                 <button 
                   onClick={() => setWished(!wished)} 
-                  aria-label="Ajouter aux favoris"
+                  aria-label={language === 'ar' ? 'أضف إلى المفضلة' : 'Ajouter aux favoris'}
                   className="sm:hidden absolute top-4 right-4 w-9 h-9 rounded-full bg-white/90 backdrop-blur-xs flex items-center justify-center text-neutral-600 shadow-sm cursor-pointer"
                 >
                   <Heart className={`w-4 h-4 ${wished ? 'fill-[#C8102E] text-[#C8102E]' : ''}`} />
@@ -339,16 +345,22 @@ export default function ProductPage({ params }: { params: Promise<{ id: string }
                 href={`/shop/categorie/${product.categorySlug}`}
                 className="text-xs font-bold uppercase tracking-widest text-[#C8102E] hover:underline mb-1.5 inline-block"
               >
-                {language === 'ar' && product.categoryNameAr ? product.categoryNameAr : product.categoryName}
+                <bdi dir={sensDuTexte(nomCategorie)}>{nomCategorie}</bdi>
               </Link>
 
               {/* Product Title */}
-              <h1 
-                className="text-2xl sm:text-3xl lg:text-4xl font-black text-neutral-900 tracking-tight leading-tight mb-3" 
+              <h1
+                className="text-2xl sm:text-3xl lg:text-4xl font-black text-neutral-900 tracking-tight leading-tight mb-3"
                 style={{ fontFamily: 'Outfit, sans-serif' }}
               >
-                {language === 'ar' && product.nameAr ? product.nameAr : product.name}
+                <bdi dir={sensDuTexte(nom)}>{nom}</bdi>
               </h1>
+
+              {descriptionCourte && (
+                <p className="text-base text-neutral-600 leading-relaxed mb-4" dir={sensDuTexte(descriptionCourte)}>
+                  {descriptionCourte}
+                </p>
+              )}
 
               {/* ── Prix, choix du modèle / de la taille / de la couleur, quantité, ajout ── */}
               <ChoixVariante
@@ -380,10 +392,12 @@ export default function ProductPage({ params }: { params: Promise<{ id: string }
                   <div className="flex flex-col items-center">
                     <Truck className="w-4 h-4 text-emerald-600 mb-1" />
                     <span className="text-xs font-bold text-neutral-900">
-                      {language === 'ar' ? `التوصيل ${formatPrice(FRAIS_ZONE.casablanca)}` : `Livraison ${formatPrice(FRAIS_ZONE.casablanca)}`}
+                      {language === 'ar'
+                        ? <>التوصيل <bdi dir="ltr">{formatPrice(FRAIS_ZONE.casablanca)}</bdi></>
+                        : `Livraison ${formatPrice(FRAIS_ZONE.casablanca)}`}
                     </span>
                     <span className="text-xs text-neutral-500">
-                      {language === 'ar' ? `الدار البيضاء خلال ${DELAI_ZONE.casablanca}` : `Casablanca en ${DELAI_ZONE.casablanca}`}
+                      {language === 'ar' ? `الدار البيضاء خلال ${delaiZone('casablanca', language)}` : `Casablanca en ${delaiZone('casablanca', language)}`}
                     </span>
                   </div>
                 )}
@@ -394,8 +408,8 @@ export default function ProductPage({ params }: { params: Promise<{ id: string }
                 </div>
                 <div className="flex flex-col items-center">
                   <PackageCheck className="w-4 h-4 text-[#C8102E] mb-1" />
-                  <span className="text-xs font-bold text-neutral-900">{language === 'ar' ? 'تعبئة مخصصة' : 'Vente en gros'}</span>
-                  <span className="text-xs text-neutral-500">{language === 'ar' ? 'أسعار تفضيلية' : 'Sur mesure'}</span>
+                  <span className="text-xs font-bold text-neutral-900">{language === 'ar' ? 'البيع بالجملة' : 'Vente en gros'}</span>
+                  <span className="text-xs text-neutral-500">{language === 'ar' ? 'حسب الطلب' : 'Sur mesure'}</span>
                 </div>
               </div>
 
@@ -405,13 +419,13 @@ export default function ProductPage({ params }: { params: Promise<{ id: string }
                   <div className="flex items-center justify-between pb-2 mb-2.5 border-b border-neutral-200/60">
                     <span className="text-[11px] font-black uppercase tracking-wider text-neutral-700 flex items-center gap-1.5">
                       <FileText className="w-3.5 h-3.5 text-neutral-500" />
-                      {language === 'ar' ? 'المواصفات الفنية المباشرة' : 'Spécifications techniques'}
+                      {language === 'ar' ? 'المواصفات التقنية' : 'Spécifications techniques'}
                     </span>
-                    {(currentVariant?.model || (currentVariant?.size && currentVariant?.size !== 'Standard')) && (
+                    {(pastilleModele || pastilleTaille) && (
                       <span className="text-[10px] font-bold text-[#C8102E] bg-rose-50 px-2 py-0.5 rounded-md border border-rose-100">
-                        {currentVariant.model ? currentVariant.model : ''}
-                        {currentVariant.model && currentVariant.size && currentVariant.size !== 'Standard' ? ' · ' : ''}
-                        {currentVariant.size && currentVariant.size !== 'Standard' ? currentVariant.size : ''}
+                        {pastilleModele && <bdi>{pastilleModele}</bdi>}
+                        {pastilleModele && pastilleTaille ? ' · ' : ''}
+                        {pastilleTaille && <bdi>{pastilleTaille}</bdi>}
                       </span>
                     )}
                   </div>
@@ -420,7 +434,7 @@ export default function ProductPage({ params }: { params: Promise<{ id: string }
                     {activeSpecs.map((spec, i) => (
                       <div key={i} className="flex items-baseline justify-between border-b border-neutral-200/40 pb-1 gap-2">
                         <span className="text-neutral-500 text-[11px] font-medium truncate">{spec.label}</span>
-                        <span className="font-bold text-neutral-900 text-[11px] text-right truncate">{spec.value}</span>
+                        <span className="font-bold text-neutral-900 text-[11px] text-right truncate" dir={sensDuTexte(String(spec.value))}>{spec.value}</span>
                       </div>
                     ))}
                   </div>
@@ -431,107 +445,36 @@ export default function ProductPage({ params }: { params: Promise<{ id: string }
         </div>
 
         {/* ── Detailed Technical Information & Documentation Tabs ── */}
-        {(effectiveApplications || effectiveAvantages || effectiveConseilsEntretien || effectiveInfoCommerciale) && (
+        {ongletAffiche && (
           <div className="mt-14 pt-8 border-t border-neutral-200">
             <div className="flex flex-wrap items-center gap-2 mb-6 border-b border-neutral-100 pb-3">
-              {effectiveApplications && (
+              {onglets.map(o => (
                 <button
+                  key={o.id}
                   type="button"
-                  onClick={() => setActiveTab('applications')}
+                  onClick={() => setActiveTab(o.id)}
                   className={`px-4 py-2 rounded-xl font-bold text-xs cursor-pointer transition-all ${
-                    activeTab === 'applications'
+                    ongletAffiche.id === o.id
                       ? 'bg-neutral-900 text-white shadow-xs'
                       : 'bg-neutral-100 text-neutral-600 hover:bg-neutral-200'
                   }`}
                 >
-                  {language === 'ar' ? 'التطبيقات والاستخدامات' : 'Applications & Secteurs'}
+                  {o.libelle}
                 </button>
-              )}
-              {effectiveAvantages && (
-                <button
-                  type="button"
-                  onClick={() => setActiveTab('specs')}
-                  className={`px-4 py-2 rounded-xl font-bold text-xs cursor-pointer transition-all ${
-                    activeTab === 'specs'
-                      ? 'bg-neutral-900 text-white shadow-xs'
-                      : 'bg-neutral-100 text-neutral-600 hover:bg-neutral-200'
-                  }`}
-                >
-                  {language === 'ar' ? 'المميزات' : 'Avantages clés'}
-                </button>
-              )}
-              {effectiveConseilsEntretien && (
-                <button
-                  type="button"
-                  onClick={() => setActiveTab('entretien')}
-                  className={`px-4 py-2 rounded-xl font-bold text-xs cursor-pointer transition-all ${
-                    activeTab === 'entretien'
-                      ? 'bg-neutral-900 text-white shadow-xs'
-                      : 'bg-neutral-100 text-neutral-600 hover:bg-neutral-200'
-                  }`}
-                >
-                  {language === 'ar' ? 'إرشادات العناية' : "Conseils d'entretien"}
-                </button>
-              )}
-              {effectiveInfoCommerciale && (
-                <button
-                  type="button"
-                  onClick={() => setActiveTab('commercial')}
-                  className={`px-4 py-2 rounded-xl font-bold text-xs cursor-pointer transition-all ${
-                    activeTab === 'commercial'
-                      ? 'bg-neutral-900 text-white shadow-xs'
-                      : 'bg-neutral-100 text-neutral-600 hover:bg-neutral-200'
-                  }`}
-                >
-                  {language === 'ar' ? 'معلومات تجارية' : 'Infos commerciales & Gros'}
-                </button>
-              )}
+              ))}
             </div>
 
             <div className="p-6 rounded-3xl bg-neutral-50/60 border border-neutral-200/80">
-              {activeTab === 'applications' && effectiveApplications && (
-                <div className="space-y-2">
+              <div className="space-y-2">
+                {ongletAffiche.titre && (
                   <h3 className="text-sm font-bold text-neutral-900 mb-1" style={{ fontFamily: 'Outfit, sans-serif' }}>
-                    {language === 'ar' ? 'القطاعات والاستخدامات الموصى بها :' : 'Secteurs d’activité et usages recommandés :'}
+                    {ongletAffiche.titre}
                   </h3>
-                  <p className="text-neutral-600 text-sm whitespace-pre-line leading-relaxed">
-                    {effectiveApplications}
-                  </p>
-                </div>
-              )}
-
-              {activeTab === 'specs' && effectiveAvantages && (
-                <div className="space-y-2">
-                  <h3 className="text-sm font-bold text-neutral-900 mb-1" style={{ fontFamily: 'Outfit, sans-serif' }}>
-                    {language === 'ar' ? 'أبرز مميزات هذا المنتج :' : 'Points forts et atouts techniques :'}
-                  </h3>
-                  <p className="text-neutral-600 text-sm whitespace-pre-line leading-relaxed">
-                    {effectiveAvantages}
-                  </p>
-                </div>
-              )}
-
-              {activeTab === 'entretien' && effectiveConseilsEntretien && (
-                <div className="space-y-2">
-                  <h3 className="text-sm font-bold text-neutral-900 mb-1" style={{ fontFamily: 'Outfit, sans-serif' }}>
-                    {language === 'ar' ? 'نصائح العناية والاستخدام :' : "Conseils d'utilisation et d'entretien :"}
-                  </h3>
-                  <p className="text-neutral-600 text-sm whitespace-pre-line leading-relaxed">
-                    {effectiveConseilsEntretien}
-                  </p>
-                </div>
-              )}
-
-              {activeTab === 'commercial' && effectiveInfoCommerciale && (
-                <div className="space-y-2">
-                  <h3 className="text-sm font-bold text-neutral-900 mb-1" style={{ fontFamily: 'Outfit, sans-serif' }}>
-                    {language === 'ar' ? 'شروط التعبئة والطلبات بالجملة :' : 'Informations commerciales, conditionnement & MOQ :'}
-                  </h3>
-                  <p className="text-neutral-600 text-sm whitespace-pre-line leading-relaxed">
-                    {effectiveInfoCommerciale}
-                  </p>
-                </div>
-              )}
+                )}
+                <p className="text-neutral-600 text-sm whitespace-pre-line leading-relaxed" dir={sensDuTexte(ongletAffiche.texte)}>
+                  {ongletAffiche.texte}
+                </p>
+              </div>
             </div>
           </div>
         )}

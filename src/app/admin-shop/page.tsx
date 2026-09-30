@@ -34,7 +34,7 @@ import {
 } from '@/lib/shop-types';
 import { formatPrice } from '@/lib/shop-utils';
 import { SHOP_PRODUCTS_DATA, SHOP_CATEGORIES } from '@/lib/shop-products-data';
-import type { ShopProduct } from '@/lib/shop-types';
+import type { ProductVariant, ShopProduct } from '@/lib/shop-types';
 import type { ProductOverride } from '@/contexts/shop-products-context';
 import { useShopProducts } from '@/contexts/shop-products-context';
 import { totalLigne } from '@/lib/commandes-boutique';
@@ -507,6 +507,47 @@ function MetricCard({
   );
 }
 
+// ─── Arabe d'une catégorie (création et modification) ───────────────────────
+function ChampsArabeCategorie({
+  nameAr,
+  descriptionAr,
+  onChange,
+}: {
+  nameAr: string;
+  descriptionAr: string;
+  onChange: (champ: 'nameAr' | 'descriptionAr', valeur: string) => void;
+}) {
+  return (
+    <div className="space-y-3 pt-3 border-t border-white/5">
+      <div className="space-y-1.5">
+        <label className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">
+          Nom en arabe (<span dir="rtl" lang="ar">العربية</span>)
+        </label>
+        <input
+          type="text"
+          dir="rtl"
+          lang="ar"
+          value={nameAr}
+          onChange={e => onChange('nameAr', e.target.value)}
+          className="w-full px-3 py-2.5 rounded-xl bg-white/5 border border-white/10 text-white text-sm focus:outline-none focus:border-[#D4A843]/60"
+        />
+      </div>
+      <div className="space-y-1.5">
+        <label className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Description en arabe</label>
+        <textarea
+          dir="rtl"
+          lang="ar"
+          value={descriptionAr}
+          onChange={e => onChange('descriptionAr', e.target.value)}
+          rows={3}
+          className="w-full px-3 py-2.5 rounded-xl bg-white/5 border border-white/10 text-white text-sm focus:outline-none focus:border-[#D4A843]/60 resize-none"
+        />
+      </div>
+      <p className="text-[11px] text-gray-600">Laissés vides, le nom et la description en français s'affichent aussi en arabe.</p>
+    </div>
+  );
+}
+
 // ─── Modal: Éditer Catégorie ────────────────────────────────────────────────
 function EditCategorieModal({
   category,
@@ -514,15 +555,17 @@ function EditCategorieModal({
   onClose,
   onUpdated,
 }: {
-  category: { id: string; slug: string; name: string; image?: string | null; description?: string | null; color?: string; priority?: number; isCustom: boolean; parentSlug?: string | null };
+  category: { id: string; slug: string; name: string; nameAr?: string | null; image?: string | null; description?: string | null; descriptionAr?: string | null; color?: string; priority?: number; isCustom: boolean; parentSlug?: string | null };
   allCategories: any[];
   onClose: () => void;
-  onUpdated: (c: any) => void;
+  onUpdated: (c: any, ecrit: Record<string, unknown>) => void;
 }) {
   const [form, setForm] = useState({
     name: category.name || '',
+    nameAr: category.nameAr || '',
     image: (category.image as string) || '',
     description: (category.description as string) || '',
+    descriptionAr: category.descriptionAr || '',
     color: category.color || '#C8102E',
     priority: category.priority?.toString() || '0',
     parentSlug: category.parentSlug || '',
@@ -535,6 +578,10 @@ function EditCategorieModal({
     setSaving(true);
     setError('');
     try {
+      // Arabe écrit seulement s'il a changé : un nom arabe codé en dur n'est pas figé dans la surcharge
+      const arabe: { nameAr?: string; descriptionAr?: string } = {};
+      if (form.nameAr.trim() !== (category.nameAr || '').trim()) arabe.nameAr = form.nameAr.trim();
+      if (form.descriptionAr.trim() !== (category.descriptionAr || '').trim()) arabe.descriptionAr = form.descriptionAr.trim();
       const update = {
         name: form.name.trim(),
         image: form.image.trim() || null,
@@ -542,6 +589,7 @@ function EditCategorieModal({
         color: form.color,
         priority: parseInt(form.priority) || 0,
         parentSlug: form.parentSlug || null,
+        ...arabe,
       };
       
       if (category.isCustom) {
@@ -551,7 +599,7 @@ function EditCategorieModal({
         // Built-in category — save an override document
         await setDoc(doc(db, 'shop_category_overrides', category.slug), { ...update, slug: category.slug }, { merge: true });
       }
-      onUpdated({ ...category, ...update });
+      onUpdated({ ...category, ...update }, update);
     } catch (err: any) {
       setError('Erreur: ' + err.message);
     } finally {
@@ -647,6 +695,12 @@ function EditCategorieModal({
               className="w-full px-3 py-2.5 rounded-xl bg-white/5 border border-white/10 text-white text-sm focus:outline-none focus:border-[#D4A843]/60 placeholder-gray-600 resize-none"
             />
           </div>
+
+          <ChampsArabeCategorie
+            nameAr={form.nameAr}
+            descriptionAr={form.descriptionAr}
+            onChange={(champ, valeur) => setForm(p => ({ ...p, [champ]: valeur }))}
+          />
         </div>
 
         <div className="px-6 py-4 border-t border-white/10 flex gap-3 sticky bottom-0 bg-[#1A1A1A]">
@@ -708,11 +762,14 @@ function CategoriesView() {
 
   // Merge hardcoded + custom, filter hidden
   const allCats: CatItem[] = [
-    ...SHOP_CATEGORIES.map(c => ({
-      ...c,
-      isCustom: false,
-      ...(overrides[c.slug] || {}),
-    })).filter((c: any) => !c.hidden),
+    ...SHOP_CATEGORIES.map(c => {
+      const ov: Partial<CatItem> = overrides[c.slug] || {};
+      const fusion: CatItem = { ...c, isCustom: false, ...ov };
+      // Même règle que la boutique : un rayon renommé sans traduction perd l'arabe codé en dur
+      if (ov.name && ov.name !== c.name && !ov.nameAr) delete fusion.nameAr;
+      if (ov.description && ov.description !== c.description && !ov.descriptionAr) delete fusion.descriptionAr;
+      return fusion;
+    }).filter((c: any) => !c.hidden),
     ...customCats,
   ].sort((a, b) => (b.priority || 0) - (a.priority || 0));
 
@@ -825,11 +882,12 @@ function CategoriesView() {
           category={editingCat}
           allCategories={allCats}
           onClose={() => setEditingCat(null)}
-          onUpdated={updated => {
+          onUpdated={(updated, ecrit) => {
             if (updated.isCustom) {
               setCustomCats(prev => prev.map(c => c.id === updated.id ? { ...c, ...updated } : c));
             } else {
-              setOverrides(prev => ({ ...prev, [updated.slug]: updated }));
+              // Surcharge locale = ce qui est dans Firestore : l'arabe codé en dur n'y est pas recopié
+              setOverrides(prev => ({ ...prev, [updated.slug]: { ...(prev[updated.slug] || {}), ...ecrit } }));
             }
             setEditingCat(null);
           }}
@@ -1281,6 +1339,52 @@ function ComingSoonView({ title, icon }: { title: string; icon: React.ReactNode 
   );
 }
 
+// ─── Arabe des produits ────────────────────────────────────────────────────────
+// Champs arabes saisis ici, en face de leur équivalent français. Les autres *Ar
+// (spécifications) sont posés par script : l'admin ne les écrit jamais.
+const CHAMPS_ARABE_PRODUIT: Array<{ cle: string; fr: string; label: string; lignes: number }> = [
+  { cle: 'nameAr', fr: 'name', label: 'Nom du produit', lignes: 1 },
+  { cle: 'shortDescriptionAr', fr: 'shortDescription', label: 'Description courte', lignes: 2 },
+  { cle: 'descriptionAr', fr: 'description', label: 'Description complète', lignes: 3 },
+  { cle: 'typeProduitAr', fr: 'typeProduit', label: 'Type de produit', lignes: 1 },
+  { cle: 'applicationsAr', fr: 'applications', label: 'Applications', lignes: 2 },
+  { cle: 'avantagesAr', fr: 'avantages', label: 'Avantages', lignes: 2 },
+  { cle: 'conseilsEntretienAr', fr: 'conseilsEntretien', label: "Conseils d'entretien", lignes: 2 },
+  { cle: 'informationCommercialeAr', fr: 'informationCommerciale', label: 'Infos commerciales', lignes: 2 },
+];
+
+const textePlein = (v: unknown): v is string => typeof v === 'string' && v.trim() !== '';
+
+// Comme la boutique : une valeur vide de la surcharge ne masque pas celle de la fiche
+function arabeDepartProduit(fiche: ShopProduct, ov: ProductOverride | undefined): Record<string, string> {
+  const arabe: Record<string, string> = {};
+  for (const { cle } of CHAMPS_ARABE_PRODUIT) {
+    const surcharge = (ov as Record<string, unknown> | undefined)?.[cle];
+    const valeur = textePlein(surcharge) ? surcharge : (fiche as unknown as Record<string, unknown>)[cle];
+    arabe[cle] = typeof valeur === 'string' ? valeur : '';
+  }
+  return arabe;
+}
+
+// Champs de variante réécrits par le formulaire : vidés, ils doivent disparaître
+const CHAMPS_VARIANTE_FORMULAIRE = new Set([
+  'id', 'stock', 'inStock', 'color', 'colorHex', 'model', 'modelAr', 'size', 'image', 'price',
+  'shortDescription', 'description', 'material', 'typeProduit', 'weight', 'width', 'packaging', 'stockArticleId',
+]);
+
+// Le reste de la variante d'origine est gardé tel quel (traductions, sku, spécifications posées par script…)
+function champsVarianteConserves(origine: ProductVariant | undefined, couleur: string, taille: string): Record<string, unknown> {
+  if (!origine) return {};
+  const conserves: Record<string, unknown> = {};
+  for (const [cle, valeur] of Object.entries(origine)) {
+    if (valeur !== undefined && !CHAMPS_VARIANTE_FORMULAIRE.has(cle)) conserves[cle] = valeur;
+  }
+  // Couleur ou taille renommée : l'ancienne traduction ne correspond plus
+  if (couleur !== (origine.color || '').trim()) delete conserves.colorAr;
+  if (taille !== (origine.size || '').trim()) delete conserves.sizeAr;
+  return conserves;
+}
+
 // ─── Products View ─────────────────────────────────────────────────────────────
 function ProduitsView() {
   const [overrides, setOverrides] = useState<Record<string, ProductOverride>>({});
@@ -1321,7 +1425,13 @@ function ProduitsView() {
     weight?: number;
     width?: string;
     packaging?: string;
+    modelAr?: string;
+    // Variante telle que lue au début de l'édition (absente pour une variante ajoutée)
+    origine?: ProductVariant;
   }>>([]);
+  // Arabe du produit : valeurs saisies, et valeurs au début de l'édition pour n'écrire que ce qui a changé
+  const [editArabe, setEditArabe] = useState<Record<string, string>>({});
+  const [arabeDepart, setArabeDepart] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
   const [savedId, setSavedId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
@@ -1593,13 +1703,20 @@ function ProduitsView() {
       weight: v.weight,
       width: v.width || '',
       packaging: v.packaging || '',
+      modelAr: v.modelAr || '',
+      origine: v,
     })));
+    const arabe = arabeDepartProduit(product, overrides[product.id]);
+    setEditArabe(arabe);
+    setArabeDepart(arabe);
   };
 
   const cancelEdit = () => {
     setEditingId(null);
     setEditForm({});
     setEditVariants([]);
+    setEditArabe({});
+    setArabeDepart({});
   };
 
   const saveEdit = async (productId: string) => {
@@ -1615,6 +1732,7 @@ function ProduitsView() {
           const finalColorName = (!colorName && !sizeName && !modelName) ? `Couleur ${i + 1}` : colorName;
 
           const obj: Record<string, unknown> = {
+            ...champsVarianteConserves(v.origine, finalColorName, sizeName || ''),
             id: v.id,
             stock: s.stock,
             inStock: s.stock > 0,
@@ -1622,6 +1740,7 @@ function ProduitsView() {
             ...(modelName && { model: modelName }),
             ...(sizeName && { size: sizeName }),
           };
+          if (modelName && v.modelAr?.trim()) obj.modelAr = v.modelAr.trim();
           if (v.image) obj.image = v.image;
           if (v.price) obj.price = parseFloat(v.price);
           
@@ -1686,6 +1805,13 @@ function ProduitsView() {
       ['applications', 'avantages', 'conseilsEntretien', 'informationCommerciale', 'motsCles', 'typeProduit', 'matiereMailles', 'compositionRuban', 'couleur', 'largeurMaille', 'longueur', 'type', 'design', 'securite', 'resistance', 'compatibleAvec', 'conditionnementUnitaire', 'conditionnementGros'].forEach(k => {
         if ((editForm as any)[k] !== undefined) base[k] = (editForm as any)[k];
       });
+
+      // Arabe : seulement les champs modifiés. Un champ laissé tel quel n'est pas recopié dans la
+      // surcharge, où il masquerait plus tard une traduction corrigée sur la fiche.
+      for (const { cle } of CHAMPS_ARABE_PRODUIT) {
+        const valeur = (editArabe[cle] || '').trim();
+        if (valeur !== (arabeDepart[cle] || '').trim()) base[cle] = valeur;
+      }
 
       // Liaison stock
       if ((editForm as any).stockArticleId) base.stockArticleId = (editForm as any).stockArticleId;
@@ -1814,7 +1940,7 @@ Cette action est irréversible.`)) return;
       <div className="flex items-center justify-between">
         <p className="text-xs text-gray-500">{filteredProducts.length} produit{filteredProducts.length !== 1 ? 's' : ''}</p>
         <div className="flex items-center gap-3">
-          <p className="text-xs text-gray-600 hidden sm:block">💡 Modifications instantanées sur la boutique</p>
+          <p className="text-xs text-gray-600 hidden sm:block">💡 Les changements apparaissent sur le site après « Publier en ligne »</p>
           <button
             onClick={() => setShowNewProductModal(true)}
             className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-[#C8102E] text-white text-xs font-semibold hover:bg-[#a50d25] transition-all"
@@ -2182,6 +2308,14 @@ Cette action est irréversible.`)) return;
                               placeholder="Modèle (opt.)"
                               className="w-24 flex-1 bg-transparent text-white text-sm outline-none placeholder-gray-600 min-w-0 border-l border-white/10 pl-2"
                             />
+                            {!!v.model?.trim() && (
+                              <input type="text" dir="rtl" lang="ar" value={v.modelAr || ''}
+                                onChange={e => setEditVariants(ev => ev.map(x => x.id === v.id ? { ...x, modelAr: e.target.value } : x))}
+                                placeholder="Modèle (arabe)"
+                                title="Modèle (arabe) — vide : le modèle français s'affiche aussi en arabe"
+                                className="w-24 flex-1 bg-transparent text-white text-sm outline-none placeholder-gray-600 min-w-0 border-l border-white/10 pl-2"
+                              />
+                            )}
                             <input type="text" value={v.size}
                               onChange={e => setEditVariants(ev => ev.map(x => x.id === v.id ? { ...x, size: e.target.value } : x))}
                               placeholder="Taille (opt.)"
@@ -2545,6 +2679,38 @@ Cette action est irréversible.`)) return;
                       ))}
                     </div>
                   </div>
+
+                  {/* ─── Arabe : chaque champ en face de son équivalent français ─── */}
+                  <details className="mt-5 pt-4 border-t border-white/10">
+                    <summary className="cursor-pointer text-[10px] font-bold text-[#D4A843] uppercase tracking-wider flex flex-wrap items-center gap-1.5 select-none">
+                      <Globe className="w-3.5 h-3.5" /> Arabe (<span dir="rtl" lang="ar">العربية</span>)
+                      <span className="text-gray-600 normal-case font-medium">— laissé vide, le texte français s'affiche aussi en arabe</span>
+                    </summary>
+                    <div className="mt-3 space-y-3">
+                      {CHAMPS_ARABE_PRODUIT.map(({ cle, fr, label, lignes }) => {
+                        const francais = String((editForm as any)[fr] || '').trim();
+                        return (
+                          <div key={cle} className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-3">
+                            <div className="space-y-1 min-w-0">
+                              <p className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">{label}</p>
+                              <p className="text-xs text-gray-400 whitespace-pre-line break-words max-h-40 overflow-y-auto">
+                                {francais || <span className="italic text-gray-600">Vide en français</span>}
+                              </p>
+                            </div>
+                            <textarea
+                              dir="rtl"
+                              lang="ar"
+                              value={editArabe[cle] || ''}
+                              onChange={e => setEditArabe(prev => ({ ...prev, [cle]: e.target.value }))}
+                              rows={lignes}
+                              aria-label={`${label} (arabe)`}
+                              className="w-full px-3 py-2 rounded-xl bg-white/5 border border-white/10 text-white text-sm outline-none focus:border-[#D4A843]/50 resize-y"
+                            />
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </details>
 
                 </div>
               )}
@@ -3321,7 +3487,7 @@ function NouvelleCategorieModal({
   onClose: () => void;
   onCreated: (c: { id: string; slug: string; name: string; image?: string; description?: string; color?: string; priority?: number; parentSlug?: string }) => void;
 }) {
-  const [form, setForm] = useState({ name: '', image: '', description: '', color: '#C8102E', priority: '0', parentSlug: '' });
+  const [form, setForm] = useState({ name: '', nameAr: '', image: '', description: '', descriptionAr: '', color: '#C8102E', priority: '0', parentSlug: '' });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
@@ -3334,7 +3500,11 @@ function NouvelleCategorieModal({
         .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
         .replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
       const id = `cat_${slug}_${Date.now()}`;
-      const cat = { id, slug, name: form.name.trim(), image: form.image.trim() || null, description: form.description.trim() || null, color: form.color, priority: parseInt(form.priority) || 0, parentSlug: form.parentSlug || null };
+      const cat = {
+        id, slug, name: form.name.trim(), image: form.image.trim() || null, description: form.description.trim() || null, color: form.color, priority: parseInt(form.priority) || 0, parentSlug: form.parentSlug || null,
+        ...(form.nameAr.trim() && { nameAr: form.nameAr.trim() }),
+        ...(form.descriptionAr.trim() && { descriptionAr: form.descriptionAr.trim() }),
+      };
       await setDoc(doc(db, 'shop_custom_categories', id), cat);
       onCreated(cat as any);
     } catch (err: any) {
@@ -3348,8 +3518,8 @@ function NouvelleCategorieModal({
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       {/* Le fond ne ferme pas : un clic a cote ne doit pas effacer une saisie. */}
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
-      <div className="relative bg-[#1A1A1A] rounded-2xl border border-white/10 shadow-2xl w-full max-w-lg">
-        <div className="px-6 py-4 border-b border-white/10 flex items-center justify-between">
+      <div className="relative bg-[#1A1A1A] rounded-2xl border border-white/10 shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
+        <div className="px-6 py-4 border-b border-white/10 flex items-center justify-between sticky top-0 bg-[#1A1A1A] z-10">
           <h2 className="text-white font-bold text-base flex items-center gap-2">
             <FolderPlus className="w-5 h-5 text-[#D4A843]" /> Nouvelle Catégorie
           </h2>
@@ -3431,6 +3601,12 @@ function NouvelleCategorieModal({
             />
           </div>
 
+          <ChampsArabeCategorie
+            nameAr={form.nameAr}
+            descriptionAr={form.descriptionAr}
+            onChange={(champ, valeur) => setForm(p => ({ ...p, [champ]: valeur }))}
+          />
+
           {/* Couleur */}
           <div className="space-y-1.5">
             <label className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Couleur accent</label>
@@ -3444,7 +3620,7 @@ function NouvelleCategorieModal({
             </div>
           </div>
         </div>
-        <div className="px-6 py-4 border-t border-white/10 flex gap-3">
+        <div className="px-6 py-4 border-t border-white/10 flex gap-3 sticky bottom-0 bg-[#1A1A1A]">
           <button onClick={onClose} className="flex-1 px-4 py-2.5 rounded-xl border border-white/10 text-gray-400 text-sm font-medium hover:bg-white/5 transition-all">Annuler</button>
           <button
             onClick={handleSubmit} disabled={saving}

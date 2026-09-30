@@ -8,6 +8,7 @@ import { formatPrice, getProductDisplayPrice } from '@/lib/shop-utils';
 import { useShopProducts } from '@/contexts/shop-products-context';
 import { useLanguage } from '@/contexts/language-context';
 import type { ShopProduct, ShopCategory } from '@/lib/shop-types';
+import { normaliserRecherche, texte, texteRecherche } from '@/lib/shop-textes';
 import ProductCard from '@/components/shop/ProductCard';
 
 // ─── Boutique Content Component ──────────────────────────────────────────────
@@ -19,6 +20,7 @@ function BoutiqueContent() {
   const initTri = searchParams.get('tri');
 
   const { language } = useLanguage();
+  const isAr = language === 'ar';
   const [search, setSearch] = useState(initSearch || '');
   const deferredSearch = useDeferredValue(search);
   const [sort, setSort] = useState(
@@ -31,6 +33,13 @@ function BoutiqueContent() {
 
   const { products: allProducts, categories: allContextCategories, isLoading } = useShopProducts();
   const SHOP_CATEGORIES = useMemo(() => allContextCategories.filter(c => !c.parentSlug), [allContextCategories]);
+  const nomCat = (c: ShopCategory) => texte(c, 'name', language) || c.name;
+
+  // Texte cherchable de chaque produit (français et arabe, description comprise), calculé une fois par catalogue
+  const texteParProduit = useMemo(
+    () => new Map(allProducts.map(p => [p.id, texteRecherche(p, allContextCategories, true)])),
+    [allProducts, allContextCategories]
+  );
 
   // Sync with URL query parameter when changed externally
   useEffect(() => {
@@ -85,7 +94,6 @@ function BoutiqueContent() {
 
     // 2. Search query filter
     if (deferredSearch.trim()) {
-      const norm = (s: string) => s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[\u064B-\u065F\u0670]/g, '');
       const variants = (w: string) => {
         const v = [w];
         if (w.endsWith('s') && w.length > 2) v.push(w.slice(0, -1));
@@ -94,10 +102,10 @@ function BoutiqueContent() {
         v.push(w + 's', w + 'es');
         return v;
       };
-      const words = norm(deferredSearch).split(/\s+/).filter(w => w.length >= 2);
+      const words = normaliserRecherche(deferredSearch).split(/\s+/).filter(w => w.length >= 2);
       filtered = filtered.filter(p => {
-        const fields = [p.name, p.nameAr, p.categoryName, p.categoryNameAr, p.shortDescription, ...(p.tags || [])].filter(Boolean).map(f => norm(f!));
-        return words.every(word => fields.some(f => variants(word).some(v => f.includes(v))));
+        const cherchable = texteParProduit.get(p.id) || '';
+        return words.every(word => variants(word).some(v => cherchable.includes(v)));
       });
     }
 
@@ -108,7 +116,7 @@ function BoutiqueContent() {
     else if (sort === 'nouveautes') filtered.sort((a, b) => (b.isNew ? 1 : 0) - (a.isNew ? 1 : 0));
 
     return filtered;
-  }, [allProducts, activeCat, activeSubCat, allContextCategories, deferredSearch, sort]);
+  }, [allProducts, activeCat, activeSubCat, allContextCategories, deferredSearch, sort, texteParProduit]);
 
   // Reset visibleCount on filter change
   useEffect(() => {
@@ -167,7 +175,7 @@ function BoutiqueContent() {
 
             <span className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/10 border border-white/15 text-[11px] font-bold text-amber-300">
               <Sparkles className="w-3.5 h-3.5 text-amber-400" />
-              {language === 'ar' ? 'جميع المنتجات متوفرة' : 'Catalogue Complet'}
+              {language === 'ar' ? 'الكتالوج الكامل' : 'Catalogue Complet'}
             </span>
           </div>
 
@@ -190,18 +198,18 @@ function BoutiqueContent() {
 
             {/* Temu-style fast search bar */}
             <div className="w-full md:w-[420px] lg:w-[480px] relative">
-              <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+              <Search className="absolute start-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
               <input
                 value={search}
                 onChange={e => setSearch(e.target.value)}
-                placeholder={language === 'ar' ? 'ابحث عن منتج، فئة، رقم المقاس…' : 'Rechercher un produit, catégorie, référence…'}
-                className="w-full pl-10 pr-9 py-2.5 rounded-xl bg-white/10 border border-white/20 text-white placeholder:text-gray-400 text-xs sm:text-sm focus:bg-white/15 focus:border-[#C8102E] outline-none transition-all shadow-inner backdrop-blur-sm"
+                placeholder={language === 'ar' ? 'ابحث عن منتج، فئة، مرجع…' : 'Rechercher un produit, catégorie, référence…'}
+                className="w-full ps-10 pe-9 py-2.5 rounded-xl bg-white/10 border border-white/20 text-white placeholder:text-gray-400 text-xs sm:text-sm focus:bg-white/15 focus:border-[#C8102E] outline-none transition-all shadow-inner backdrop-blur-sm"
               />
               {search && (
                 <button
                   onClick={() => setSearch('')}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white p-1"
-                  aria-label="Effacer la recherche"
+                  className="absolute end-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white p-1"
+                  aria-label={isAr ? 'مسح البحث' : 'Effacer la recherche'}
                 >
                   <X className="w-3.5 h-3.5" />
                 </button>
@@ -254,7 +262,7 @@ function BoutiqueContent() {
                   }`}
                 >
                   {cat.icon && <span className="text-sm">{cat.icon}</span>}
-                  <span>{language === 'ar' && cat.nameAr ? cat.nameAr : cat.name}</span>
+                  <span>{nomCat(cat)}</span>
                   {catCount > 0 && (
                     <span className={`text-[10px] px-1.5 py-0.2 rounded-full ${
                       isSelected ? 'bg-white/25 text-white' : 'bg-neutral-100 text-neutral-500'
@@ -270,7 +278,7 @@ function BoutiqueContent() {
           {/* Subcategories bar (if category selected has subcategories) */}
           {activeSubCategories.length > 0 && (
             <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-hide pt-2 pb-0.5 border-t border-neutral-200/60 mt-2">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-neutral-400 mr-1 flex-shrink-0">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-neutral-400 me-1 flex-shrink-0">
                 {language === 'ar' ? 'الأقسام:' : 'Sous-rayons:'}
               </span>
               <button
@@ -296,7 +304,7 @@ function BoutiqueContent() {
                         : 'bg-white border border-neutral-200 text-neutral-700 hover:border-neutral-300 hover:text-neutral-950'
                     }`}
                   >
-                    <span>{language === 'ar' && sub.nameAr ? sub.nameAr : sub.name}</span>
+                    <span>{nomCat(sub)}</span>
                     {subCount > 0 && (
                       <span className={`text-[9px] px-1 rounded-full ${
                         isSubSelected ? 'bg-white/25 text-white' : 'bg-neutral-100 text-neutral-400'
@@ -320,7 +328,7 @@ function BoutiqueContent() {
           <div className="flex items-center gap-2">
             <h2 className="text-sm sm:text-base font-black text-neutral-900" style={{ fontFamily: 'Outfit, sans-serif' }}>
               {activeCategoryObj ? (
-                <span>{language === 'ar' && activeCategoryObj.nameAr ? activeCategoryObj.nameAr : activeCategoryObj.name}</span>
+                <span>{nomCat(activeCategoryObj)}</span>
               ) : (
                 <span>{language === 'ar' ? 'جميع منتجات المتجر' : 'Tous les produits du catalogue'}</span>
               )}
@@ -331,7 +339,7 @@ function BoutiqueContent() {
 
             {deferredSearch && (
               <span className="text-xs text-neutral-500">
-                pour « <strong className="text-[#C8102E]">{deferredSearch}</strong> »
+                {isAr ? 'للبحث عن' : 'pour'} « <strong className="text-[#C8102E]"><bdi>{deferredSearch}</bdi></strong> »
               </span>
             )}
           </div>
@@ -405,7 +413,7 @@ function BoutiqueContent() {
         <button
           onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
           className="fixed bottom-6 right-6 z-40 w-11 h-11 rounded-full bg-[#1A1A1A] text-white shadow-xl flex items-center justify-center hover:bg-[#C8102E] transition-all active:scale-90 cursor-pointer"
-          aria-label="Retour en haut"
+          aria-label={isAr ? 'العودة إلى الأعلى' : 'Retour en haut'}
         >
           <ArrowUp className="w-5 h-5" />
         </button>
@@ -421,12 +429,15 @@ function BoutiqueContent() {
 
 // ─── Default Page Export with Suspense ─────────────────────────────────────────
 export default function BoutiquePage() {
+  const { language } = useLanguage();
   return (
     <Suspense fallback={
       <div className="min-h-screen flex items-center justify-center bg-[#FBF8F3]">
         <div className="flex flex-col items-center gap-3">
           <div className="w-10 h-10 border-4 border-[#C8102E] border-t-transparent rounded-full animate-spin" />
-          <span className="text-xs font-bold text-neutral-400">Chargement de la boutique…</span>
+          <span className="text-xs font-bold text-neutral-400">
+            {language === 'ar' ? 'جاري تحميل المتجر…' : 'Chargement de la boutique…'}
+          </span>
         </div>
       </div>
     }>

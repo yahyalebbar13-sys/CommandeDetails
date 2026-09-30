@@ -37,11 +37,30 @@ export const DELAI_ZONE: Record<ZoneLivraison, string> = {
   eloignee: '2-4 jours ouvrés',
 };
 
+/** Même délai, écrit en arabe (inséré dans les phrases arabes de la boutique). */
+export const DELAI_ZONE_AR: Record<ZoneLivraison, string> = {
+  casablanca: '24 إلى 48 ساعة',
+  standard: 'من 1 إلى 3 أيام عمل',
+  eloignee: 'من 2 إلى 4 أيام عمل',
+};
+
+/** Délai d'une zone dans la langue du site. */
+export function delaiZone(zone: ZoneLivraison, language: 'fr' | 'ar'): string {
+  return language === 'ar' ? DELAI_ZONE_AR[zone] : DELAI_ZONE[zone];
+}
+
 /** Nom lisible de chaque zone, pour les tableaux de prix. */
 export const LIBELLE_ZONE: Record<ZoneLivraison, string> = {
   casablanca: 'Casablanca',
   standard: 'Périphérie de Casablanca et grandes villes',
   eloignee: 'Villes éloignées et autres villes',
+};
+
+/** Même nom, écrit en arabe. */
+export const LIBELLE_ZONE_AR: Record<ZoneLivraison, string> = {
+  casablanca: 'الدار البيضاء',
+  standard: 'ضواحي الدار البيضاء والمدن الكبرى',
+  eloignee: 'المدن البعيدة وباقي المدن',
 };
 
 // ─── Les villes par palier (sendit.ma/tarifs, lu le 28/09/2026) ──────────────
@@ -192,8 +211,8 @@ export function fraisColis(ville: string): number {
   return FRAIS_ZONE[zoneDeVille(ville)];
 }
 
-export function delaiColis(ville: string): string {
-  return DELAI_ZONE[zoneDeVille(ville)];
+export function delaiColis(ville: string, language: 'fr' | 'ar' = 'fr'): string {
+  return delaiZone(zoneDeVille(ville), language);
 }
 
 /** « 20 MAD à Casablanca · 35 MAD périphérie et grandes villes · 45 MAD ailleurs » : la grille en une ligne (même unité que les prix du site). */
@@ -230,12 +249,14 @@ export function fraisLivraison(p: { mode: ModeReception; ville: string }): numbe
   return fraisColis(p.ville);
 }
 
-/** 0 n'arrive plus que pour le retrait au magasin : « Gratuit ». */
-export function libelleFrais(frais: number | null): string {
+/** 0 n'arrive plus que pour le retrait au magasin : « Gratuit ». Français par défaut. */
+export function libelleFrais(frais: number | null, language: 'fr' | 'ar' = 'fr'): string {
+  const ar = language === 'ar';
   if (frais === null || typeof frais !== 'number' || !Number.isFinite(frais) || frais < 0) {
-    return 'À confirmer par téléphone';
+    return ar ? 'يُحدَّد عبر الهاتف' : 'À confirmer par téléphone';
   }
-  return frais === 0 ? 'Gratuit' : `${frais} DH`;
+  if (frais === 0) return ar ? 'مجاني' : 'Gratuit';
+  return ar ? `${frais} درهم` : `${frais} DH`;
 }
 
 /** Notice commune aux rouleaux entiers : fiche produit, panier, formulaire, confirmation. */

@@ -35,6 +35,12 @@ import {
 import { formatPrice } from '@/lib/shop-utils';
 import { fraisColisAnnonces, moyenPaiementDe, prixUnitaireLigne, receptionDe, totalLigne, transportPrevu } from '@/lib/commandes-boutique';
 import { useReglagesReception } from '@/lib/use-reglages-reception';
+import { libelleFrais } from '@/lib/livraison-boutique';
+import type { Language } from '@/lib/translations';
+import { useLanguage } from '@/contexts/language-context';
+import { useShopProducts } from '@/contexts/shop-products-context';
+import { paire, premierTexte } from '@/lib/shop-textes';
+import { libelleLignePanier } from '@/lib/shop-variantes';
 import {
   LogOut,
   Package,
@@ -92,6 +98,29 @@ const RANG_STATUT: Partial<Record<OrderStatus, number>> = {
   pending: 0, confirmed: 1, processing: 2, ready_for_pickup: 3, shipped: 3, out_for_delivery: 4, delivered: 5,
 };
 
+/** Libellés arabes des statuts (ORDER_STATUS_LABELS reste en français pour l'équipe). */
+const STATUT_AR: Record<OrderStatus, string> = {
+  pending: 'في الانتظار',
+  confirmed: 'مؤكَّد',
+  processing: 'قيد التحضير',
+  ready_for_pickup: 'جاهز للاستلام',
+  shipped: 'تم الشحن',
+  out_for_delivery: 'في الطريق إليك',
+  delivered: 'تم التوصيل',
+  cancelled: 'ملغى',
+  returned: 'مُرجَع',
+};
+
+function libelleStatut(status: OrderStatus, language: Language): string {
+  return (language === 'ar' ? STATUT_AR[status] : ORDER_STATUS_LABELS[status]) || status;
+}
+
+/** Variante lue dans la commande (écrite par le navigateur) : seuls les textes sont gardés. */
+function varianteTextes(v: unknown): ShopOrder['items'][number]['variant'] {
+  if (!v || typeof v !== 'object') return undefined;
+  return Object.fromEntries(Object.entries(v).filter(([, x]) => typeof x === 'string'));
+}
+
 function getStepIndex(etapes: OrderStatus[], status: OrderStatus): number {
   const exact = etapes.indexOf(status);
   if (exact !== -1) return exact;
@@ -107,6 +136,9 @@ function getStepIndex(etapes: OrderStatus[], status: OrderStatus): number {
 function OrderCard({ order }: { order: ShopOrder }) {
   const [expanded, setExpanded] = useState(false);
   const { reglages } = useReglagesReception();
+  const { language } = useLanguage();
+  const { getProductById } = useShopProducts();
+  const ar = language === 'ar';
   const etapes = etapesCommande(order);
   const stepIdx = getStepIndex(etapes, order.status);
   const reception = receptionDe(order);
@@ -117,20 +149,22 @@ function OrderCard({ order }: { order: ShopOrder }) {
   // Colis à 0 : « Offerte » seulement pour une commande d'avant le 30/09/2026 qui y avait droit.
   const ligneLivraison =
     reception.mode === 'retrait'
-      ? 'Gratuit (retrait)'
+      ? ar ? 'مجاني (استلام من المحل)' : 'Gratuit (retrait)'
       : fraisLivraison > 0
         ? formatPrice(fraisLivraison)
         : reception.mode === 'domicile' && fraisColisAnnonces(order) === 'offerte'
-          ? 'Offerte'
-          : 'À confirmer par téléphone';
+          ? ar ? 'مجاني' : 'Offerte'
+          : libelleFrais(null, language);
   const statusColor = ORDER_STATUS_COLORS[order.status] || '#6B7280';
   const statusLabel =
     order.status === 'delivered' && reception.mode === 'retrait'
-      ? 'Retirée'
-      : ORDER_STATUS_LABELS[order.status] || order.status;
+      ? ar ? 'تم الاستلام' : 'Retirée'
+      : libelleStatut(order.status, language);
+  const nomArticle = (item: ShopOrder['items'][number]) =>
+    premierTexte(language, paire(item, 'productName'), paire(getProductById(item.productId), 'name'));
 
   const date = order.createdAt?.toDate
-    ? order.createdAt.toDate().toLocaleDateString('fr-MA', {
+    ? order.createdAt.toDate().toLocaleDateString(ar ? 'ar-MA' : 'fr-MA', {
         day: '2-digit',
         month: 'long',
         year: 'numeric',
@@ -149,7 +183,7 @@ function OrderCard({ order }: { order: ShopOrder }) {
             <Package className="w-5 h-5" style={{ color: statusColor }} />
           </div>
           <div>
-            <p className="font-bold text-[#0F0F0F] text-sm font-mono">{order.orderNumber}</p>
+            <p dir="ltr" className="font-bold text-[#0F0F0F] text-sm font-mono">{order.orderNumber}</p>
             <p className="text-xs text-gray-500 mt-0.5">{date}</p>
           </div>
         </div>
@@ -162,7 +196,9 @@ function OrderCard({ order }: { order: ShopOrder }) {
             {statusLabel}
           </span>
           <span className="text-sm text-gray-500">
-            {order.items?.reduce((s, i) => s + i.quantity, 0) || 0} article(s)
+            {ar
+              ? `عدد القطع: ${order.items?.reduce((s, i) => s + i.quantity, 0) || 0}`
+              : `${order.items?.reduce((s, i) => s + i.quantity, 0) || 0} article(s)`}
           </span>
           <span className="font-bold text-[#C8102E]">{formatPrice(order.total)}</span>
           <button
@@ -171,11 +207,11 @@ function OrderCard({ order }: { order: ShopOrder }) {
           >
             {expanded ? (
               <>
-                Masquer <ChevronUp className="w-3 h-3" />
+                {ar ? 'إخفاء' : 'Masquer'} <ChevronUp className="w-3 h-3" />
               </>
             ) : (
               <>
-                Voir détails <ChevronDown className="w-3 h-3" />
+                {ar ? 'عرض التفاصيل' : 'Voir détails'} <ChevronDown className="w-3 h-3" />
               </>
             )}
           </button>
@@ -192,7 +228,7 @@ function OrderCard({ order }: { order: ShopOrder }) {
               <React.Fragment key={step}>
                 <div
                   className="flex flex-col items-center"
-                  title={ORDER_STATUS_LABELS[step]}
+                  title={libelleStatut(step, language)}
                 >
                   <div
                     className={`w-6 h-6 rounded-full flex items-center justify-center transition-all duration-300 ${
@@ -228,67 +264,75 @@ function OrderCard({ order }: { order: ShopOrder }) {
           {/* Items */}
           <div>
             <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">
-              Articles commandés
+              {ar ? 'المنتجات المطلوبة' : 'Articles commandés'}
             </p>
             <div className="space-y-2">
-              {order.items?.map((item, idx) => (
-                <div
-                  key={idx}
-                  className="flex items-center justify-between py-2 border-b border-gray-50 last:border-0"
-                >
-                  <div className="flex items-center gap-3">
-                    {item.productImage ? (
-                      <img
-                        src={item.productImage}
-                        alt={item.productName}
-                        className="w-10 h-10 rounded-lg object-cover border border-gray-100"
-                      />
-                    ) : (
-                      <div className="w-10 h-10 rounded-lg bg-gray-100 flex items-center justify-center">
-                        <ShoppingBag className="w-4 h-4 text-gray-400" />
+              {order.items?.map((item, idx) => {
+                const nom = nomArticle(item);
+                const variante = libelleLignePanier(varianteTextes(item.variant), language);
+                return (
+                  <div
+                    key={idx}
+                    className="flex items-center justify-between py-2 border-b border-gray-50 last:border-0"
+                  >
+                    <div className="flex items-center gap-3">
+                      {item.productImage ? (
+                        <img
+                          src={item.productImage}
+                          alt={nom}
+                          className="w-10 h-10 rounded-lg object-cover border border-gray-100"
+                        />
+                      ) : (
+                        <div className="w-10 h-10 rounded-lg bg-gray-100 flex items-center justify-center">
+                          <ShoppingBag className="w-4 h-4 text-gray-400" />
+                        </div>
+                      )}
+                      <div>
+                        <p className="text-sm font-medium text-[#0F0F0F]">{nom}</p>
+                        {variante && <p className="text-xs text-gray-500">{variante}</p>}
                       </div>
-                    )}
-                    <div>
-                      <p className="text-sm font-medium text-[#0F0F0F]">{item.productName}</p>
-                      {item.variant?.color && (
-                        <p className="text-xs text-gray-500">Couleur: {item.variant.color}</p>
+                    </div>
+                    {/* Le prix réellement facturé (prix de gros compris), comme sur la page de confirmation. */}
+                    <div className="text-end">
+                      {prixUnitaireLigne(item) > 0 ? (
+                        <>
+                          <p className="text-sm font-semibold text-[#0F0F0F]">{formatPrice(totalLigne(item))}</p>
+                          <p className="text-xs text-gray-500">{item.quantity} × <bdi dir="ltr">{formatPrice(prixUnitaireLigne(item))}</bdi></p>
+                        </>
+                      ) : (
+                        <p className="text-xs font-semibold text-gray-500">{ar ? 'السعر قيد التأكيد' : 'Prix à confirmer'}</p>
                       )}
                     </div>
                   </div>
-                  {/* Le prix réellement facturé (prix de gros compris), comme sur la page de confirmation. */}
-                  <div className="text-right">
-                    {prixUnitaireLigne(item) > 0 ? (
-                      <>
-                        <p className="text-sm font-semibold text-[#0F0F0F]">{formatPrice(totalLigne(item))}</p>
-                        <p className="text-xs text-gray-500">{item.quantity} × {formatPrice(prixUnitaireLigne(item))}</p>
-                      </>
-                    ) : (
-                      <p className="text-xs font-semibold text-gray-500">Prix à confirmer</p>
-                    )}
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
 
           {/* Totals */}
           <div className="bg-[#FBF8F3] rounded-xl p-4 space-y-2">
             <div className="flex justify-between text-sm text-gray-600">
-              <span>Sous-total</span>
+              <span>{ar ? 'المجموع الفرعي' : 'Sous-total'}</span>
               <span>{formatPrice(order.subtotal)}</span>
             </div>
             <div className="flex justify-between gap-3 text-sm text-gray-600">
-              <span>{reception.mode === 'retrait' ? 'Retrait' : reception.mode === 'transport' ? 'Transport' : 'Livraison'}</span>
-              <span className="text-right">{ligneLivraison}</span>
+              <span>
+                {reception.mode === 'retrait'
+                  ? ar ? 'الاستلام' : 'Retrait'
+                  : reception.mode === 'transport'
+                    ? ar ? 'النقل' : 'Transport'
+                    : ar ? 'التوصيل' : 'Livraison'}
+              </span>
+              <span className="text-end">{ligneLivraison}</span>
             </div>
             {order.discount ? (
               <div className="flex justify-between text-sm text-green-600">
-                <span>Réduction</span>
-                <span>-{formatPrice(order.discount)}</span>
+                <span>{ar ? 'تخفيض' : 'Réduction'}</span>
+                <bdi dir="ltr">-{formatPrice(order.discount)}</bdi>
               </div>
             ) : null}
             <div className="flex justify-between font-bold text-[#0F0F0F] text-base border-t border-gray-200 pt-2 mt-2">
-              <span>Total</span>
+              <span>{ar ? 'المجموع' : 'Total'}</span>
               <span className="text-[#C8102E]">{formatPrice(order.total)}</span>
             </div>
           </div>
@@ -299,7 +343,8 @@ function OrderCard({ order }: { order: ShopOrder }) {
               href={`/shop/confirmation/${order.id}`}
               className="flex min-h-[44px] items-center gap-2 rounded-xl border border-[#E8E4DF] bg-white px-4 py-3 text-sm font-semibold text-[#1A1A1A] hover:border-[#C8102E]"
             >
-              <Landmark className="w-4 h-4 text-[#C8102E]" /> Voir le RIB et payer par virement
+              <Landmark className="w-4 h-4 text-[#C8102E]" />
+              {ar ? 'عرض رقم الحساب البنكي والدفع بالتحويل' : 'Voir le RIB et payer par virement'}
             </Link>
           )}
 
@@ -308,7 +353,7 @@ function OrderCard({ order }: { order: ShopOrder }) {
             <div className="flex items-start gap-3 p-3 bg-blue-50 rounded-xl">
               <Store className="w-4 h-4 text-blue-500 flex-shrink-0 mt-0.5" />
               <div className="text-sm text-gray-700">
-                <p className="font-semibold">Retrait à {lieu.nom}</p>
+                <p className="font-semibold">{ar ? `الاستلام من ${lieu.nom}` : `Retrait à ${lieu.nom}`}</p>
                 <p>{lieu.adresse}</p>
                 <p>{lieu.horaires}</p>
               </div>
@@ -319,7 +364,11 @@ function OrderCard({ order }: { order: ShopOrder }) {
               <div className="text-sm text-gray-700">
                 <p className="font-semibold">{order.shippingAddress.fullName}</p>
                 {reception.mode === 'transport' && transport === 'transporteur' ? (
-                  <p>Jusqu&apos;au dépôt du transporteur{order.shippingAddress.city ? ` à ${order.shippingAddress.city}` : ''}</p>
+                  <p>
+                    {ar
+                      ? `إلى مستودع الناقل${order.shippingAddress.city ? ` في ${order.shippingAddress.city}` : ''}`
+                      : `Jusqu'au dépôt du transporteur${order.shippingAddress.city ? ` à ${order.shippingAddress.city}` : ''}`}
+                  </p>
                 ) : (
                   <>
                     <p>{order.shippingAddress.address}</p>
@@ -329,7 +378,7 @@ function OrderCard({ order }: { order: ShopOrder }) {
                     </p>
                   </>
                 )}
-                <p className="text-blue-600 mt-1">📞 {order.shippingAddress.phone}</p>
+                <p className="text-blue-600 mt-1">📞 <bdi dir="ltr">{order.shippingAddress.phone}</bdi></p>
               </div>
             </div>
           )}
@@ -338,7 +387,7 @@ function OrderCard({ order }: { order: ShopOrder }) {
           {order.trackingNotes && order.trackingNotes.length > 0 && (
             <div>
               <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
-                Historique
+                {ar ? 'السجل' : 'Historique'}
               </p>
               <div className="space-y-2">
                 {order.trackingNotes.map((note, idx) => (
@@ -349,11 +398,11 @@ function OrderCard({ order }: { order: ShopOrder }) {
                     />
                     <div>
                       <span className="font-medium" style={{ color: ORDER_STATUS_COLORS[note.status] || '#374151' }}>
-                        {ORDER_STATUS_LABELS[note.status]}
+                        {libelleStatut(note.status, language)}
                       </span>
-                      <span className="text-gray-500 ml-2 text-xs">
+                      <span className="text-gray-500 ms-2 text-xs">
                         {note.timestamp?.toDate
-                          ? note.timestamp.toDate().toLocaleDateString('fr-MA', {
+                          ? note.timestamp.toDate().toLocaleDateString(ar ? 'ar-MA' : 'fr-MA', {
                               day: '2-digit',
                               month: 'short',
                               hour: '2-digit',
@@ -376,6 +425,8 @@ function OrderCard({ order }: { order: ShopOrder }) {
 
 // ─── Auth Form ─────────────────────────────────────────────────────────────────
 function AuthForm({ onSuccess }: { onSuccess: () => void }) {
+  const { language } = useLanguage();
+  const ar = language === 'ar';
   const [tab, setTab] = useState<'login' | 'register'>('login');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -401,11 +452,11 @@ function AuthForm({ onSuccess }: { onSuccess: () => void }) {
     } catch (err: any) {
       const code = err.code || '';
       if (code === 'auth/user-not-found' || code === 'auth/wrong-password') {
-        setError('Email ou mot de passe incorrect.');
+        setError(ar ? 'البريد الإلكتروني أو كلمة المرور غير صحيحة.' : 'Email ou mot de passe incorrect.');
       } else if (code === 'auth/too-many-requests') {
-        setError('Trop de tentatives. Réessayez dans quelques minutes.');
+        setError(ar ? 'محاولات كثيرة. حاول مرة أخرى بعد بضع دقائق.' : 'Trop de tentatives. Réessayez dans quelques minutes.');
       } else {
-        setError('Erreur de connexion. Vérifiez vos identifiants.');
+        setError(ar ? 'خطأ في تسجيل الدخول. تحقق من معلوماتك.' : 'Erreur de connexion. Vérifiez vos identifiants.');
       }
     } finally {
       setLoading(false);
@@ -416,11 +467,11 @@ function AuthForm({ onSuccess }: { onSuccess: () => void }) {
     e.preventDefault();
     setError('');
     if (regPassword !== regConfirm) {
-      setError('Les mots de passe ne correspondent pas.');
+      setError(ar ? 'كلمتا المرور غير متطابقتين.' : 'Les mots de passe ne correspondent pas.');
       return;
     }
     if (regPassword.length < 6) {
-      setError('Le mot de passe doit contenir au moins 6 caractères.');
+      setError(ar ? 'يجب أن تحتوي كلمة المرور على 6 أحرف على الأقل.' : 'Le mot de passe doit contenir au moins 6 caractères.');
       return;
     }
     setLoading(true);
@@ -442,11 +493,11 @@ function AuthForm({ onSuccess }: { onSuccess: () => void }) {
     } catch (err: any) {
       const code = err.code || '';
       if (code === 'auth/email-already-in-use') {
-        setError('Cet email est déjà utilisé. Connectez-vous à la place.');
+        setError(ar ? 'هذا البريد الإلكتروني مستعمل من قبل. سجّل الدخول بدلاً من ذلك.' : 'Cet email est déjà utilisé. Connectez-vous à la place.');
       } else if (code === 'auth/invalid-email') {
-        setError('Email invalide.');
+        setError(ar ? 'بريد إلكتروني غير صحيح.' : 'Email invalide.');
       } else {
-        setError('Erreur lors de la création du compte.');
+        setError(ar ? 'حدث خطأ أثناء إنشاء الحساب.' : 'Erreur lors de la création du compte.');
       }
     } finally {
       setLoading(false);
@@ -464,23 +515,32 @@ function AuthForm({ onSuccess }: { onSuccess: () => void }) {
           <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-[#C8102E] mb-4 shadow-lg shadow-[#C8102E]/25">
             <UserIcon className="w-8 h-8 text-white" />
           </div>
-          <h1 className="text-2xl font-bold text-[#0F0F0F]">Mon Compte</h1>
-          <p className="text-gray-500 text-sm mt-1">Gérez vos commandes et votre profil</p>
+          <h1 className="text-2xl font-bold text-[#0F0F0F]">{ar ? 'حسابي' : 'Mon Compte'}</h1>
+          <p className="text-gray-500 text-sm mt-1">{ar ? 'تابع طلباتك ومعلوماتك' : 'Gérez vos commandes et votre profil'}</p>
         </div>
 
         {/* WhatsApp note */}
         <div className="flex items-start gap-3 p-4 rounded-2xl bg-green-50 border border-green-100 mb-6">
           <MessageCircle className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" />
           <p className="text-sm text-green-700">
-            <span className="font-semibold">Pas de compte ?</span> Vous pouvez aussi commander
-            directement via WhatsApp sans créer de compte !{' '}
+            {ar ? (
+              <>
+                <span className="font-semibold">ليس لديك حساب؟</span> يمكنك أيضاً الطلب مباشرة عبر واتساب دون
+                إنشاء حساب!{' '}
+              </>
+            ) : (
+              <>
+                <span className="font-semibold">Pas de compte ?</span> Vous pouvez aussi commander
+                directement via WhatsApp sans créer de compte !{' '}
+              </>
+            )}
             <a
               href="https://wa.me/212760998347"
               target="_blank"
               rel="noopener noreferrer"
               className="underline font-medium"
             >
-              Nous contacter
+              {ar ? 'تواصل معنا' : 'Nous contacter'}
             </a>
           </p>
         </div>
@@ -495,7 +555,7 @@ function AuthForm({ onSuccess }: { onSuccess: () => void }) {
                 : 'text-gray-500 hover:text-gray-700'
             }`}
           >
-            Se connecter
+            {ar ? 'تسجيل الدخول' : 'Se connecter'}
           </button>
           <button
             onClick={() => { setTab('register'); setError(''); }}
@@ -505,7 +565,7 @@ function AuthForm({ onSuccess }: { onSuccess: () => void }) {
                 : 'text-gray-500 hover:text-gray-700'
             }`}
           >
-            Créer un compte
+            {ar ? 'إنشاء حساب' : 'Créer un compte'}
           </button>
         </div>
 
@@ -522,7 +582,7 @@ function AuthForm({ onSuccess }: { onSuccess: () => void }) {
           <form onSubmit={handleLogin} className="space-y-4">
             <div>
               <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">
-                Email
+                {ar ? 'البريد الإلكتروني' : 'Email'}
               </label>
               <input
                 type="email"
@@ -530,12 +590,13 @@ function AuthForm({ onSuccess }: { onSuccess: () => void }) {
                 value={loginEmail}
                 onChange={(e) => setLoginEmail(e.target.value)}
                 placeholder="votre@email.com"
+                dir="ltr"
                 className={inputClass}
               />
             </div>
             <div>
               <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">
-                Mot de passe
+                {ar ? 'كلمة المرور' : 'Mot de passe'}
               </label>
               <div className="relative">
                 <input
@@ -544,12 +605,12 @@ function AuthForm({ onSuccess }: { onSuccess: () => void }) {
                   value={loginPassword}
                   onChange={(e) => setLoginPassword(e.target.value)}
                   placeholder="••••••••"
-                  className={`${inputClass} pr-12`}
+                  className={`${inputClass} pe-12`}
                 />
                 <button
                   type="button"
                   onClick={() => setShowPass(!showPass)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                  className="absolute end-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
                 >
                   {showPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                 </button>
@@ -563,10 +624,10 @@ function AuthForm({ onSuccess }: { onSuccess: () => void }) {
               {loading ? (
                 <>
                   <Loader2 className="w-4 h-4 animate-spin" />
-                  Connexion…
+                  {ar ? 'جاري الدخول…' : 'Connexion…'}
                 </>
               ) : (
-                'Se connecter'
+                ar ? 'تسجيل الدخول' : 'Se connecter'
               )}
             </button>
           </form>
@@ -577,20 +638,20 @@ function AuthForm({ onSuccess }: { onSuccess: () => void }) {
           <form onSubmit={handleRegister} className="space-y-4">
             <div>
               <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">
-                Nom complet
+                {ar ? 'الاسم الكامل' : 'Nom complet'}
               </label>
               <input
                 type="text"
                 required
                 value={regName}
                 onChange={(e) => setRegName(e.target.value)}
-                placeholder="Votre nom complet"
+                placeholder={ar ? 'اسمك الكامل' : 'Votre nom complet'}
                 className={inputClass}
               />
             </div>
             <div>
               <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">
-                Email
+                {ar ? 'البريد الإلكتروني' : 'Email'}
               </label>
               <input
                 type="email"
@@ -598,12 +659,13 @@ function AuthForm({ onSuccess }: { onSuccess: () => void }) {
                 value={regEmail}
                 onChange={(e) => setRegEmail(e.target.value)}
                 placeholder="votre@email.com"
+                dir="ltr"
                 className={inputClass}
               />
             </div>
             <div>
               <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">
-                Mot de passe
+                {ar ? 'كلمة المرور' : 'Mot de passe'}
               </label>
               <div className="relative">
                 <input
@@ -611,13 +673,13 @@ function AuthForm({ onSuccess }: { onSuccess: () => void }) {
                   required
                   value={regPassword}
                   onChange={(e) => setRegPassword(e.target.value)}
-                  placeholder="Minimum 6 caractères"
-                  className={`${inputClass} pr-12`}
+                  placeholder={ar ? '6 أحرف على الأقل' : 'Minimum 6 caractères'}
+                  className={`${inputClass} pe-12`}
                 />
                 <button
                   type="button"
                   onClick={() => setShowPass(!showPass)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                  className="absolute end-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
                 >
                   {showPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                 </button>
@@ -625,14 +687,14 @@ function AuthForm({ onSuccess }: { onSuccess: () => void }) {
             </div>
             <div>
               <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">
-                Confirmer le mot de passe
+                {ar ? 'تأكيد كلمة المرور' : 'Confirmer le mot de passe'}
               </label>
               <input
                 type={showPass ? 'text' : 'password'}
                 required
                 value={regConfirm}
                 onChange={(e) => setRegConfirm(e.target.value)}
-                placeholder="Répétez le mot de passe"
+                placeholder={ar ? 'أعد كتابة كلمة المرور' : 'Répétez le mot de passe'}
                 className={inputClass}
               />
             </div>
@@ -644,10 +706,10 @@ function AuthForm({ onSuccess }: { onSuccess: () => void }) {
               {loading ? (
                 <>
                   <Loader2 className="w-4 h-4 animate-spin" />
-                  Création…
+                  {ar ? 'جاري الإنشاء…' : 'Création…'}
                 </>
               ) : (
-                'Créer mon compte'
+                ar ? 'إنشاء حسابي' : 'Créer mon compte'
               )}
             </button>
           </form>
@@ -659,6 +721,8 @@ function AuthForm({ onSuccess }: { onSuccess: () => void }) {
 
 // ─── Account Dashboard ─────────────────────────────────────────────────────────
 function AccountDashboard({ user }: { user: User }) {
+  const { language } = useLanguage();
+  const ar = language === 'ar';
   const [activeTab, setActiveTab] = useState<'orders' | 'profile' | 'wishlist'>('orders');
   const [orders, setOrders] = useState<ShopOrder[]>([]);
   const [loadingOrders, setLoadingOrders] = useState(true);
@@ -734,8 +798,8 @@ function AccountDashboard({ user }: { user: User }) {
   };
 
   const tabs = [
-    { key: 'orders', label: 'Mes Commandes', icon: <Package className="w-4 h-4" /> },
-    { key: 'profile', label: 'Mon Profil', icon: <UserIcon className="w-4 h-4" /> },
+    { key: 'orders', label: ar ? 'طلباتي' : 'Mes Commandes', icon: <Package className="w-4 h-4" /> },
+    { key: 'profile', label: ar ? 'ملفي الشخصي' : 'Mon Profil', icon: <UserIcon className="w-4 h-4" /> },
   ] as const;
 
   return (
@@ -747,14 +811,14 @@ function AccountDashboard({ user }: { user: User }) {
         </div>
         <div className="flex-1">
           <h1 className="text-xl font-bold text-[#0F0F0F]">
-            {user.displayName || 'Client LEBTEX'}
+            {user.displayName || (ar ? 'زبون LEBTEX' : 'Client LEBTEX')}
           </h1>
           <p className="text-gray-500 text-sm flex items-center gap-1.5 mt-0.5">
             <Mail className="w-3.5 h-3.5" />
             {user.email}
           </p>
           <p className="text-xs text-gray-400 mt-1">
-            {orders.length} commande{orders.length !== 1 ? 's' : ''}
+            {ar ? `عدد الطلبات: ${orders.length}` : `${orders.length} commande${orders.length !== 1 ? 's' : ''}`}
           </p>
         </div>
         <button
@@ -765,9 +829,9 @@ function AccountDashboard({ user }: { user: User }) {
           {signingOut ? (
             <Loader2 className="w-4 h-4 animate-spin" />
           ) : (
-            <LogOut className="w-4 h-4" />
+            <LogOut className="w-4 h-4 rtl:rotate-180" />
           )}
-          Se déconnecter
+          {ar ? 'تسجيل الخروج' : 'Se déconnecter'}
         </button>
       </div>
 
@@ -797,7 +861,7 @@ function AccountDashboard({ user }: { user: User }) {
           {loadingOrders ? (
             <div className="flex flex-col items-center justify-center py-20 gap-3">
               <Loader2 className="w-8 h-8 animate-spin text-[#C8102E]" />
-              <p className="text-gray-500 text-sm">Chargement de vos commandes…</p>
+              <p className="text-gray-500 text-sm">{ar ? 'جاري تحميل طلباتك…' : 'Chargement de vos commandes…'}</p>
             </div>
           ) : orders.length === 0 ? (
             <div className="bg-white rounded-2xl shadow-sm border border-gray-100 flex flex-col items-center justify-center py-20 gap-4">
@@ -805,16 +869,16 @@ function AccountDashboard({ user }: { user: User }) {
                 <ShoppingBag className="w-10 h-10 text-gray-300" />
               </div>
               <div className="text-center">
-                <p className="text-lg font-bold text-[#0F0F0F]">Aucune commande</p>
+                <p className="text-lg font-bold text-[#0F0F0F]">{ar ? 'لا توجد طلبات' : 'Aucune commande'}</p>
                 <p className="text-gray-500 text-sm mt-1">
-                  Vous n'avez pas encore passé de commande.
+                  {ar ? 'لم تقم بأي طلب بعد.' : "Vous n'avez pas encore passé de commande."}
                 </p>
               </div>
               <a
                 href="/shop"
                 className="px-6 py-3 rounded-xl bg-[#C8102E] text-white font-semibold text-sm hover:bg-[#a50d25] transition-colors shadow-md shadow-[#C8102E]/20"
               >
-                Commencer mes achats
+                {ar ? 'ابدأ التسوق' : 'Commencer mes achats'}
               </a>
             </div>
           ) : (
@@ -826,40 +890,40 @@ function AccountDashboard({ user }: { user: User }) {
       {/* Profile */}
       {activeTab === 'profile' && (
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 space-y-6">
-          <h2 className="text-lg font-bold text-[#0F0F0F]">Informations personnelles</h2>
+          <h2 className="text-lg font-bold text-[#0F0F0F]">{ar ? 'المعلومات الشخصية' : 'Informations personnelles'}</h2>
           <div className="grid sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
-                Nom complet
+                {ar ? 'الاسم الكامل' : 'Nom complet'}
               </label>
               <div className="flex items-center gap-2 px-4 py-3 rounded-xl border border-gray-200 bg-gray-50 text-sm text-gray-700">
                 <UserIcon className="w-4 h-4 text-gray-400" />
                 {user.displayName || '—'}
               </div>
-              <p className="text-xs text-gray-400 mt-1">Modifiable depuis votre profil Firebase</p>
+              <p className="text-xs text-gray-400 mt-1">{ar ? 'يمكن تعديله من ملفك في Firebase' : 'Modifiable depuis votre profil Firebase'}</p>
             </div>
             <div>
               <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
-                Email
+                {ar ? 'البريد الإلكتروني' : 'Email'}
               </label>
               <div className="flex items-center gap-2 px-4 py-3 rounded-xl border border-gray-200 bg-gray-50 text-sm text-gray-700">
                 <Mail className="w-4 h-4 text-gray-400" />
                 {user.email}
               </div>
-              <p className="text-xs text-gray-400 mt-1">Email de connexion (non modifiable)</p>
+              <p className="text-xs text-gray-400 mt-1">{ar ? 'بريد تسجيل الدخول (لا يمكن تغييره)' : 'Email de connexion (non modifiable)'}</p>
             </div>
             <div className="sm:col-span-2">
               <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
-                Numéro de téléphone
+                {ar ? 'رقم الهاتف' : 'Numéro de téléphone'}
               </label>
               <div className="flex gap-3">
-                <div className="flex-1 flex items-center gap-2 px-4 py-3 rounded-xl border border-gray-200 bg-white focus-within:border-[#C8102E] focus-within:ring-2 focus-within:ring-[#C8102E]/10 transition-all">
+                <div dir="ltr" className="flex-1 flex items-center gap-2 px-4 py-3 rounded-xl border border-gray-200 bg-white focus-within:border-[#C8102E] focus-within:ring-2 focus-within:ring-[#C8102E]/10 transition-all">
                   <Phone className="w-4 h-4 text-gray-400 flex-shrink-0" />
                   <input
                     type="tel"
                     value={phone}
                     onChange={(e) => setPhone(e.target.value)}
-                    placeholder="Ex: 06 12 34 56 78"
+                    placeholder={ar ? 'مثال: 06 12 34 56 78' : 'Ex: 06 12 34 56 78'}
                     className="flex-1 text-sm bg-transparent text-[#0F0F0F] focus:outline-none placeholder-gray-400"
                   />
                 </div>
@@ -873,7 +937,7 @@ function AccountDashboard({ user }: { user: User }) {
                   ) : phoneSaved ? (
                     <CheckCircle2 className="w-4 h-4" />
                   ) : null}
-                  {phoneSaved ? 'Sauvegardé !' : 'Sauvegarder'}
+                  {phoneSaved ? (ar ? 'تم الحفظ!' : 'Sauvegardé !') : (ar ? 'حفظ' : 'Sauvegarder')}
                 </button>
               </div>
             </div>
@@ -888,16 +952,16 @@ function AccountDashboard({ user }: { user: User }) {
             <Heart className="w-10 h-10 text-[#C8102E]/30" />
           </div>
           <div className="text-center">
-            <p className="text-lg font-bold text-[#0F0F0F]">Wishlist vide</p>
+            <p className="text-lg font-bold text-[#0F0F0F]">{ar ? 'قائمة المفضلة فارغة' : 'Wishlist vide'}</p>
             <p className="text-gray-500 text-sm mt-1">
-              Sauvegardez vos produits favoris pour les retrouver facilement.
+              {ar ? 'احفظ منتجاتك المفضلة لتجدها بسهولة.' : 'Sauvegardez vos produits favoris pour les retrouver facilement.'}
             </p>
           </div>
           <a
             href="/shop"
             className="px-6 py-3 rounded-xl bg-[#C8102E] text-white font-semibold text-sm hover:bg-[#a50d25] transition-colors shadow-md shadow-[#C8102E]/20"
           >
-            Découvrir nos produits
+            {ar ? 'اكتشف منتجاتنا' : 'Découvrir nos produits'}
           </a>
         </div>
       )}
@@ -907,6 +971,7 @@ function AccountDashboard({ user }: { user: User }) {
 
 // ─── Page ──────────────────────────────────────────────────────────────────────
 export default function ComptePage() {
+  const { language } = useLanguage();
   const [user, setUser] = useState<User | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
 
@@ -923,7 +988,7 @@ export default function ComptePage() {
       <div className="flex items-center justify-center min-h-[60vh]">
         <div className="flex flex-col items-center gap-3">
           <Loader2 className="w-10 h-10 animate-spin text-[#C8102E]" />
-          <p className="text-gray-500 text-sm">Chargement…</p>
+          <p className="text-gray-500 text-sm">{language === 'ar' ? 'جاري التحميل…' : 'Chargement…'}</p>
         </div>
       </div>
     );

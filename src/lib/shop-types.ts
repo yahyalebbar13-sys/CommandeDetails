@@ -63,6 +63,25 @@ export interface ProductVariant {
   avantages?: string;
   conseilsEntretien?: string;
   informationCommerciale?: string;
+
+  // ── Versions arabes des champs texte (lues par lib/shop-textes, repli sur le français) ──
+  typeProduitAr?: string;
+  matiereMaillesAr?: string;
+  widthAr?: string;
+  largeurMailleAr?: string;
+  longueurAr?: string;
+  compositionRubanAr?: string;
+  conditionnementUnitaireAr?: string;
+  conditionnementGrosAr?: string;
+  resistanceAr?: string;
+  compatibleAvecAr?: string;
+  typeAr?: string;
+  designAr?: string;
+  securiteAr?: string;
+  applicationsAr?: string;
+  avantagesAr?: string;
+  conseilsEntretienAr?: string;
+  informationCommercialeAr?: string;
 }
 
 // Permet d'afficher un produit dans une autre catégorie avec un nom/description différent
@@ -139,6 +158,27 @@ export interface ShopProduct {
   conditionnementGros?: string;
   stockArticleId?: string;
   stockArticleIds?: Record<string, string>;
+
+  // ── Versions arabes des champs texte (lues par lib/shop-textes, repli sur le français) ──
+  typeProduitAr?: string;
+  matiereMaillesAr?: string;
+  widthAr?: string;
+  largeurMailleAr?: string;
+  longueurAr?: string;
+  compositionRubanAr?: string;
+  conditionnementUnitaireAr?: string;
+  conditionnementGrosAr?: string;
+  resistanceAr?: string;
+  compatibleAvecAr?: string;
+  typeAr?: string;
+  designAr?: string;
+  securiteAr?: string;
+  applicationsAr?: string;
+  avantagesAr?: string;
+  conseilsEntretienAr?: string;
+  informationCommercialeAr?: string;
+  // Mots-clés arabes pour la recherche (séparés par des virgules)
+  motsClesAr?: string;
   /**
    * Rouleau entier ou article encombrant : Sendit ne le livre pas. Le client
    * choisit retrait ou transport, organisé par téléphone ; aucun frais de colis affiché.

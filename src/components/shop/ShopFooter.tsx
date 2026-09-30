@@ -19,52 +19,80 @@ import {
   formatPrice,
   getWhatsAppContact,
 } from "@/lib/shop-utils";
-import { DELAI_ZONE, FRAIS_ZONE } from "@/lib/livraison-boutique";
+import { delaiZone, FRAIS_ZONE } from "@/lib/livraison-boutique";
 import { useShopProducts } from "@/contexts/shop-products-context";
+import { useLanguage } from "@/contexts/language-context";
+import { texte } from "@/lib/shop-textes";
 
 // ─── Data ─────────────────────────────────────────────────────────────────────
 
 const FOOTER_CATEGORY_COUNT = 9;
 
 const SERVICE_LINKS = [
-  { label: "Contactez-nous", href: "/shop/contact" },
-  { label: "FAQ", href: "/shop/faq" },
-  { label: "Livraison & Retours", href: "/shop/livraison" },
-  { label: "Suivi de commande", href: "/shop/suivi" },
-  { label: "À propos de LEBTEX", href: "/shop/a-propos" },
-  { label: "Service Import", href: "/shop/precommande" },
-  { label: "Promotions en cours", href: "/shop/promotions" },
+  { fr: "Contactez-nous", ar: "اتصل بنا", href: "/shop/contact" },
+  { fr: "FAQ", ar: "الأسئلة الشائعة", href: "/shop/faq" },
+  { fr: "Livraison & Retours", ar: "التوصيل والإرجاع", href: "/shop/livraison" },
+  { fr: "Suivi de commande", ar: "تتبع الطلب", href: "/shop/suivi" },
+  { fr: "À propos de LEBTEX", ar: "من نحن", href: "/shop/a-propos" },
+  { fr: "Service Import", ar: "خدمة الاستيراد", href: "/shop/precommande" },
+  { fr: "Promotions en cours", ar: "العروض الحالية", href: "/shop/promotions" },
 ];
 
-const GUARANTEES = [
+const GUARANTEES: {
+  id: string;
+  icon: typeof Truck;
+  title: { fr: string; ar: string };
+  desc: { fr: React.ReactNode; ar: React.ReactNode };
+  color: string;
+}[] = [
   {
+    id: "livraison",
     icon: Truck,
-    title: "Livraison Sendit",
-    desc: "Expédition sous 24 h (jours ouvrés), retrait gratuit à Casablanca",
+    title: { fr: "Livraison Sendit", ar: "التوصيل عبر Sendit" },
+    desc: {
+      fr: "Expédition sous 24 h (jours ouvrés), retrait gratuit à Casablanca",
+      ar: "الشحن خلال 24 ساعة (أيام العمل)، واستلام مجاني في الدار البيضاء",
+    },
     color: "#10B981",
   },
   {
+    id: "qualite",
     icon: CheckCircle2,
-    title: "Qualité garantie",
-    desc: "Sélection rigoureuse de chaque produit",
+    title: { fr: "Qualité garantie", ar: "جودة مضمونة" },
+    desc: { fr: "Sélection rigoureuse de chaque produit", ar: "نختار كل منتج بعناية" },
     color: "#D4A843",
   },
   {
+    id: "whatsapp",
     icon: MessageCircle,
-    title: "Support WhatsApp",
-    desc: "Lundi–samedi, 8h30–18h30",
+    title: { fr: "Support WhatsApp", ar: "الدعم عبر واتساب" },
+    desc: {
+      fr: "Lundi–samedi, 8h30–18h30",
+      ar: <>من الإثنين إلى السبت، <bdi dir="ltr">8:30 – 18:30</bdi></>,
+    },
     color: "#25D366",
   },
   {
+    id: "retour",
     icon: RotateCcw,
-    title: "Retour 14 jours",
-    desc: "Article non utilisé, hors tissu coupé au mètre",
+    title: { fr: "Retour 14 jours", ar: "إرجاع خلال 14 يوماً" },
+    desc: {
+      fr: "Article non utilisé, hors tissu coupé au mètre",
+      ar: "منتج غير مستعمل، ما عدا القماش المقصوص بالمتر",
+    },
     color: "#3B82F6",
   },
 ];
 
+const MOYENS_PAIEMENT = [
+  { fr: "💵 Espèces à la réception", ar: "💵 نقداً عند الاستلام" },
+  { fr: "🏦 Virement bancaire", ar: "🏦 تحويل بنكي" },
+];
+
 // ─── Newsletter form ──────────────────────────────────────────────────────────
 function NewsletterForm() {
+  const { language } = useLanguage();
+  const ar = language === "ar";
   const [email, setEmail] = useState("");
   const [status, setStatus] = useState<"idle" | "success" | "error">("idle");
   const [isLoading, setIsLoading] = useState(false);
@@ -86,10 +114,10 @@ function NewsletterForm() {
         <CheckCircle2 className="w-5 h-5 text-green-400 flex-shrink-0" />
         <div>
           <p className="text-sm font-semibold text-green-300">
-            Inscription réussie !
+            {ar ? "تم التسجيل بنجاح!" : "Inscription réussie !"}
           </p>
           <p className="text-xs text-green-400/80 mt-0.5">
-            Vous recevrez nos meilleures offres.
+            {ar ? "ستصلك أفضل عروضنا." : "Vous recevrez nos meilleures offres."}
           </p>
         </div>
       </div>
@@ -99,14 +127,14 @@ function NewsletterForm() {
   return (
     <form onSubmit={handleSubmit} className="space-y-3">
       <div className="relative">
-        <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500 pointer-events-none" />
+        <Mail className="absolute start-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500 pointer-events-none" />
         <input
           type="email"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
-          placeholder="votre@email.com"
+          placeholder={ar ? "بريدك الإلكتروني" : "votre@email.com"}
           required
-          className="w-full pl-10 pr-4 py-3 text-base rounded-xl border border-white/10 bg-white/5 text-white placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#D4A843]/40 focus:border-[#D4A843]/50 transition-all"
+          className="w-full ps-10 pe-4 py-3 text-base rounded-xl border border-white/10 bg-white/5 text-white placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#D4A843]/40 focus:border-[#D4A843]/50 transition-all"
         />
       </div>
       <button
@@ -118,18 +146,18 @@ function NewsletterForm() {
         {isLoading ? (
           <>
             <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-            Inscription…
+            {ar ? "جارٍ التسجيل…" : "Inscription…"}
           </>
         ) : (
           <>
-            S&apos;abonner aux offres
-            <ArrowRight className="w-4 h-4" />
+            {ar ? "اشترك في العروض" : "S'abonner aux offres"}
+            <ArrowRight className="w-4 h-4 rtl:rotate-180" />
           </>
         )}
       </button>
       {status === "error" && (
         <p className="text-xs text-red-400 text-center">
-          Erreur. Veuillez réessayer.
+          {ar ? "حدث خطأ، حاول مرة أخرى." : "Erreur. Veuillez réessayer."}
         </p>
       )}
     </form>
@@ -140,13 +168,15 @@ function NewsletterForm() {
 export default function ShopFooter() {
   const currentYear = new Date().getFullYear();
   const { categories } = useShopProducts();
+  const { language } = useLanguage();
+  const ar = language === "ar";
   // Mêmes catégories que le menu : celles supprimées dans l'admin n'apparaissent plus
   const boutiqueLinks = [
     ...categories
       .filter((c) => !c.parentSlug)
       .slice(0, FOOTER_CATEGORY_COUNT)
-      .map((c) => ({ label: c.name, href: `/shop/categorie/${c.slug}`, highlight: false })),
-    { label: "Voir tout →", href: "/shop/categories", highlight: true },
+      .map((c) => ({ label: texte(c, "name", language) || c.name, href: `/shop/categorie/${c.slug}`, highlight: false })),
+    { label: ar ? "عرض الكل ←" : "Voir tout →", href: "/shop/categories", highlight: true },
   ];
 
   return (
@@ -165,7 +195,7 @@ export default function ShopFooter() {
               const Icon = g.icon;
               return (
                 <div
-                  key={g.title}
+                  key={g.id}
                   className="flex items-start gap-3 p-3 rounded-xl transition-colors hover:bg-white/3"
                 >
                   <div
@@ -179,13 +209,13 @@ export default function ShopFooter() {
                   </div>
                   <div>
                     <p className="text-sm font-semibold text-white leading-snug">
-                      {g.title}
+                      {g.title[language]}
                     </p>
                     <p
                       className="text-xs mt-0.5 leading-snug"
                       style={{ color: "#9CA3AF" }}
                     >
-                      {g.desc}
+                      {g.desc[language]}
                     </p>
                   </div>
                 </div>
@@ -219,10 +249,20 @@ export default function ShopFooter() {
               className="text-sm leading-relaxed mb-5"
               style={{ color: "#9CA3AF" }}
             >
-              Votre spécialiste mercerie au Maroc 🇲🇦
-              <br />
-              Fermetures, boutons, élastiques, rubans — qualité professionnelle
-              livrée partout au Maroc.
+              {ar ? (
+                <>
+                  متخصصون في خردوات الخياطة بالمغرب 🇲🇦
+                  <br />
+                  سحابات، أزرار، مطاط، أشرطة — جودة احترافية تصلك إلى كل مدن المغرب.
+                </>
+              ) : (
+                <>
+                  Votre spécialiste mercerie au Maroc 🇲🇦
+                  <br />
+                  Fermetures, boutons, élastiques, rubans — qualité professionnelle
+                  livrée partout au Maroc.
+                </>
+              )}
             </p>
 
             {/* Contact info */}
@@ -237,12 +277,13 @@ export default function ShopFooter() {
                   className="w-4 h-4 flex-shrink-0"
                   style={{ color: "#25D366" }}
                 />
-                <span
+                <bdi
+                  dir="ltr"
                   className="group-hover:text-white transition-colors"
                   style={{ color: "#9CA3AF" }}
                 >
                   +212 760 998 347
-                </span>
+                </bdi>
               </a>
               <div className="flex items-center gap-2.5 text-sm">
                 <MapPin
@@ -250,7 +291,7 @@ export default function ShopFooter() {
                   style={{ color: "#D4A843" }}
                 />
                 <span style={{ color: "#9CA3AF" }}>
-                  Casablanca, Maroc
+                  {ar ? "الدار البيضاء، المغرب" : "Casablanca, Maroc"}
                 </span>
               </div>
               <div className="flex items-center gap-2.5 text-sm">
@@ -309,7 +350,7 @@ export default function ShopFooter() {
                 className="w-4 h-0.5 rounded-full"
                 style={{ backgroundColor: "#D4A843" }}
               />
-              Boutique
+              {ar ? "المتجر" : "Boutique"}
             </h3>
             <ul className="space-y-2.5">
               {boutiqueLinks.map((link) => (
@@ -351,7 +392,7 @@ export default function ShopFooter() {
                 className="w-4 h-0.5 rounded-full"
                 style={{ backgroundColor: "#D4A843" }}
               />
-              Service client
+              {ar ? "خدمة الزبائن" : "Service client"}
             </h3>
             <ul className="space-y-2.5">
               {SERVICE_LINKS.map((link) => (
@@ -362,7 +403,7 @@ export default function ShopFooter() {
                     style={{ color: "#9CA3AF" }}
                   >
                     <span className="w-1 h-1 rounded-full bg-gray-600 group-hover:bg-[#C8102E] transition-colors flex-shrink-0" />
-                    {link.label}
+                    {link[language]}
                   </Link>
                 </li>
               ))}
@@ -385,12 +426,21 @@ export default function ShopFooter() {
                   className="text-xs font-semibold"
                   style={{ color: "#D4A843" }}
                 >
-                  Livraison partout au Maroc
+                  {ar ? "التوصيل لجميع أنحاء المغرب" : "Livraison partout au Maroc"}
                 </span>
               </div>
               <p className="text-xs" style={{ color: "#9CA3AF" }}>
-                Casablanca {formatPrice(FRAIS_ZONE.casablanca)} en {DELAI_ZONE.casablanca}, autres villes
-                dès {formatPrice(FRAIS_ZONE.standard)}. Retrait gratuit à Casablanca.
+                {ar ? (
+                  <>
+                    الدار البيضاء <bdi dir="ltr">{formatPrice(FRAIS_ZONE.casablanca)}</bdi> خلال {delaiZone("casablanca", language)}،
+                    وباقي المدن ابتداءً من <bdi dir="ltr">{formatPrice(FRAIS_ZONE.standard)}</bdi>. الاستلام مجاني في الدار البيضاء.
+                  </>
+                ) : (
+                  <>
+                    Casablanca {formatPrice(FRAIS_ZONE.casablanca)} en {delaiZone("casablanca", language)}, autres villes
+                    dès {formatPrice(FRAIS_ZONE.standard)}. Retrait gratuit à Casablanca.
+                  </>
+                )}
               </p>
             </div>
           </div>
@@ -405,11 +455,12 @@ export default function ShopFooter() {
                 className="w-4 h-0.5 rounded-full"
                 style={{ backgroundColor: "#D4A843" }}
               />
-              Offres exclusives
+              {ar ? "عروض حصرية" : "Offres exclusives"}
             </h3>
             <p className="text-sm mb-4" style={{ color: "#9CA3AF" }}>
-              Abonnez-vous pour recevoir nos meilleures promotions, nouveautés
-              et codes de réduction en avant-première.
+              {ar
+                ? "اشترك لتصلك أفضل التخفيضات والمنتجات الجديدة وأكواد الخصم قبل الجميع."
+                : "Abonnez-vous pour recevoir nos meilleures promotions, nouveautés et codes de réduction en avant-première."}
             </p>
             <NewsletterForm />
 
@@ -417,11 +468,11 @@ export default function ShopFooter() {
             <div className="mt-5 space-y-2">
               <div className="flex items-center gap-2 text-xs" style={{ color: "#9CA3AF" }}>
                 <CheckCircle2 className="w-3.5 h-3.5 text-green-500 flex-shrink-0" />
-                Pas de spam — désinscription en 1 clic
+                {ar ? "بدون رسائل مزعجة — إلغاء الاشتراك بنقرة واحدة" : "Pas de spam — désinscription en 1 clic"}
               </div>
               <div className="flex items-center gap-2 text-xs" style={{ color: "#9CA3AF" }}>
                 <CheckCircle2 className="w-3.5 h-3.5 text-green-500 flex-shrink-0" />
-                Vos données sont protégées
+                {ar ? "بياناتك محمية" : "Vos données sont protégées"}
               </div>
             </div>
           </div>
@@ -439,22 +490,24 @@ export default function ShopFooter() {
         <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
           {/* Copyright */}
           <div className="flex items-center gap-1.5 text-xs" style={{ color: "#9CA3AF" }}>
-            <span>© {currentYear} LEBTEX. Fait avec</span>
+            <span>
+              <bdi dir="ltr">© {currentYear} LEBTEX</bdi>. {ar ? "صُنع بـ" : "Fait avec"}
+            </span>
             <Heart
               className="w-3 h-3"
               style={{ color: "#C8102E", fill: "#C8102E" }}
             />
-            <span>au Maroc 🇲🇦</span>
+            <span>{ar ? "في المغرب 🇲🇦" : "au Maroc 🇲🇦"}</span>
           </div>
 
           {/* Payment methods */}
           <div className="flex flex-wrap items-center justify-center gap-2">
             <span className="text-xs" style={{ color: "#9CA3AF" }}>
-              Paiement accepté :
+              {ar ? "طرق الدفع:" : "Paiement accepté :"}
             </span>
-            {["💵 Espèces à la réception", "🏦 Virement bancaire"].map((moyen) => (
+            {MOYENS_PAIEMENT.map((moyen) => (
               <div
-                key={moyen}
+                key={moyen.fr}
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-semibold"
                 style={{
                   borderColor: "rgba(255,255,255,0.1)",
@@ -462,7 +515,7 @@ export default function ShopFooter() {
                   color: "#D1D5DB",
                 }}
               >
-                {moyen}
+                {moyen[language]}
               </div>
             ))}
           </div>
@@ -473,14 +526,14 @@ export default function ShopFooter() {
               href="/shop/confidentialite"
               className="inline-flex items-center min-h-[44px] px-2 hover:text-white transition-colors"
             >
-              Confidentialité
+              {ar ? "الخصوصية" : "Confidentialité"}
             </Link>
             <span aria-hidden="true">·</span>
             <Link
               href="/shop/conditions"
               className="inline-flex items-center min-h-[44px] px-2 hover:text-white transition-colors"
             >
-              Conditions de vente
+              {ar ? "شروط البيع" : "Conditions de vente"}
             </Link>
           </div>
         </div>

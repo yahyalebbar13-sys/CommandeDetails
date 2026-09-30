@@ -7,7 +7,8 @@ import { Search, X, ArrowRight, Clock, TrendingUp, Layers } from 'lucide-react';
 import { useShopProducts } from '@/contexts/shop-products-context';
 import { useLanguage } from '@/contexts/language-context';
 import { formatProductPrice } from '@/lib/shop-utils';
-import type { ShopProduct, ShopCategory } from '@/lib/shop-types';
+import type { ShopCategory } from '@/lib/shop-types';
+import { nomProduit, normaliserRecherche, texte, texteRecherche } from '@/lib/shop-textes';
 
 // ─── Blur placeholder ─────────────────────────────────────────────────────────
 const BLUR =
@@ -77,16 +78,6 @@ export default function SmartSearch({ variant = 'desktop', onNavigate, autoFocus
 
 
   // ── Fuzzy search helpers ────────────────────────────────────────────────
-  // Normalize: lowercase, remove accents/diacritics, remove Arabic diacritics
-  const normalize = useCallback((str: string): string => {
-    return str
-      .toLowerCase()
-      .normalize('NFD')
-      .replace(/[\u0300-\u036f]/g, '')  // Remove accents (é→e, à→a, etc.)
-      .replace(/[\u064B-\u065F\u0670]/g, '') // Remove Arabic diacritics (tashkeel)
-      .trim();
-  }, []);
-
   // Generate search variants of a word (plural/singular tolerance)
   const getVariants = useCallback((word: string): string[] => {
     const variants = [word];
@@ -100,45 +91,53 @@ export default function SmartSearch({ variant = 'desktop', onNavigate, autoFocus
     return variants;
   }, []);
 
-  // Check if a text matches a query word (with variants)
-  const wordMatches = useCallback((text: string, queryWord: string): boolean => {
-    const normalizedText = normalize(text);
-    return getVariants(queryWord).some(variant => normalizedText.includes(variant));
-  }, [normalize, getVariants]);
-
-  // Check if ALL query words match at least one field of an item
-  const fuzzyMatch = useCallback((fields: (string | undefined)[], queryWords: string[]): boolean => {
+  // Chaque mot tapé (ou son singulier / pluriel) doit se trouver dans le texte déjà normalisé
+  const fuzzyMatch = useCallback((texteNormalise: string, queryWords: string[]): boolean => {
     return queryWords.every(word =>
-      fields.some(field => field && wordMatches(field, word))
+      getVariants(word).some(variant => texteNormalise.includes(variant))
     );
-  }, [wordMatches]);
+  }, [getVariants]);
 
   // Split and normalize query into words
   const queryWords = useMemo(() => {
     if (!q || q.length < 2) return [];
-    return normalize(q).split(/\s+/).filter(w => w.length >= 2);
-  }, [q, normalize]);
+    return normaliserRecherche(q).split(' ').filter(w => w.length >= 2);
+  }, [q]);
+
+  // Ce qu'on peut taper pour trouver chaque rayon (sous-rayons compris) et chaque produit,
+  // en français et en arabe : calculé une fois par catalogue, pas à chaque lettre
+  const categoriesCherchables = useMemo(() => {
+    const principales = categories.filter(c => !c.parentSlug);
+    const sousRayons = categories.filter(c => c.parentSlug);
+    return [...principales, ...sousRayons].map(c => ({
+      categorie: c,
+      texte: normaliserRecherche([c.name, c.nameAr, c.slug, c.description, c.descriptionAr].filter(Boolean).join(' ')),
+    }));
+  }, [categories]);
+
+  const produitsCherchables = useMemo(
+    () => products.map(p => ({ produit: p, texte: texteRecherche(p, categories) })),
+    [products, categories]
+  );
 
   const matchedCategories = useMemo(() => {
     if (queryWords.length === 0) return [];
-    return categories
-      .filter(c => !c.parentSlug)
-      .filter(c => fuzzyMatch(
-        [c.name, c.nameAr, c.slug, c.description, c.descriptionAr],
-        queryWords
-      ))
-      .slice(0, 3);
-  }, [queryWords, categories, fuzzyMatch]);
+    return categoriesCherchables
+      .filter(x => fuzzyMatch(x.texte, queryWords))
+      .slice(0, 3)
+      .map(x => x.categorie);
+  }, [queryWords, categoriesCherchables, fuzzyMatch]);
 
   const matchedProducts = useMemo(() => {
     if (queryWords.length === 0) return [];
-    return products
-      .filter(p => fuzzyMatch(
-        [p.name, p.nameAr, p.categoryName, p.categoryNameAr, p.shortDescription, p.shortDescriptionAr, ...(p.tags || [])],
-        queryWords
-      ))
-      .slice(0, 6);
-  }, [queryWords, products, fuzzyMatch]);
+    return produitsCherchables
+      .filter(x => fuzzyMatch(x.texte, queryWords))
+      .slice(0, 6)
+      .map(x => x.produit);
+  }, [queryWords, produitsCherchables, fuzzyMatch]);
+
+  // Nom affiché, et gardé tel quel dans les recherches récentes : dans la langue du site
+  const nomCategorie = useCallback((c: ShopCategory) => texte(c, 'name', language) || c.name, [language]);
 
   const hasResults = matchedCategories.length > 0 || matchedProducts.length > 0;
   const showDropdown = isFocused && (q.length >= 2 || (q.length === 0 && recentSearches.length > 0));
@@ -147,14 +146,14 @@ export default function SmartSearch({ variant = 'desktop', onNavigate, autoFocus
   const allItems = useMemo(() => {
     const items: { type: 'category' | 'product' | 'recent' | 'search'; url: string; label: string }[] = [];
     if (q.length >= 2) {
-      matchedCategories.forEach(c => items.push({ type: 'category', url: `/shop/categorie/${c.slug}`, label: c.name }));
-      matchedProducts.forEach(p => items.push({ type: 'product', url: `/shop/produit/${p.id}`, label: p.name }));
+      matchedCategories.forEach(c => items.push({ type: 'category', url: `/shop/categorie/${c.slug}`, label: nomCategorie(c) }));
+      matchedProducts.forEach(p => items.push({ type: 'product', url: `/shop/produit/${p.id}`, label: nomProduit(p, language) }));
       if (q.length > 0) items.push({ type: 'search', url: `/shop/boutique?q=${encodeURIComponent(q)}`, label: q });
     } else {
       recentSearches.forEach(s => items.push({ type: 'recent', url: `/shop/boutique?q=${encodeURIComponent(s)}`, label: s }));
     }
     return items;
-  }, [q, matchedCategories, matchedProducts, recentSearches]);
+  }, [q, matchedCategories, matchedProducts, recentSearches, nomCategorie, language]);
 
   const navigate = useCallback((url: string, searchTerm?: string) => {
     if (searchTerm) addRecentSearch(searchTerm);
@@ -201,7 +200,7 @@ export default function SmartSearch({ variant = 'desktop', onNavigate, autoFocus
             ? `rounded-full border ${isFocused ? 'border-[#C8102E] ring-2 ring-[#C8102E]/20 shadow-lg' : 'border-gray-200 shadow-sm'}`
             : 'relative'
         }`}>
-          <div className={isDesktop ? 'pl-4 text-gray-400' : 'absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none'}>
+          <div className={isDesktop ? 'ps-4 text-gray-400' : 'absolute start-3 top-1/2 -translate-y-1/2 pointer-events-none'}>
             <Search className={isDesktop ? 'w-5 h-5' : 'w-4 h-4 text-gray-400'} />
           </div>
           <input
@@ -214,7 +213,7 @@ export default function SmartSearch({ variant = 'desktop', onNavigate, autoFocus
             placeholder={language === 'ar' ? 'ابحث عن منتجات، فئات...' : 'Rechercher des produits, catégories...'}
             className={isDesktop
               ? 'w-full px-3 py-3 text-sm focus:outline-none bg-white text-gray-700'
-              : 'w-full pl-9 pr-9 py-2.5 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#C8102E]/20 focus:border-[#C8102E] bg-gray-50'
+              : 'w-full ps-9 pe-9 py-2.5 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#C8102E]/20 focus:border-[#C8102E] bg-gray-50'
             }
             autoComplete="off"
           />
@@ -222,7 +221,8 @@ export default function SmartSearch({ variant = 'desktop', onNavigate, autoFocus
             <button
               type="button"
               onClick={() => { setQuery(''); inputRef.current?.focus(); }}
-              className={`flex-shrink-0 text-gray-400 hover:text-gray-600 transition-colors cursor-pointer ${isDesktop ? 'pr-2' : 'absolute right-3 top-1/2 -translate-y-1/2'}`}
+              className={`flex-shrink-0 text-gray-400 hover:text-gray-600 transition-colors cursor-pointer ${isDesktop ? 'pe-2' : 'absolute end-3 top-1/2 -translate-y-1/2'}`}
+              aria-label={language === 'ar' ? 'مسح البحث' : 'Effacer la recherche'}
             >
               <X className="w-4 h-4" />
             </button>
@@ -232,7 +232,7 @@ export default function SmartSearch({ variant = 'desktop', onNavigate, autoFocus
               type="submit"
               className="px-6 py-3 bg-[#C8102E] hover:bg-[#A30C24] text-white font-bold text-sm tracking-wider transition-colors cursor-pointer"
             >
-              GO
+              {language === 'ar' ? 'بحث' : 'GO'}
             </button>
           )}
         </div>
@@ -265,7 +265,7 @@ export default function SmartSearch({ variant = 'desktop', onNavigate, autoFocus
                 <button
                   key={s}
                   onClick={() => navigate(`/shop/boutique?q=${encodeURIComponent(s)}`, s)}
-                  className={`w-full flex items-center gap-2.5 px-3 py-2 text-sm text-gray-600 rounded-lg transition-colors cursor-pointer text-left ${
+                  className={`w-full flex items-center gap-2.5 px-3 py-2 text-sm text-gray-600 rounded-lg transition-colors cursor-pointer text-start ${
                     selectedIndex === i ? 'bg-gray-100' : 'hover:bg-gray-50'
                   }`}
                 >
@@ -288,8 +288,8 @@ export default function SmartSearch({ variant = 'desktop', onNavigate, autoFocus
                   {matchedCategories.map((cat, i) => (
                     <button
                       key={cat.id}
-                      onClick={() => navigate(`/shop/categorie/${cat.slug}`, cat.name)}
-                      className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-colors cursor-pointer text-left ${
+                      onClick={() => navigate(`/shop/categorie/${cat.slug}`, nomCategorie(cat))}
+                      className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-colors cursor-pointer text-start ${
                         selectedIndex === i ? 'bg-gray-100' : 'hover:bg-gray-50'
                       }`}
                     >
@@ -297,10 +297,10 @@ export default function SmartSearch({ variant = 'desktop', onNavigate, autoFocus
                         <Layers className="w-4 h-4 text-[#C8102E]" />
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-[#1A1A1A] truncate">{language === 'ar' && cat.nameAr ? cat.nameAr : cat.name}</p>
-                        {cat.description && <p className="text-[10px] text-gray-400 truncate">{cat.description}</p>}
+                        <p className="text-sm font-medium text-[#1A1A1A] truncate">{nomCategorie(cat)}</p>
+                        {texte(cat, 'description', language) && <p className="text-[10px] text-gray-400 truncate">{texte(cat, 'description', language)}</p>}
                       </div>
-                      <ArrowRight className="w-3.5 h-3.5 text-gray-300 flex-shrink-0" />
+                      <ArrowRight className="w-3.5 h-3.5 text-gray-300 flex-shrink-0 rtl:rotate-180" />
                     </button>
                   ))}
                 </div>
@@ -318,20 +318,20 @@ export default function SmartSearch({ variant = 'desktop', onNavigate, autoFocus
                     return (
                       <button
                         key={product.id}
-                        onClick={() => navigate(`/shop/produit/${product.id}`, product.name)}
-                        className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-colors cursor-pointer text-left ${
+                        onClick={() => navigate(`/shop/produit/${product.id}`, nomProduit(product, language))}
+                        className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-colors cursor-pointer text-start ${
                           selectedIndex === idx ? 'bg-gray-100' : 'hover:bg-gray-50'
                         }`}
                       >
                         <div className="w-10 h-10 rounded-lg overflow-hidden bg-gray-100 flex-shrink-0 relative">
                           {img ? (
-                            <Image src={img} alt={product.name} fill className="object-cover" sizes="40px" />
+                            <Image src={img} alt={nomProduit(product, language)} fill className="object-cover" sizes="40px" />
                           ) : (
                             <div className="w-full h-full flex items-center justify-center text-gray-300 text-xs">📷</div>
                           )}
                         </div>
                         <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium text-[#1A1A1A] truncate">{language === 'ar' && product.nameAr ? product.nameAr : product.name}</p>
+                          <p className="text-sm font-medium text-[#1A1A1A] truncate">{nomProduit(product, language)}</p>
                           <div className="flex items-center gap-2">
                             <span className="text-[11px] font-bold text-[#C8102E]">{formatProductPrice(product, language)}</span>
                             {product.inStock ? (
@@ -341,7 +341,7 @@ export default function SmartSearch({ variant = 'desktop', onNavigate, autoFocus
                             )}
                           </div>
                         </div>
-                        <ArrowRight className="w-3.5 h-3.5 text-gray-300 flex-shrink-0" />
+                        <ArrowRight className="w-3.5 h-3.5 text-gray-300 flex-shrink-0 rtl:rotate-180" />
                       </button>
                     );
                   })}
@@ -351,7 +351,7 @@ export default function SmartSearch({ variant = 'desktop', onNavigate, autoFocus
               {/* No results */}
               {!hasResults && q.length >= 2 && (
                 <div className="px-4 py-8 text-center">
-                  <p className="text-sm text-gray-500">{language === 'ar' ? `لا توجد نتائج لـ "${q}"` : `Aucun résultat pour "${q}"`}</p>
+                  <p className="text-sm text-gray-500">{language === 'ar' ? <>لا توجد نتائج لـ &quot;<bdi>{q}</bdi>&quot;</> : `Aucun résultat pour "${q}"`}</p>
                   <p className="text-xs text-gray-400 mt-1">{language === 'ar' ? 'جرّب كلمات أخرى' : 'Essayez d\'autres mots-clés'}</p>
                 </div>
               )}
@@ -365,8 +365,8 @@ export default function SmartSearch({ variant = 'desktop', onNavigate, autoFocus
                   }`}
                 >
                   <Search className="w-4 h-4" />
-                  {language === 'ar' ? `عرض جميع النتائج لـ "${q}"` : `Voir tous les résultats pour "${q}"`}
-                  <ArrowRight className="w-3.5 h-3.5" />
+                  {language === 'ar' ? <span>عرض جميع النتائج لـ &quot;<bdi>{q}</bdi>&quot;</span> : `Voir tous les résultats pour "${q}"`}
+                  <ArrowRight className="w-3.5 h-3.5 rtl:rotate-180" />
                 </button>
               )}
             </>

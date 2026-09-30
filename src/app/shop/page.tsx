@@ -24,8 +24,9 @@ import {
   getProductDisplayPrice,
   getProductPromo,
 } from '@/lib/shop-utils';
-import { DELAI_ZONE, FRAIS_ZONE } from '@/lib/livraison-boutique';
+import { delaiZone, FRAIS_ZONE } from '@/lib/livraison-boutique';
 import type { ShopProduct } from '@/lib/shop-types';
+import { texte } from '@/lib/shop-textes';
 import ProductCard from '@/components/shop/ProductCard';
 import { useLanguage } from '@/contexts/language-context';
 import { useShopProducts } from '@/contexts/shop-products-context';
@@ -76,7 +77,7 @@ function SectionHeader({
           href={href}
           className="flex-shrink-0 flex items-center gap-1 text-xs font-semibold text-[#C8102E] touch-manipulation"
         >
-          {linkLabel} <ChevronRight className="w-3.5 h-3.5" />
+          {linkLabel} <ChevronRight className="w-3.5 h-3.5 rtl:rotate-180" />
         </Link>
       )}
     </div>
@@ -85,10 +86,13 @@ function SectionHeader({
 
 // ─── Product rail: une ligne qui défile (flèches sur ordinateur) ─────────────
 function ProductRail({ products }: { products: ShopProduct[] }) {
+  const { language } = useLanguage();
   const railRef = useRef<HTMLDivElement>(null);
   const scroll = (direction: 1 | -1) => {
     const rail = railRef.current;
-    if (rail) rail.scrollBy({ left: direction * rail.clientWidth * 0.8, behavior: 'smooth' });
+    // En arabe la ligne part de la droite : « suivant » défile vers la gauche
+    const sens = rail && getComputedStyle(rail).direction === 'rtl' ? -1 : 1;
+    if (rail) rail.scrollBy({ left: direction * sens * rail.clientWidth * 0.8, behavior: 'smooth' });
   };
 
   return (
@@ -108,18 +112,18 @@ function ProductRail({ products }: { products: ShopProduct[] }) {
           <button
             type="button"
             onClick={() => scroll(-1)}
-            className="hidden lg:flex absolute left-0 top-[38%] -translate-x-1/2 w-10 h-10 items-center justify-center rounded-full bg-white border border-gray-200 shadow-md text-gray-700 hover:text-[#C8102E] opacity-0 group-hover/rail:opacity-100 transition-opacity"
-            aria-label="Produits précédents"
+            className="hidden lg:flex absolute start-0 top-[38%] -translate-x-1/2 rtl:translate-x-1/2 w-10 h-10 items-center justify-center rounded-full bg-white border border-gray-200 shadow-md text-gray-700 hover:text-[#C8102E] opacity-0 group-hover/rail:opacity-100 transition-opacity"
+            aria-label={language === 'ar' ? 'المنتجات السابقة' : 'Produits précédents'}
           >
-            <ChevronLeft className="w-5 h-5" />
+            <ChevronLeft className="w-5 h-5 rtl:rotate-180" />
           </button>
           <button
             type="button"
             onClick={() => scroll(1)}
-            className="hidden lg:flex absolute right-0 top-[38%] translate-x-1/2 w-10 h-10 items-center justify-center rounded-full bg-white border border-gray-200 shadow-md text-gray-700 hover:text-[#C8102E] opacity-0 group-hover/rail:opacity-100 transition-opacity"
-            aria-label="Produits suivants"
+            className="hidden lg:flex absolute end-0 top-[38%] translate-x-1/2 rtl:-translate-x-1/2 w-10 h-10 items-center justify-center rounded-full bg-white border border-gray-200 shadow-md text-gray-700 hover:text-[#C8102E] opacity-0 group-hover/rail:opacity-100 transition-opacity"
+            aria-label={language === 'ar' ? 'المنتجات التالية' : 'Produits suivants'}
           >
-            <ChevronRight className="w-5 h-5" />
+            <ChevronRight className="w-5 h-5 rtl:rotate-180" />
           </button>
         </>
       )}
@@ -187,6 +191,11 @@ export default function ShopPage() {
   const prixCasa = formatPrice(FRAIS_ZONE.casablanca);
   const prixVilles = formatPrice(FRAIS_ZONE.standard);
   const petitPrix = formatPrice(PETIT_PRIX_MAX);
+  const delaiCasa = delaiZone('casablanca', language);
+  // Devis en gros : message WhatsApp prérempli dans la langue du site
+  const messageDevis = isAr
+    ? 'السلام عليكم، أريد عرض سعر لطلبية بالجملة.'
+    : 'Bonjour, je souhaite un devis pour une commande en gros.';
 
   return (
     <main className="min-h-screen bg-[#FBF8F3]" style={{ fontFamily: 'Inter, sans-serif' }}>
@@ -197,14 +206,15 @@ export default function ShopPage() {
       <section className="relative h-[200px] sm:h-[240px] lg:h-[280px] overflow-hidden">
         <Image
           src="/hero-banner-new.png"
-          alt="LEBTEX mercerie"
+          alt={isAr ? 'LEBTEX خردوات الخياطة' : 'LEBTEX mercerie'}
           fill
           className="object-cover object-center"
           priority
           quality={85}
           sizes="100vw"
         />
-        <div className="absolute inset-0 bg-gradient-to-r from-[#0F0F0F]/80 via-[#0F0F0F]/50 to-transparent" />
+        {/* Voile sombre du côté du texte (à droite en arabe) */}
+        <div className="absolute inset-0 bg-gradient-to-r rtl:bg-gradient-to-l from-[#0F0F0F]/80 via-[#0F0F0F]/50 to-transparent" />
 
         <div className="relative z-10 h-full flex items-center px-5 sm:px-8 lg:px-12">
           <div className="max-w-lg">
@@ -221,7 +231,7 @@ export default function ShopPage() {
               className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-white font-bold text-sm shadow-lg touch-manipulation"
               style={{ background: 'linear-gradient(135deg, #C8102E, #a00d25)' }}
             >
-              {t('btn_discover')} <ArrowRight className="w-3.5 h-3.5" />
+              {t('btn_discover')} <ArrowRight className="w-3.5 h-3.5 rtl:rotate-180" />
             </Link>
           </div>
         </div>
@@ -234,7 +244,11 @@ export default function ShopPage() {
         <div className="flex items-center justify-center flex-wrap gap-x-5 gap-y-1.5 text-white text-xs font-bold">
           <span className="flex items-center gap-1.5">
             <Truck className="w-3.5 h-3.5 shrink-0" />
-            {t('delivery_casa_price', { amount: prixCasa })}
+            {isAr ? (
+              <span>التوصيل <bdi dir="ltr">{prixCasa}</bdi> في الدار البيضاء</span>
+            ) : (
+              t('delivery_casa_price', { amount: prixCasa })
+            )}
           </span>
           <span className="hidden sm:flex items-center gap-1.5 font-normal text-white/85">
             <MapPin className="w-3.5 h-3.5 shrink-0" />
@@ -244,7 +258,7 @@ export default function ShopPage() {
             <Banknote className="w-3.5 h-3.5 shrink-0" /> {t('trust_payment')}
           </span>
           <span className="hidden md:flex items-center gap-1.5 font-normal text-white/85">
-            <RotateCcw className="w-3.5 h-3.5 shrink-0" /> {isAr ? 'إرجاع خلال 14 يوم' : 'Retour 14 jours'}
+            <RotateCcw className="w-3.5 h-3.5 shrink-0" /> {isAr ? 'إرجاع خلال 14 يوماً' : 'Retour 14 jours'}
           </span>
         </div>
       </div>
@@ -254,38 +268,41 @@ export default function ShopPage() {
       {/* ═══════════════════════════════════════════════════════════════════ */}
       <section className="py-5 px-4 sm:px-6 lg:px-12 bg-white border-b border-gray-100">
         <div className="flex gap-3 overflow-x-auto pb-1 no-scrollbar snap-x snap-mandatory lg:flex-wrap lg:justify-center">
-          {SHOP_CATEGORIES.map((cat) => (
-            <Link
-              key={cat.id}
-              href={`/shop/categorie/${cat.slug}`}
-              className="flex flex-col items-center gap-1.5 flex-shrink-0 snap-start group touch-manipulation"
-              style={{ minWidth: '72px' }}
-            >
-              <div
-                className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl overflow-hidden border-2 border-transparent group-hover:border-[#C8102E] shadow-sm"
-                style={{ background: `${cat.color}15` }}
+          {SHOP_CATEGORIES.map((cat) => {
+            const nomCat = texte(cat, 'name', language) || cat.name;
+            return (
+              <Link
+                key={cat.id}
+                href={`/shop/categorie/${cat.slug}`}
+                className="flex flex-col items-center gap-1.5 flex-shrink-0 snap-start group touch-manipulation"
+                style={{ minWidth: '72px' }}
               >
-                {cat.image ? (
-                  <div className="relative w-full h-full">
-                    <Image
-                      src={cat.image as string}
-                      alt={cat.name}
-                      fill
-                      sizes="64px"
-                      className="object-cover"
-                    />
-                  </div>
-                ) : (
-                  <div className="w-full h-full flex items-center justify-center">
-                    <span className="text-lg font-bold" style={{ color: cat.color }}>{cat.name.charAt(0)}</span>
-                  </div>
-                )}
-              </div>
-              <span className="text-[10px] sm:text-xs font-semibold text-gray-700 text-center leading-tight line-clamp-2 max-w-[72px]">
-                {cat.name}
-              </span>
-            </Link>
-          ))}
+                <div
+                  className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl overflow-hidden border-2 border-transparent group-hover:border-[#C8102E] shadow-sm"
+                  style={{ background: `${cat.color}15` }}
+                >
+                  {cat.image ? (
+                    <div className="relative w-full h-full">
+                      <Image
+                        src={cat.image as string}
+                        alt={nomCat}
+                        fill
+                        sizes="64px"
+                        className="object-cover"
+                      />
+                    </div>
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center">
+                      <span className="text-lg font-bold" style={{ color: cat.color }}>{nomCat.charAt(0)}</span>
+                    </div>
+                  )}
+                </div>
+                <span className="text-[10px] sm:text-xs font-semibold text-gray-700 text-center leading-tight line-clamp-2 max-w-[72px]">
+                  {nomCat}
+                </span>
+              </Link>
+            );
+          })}
         </div>
       </section>
 
@@ -308,14 +325,16 @@ export default function ShopPage() {
                 </p>
                 <p className="text-xl sm:text-2xl lg:text-3xl font-black leading-tight" style={{ fontFamily: 'Outfit, sans-serif' }}>
                   {isAr ? 'توصيل خلال ' : 'Livrée en '}
-                  <bdi className="text-[#F3D58B]">{DELAI_ZONE.casablanca}</bdi>
+                  <bdi className="text-[#F3D58B]">{delaiCasa}</bdi>
                   {isAr ? ' مقابل ' : ' pour '}
-                  <span className="text-[#F3D58B]">{prixCasa}</span>
+                  <bdi dir="ltr" className="text-[#F3D58B]">{prixCasa}</bdi>
                 </p>
                 <p className="text-white/90 text-xs sm:text-sm mt-1">
-                  {isAr
-                    ? `باقي المدن من ${prixVilles} · الدفع عند الاستلام · استلام مجاني من المحل`
-                    : `Autres villes dès ${prixVilles} · Paiement à la réception · Retrait gratuit en magasin`}
+                  {isAr ? (
+                    <>باقي المدن من <bdi dir="ltr">{prixVilles}</bdi> · الدفع عند الاستلام · استلام مجاني من المحل</>
+                  ) : (
+                    `Autres villes dès ${prixVilles} · Paiement à la réception · Retrait gratuit en magasin`
+                  )}
                 </p>
               </div>
             </div>
@@ -323,7 +342,7 @@ export default function ShopPage() {
               href="/shop/boutique"
               className="inline-flex items-center justify-center gap-2 px-5 py-3 rounded-xl bg-white text-[#C8102E] font-black text-sm shadow-lg flex-shrink-0 hover:bg-[#FBF8F3] transition-colors touch-manipulation"
             >
-              {isAr ? 'اطلب الآن' : 'Commander'} <ArrowRight className="w-4 h-4" />
+              {isAr ? 'اطلب الآن' : 'Commander'} <ArrowRight className="w-4 h-4 rtl:rotate-180" />
             </Link>
           </div>
         </div>
@@ -341,7 +360,7 @@ export default function ShopPage() {
               badge={
                 sections.maxDiscount > 0 && (
                   <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-[#C8102E] text-white">
-                    {isAr ? `حتى -${sections.maxDiscount}%` : `Jusqu'à -${sections.maxDiscount}%`}
+                    {isAr ? <>حتى <bdi dir="ltr">-{sections.maxDiscount}%</bdi></> : `Jusqu'à -${sections.maxDiscount}%`}
                   </span>
                 )
               }
@@ -382,7 +401,7 @@ export default function ShopPage() {
               title={isAr ? 'أسعار صغيرة' : 'Petits prix'}
               badge={
                 <span className="px-2 py-0.5 rounded-full text-xs font-black bg-[#D4A843]/15 text-[#8a6a1f] border border-[#D4A843]/30">
-                  {isAr ? `أقل من ${petitPrix}` : `Moins de ${petitPrix}`}
+                  {isAr ? <>أقل من <bdi dir="ltr">{petitPrix}</bdi></> : `Moins de ${petitPrix}`}
                 </span>
               }
               subtitle={
@@ -412,9 +431,13 @@ export default function ShopPage() {
             </div>
             <div>
               <p className="text-white font-black text-sm sm:text-base" style={{ fontFamily: 'Outfit, sans-serif' }}>
-                Commande en Gros — Tarifs Professionnels
+                {isAr ? 'طلبات الجملة — أسعار المهنيين' : 'Commande en Gros — Tarifs Professionnels'}
               </p>
-              <p className="text-gray-400 text-xs mt-0.5">Prix dégressifs par quantité · Devis personnalisé pour ateliers et revendeurs</p>
+              <p className="text-gray-400 text-xs mt-0.5">
+                {isAr
+                  ? 'ثمن أقل كلما زادت الكمية · عرض سعر خاص للمشاغل والتجار'
+                  : 'Prix dégressifs par quantité · Devis personnalisé pour ateliers et revendeurs'}
+              </p>
             </div>
           </div>
           <div className="flex items-center gap-2 flex-shrink-0 w-full sm:w-auto">
@@ -422,16 +445,16 @@ export default function ShopPage() {
               href="/shop/boutique"
               className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl border border-white/20 text-white font-bold text-xs sm:text-sm touch-manipulation"
             >
-              Voir les tarifs pro
+              {isAr ? 'شاهد أسعار المهنيين' : 'Voir les tarifs pro'}
             </Link>
             <a
-              href="https://wa.me/212760998347?text=Bonjour%2C%20je%20souhaite%20un%20devis%20pour%20une%20commande%20en%20gros."
+              href={`https://wa.me/212760998347?text=${encodeURIComponent(messageDevis)}`}
               target="_blank"
               rel="noopener noreferrer"
               className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl text-[#0F0F0F] font-bold text-xs sm:text-sm touch-manipulation"
               style={{ background: 'linear-gradient(135deg, #D4A843, #e4be6a)' }}
             >
-              Devis rapide <ArrowRight className="w-3.5 h-3.5" />
+              {isAr ? 'عرض سعر سريع' : 'Devis rapide'} <ArrowRight className="w-3.5 h-3.5 rtl:rotate-180" />
             </a>
           </div>
         </div>
@@ -448,7 +471,7 @@ export default function ShopPage() {
               title={isAr ? 'وصل حديثاً' : 'Nouveautés'}
               badge={
                 <span className="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase bg-emerald-50 text-emerald-600 border border-emerald-100">
-                  New
+                  {isAr ? 'جديد' : 'New'}
                 </span>
               }
               href="/shop/boutique?nouveautes=true"
@@ -498,7 +521,7 @@ export default function ShopPage() {
           href="/shop/boutique"
           className="inline-flex items-center gap-2 px-6 py-2.5 rounded-xl border-2 border-[#C8102E] text-[#C8102E] font-bold text-sm hover:bg-[#C8102E] hover:text-white touch-manipulation"
         >
-          {t('all_products')} <ArrowRight className="w-4 h-4" />
+          {t('all_products')} <ArrowRight className="w-4 h-4 rtl:rotate-180" />
         </Link>
       </div>
 
@@ -511,9 +534,11 @@ export default function ShopPage() {
             {
               icon: <Truck className="w-5 h-5 text-[#C8102E]" />,
               title: isAr ? 'توصيل لكل المغرب' : 'Livraison partout au Maroc',
-              text: isAr
-                ? `الدار البيضاء ${prixCasa} خلال ${DELAI_ZONE.casablanca}، باقي المدن من ${prixVilles}`
-                : `Casablanca ${prixCasa} en ${DELAI_ZONE.casablanca}, autres villes dès ${prixVilles}`,
+              text: isAr ? (
+                <>الدار البيضاء <bdi dir="ltr">{prixCasa}</bdi> خلال {delaiCasa}، باقي المدن من <bdi dir="ltr">{prixVilles}</bdi></>
+              ) : (
+                `Casablanca ${prixCasa} en ${delaiCasa}, autres villes dès ${prixVilles}`
+              ),
             },
             {
               icon: <Banknote className="w-5 h-5 text-emerald-600" />,
@@ -522,7 +547,7 @@ export default function ShopPage() {
             },
             {
               icon: <RotateCcw className="w-5 h-5 text-[#D4A843]" />,
-              title: isAr ? 'إرجاع خلال 14 يوم' : 'Retour 14 jours',
+              title: isAr ? 'إرجاع خلال 14 يوماً' : 'Retour 14 jours',
               text: isAr ? 'منتج غير مستعمل في غلافه الأصلي، ما عدا القماش المقصوص بالمتر' : 'Article non utilisé, hors tissu coupé au mètre',
             },
             {
@@ -555,9 +580,9 @@ export default function ShopPage() {
             </div>
             <div>
               <p className="text-white font-bold text-sm sm:text-base" style={{ fontFamily: 'Outfit, sans-serif' }}>
-                Besoin d'aide ? Écrivez-nous sur WhatsApp
+                {isAr ? 'تحتاج مساعدة؟ راسلنا على واتساب' : "Besoin d'aide ? Écrivez-nous sur WhatsApp"}
               </p>
-              <p className="text-white/70 text-xs">Réponse en moins de 30 minutes</p>
+              <p className="text-white/70 text-xs">{isAr ? 'نجيبك في أقل من 30 دقيقة' : 'Réponse en moins de 30 minutes'}</p>
             </div>
           </div>
           <div className="flex items-center gap-2 flex-shrink-0">
@@ -570,14 +595,14 @@ export default function ShopPage() {
               <svg viewBox="0 0 24 24" className="w-4 h-4 fill-[#128C7E] flex-shrink-0" xmlns="http://www.w3.org/2000/svg">
                 <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893A11.821 11.821 0 0020.464 3.488"/>
               </svg>
-              <span className="hidden sm:inline">Écrire</span>
+              <span className="hidden sm:inline">{isAr ? 'راسلنا' : 'Écrire'}</span>
             </a>
             <a
               href="tel:+212760998347"
               className="inline-flex items-center gap-1.5 px-3 py-2.5 rounded-xl border border-white/30 text-white font-bold text-xs touch-manipulation"
             >
               <Phone className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">Appeler</span>
+              <span className="hidden sm:inline">{isAr ? 'اتصل بنا' : 'Appeler'}</span>
             </a>
           </div>
         </div>

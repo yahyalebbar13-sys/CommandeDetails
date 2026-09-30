@@ -2,11 +2,15 @@
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useShopProducts } from '@/contexts/shop-products-context';
+import { useLanguage } from '@/contexts/language-context';
 import type { ShopCategory } from '@/lib/shop-types';
+import { texte } from '@/lib/shop-textes';
 import { ChevronRight, Loader2, Layers } from 'lucide-react';
 
 export default function CategoriesPage() {
   const { categories: allCats, products, isLoading: loading } = useShopProducts();
+  const { t, language } = useLanguage();
+  const isAr = language === 'ar';
 
   const productCount = (slug: string) =>
     products.filter(p => p.categorySlug === slug).length;
@@ -27,24 +31,27 @@ export default function CategoriesPage() {
         {/* Photo background */}
         <img
           src="/categories-banner.png"
-          alt="Accessoires textiles"
+          alt={isAr ? 'لوازم النسيج' : 'Accessoires textiles'}
           className="absolute inset-0 w-full h-full object-cover"
         />
-        {/* Dark overlay for readability */}
-        <div className="absolute inset-0" style={{ background: 'linear-gradient(to right, rgba(0,0,0,0.65) 0%, rgba(0,0,0,0.35) 60%, rgba(0,0,0,0.1) 100%)' }} />
+        {/* Dark overlay for readability (du côté du texte : à droite en arabe) */}
+        <div className="absolute inset-0" style={{ background: `linear-gradient(to ${isAr ? 'left' : 'right'}, rgba(0,0,0,0.65) 0%, rgba(0,0,0,0.35) 60%, rgba(0,0,0,0.1) 100%)` }} />
 
         {/* Text content */}
         <div className="relative h-full flex flex-col justify-center px-6 sm:px-12 max-w-6xl mx-auto">
           {/* Breadcrumb */}
+          {/* « › » est un signe miroir : le navigateur l'affiche « ‹ » en arabe */}
           <nav className="flex items-center gap-1.5 text-[11px] text-white/50 mb-2">
-            <Link href="/shop" className="hover:text-white transition-colors">Accueil</Link>
+            <Link href="/shop" className="hover:text-white transition-colors">{isAr ? 'الرئيسية' : 'Accueil'}</Link>
             <span>›</span>
-            <span className="text-white/80">Catégories</span>
+            <span className="text-white/80">{isAr ? 'الفئات' : 'Catégories'}</span>
           </nav>
           <h1 className="text-2xl sm:text-3xl font-black text-white" style={{ fontFamily: 'Outfit, sans-serif' }}>
-            Nos Catégories
+            {isAr ? 'فئاتنا' : 'Nos Catégories'}
           </h1>
-          <p className="text-white/60 text-sm mt-1">{allCats.length} catégories disponibles</p>
+          <p className="text-white/60 text-sm mt-1">
+            {isAr ? `${allCats.length} فئة متوفرة` : `${allCats.length} catégories disponibles`}
+          </p>
         </div>
       </div>
 
@@ -58,6 +65,8 @@ export default function CategoriesPage() {
             const count = products.filter(p => p.categorySlug === cat.slug || subCatsSlugs.includes(p.categorySlug)).length;
             const subCatsCount = subCatsSlugs.length;
             const accentColor = cat.color || '#C8102E';
+            const nomCat = texte(cat, 'name', language) || cat.name;
+            const descriptionCat = texte(cat, 'description', language);
             return (
               <Link
                 key={cat.id}
@@ -69,7 +78,7 @@ export default function CategoriesPage() {
                   {(cat as any).image ? (
                     <img
                       src={(cat as any).image}
-                      alt={cat.name}
+                      alt={nomCat}
                       className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
                     />
                   ) : (
@@ -92,12 +101,14 @@ export default function CategoriesPage() {
                     {subCatsCount > 0 && (
                       <span className="px-2.5 py-1 rounded-full text-[10px] font-bold text-white shadow-sm"
                         style={{ background: `${accentColor}CC` }}>
-                        {subCatsCount} sous-catégorie{subCatsCount > 1 ? 's' : ''}
+                        {isAr
+                          ? `${subCatsCount} ${subCatsCount > 1 ? 'فئات فرعية' : 'فئة فرعية'}`
+                          : `${subCatsCount} sous-catégorie${subCatsCount > 1 ? 's' : ''}`}
                       </span>
                     )}
                     {count > 0 && (
                       <span className="px-2.5 py-1 rounded-full text-[10px] font-bold text-[#1A1A1A] bg-white/90 backdrop-blur-sm shadow-sm">
-                        {count} produit{count > 1 ? 's' : ''}
+                        {isAr ? `${count} منتج` : `${count} produit${count > 1 ? 's' : ''}`}
                       </span>
                     )}
                   </div>
@@ -110,26 +121,26 @@ export default function CategoriesPage() {
                       className="font-bold text-[#1A1A1A] text-lg leading-tight group-hover:text-[#C8102E] transition-colors"
                       style={{ fontFamily: 'Outfit, sans-serif' }}
                     >
-                      {cat.name}
+                      {nomCat}
                     </h2>
                     <div
-                      className="flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center transition-all duration-300 group-hover:translate-x-1"
+                      className="flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center transition-all duration-300 group-hover:translate-x-1 rtl:group-hover:-translate-x-1"
                       style={{ background: `${accentColor}15`, color: accentColor }}
                     >
-                      <ChevronRight className="w-4 h-4" />
+                      <ChevronRight className="w-4 h-4 rtl:rotate-180" />
                     </div>
                   </div>
-                  {cat.description ? (
-                    <p className="text-gray-500 text-sm leading-relaxed line-clamp-2 flex-1">{cat.description}</p>
+                  {descriptionCat ? (
+                    <p className="text-gray-500 text-sm leading-relaxed line-clamp-2 flex-1">{descriptionCat}</p>
                   ) : (
-                    <p className="text-gray-400 text-sm italic flex-1">Découvrir la collection</p>
+                    <p className="text-gray-400 text-sm italic flex-1">{isAr ? 'اكتشف التشكيلة' : 'Découvrir la collection'}</p>
                   )}
                   <div className="mt-4 pt-3 border-t border-[#F0ECE8]">
                     <span
                       className="text-xs font-semibold uppercase tracking-wide"
                       style={{ color: accentColor }}
                     >
-                      Voir la catégorie →
+                      {isAr ? 'عرض الفئة ←' : 'Voir la catégorie →'}
                     </span>
                   </div>
                 </div>
@@ -141,13 +152,13 @@ export default function CategoriesPage() {
 
       {/* ─── CTA Bottom ─────────────────────────────────────────────────── */}
       <div className="border-t border-[#E8E4DF] py-12 text-center px-6">
-        <p className="text-gray-500 text-sm mb-4">Vous cherchez un produit spécifique ?</p>
+        <p className="text-gray-500 text-sm mb-4">{isAr ? 'تبحث عن منتج معيّن؟' : 'Vous cherchez un produit spécifique ?'}</p>
         <div className="flex flex-col sm:flex-row gap-3 justify-center">
           <Link
             href="/shop/boutique"
             className="inline-flex items-center justify-center gap-2 px-6 py-3 rounded-xl bg-[#C8102E] text-white font-semibold text-sm hover:bg-[#a00d25] transition-colors"
           >
-            Voir tous les produits
+            {t('all_products')}
           </Link>
           <a
             href="https://wa.me/212760998347"
@@ -155,7 +166,7 @@ export default function CategoriesPage() {
             rel="noopener noreferrer"
             className="inline-flex items-center justify-center gap-2 px-6 py-3 rounded-xl border border-[#E8E4DF] text-gray-700 font-semibold text-sm hover:border-green-400 hover:text-green-600 transition-all"
           >
-            💬 Commander sur WhatsApp
+            💬 {isAr ? 'اطلب عبر واتساب' : 'Commander sur WhatsApp'}
           </a>
         </div>
       </div>

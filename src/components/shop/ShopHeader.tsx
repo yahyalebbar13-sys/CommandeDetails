@@ -30,7 +30,8 @@ import {
   formatPrice,
   formatProductPrice,
 } from "@/lib/shop-utils";
-import { DELAI_ZONE, FRAIS_ZONE } from "@/lib/livraison-boutique";
+import { delaiZone, FRAIS_ZONE } from "@/lib/livraison-boutique";
+import { nomProduit, texte } from "@/lib/shop-textes";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface NavLink {
@@ -60,7 +61,7 @@ const PROMO_SEPARATOR = "\u00a0\u00a0|\u00a0\u00a0";
 // « Expédition sous 24 h » tant que Sendit n'a pas donné son heure de ramassage à
 // Derb Omar : l'ancienne promesse « avant 14h → le jour même » n'était pas tenue.
 const PROMO_TEXT_FR = [
-  `🚚 Livraison ${formatPrice(FRAIS_ZONE.casablanca)} à Casablanca en ${DELAI_ZONE.casablanca}`,
+  `🚚 Livraison ${formatPrice(FRAIS_ZONE.casablanca)} à Casablanca en ${delaiZone("casablanca", "fr")}`,
   `🇲🇦 Partout au Maroc dès ${formatPrice(FRAIS_ZONE.standard)}`,
   "💵 Paiement à la réception",
   "📦 Expédition sous 24 h (jours ouvrés)",
@@ -69,13 +70,20 @@ const PROMO_TEXT_FR = [
 ].join(PROMO_SEPARATOR);
 
 const PROMO_TEXT_AR = [
-  `🚚 التوصيل ${FRAIS_ZONE.casablanca} درهم في الدار البيضاء خلال ${DELAI_ZONE.casablanca}`,
+  `🚚 التوصيل ${FRAIS_ZONE.casablanca} درهم في الدار البيضاء خلال ${delaiZone("casablanca", "ar")}`,
   `🇲🇦 لجميع المدن من ${FRAIS_ZONE.standard} درهم`,
   "💵 الدفع عند الاستلام",
   "📦 الشحن خلال 24 ساعة (أيام العمل)",
   "🏬 الاستلام مجاناً من محلنا في الدار البيضاء",
   "💬 واتساب: 0760998347",
 ].join(PROMO_SEPARATOR);
+
+// Nombre de sous-rayons ou de produits en arabe : le nom s'accorde avec le nombre (1, 2, de 3 à 10, au-delà)
+function compteAr(n: number, un: string, deux: string, pluriel: string, singulier: string): string {
+  if (n === 1) return un;
+  if (n === 2) return deux;
+  return `${n} ${n >= 3 && n <= 10 ? pluriel : singulier}`;
+}
 
 // ─── Component ────────────────────────────────────────────────────────────────
 export default function ShopHeader() {
@@ -265,11 +273,11 @@ export default function ShopHeader() {
             <Link
               href="/shop"
               className="flex-shrink-0 group"
-              aria-label="LEBTEX - Accueil"
+              aria-label={language === 'ar' ? 'LEBTEX - الرئيسية' : 'LEBTEX - Accueil'}
             >
               <img
                 src="/logo.png"
-                alt="LEBTEX Mercerie"
+                alt={language === 'ar' ? 'LEBTEX خردوات الخياطة' : 'LEBTEX Mercerie'}
                 className="h-16 lg:h-[85px] w-auto transition-opacity group-hover:opacity-80"
                 style={{ maxWidth: '300px', objectFit: 'contain' }}
               />
@@ -281,21 +289,21 @@ export default function ShopHeader() {
             {/* ── Right Actions ─────────────────────────────────────────── */}
             <div className="flex items-center gap-1 sm:gap-2">
               
-              {/* Language Toggle */}
+              {/* Langue : le bouton affiche la langue vers laquelle on passe, écrite dans cette langue
+                  (pas de drapeau : le drapeau français faisait penser à la France) */}
               <button
                 onClick={() => setLanguage(language === 'fr' ? 'ar' : 'fr')}
-                className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-gray-200 text-sm font-medium text-gray-700 hover:border-[#C8102E] hover:text-[#C8102E] hover:bg-red-50 transition-all cursor-pointer"
+                className="flex items-center px-3 py-2 rounded-xl border border-gray-200 text-sm font-bold text-gray-800 hover:border-[#C8102E] hover:text-[#C8102E] hover:bg-red-50 transition-all cursor-pointer"
                 aria-label={language === 'fr' ? 'Passer en arabe' : 'التبديل إلى الفرنسية'}
               >
-                <span className="text-base">{language === 'ar' ? '🇲🇦' : '🇫🇷'}</span>
-                <span className="hidden sm:inline-block uppercase font-bold">{language === 'ar' ? 'AR' : 'FR'}</span>
+                {language === 'fr' ? <span lang="ar" dir="rtl">العربية</span> : <span lang="fr" dir="ltr">Français</span>}
               </button>
 
               {/* Search Toggle - Mobile/Tablet only */}
               <button
                 onClick={() => setIsSearchOpen(true)}
                 className="lg:hidden p-2.5 rounded-xl text-gray-600 hover:text-[#C8102E] hover:bg-gray-50 transition-all cursor-pointer"
-                aria-label="Rechercher"
+                aria-label={language === 'ar' ? 'بحث' : 'Rechercher'}
               >
                 <Search className="w-5 h-5" />
               </button>
@@ -315,7 +323,7 @@ export default function ShopHeader() {
               <button
                 onClick={openCart}
                 className="hidden lg:flex relative p-2.5 rounded-xl text-gray-700 hover:text-[#C8102E] hover:bg-red-50 transition-all group cursor-pointer"
-                aria-label={`Panier — ${itemCount} article${itemCount !== 1 ? "s" : ""}`}
+                aria-label={language === 'ar' ? `السلة — ${compteAr(itemCount, 'قطعة واحدة', 'قطعتان', 'قطع', 'قطعة')}` : `Panier — ${itemCount} article${itemCount !== 1 ? "s" : ""}`}
               >
                 <ShoppingCart className="w-6 h-6 transition-transform group-hover:scale-110" />
                 {itemCount > 0 && (
@@ -359,7 +367,7 @@ export default function ShopHeader() {
                       : "bg-neutral-100 text-neutral-700 hover:bg-neutral-200"
                   }`}
                 >
-                  <span>{language === 'ar' ? (cat.nameAr || cat.name) : cat.name}</span>
+                  <span>{texte(cat, 'name', language) || cat.name}</span>
                 </Link>
               );
             })}
@@ -436,7 +444,7 @@ export default function ShopHeader() {
                                       setIsCategoriesOpen(false);
                                       window.location.href = `/shop/categorie/${cat.slug}`;
                                     }}
-                                    className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-left font-medium text-xs sm:text-sm transition-all duration-150 cursor-pointer ${
+                                    className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-start font-medium text-xs sm:text-sm transition-all duration-150 cursor-pointer ${
                                       isSelected
                                         ? "bg-white text-neutral-950 font-bold shadow-xs border-l-4 border-[#C8102E] rtl:border-l-0 rtl:border-r-4"
                                         : "text-neutral-700 hover:text-neutral-950 hover:bg-neutral-100/80 border-l-4 border-transparent rtl:border-l-0 rtl:border-r-4"
@@ -444,7 +452,7 @@ export default function ShopHeader() {
                                   >
                                     <div className="truncate pr-2">
                                       <span className="truncate">
-                                        {language === 'ar' ? (cat.nameAr || cat.name) : cat.name}
+                                        {texte(cat, 'name', language) || cat.name}
                                       </span>
                                     </div>
                                     <ChevronRight
@@ -471,7 +479,7 @@ export default function ShopHeader() {
                                   >
                                     <span>
                                       {language === 'ar'
-                                        ? `جميع ${activeCategory.nameAr || activeCategory.name}`
+                                        ? `جميع ${texte(activeCategory, 'name', language) || activeCategory.name}`
                                         : `Tout ${activeCategory.name}`}
                                     </span>
                                     <ChevronRight className="w-4 h-4 text-neutral-500 group-hover:text-[#C8102E] group-hover:translate-x-1 transition-all rtl:rotate-180" />
@@ -499,12 +507,14 @@ export default function ShopHeader() {
                                         {language === 'ar' ? 'الفئات الفرعية' : 'Sous-catégories'}
                                       </h4>
                                       <span className="text-[11px] text-neutral-400 font-medium">
-                                        {desktopSubcategories.length} {language === 'ar' ? 'أقسام' : 'rayons'}
+                                        {language === 'ar'
+                                          ? compteAr(desktopSubcategories.length, 'فئة واحدة', 'فئتان', 'فئات', 'فئة')
+                                          : `${desktopSubcategories.length} rayons`}
                                       </span>
                                     </div>
                                     <div className="grid grid-cols-4 sm:grid-cols-5 gap-3">
                                       {desktopSubcategories.map((sub) => {
-                                        const subName = language === 'ar' ? (sub.nameAr || sub.name) : sub.name;
+                                        const subName = texte(sub, 'name', language) || sub.name;
                                         const subImg = sub.image || activeCategory.image;
                                         return (
                                           <Link
@@ -543,12 +553,14 @@ export default function ShopHeader() {
                                           {language === 'ar' ? 'المنتجات المميزة' : 'Sélection de produits'}
                                         </h4>
                                         <span className="text-[11px] text-neutral-400 font-medium">
-                                          {desktopProducts.length} {language === 'ar' ? 'منتج' : 'produits'}
+                                          {language === 'ar'
+                                            ? compteAr(desktopProducts.length, 'منتج واحد', 'منتجان', 'منتجات', 'منتجاً')
+                                            : `${desktopProducts.length} produits`}
                                         </span>
                                       </div>
                                       <div className="grid grid-cols-3 sm:grid-cols-4 gap-4">
                                         {desktopProducts.map((p) => {
-                                          const pName = language === 'ar' ? (p.nameAr || p.name) : p.name;
+                                          const pName = nomProduit(p, language);
                                           const pImg = p.images?.[0] || activeCategory.image;
                                           return (
                                             <Link
@@ -573,7 +585,7 @@ export default function ShopHeader() {
                                                 )}
                                                 {p.isPromo && (
                                                   <span className="absolute top-1.5 left-1.5 bg-[#C8102E] text-white text-[8px] font-black px-1.5 py-0.5 rounded-md uppercase shadow-xs">
-                                                    PROMO
+                                                    {language === 'ar' ? 'تخفيض' : 'PROMO'}
                                                   </span>
                                                 )}
                                               </div>
@@ -605,12 +617,14 @@ export default function ShopHeader() {
                                       {language === 'ar' ? 'جميع المنتجات' : 'Tous les produits'}
                                     </h4>
                                     <span className="text-[11px] text-neutral-400 font-medium">
-                                      {desktopProducts.length} {language === 'ar' ? 'منتج' : 'produits'}
+                                      {language === 'ar'
+                                        ? compteAr(desktopProducts.length, 'منتج واحد', 'منتجان', 'منتجات', 'منتجاً')
+                                        : `${desktopProducts.length} produits`}
                                     </span>
                                   </div>
                                   <div className="grid grid-cols-3 sm:grid-cols-4 gap-4">
                                     {desktopProducts.map((p) => {
-                                      const pName = language === 'ar' ? (p.nameAr || p.name) : p.name;
+                                      const pName = nomProduit(p, language);
                                       const pImg = p.images?.[0] || activeCategory.image;
                                       return (
                                         <Link
@@ -635,7 +649,7 @@ export default function ShopHeader() {
                                             )}
                                             {p.isPromo && (
                                               <span className="absolute top-1.5 left-1.5 bg-[#C8102E] text-white text-[8px] font-black px-1.5 py-0.5 rounded-md uppercase shadow-xs">
-                                                PROMO
+                                                {language === 'ar' ? 'تخفيض' : 'PROMO'}
                                               </span>
                                             )}
                                           </div>
@@ -663,7 +677,7 @@ export default function ShopHeader() {
                                     <Layers className="w-8 h-8 text-neutral-400" />
                                   </div>
                                   <h4 className="text-base font-bold text-neutral-900 mb-1">
-                                    {language === 'ar' ? (activeCategory.nameAr || activeCategory.name) : activeCategory.name}
+                                    {texte(activeCategory, 'name', language) || activeCategory.name}
                                   </h4>
                                   <p className="text-xs text-neutral-500 max-w-sm mb-4">
                                     {language === 'ar' ? (activeCategory.descriptionAr || 'استكشف جميع منتجات هذا القسم') : (activeCategory.description || 'Découvrez tous les articles disponibles dans ce rayon')}
@@ -719,7 +733,7 @@ export default function ShopHeader() {
                     {isMoreOpen && (
                       <div
                         onMouseLeave={() => setIsMoreOpen(false)}
-                        className="absolute top-full right-0 mt-0 w-48 bg-white rounded-b-2xl shadow-[0_20px_60px_rgba(0,0,0,0.12)] border border-t-0 border-gray-100 p-2 z-50 flex flex-col gap-1"
+                        className="absolute top-full end-0 mt-0 w-48 bg-white rounded-b-2xl shadow-[0_20px_60px_rgba(0,0,0,0.12)] border border-t-0 border-gray-100 p-2 z-50 flex flex-col gap-1"
                       >
                         {MORE_LINKS.map(ml => (
                            <Link key={ml.labelKey} href={ml.href} onClick={() => setIsMoreOpen(false)} className="px-3 py-2 text-sm font-semibold text-gray-700 hover:text-[#C8102E] hover:bg-gray-50 rounded-lg transition-colors">
@@ -751,14 +765,14 @@ export default function ShopHeader() {
                  <button
                    onClick={() => setIsSearchOpen(true)}
                    className="p-2 text-gray-600 hover:text-[#C8102E] transition-colors cursor-pointer"
-                   aria-label="Rechercher"
+                   aria-label={language === 'ar' ? 'بحث' : 'Rechercher'}
                  >
                    <Search className="w-5 h-5" />
                  </button>
                  <button
                    onClick={openCart}
                    className="p-2 relative text-gray-600 hover:text-[#C8102E] transition-colors group cursor-pointer"
-                   aria-label={`Panier`}
+                   aria-label={language === 'ar' ? 'السلة' : 'Panier'}
                  >
                    <ShoppingCart className="w-5 h-5 transition-transform group-hover:scale-110" />
                    {itemCount > 0 && (
@@ -790,7 +804,7 @@ export default function ShopHeader() {
                 type="button"
                 onClick={() => setIsSearchOpen(false)}
                 className="p-1.5 rounded-lg text-neutral-400 hover:text-neutral-700 hover:bg-neutral-100 transition-colors cursor-pointer"
-                aria-label="Fermer la recherche"
+                aria-label={language === 'ar' ? 'إغلاق البحث' : 'Fermer la recherche'}
               >
                 <X className="w-5 h-5" />
               </button>
@@ -958,7 +972,7 @@ export default function ShopHeader() {
                 type="button"
                 onClick={() => setIsPlusMenuOpen(false)}
                 className="p-1.5 rounded-full text-neutral-400 hover:text-neutral-700 hover:bg-neutral-100 transition-colors cursor-pointer"
-                aria-label="Fermer"
+                aria-label={language === 'ar' ? 'إغلاق' : 'Fermer'}
               >
                 <X className="w-5 h-5" />
               </button>
@@ -1003,7 +1017,7 @@ export default function ShopHeader() {
                 </div>
                 <div>
                   <h4 className="text-xs font-bold text-neutral-900 group-hover:text-[#C8102E] transition-colors">
-                    {language === 'ar' ? 'عن المتجر' : 'À propos magasin'}
+                    {language === 'ar' ? 'من نحن' : 'À propos magasin'}
                   </h4>
                   <p className="text-[10px] text-neutral-500 mt-0.5 leading-tight">
                     {language === 'ar' ? 'تاريخنا ومحلاتنا بالدار البيضاء' : 'Notre mercerie & boutiques'}
@@ -1065,7 +1079,7 @@ export default function ShopHeader() {
               className="mt-4 flex items-center justify-center gap-2 w-full py-2.5 px-4 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-bold transition-colors shadow-xs"
             >
               <Phone className="w-4 h-4" />
-              <span>{language === 'ar' ? 'تواصل عبر واتساب (+212 760 998 347)' : 'Discuter sur WhatsApp (+212 760 998 347)'}</span>
+              <span>{language === 'ar' ? 'تواصل عبر واتساب' : 'Discuter sur WhatsApp'} (<bdi dir="ltr">+212 760 998 347</bdi>)</span>
             </a>
           </div>
         </div>
@@ -1082,14 +1096,14 @@ export default function ShopHeader() {
             <div className="flex items-center gap-2">
               <LayoutGrid className="w-5 h-5 text-[#C8102E]" />
               <h2 className="text-base font-bold text-neutral-900">
-                {language === 'ar' ? 'جميع الفئات والأقسام' : 'Toutes les catégories'}
+                {language === 'ar' ? 'جميع الفئات' : 'Toutes les catégories'}
               </h2>
             </div>
             <button
               type="button"
               onClick={() => setIsMobileCatExplorerOpen(false)}
               className="p-1.5 rounded-full text-neutral-500 hover:text-neutral-900 hover:bg-neutral-100 transition-colors cursor-pointer"
-              aria-label="Fermer"
+              aria-label={language === 'ar' ? 'إغلاق' : 'Fermer'}
             >
               <X className="w-5 h-5" />
             </button>
@@ -1103,7 +1117,7 @@ export default function ShopHeader() {
                 setIsMobileCatExplorerOpen(false);
                 setIsSearchOpen(true);
               }}
-              className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl bg-white border border-neutral-200 text-xs text-neutral-400 text-left shadow-2xs cursor-pointer"
+              className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl bg-white border border-neutral-200 text-xs text-neutral-400 text-start shadow-2xs cursor-pointer"
             >
               <Search className="w-4 h-4 text-neutral-400" />
               <span>{language === 'ar' ? 'ابحث عن منتج أو مقاس...' : 'Rechercher un produit, une taille...'}</span>
@@ -1128,7 +1142,7 @@ export default function ShopHeader() {
                     }`}
                   >
                     <span className="text-[11.5px] leading-snug line-clamp-2 px-1">
-                      {language === 'ar' ? (cat.nameAr || cat.name) : cat.name}
+                      {texte(cat, 'name', language) || cat.name}
                     </span>
                   </button>
                 );
@@ -1148,7 +1162,7 @@ export default function ShopHeader() {
                     >
                       <span>
                         {language === 'ar'
-                          ? `جميع ${mobileActiveCat.nameAr || mobileActiveCat.name}`
+                          ? `جميع ${texte(mobileActiveCat, 'name', language) || mobileActiveCat.name}`
                           : `Tout ${mobileActiveCat.name}`}
                       </span>
                       <ChevronRight className="w-4 h-4 text-[#C8102E] rtl:rotate-180" />
@@ -1170,7 +1184,7 @@ export default function ShopHeader() {
                       <div>
                         <div className="flex items-center justify-between mb-2">
                           <span className="text-[11px] font-black uppercase tracking-wider text-neutral-400">
-                            {language === 'ar' ? 'الأقسام الفرعية' : 'Sous-catégories'}
+                            {language === 'ar' ? 'الفئات الفرعية' : 'Sous-catégories'}
                           </span>
                           <span className="text-[10px] font-bold text-neutral-400 bg-neutral-100 px-1.5 py-0.5 rounded-full">
                             {mobileSubcategories.length}
@@ -1178,7 +1192,7 @@ export default function ShopHeader() {
                         </div>
                         <div className="grid grid-cols-3 gap-2">
                           {mobileSubcategories.map((sub) => {
-                            const subName = language === 'ar' ? (sub.nameAr || sub.name) : sub.name;
+                            const subName = texte(sub, 'name', language) || sub.name;
                             const subImg = sub.image || mobileActiveCat.image;
                             return (
                               <Link
@@ -1222,7 +1236,7 @@ export default function ShopHeader() {
                           </div>
                           <div className="grid grid-cols-2 gap-2.5">
                             {mobileProducts.map((p) => {
-                              const pName = language === 'ar' ? (p.nameAr || p.name) : p.name;
+                              const pName = nomProduit(p, language);
                               const pImg = p.images?.[0] || mobileActiveCat.image;
                               return (
                                 <Link
@@ -1247,7 +1261,7 @@ export default function ShopHeader() {
                                     )}
                                     {p.isPromo && (
                                       <span className="absolute top-1.5 left-1.5 bg-[#C8102E] text-white text-[8px] font-black px-1.5 py-0.5 rounded-md uppercase shadow-xs">
-                                        PROMO
+                                        {language === 'ar' ? 'تخفيض' : 'PROMO'}
                                       </span>
                                     )}
                                   </div>
@@ -1284,7 +1298,7 @@ export default function ShopHeader() {
                       </div>
                       <div className="grid grid-cols-2 gap-2.5">
                         {mobileProducts.map((p) => {
-                          const pName = language === 'ar' ? (p.nameAr || p.name) : p.name;
+                          const pName = nomProduit(p, language);
                           const pImg = p.images?.[0] || mobileActiveCat.image;
                           return (
                             <Link
@@ -1309,7 +1323,7 @@ export default function ShopHeader() {
                                 )}
                                 {p.isPromo && (
                                   <span className="absolute top-1.5 left-1.5 bg-[#C8102E] text-white text-[8px] font-black px-1.5 py-0.5 rounded-md uppercase shadow-xs">
-                                    PROMO
+                                    {language === 'ar' ? 'تخفيض' : 'PROMO'}
                                   </span>
                                 )}
                               </div>
@@ -1337,7 +1351,7 @@ export default function ShopHeader() {
                         <Layers className="w-7 h-7 text-neutral-400" />
                       </div>
                       <h4 className="text-sm font-bold text-neutral-900 mb-1">
-                        {language === 'ar' ? (mobileActiveCat.nameAr || mobileActiveCat.name) : mobileActiveCat.name}
+                        {texte(mobileActiveCat, 'name', language) || mobileActiveCat.name}
                       </h4>
                       <p className="text-[11px] text-neutral-500 mb-3 max-w-[200px]">
                         {language === 'ar' ? (mobileActiveCat.descriptionAr || 'استكشف منتجات هذا القسم') : (mobileActiveCat.description || 'Découvrez tous les articles de ce rayon')}

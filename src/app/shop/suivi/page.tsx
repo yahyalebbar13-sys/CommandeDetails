@@ -22,6 +22,10 @@ import { formatPrice } from '@/lib/shop-utils';
 import { moyenPaiementDe, prixUnitaireLigne, receptionDe, totalLigne, transportPrevu } from '@/lib/commandes-boutique';
 import { useReglagesReception } from '@/lib/use-reglages-reception';
 import type { ReglagesReception } from '@/lib/reglages-reception';
+import type { Language } from '@/lib/translations';
+import { useLanguage } from '@/contexts/language-context';
+import { useShopProducts } from '@/contexts/shop-products-context';
+import { paire, premierTexte } from '@/lib/shop-textes';
 import {
   Search,
   Package,
@@ -68,27 +72,58 @@ const RANG_STATUT: Partial<Record<OrderStatus, number>> = {
   delivered: 5,
 };
 
-function etapesSuivi(order: ShopOrder, reglages: ReglagesReception): EtapeSuivi[] {
+/** Libellés arabes des statuts (ORDER_STATUS_LABELS reste en français pour l'équipe). */
+const STATUT_AR: Record<OrderStatus, string> = {
+  pending: 'في الانتظار',
+  confirmed: 'مؤكَّد',
+  processing: 'قيد التحضير',
+  ready_for_pickup: 'جاهز للاستلام',
+  shipped: 'تم الشحن',
+  out_for_delivery: 'في الطريق إليك',
+  delivered: 'تم التوصيل',
+  cancelled: 'ملغى',
+  returned: 'مُرجَع',
+};
+
+function libelleStatut(status: OrderStatus, language: Language): string {
+  return (language === 'ar' ? STATUT_AR[status] : ORDER_STATUS_LABELS[status]) || status;
+}
+
+function etapesSuivi(order: ShopOrder, reglages: ReglagesReception, language: Language): EtapeSuivi[] {
   const r = receptionDe(order);
+  const ar = language === 'ar';
+  const nomLieu = reglages.lieux[r.lieu].nom;
+  const livree: EtapeSuivi = {
+    status: 'delivered',
+    label: ar ? 'تم التوصيل' : 'Livrée',
+    description: ar ? 'تم توصيل الطلب بنجاح' : 'Commande livrée avec succès',
+    icon: <CheckCircle2 className="w-5 h-5" />,
+  };
   const debut: EtapeSuivi[] = [
     {
       status: 'pending',
-      label: 'En attente',
-      description: r.mode === 'transport'
-        ? 'Commande reçue : nous vous appelons pour organiser le transport'
-        : 'Commande reçue, en attente de confirmation',
+      label: ar ? 'في الانتظار' : 'En attente',
+      description: ar
+        ? r.mode === 'transport'
+          ? 'تم استلام الطلب: سنتصل بك لتنظيم النقل'
+          : 'تم استلام الطلب، في انتظار التأكيد'
+        : r.mode === 'transport'
+          ? 'Commande reçue : nous vous appelons pour organiser le transport'
+          : 'Commande reçue, en attente de confirmation',
       icon: <Clock className="w-5 h-5" />,
     },
     {
       status: 'confirmed',
-      label: 'Confirmée',
-      description: r.mode === 'transport' ? 'Transport convenu avec vous au téléphone' : 'Commande confirmée par notre équipe',
+      label: ar ? 'مؤكَّد' : 'Confirmée',
+      description: ar
+        ? r.mode === 'transport' ? 'اتفقنا معك على النقل عبر الهاتف' : 'أكد فريقنا الطلب'
+        : r.mode === 'transport' ? 'Transport convenu avec vous au téléphone' : 'Commande confirmée par notre équipe',
       icon: <CheckCircle2 className="w-5 h-5" />,
     },
     {
       status: 'processing',
-      label: 'En préparation',
-      description: `Votre commande est en cours de préparation à ${reglages.lieux[r.lieu].nom}`,
+      label: ar ? 'قيد التحضير' : 'En préparation',
+      description: ar ? `يُحضَّر طلبك في ${nomLieu}` : `Votre commande est en cours de préparation à ${nomLieu}`,
       icon: <Package className="w-5 h-5" />,
     },
   ];
@@ -98,11 +133,18 @@ function etapesSuivi(order: ShopOrder, reglages: ReglagesReception): EtapeSuivi[
       ...debut,
       {
         status: 'ready_for_pickup',
-        label: 'Prête à retirer',
-        description: `Venez la retirer à ${reglages.lieux[r.lieu].nom} avec votre numéro de commande`,
+        label: ar ? 'جاهز للاستلام' : 'Prête à retirer',
+        description: ar
+          ? `يمكنك استلامه من ${nomLieu} بتقديم رقم طلبك`
+          : `Venez la retirer à ${nomLieu} avec votre numéro de commande`,
         icon: <Store className="w-5 h-5" />,
       },
-      { status: 'delivered', label: 'Retirée', description: 'Commande retirée au magasin', icon: <CheckCircle2 className="w-5 h-5" /> },
+      {
+        status: 'delivered',
+        label: ar ? 'تم الاستلام' : 'Retirée',
+        description: ar ? 'تم استلام الطلب من المحل' : 'Commande retirée au magasin',
+        icon: <CheckCircle2 className="w-5 h-5" />,
+      },
     ];
   }
 
@@ -114,28 +156,55 @@ function etapesSuivi(order: ShopOrder, reglages: ReglagesReception): EtapeSuivi[
       ...debut,
       {
         status: 'shipped',
-        label: 'Remise au transporteur',
-        description: 'En route vers son dépôt, dans votre ville : nous vous appelons à son arrivée, avec l’adresse du dépôt',
+        label: ar ? 'سُلِّم للناقل' : 'Remise au transporteur',
+        description: ar
+          ? 'في الطريق إلى مستودعه في مدينتك: نتصل بك عند وصوله ونعطيك عنوان المستودع'
+          : 'En route vers son dépôt, dans votre ville : nous vous appelons à son arrivée, avec l’adresse du dépôt',
         icon: <Truck className="w-5 h-5" />,
       },
-      { status: 'delivered', label: 'Récupérée', description: 'Marchandise récupérée au dépôt du transporteur', icon: <CheckCircle2 className="w-5 h-5" /> },
+      {
+        status: 'delivered',
+        label: ar ? 'تم الاستلام' : 'Récupérée',
+        description: ar ? 'تم استلام البضاعة من مستودع الناقل' : 'Marchandise récupérée au dépôt du transporteur',
+        icon: <CheckCircle2 className="w-5 h-5" />,
+      },
     ];
   }
 
   if (r.mode === 'transport') {
     return [
       ...debut,
-      { status: 'shipped', label: 'Chargée', description: 'Chargée dans notre camionnette', icon: <Truck className="w-5 h-5" /> },
-      { status: 'out_for_delivery', label: 'En livraison', description: 'Notre chauffeur est en route vers vous', icon: <MapPin className="w-5 h-5" /> },
-      { status: 'delivered', label: 'Livrée', description: 'Commande livrée avec succès', icon: <CheckCircle2 className="w-5 h-5" /> },
+      {
+        status: 'shipped',
+        label: ar ? 'تم التحميل' : 'Chargée',
+        description: ar ? 'تم تحميل طلبك في شاحنتنا' : 'Chargée dans notre camionnette',
+        icon: <Truck className="w-5 h-5" />,
+      },
+      {
+        status: 'out_for_delivery',
+        label: ar ? 'في الطريق إليك' : 'En livraison',
+        description: ar ? 'سائقنا في الطريق إليك' : 'Notre chauffeur est en route vers vous',
+        icon: <MapPin className="w-5 h-5" />,
+      },
+      livree,
     ];
   }
 
   return [
     ...debut,
-    { status: 'shipped', label: 'Expédiée', description: 'Colis remis à Sendit', icon: <Truck className="w-5 h-5" /> },
-    { status: 'out_for_delivery', label: 'En livraison', description: 'Le livreur est en route vers vous', icon: <MapPin className="w-5 h-5" /> },
-    { status: 'delivered', label: 'Livrée', description: 'Commande livrée avec succès', icon: <CheckCircle2 className="w-5 h-5" /> },
+    {
+      status: 'shipped',
+      label: ar ? 'تم الشحن' : 'Expédiée',
+      description: ar ? 'سُلِّم الطرد إلى Sendit' : 'Colis remis à Sendit',
+      icon: <Truck className="w-5 h-5" />,
+    },
+    {
+      status: 'out_for_delivery',
+      label: ar ? 'في الطريق إليك' : 'En livraison',
+      description: ar ? 'عامل التوصيل في الطريق إليك' : 'Le livreur est en route vers vous',
+      icon: <MapPin className="w-5 h-5" />,
+    },
+    livree,
   ];
 }
 
@@ -152,6 +221,8 @@ function getStepIndex(etapes: EtapeSuivi[], status: OrderStatus): number {
 
 // ─── Vertical Stepper ─────────────────────────────────────────────────────────
 function StatusStepper({ order, etapes }: { order: ShopOrder; etapes: EtapeSuivi[] }) {
+  const { language } = useLanguage();
+  const ar = language === 'ar';
   const currentIdx = getStepIndex(etapes, order.status);
   const isCancelled = order.status === 'cancelled' || order.status === 'returned';
 
@@ -161,12 +232,12 @@ function StatusStepper({ order, etapes }: { order: ShopOrder; etapes: EtapeSuivi
         <XCircle className="w-6 h-6 text-red-500 flex-shrink-0" />
         <div>
           <p className="font-semibold text-red-700">
-            {ORDER_STATUS_LABELS[order.status]}
+            {libelleStatut(order.status, language)}
           </p>
           <p className="text-sm text-red-600 mt-0.5">
             {order.status === 'cancelled'
-              ? 'Cette commande a été annulée.'
-              : 'Un retour a été initié pour cette commande.'}
+              ? ar ? 'تم إلغاء هذا الطلب.' : 'Cette commande a été annulée.'
+              : ar ? 'بدأت عملية إرجاع لهذا الطلب.' : 'Un retour a été initié pour cette commande.'}
           </p>
         </div>
       </div>
@@ -221,10 +292,10 @@ function StatusStepper({ order, etapes }: { order: ShopOrder; etapes: EtapeSuivi
                 {step.label}
                 {active && (
                   <span
-                    className="ml-2 text-xs px-2 py-0.5 rounded-full font-semibold"
+                    className="ms-2 text-xs px-2 py-0.5 rounded-full font-semibold"
                     style={{ background: `${color}18`, color }}
                   >
-                    En cours
+                    {ar ? 'قيد التنفيذ' : 'En cours'}
                   </span>
                 )}
               </p>
@@ -242,15 +313,18 @@ function StatusStepper({ order, etapes }: { order: ShopOrder; etapes: EtapeSuivi
 // ─── Order Card (compact, expandable) ──────────────────────────────────────────
 function OrderCard({ order, reglages }: { order: ShopOrder; reglages: ReglagesReception }) {
   const [expanded, setExpanded] = useState(false);
-  const etapes = etapesSuivi(order, reglages);
+  const { language } = useLanguage();
+  const { getProductById } = useShopProducts();
+  const ar = language === 'ar';
+  const etapes = etapesSuivi(order, reglages, language);
   const reception = receptionDe(order);
   const transport = transportPrevu(order);
   const lieu = reglages.lieux[reception.lieu];
   const statusColor = ORDER_STATUS_COLORS[order.status] || '#6B7280';
   // « Retirée » plutôt que « Livré » pour un retrait : le libellé de l'étape du parcours.
-  const statusLabel = etapes.find((e) => e.status === order.status)?.label || ORDER_STATUS_LABELS[order.status] || order.status;
+  const statusLabel = etapes.find((e) => e.status === order.status)?.label || libelleStatut(order.status, language);
   const date = order.createdAt?.toDate
-    ? order.createdAt.toDate().toLocaleDateString('fr-MA', {
+    ? order.createdAt.toDate().toLocaleDateString(ar ? 'ar-MA' : 'fr-MA', {
         day: '2-digit',
         month: 'long',
         year: 'numeric',
@@ -270,14 +344,17 @@ function OrderCard({ order, reglages }: { order: ShopOrder; reglages: ReglagesRe
   }
   if (order.total) whatsappMsg += `\n💰 Total : ${formatPrice(order.total)}\n`;
   whatsappMsg += `\nMerci !`;
+  // Le message reste en français : il est lu par l'équipe.
   const whatsappText = encodeURIComponent(whatsappMsg);
+  const nomArticle = (item: ShopOrder['items'][number]) =>
+    premierTexte(language, paire(item, 'productName'), paire(getProductById(item.productId), 'name'));
 
   return (
     <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden transition-all">
       {/* Header — always visible */}
       <button
         onClick={() => setExpanded(!expanded)}
-        className="w-full flex items-center gap-4 p-5 text-left hover:bg-gray-50/50 transition-colors"
+        className="w-full flex items-center gap-4 p-5 text-start hover:bg-gray-50/50 transition-colors"
       >
         {/* Status icon */}
         <div
@@ -289,7 +366,7 @@ function OrderCard({ order, reglages }: { order: ShopOrder; reglages: ReglagesRe
         {/* Info */}
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-0.5">
-            <p className="font-bold text-[#0F0F0F] font-mono text-sm">{order.orderNumber}</p>
+            <p dir="ltr" className="font-bold text-[#0F0F0F] font-mono text-sm">{order.orderNumber}</p>
             <span
               className="text-xs px-2 py-0.5 rounded-full font-semibold"
               style={{ background: `${statusColor}15`, color: statusColor }}
@@ -298,7 +375,8 @@ function OrderCard({ order, reglages }: { order: ShopOrder; reglages: ReglagesRe
             </span>
           </div>
           <p className="text-xs text-gray-500">
-            {date} · {itemCount} article{itemCount > 1 ? 's' : ''} · <span className="font-semibold text-[#C8102E]">{formatPrice(order.total)}</span>
+            {date} · {ar ? `عدد القطع: ${itemCount}` : `${itemCount} article${itemCount > 1 ? 's' : ''}`} ·{' '}
+            <bdi dir="ltr" className="font-semibold text-[#C8102E]">{formatPrice(order.total)}</bdi>
           </p>
         </div>
         <ChevronDown className={`w-5 h-5 text-gray-400 transition-transform ${expanded ? 'rotate-180' : ''}`} />
@@ -312,24 +390,26 @@ function OrderCard({ order, reglages }: { order: ShopOrder; reglages: ReglagesRe
 
           {/* Items */}
           <div>
-            <h4 className="text-xs font-bold text-gray-400 uppercase tracking-wide mb-3">Articles</h4>
+            <h4 className="text-xs font-bold text-gray-400 uppercase tracking-wide mb-3">{ar ? 'المنتجات' : 'Articles'}</h4>
             <div className="space-y-2">
               {order.items?.map((item, idx) => (
                 <div key={idx} className="flex items-center gap-3">
                   {item.productImage ? (
-                    <img src={item.productImage} alt={item.productName} loading="lazy" decoding="async" className="w-10 h-10 rounded-lg object-cover border border-gray-100" />
+                    <img src={item.productImage} alt={nomArticle(item)} loading="lazy" decoding="async" className="w-10 h-10 rounded-lg object-cover border border-gray-100" />
                   ) : (
                     <div className="w-10 h-10 rounded-lg bg-gray-100 flex items-center justify-center">
                       <ShoppingBag className="w-4 h-4 text-gray-300" />
                     </div>
                   )}
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-semibold text-[#0F0F0F] truncate">{item.productName}</p>
-                    <p className="text-xs text-gray-400">Qté: {item.quantity}</p>
+                    <p className="text-sm font-semibold text-[#0F0F0F] truncate">{nomArticle(item)}</p>
+                    <p className="text-xs text-gray-400">{ar ? 'الكمية: ' : 'Qté: '}{item.quantity}</p>
                   </div>
                   {/* Le prix réellement facturé (prix de gros compris), comme sur la page de confirmation. */}
                   <p className="font-bold text-sm text-[#0F0F0F] shrink-0">
-                    {prixUnitaireLigne(item) > 0 ? formatPrice(totalLigne(item)) : <span className="text-xs text-gray-500 font-semibold">Prix à confirmer</span>}
+                    {prixUnitaireLigne(item) > 0
+                      ? formatPrice(totalLigne(item))
+                      : <span className="text-xs text-gray-500 font-semibold">{ar ? 'السعر قيد التأكيد' : 'Prix à confirmer'}</span>}
                   </p>
                 </div>
               ))}
@@ -341,7 +421,7 @@ function OrderCard({ order, reglages }: { order: ShopOrder; reglages: ReglagesRe
             <div className="flex items-start gap-3 p-3 rounded-xl bg-gray-50">
               <Store className="w-4 h-4 text-[#C8102E] flex-shrink-0 mt-0.5" />
               <div className="text-sm text-gray-600">
-                <p className="font-semibold text-[#0F0F0F]">Retrait à {lieu.nom}</p>
+                <p className="font-semibold text-[#0F0F0F]">{ar ? `الاستلام من ${lieu.nom}` : `Retrait à ${lieu.nom}`}</p>
                 <p>{lieu.adresse}</p>
                 <p>{lieu.horaires}</p>
               </div>
@@ -352,11 +432,15 @@ function OrderCard({ order, reglages }: { order: ShopOrder; reglages: ReglagesRe
               <div className="text-sm text-gray-600">
                 <p className="font-semibold text-[#0F0F0F]">{order.shippingAddress.fullName}</p>
                 {reception.mode === 'transport' && transport === 'transporteur' ? (
-                  <p>Jusqu&apos;au dépôt du transporteur{order.shippingAddress.city ? ` à ${order.shippingAddress.city}` : ''}</p>
+                  <p>
+                    {ar
+                      ? `إلى مستودع الناقل${order.shippingAddress.city ? ` في ${order.shippingAddress.city}` : ''}`
+                      : `Jusqu'au dépôt du transporteur${order.shippingAddress.city ? ` à ${order.shippingAddress.city}` : ''}`}
+                  </p>
                 ) : (
                   <p>{[order.shippingAddress.address, order.shippingAddress.city].filter(Boolean).join(', ')}</p>
                 )}
-                <p className="text-[#C8102E] font-medium">📞 {order.shippingAddress.phone}</p>
+                <p className="text-[#C8102E] font-medium">📞 <bdi dir="ltr">{order.shippingAddress.phone}</bdi></p>
               </div>
             </div>
           )}
@@ -368,9 +452,10 @@ function OrderCard({ order, reglages }: { order: ShopOrder; reglages: ReglagesRe
               className="flex min-h-[44px] items-center justify-between w-full p-4 rounded-xl bg-[#FBF8F3] border border-[#E8E4DF] hover:border-[#C8102E] transition-colors"
             >
               <span className="flex items-center gap-2 text-sm font-semibold text-[#1A1A1A]">
-                <Landmark className="w-4 h-4 text-[#C8102E]" /> Voir le RIB et payer par virement
+                <Landmark className="w-4 h-4 text-[#C8102E]" />
+                {ar ? 'عرض رقم الحساب البنكي والدفع بالتحويل' : 'Voir le RIB et payer par virement'}
               </span>
-              <ChevronRight className="w-4 h-4 text-[#C8102E]" />
+              <ChevronRight className="w-4 h-4 text-[#C8102E] rtl:rotate-180" />
             </Link>
           )}
 
@@ -383,9 +468,9 @@ function OrderCard({ order, reglages }: { order: ShopOrder; reglages: ReglagesRe
           >
             <div className="flex items-center gap-2">
               <MessageCircle className="w-4 h-4 text-green-600" />
-              <span className="text-sm font-semibold text-green-700">Contacter LEBTEX sur WhatsApp</span>
+              <span className="text-sm font-semibold text-green-700">{ar ? 'تواصل مع LEBTEX عبر واتساب' : 'Contacter LEBTEX sur WhatsApp'}</span>
             </div>
-            <ChevronRight className="w-4 h-4 text-green-600" />
+            <ChevronRight className="w-4 h-4 text-green-600 rtl:rotate-180" />
           </a>
         </div>
       )}
@@ -396,6 +481,8 @@ function OrderCard({ order, reglages }: { order: ShopOrder; reglages: ReglagesRe
 // ─── Main Page ──────────────────────────────────────────────────────────────────
 export default function SuiviPage() {
   const { reglages } = useReglagesReception();
+  const { language } = useLanguage();
+  const ar = language === 'ar';
   const [orders, setOrders] = useState<ShopOrder[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchPhone, setSearchPhone] = useState('');
@@ -475,7 +562,7 @@ export default function SuiviPage() {
       <div className="min-h-screen flex items-center justify-center bg-[#FBF8F3]">
         <div className="text-center">
           <Loader2 className="w-10 h-10 text-[#C8102E] animate-spin mx-auto mb-4" />
-          <p className="text-sm text-gray-500">Chargement de vos commandes...</p>
+          <p className="text-sm text-gray-500">{ar ? 'جاري تحميل طلباتك...' : 'Chargement de vos commandes...'}</p>
         </div>
       </div>
     );
@@ -488,11 +575,13 @@ export default function SuiviPage() {
         <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-[#C8102E] mb-4 shadow-lg shadow-[#C8102E]/25">
           <Truck className="w-8 h-8 text-white" />
         </div>
-        <h1 className="text-3xl font-bold text-[#0F0F0F]">Suivi de commande</h1>
+        <h1 className="text-3xl font-bold text-[#0F0F0F]">{ar ? 'تتبع الطلب' : 'Suivi de commande'}</h1>
         <p className="text-gray-500 mt-2 text-sm">
           {orders.length > 0
-            ? `${orders.length} commande${orders.length > 1 ? 's' : ''} trouvée${orders.length > 1 ? 's' : ''}`
-            : 'Retrouvez vos commandes avec votre numéro de téléphone'}
+            ? ar
+              ? `عدد الطلبات: ${orders.length}`
+              : `${orders.length} commande${orders.length > 1 ? 's' : ''} trouvée${orders.length > 1 ? 's' : ''}`
+            : ar ? 'اعثر على طلباتك برقم هاتفك' : 'Retrouvez vos commandes avec votre numéro de téléphone'}
         </p>
       </div>
 
@@ -510,7 +599,7 @@ export default function SuiviPage() {
               className="flex items-center gap-2 text-sm text-gray-400 hover:text-[#C8102E] transition-colors"
             >
               <RefreshCw className="w-3.5 h-3.5" />
-              Changer de numéro
+              {ar ? 'تغيير الرقم' : 'Changer de numéro'}
             </button>
           </div>
         </div>
@@ -523,9 +612,10 @@ export default function SuiviPage() {
           >
             <div>
               <label htmlFor="phone-input" className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
-                Votre numéro de téléphone *
+                {ar ? 'رقم هاتفك *' : 'Votre numéro de téléphone *'}
               </label>
-              <div className="flex items-center gap-2 px-4 py-3 rounded-xl border border-gray-200 bg-white focus-within:border-[#C8102E] focus-within:ring-2 focus-within:ring-[#C8102E]/10 transition-all">
+              {/* Un numéro s'écrit de gauche à droite, même sur le site en arabe. */}
+              <div dir="ltr" className="flex items-center gap-2 px-4 py-3 rounded-xl border border-gray-200 bg-white focus-within:border-[#C8102E] focus-within:ring-2 focus-within:ring-[#C8102E]/10 transition-all">
                 <span className="text-sm">🇲🇦</span>
                 <Phone className="w-4 h-4 text-gray-400 flex-shrink-0" />
                 <input
@@ -539,7 +629,7 @@ export default function SuiviPage() {
                 />
               </div>
               <p className="text-xs text-gray-400 mt-1.5">
-                Le numéro utilisé lors de votre commande
+                {ar ? 'الرقم الذي استعملته عند الطلب' : 'Le numéro utilisé lors de votre commande'}
               </p>
             </div>
 
@@ -551,12 +641,12 @@ export default function SuiviPage() {
               {loading ? (
                 <>
                   <Loader2 className="w-4 h-4 animate-spin" />
-                  Recherche…
+                  {ar ? 'جاري البحث…' : 'Recherche…'}
                 </>
               ) : (
                 <>
                   <Search className="w-4 h-4" />
-                  Afficher mes commandes
+                  {ar ? 'عرض طلباتي' : 'Afficher mes commandes'}
                 </>
               )}
             </button>
@@ -569,9 +659,9 @@ export default function SuiviPage() {
                 <AlertCircle className="w-5 h-5 text-red-500" />
               </div>
               <div>
-                <p className="font-semibold text-[#0F0F0F]">Aucune commande trouvée</p>
+                <p className="font-semibold text-[#0F0F0F]">{ar ? 'لم نجد أي طلب' : 'Aucune commande trouvée'}</p>
                 <p className="text-sm text-gray-500 mt-1">
-                  Vérifiez le numéro de téléphone utilisé lors de votre commande.
+                  {ar ? 'تحقق من رقم الهاتف الذي استعملته عند الطلب.' : 'Vérifiez le numéro de téléphone utilisé lors de votre commande.'}
                 </p>
                 <a
                   href="https://wa.me/212760998347"
@@ -580,7 +670,7 @@ export default function SuiviPage() {
                   className="inline-flex items-center gap-1.5 text-sm text-green-600 font-medium mt-3 hover:underline"
                 >
                   <MessageCircle className="w-4 h-4" />
-                  Contactez-nous sur WhatsApp
+                  {ar ? 'تواصل معنا عبر واتساب' : 'Contactez-nous sur WhatsApp'}
                 </a>
               </div>
             </div>
@@ -591,10 +681,11 @@ export default function SuiviPage() {
             <div className="flex items-start gap-3 p-4 rounded-2xl bg-[#D4A843]/10 border border-[#D4A843]/20 mt-2">
               <div className="text-[#D4A843] text-lg flex-shrink-0">💡</div>
               <div className="text-sm text-gray-600">
-                <p className="font-semibold text-[#0F0F0F]">Comment ça marche ?</p>
+                <p className="font-semibold text-[#0F0F0F]">{ar ? 'كيف يعمل التتبع؟' : 'Comment ça marche ?'}</p>
                 <p className="mt-1">
-                  Entrez le numéro de téléphone que vous avez utilisé lors de votre commande. 
-                  Toutes vos commandes seront affichées automatiquement avec leur statut en temps réel.
+                  {ar
+                    ? 'أدخل رقم الهاتف الذي استعملته عند الطلب. ستظهر كل طلباتك تلقائياً مع حالتها المحدَّثة.'
+                    : 'Entrez le numéro de téléphone que vous avez utilisé lors de votre commande. Toutes vos commandes seront affichées automatiquement avec leur statut en temps réel.'}
                 </p>
               </div>
             </div>
