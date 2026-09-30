@@ -11,6 +11,7 @@ import { getStorage, ref as storageRef, uploadBytesResumable, getDownloadURL } f
 import { getApp } from 'firebase/app';
 import { useToast } from '@/hooks/use-toast';
 import { GeneralCategory, Category } from '@/lib/types';
+import { echelleDeLArticle, niveauEnGros } from '@/lib/conditionnement';
 import {
   QUALITY_SCHEMA, QUALITIES_FIELD_BY_SPEC, SPEC_BADGES, detectSpecType,
   groupeDuChamp, LIBELLE_GROUPE, type QualityFieldGroup,
@@ -378,6 +379,13 @@ export default function QualitiesManagerView({ generalCategories = [], subCatego
                                     </tr>
                                   ) : rows.map((row, idx) => {
                                     const cellKey = `${fam.id}:${idx}`;
+                                    // Ce que le logiciel a compris de cette ligne : LE colis qu'on
+                                    // porte. Un « rlx/sac » à 1 doit basculer en rouleau, pas en
+                                    // sac — autant le voir tout de suite, ici, plutôt que sur un
+                                    // document de réception une semaine plus tard.
+                                    const enGros = niveauEnGros(
+                                      echelleDeLArticle({ ...row, categoryId: fam.id }, [{ ...fam, specType: activeSpecType }] as any, [], row).niveaux,
+                                    );
                                     return (
                                       <tr key={idx} className="border-t border-stone-50 hover:bg-stone-50/30">
                                         <td className="p-2">
@@ -388,11 +396,19 @@ export default function QualitiesManagerView({ generalCategories = [], subCatego
                                           />
                                         </td>
                                         <td className="p-2">
-                                          <Input
-                                            value={row.nameFR ?? ''}
-                                            onChange={e => handleFieldChange(fam, idx, 'nameFR', e.target.value, true)}
-                                            className="h-8 text-[10px] font-bold uppercase rounded-lg border-amber-200 bg-amber-50/30"
-                                          />
+                                          <div className="space-y-1">
+                                            <Input
+                                              value={row.nameFR ?? ''}
+                                              onChange={e => handleFieldChange(fam, idx, 'nameFR', e.target.value, true)}
+                                              className="h-8 text-[10px] font-bold uppercase rounded-lg border-amber-200 bg-amber-50/30"
+                                            />
+                                            <p className="text-[8px] font-black uppercase tracking-widest text-stone-400 pl-0.5"
+                                               title="Le colis qu'on porte, qu'on compte et qu'on charge — déduit de ce qui est saisi à droite.">
+                                              En gros : <span className={enGros ? 'text-emerald-700' : 'text-stone-300'}>
+                                                {enGros ? enGros.colis.nom : 'à compléter'}
+                                              </span>
+                                            </p>
+                                          </div>
                                         </td>
                                         {schemaFields.map(f => (
                                           <td key={f.key} className="p-2">

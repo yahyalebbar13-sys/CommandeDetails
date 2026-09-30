@@ -144,7 +144,7 @@ const movements = [
   check('le classement ABC est imprimé', d.texte.includes('ABC'));
   check('il dit où poser les références les plus manipulées',
     /sortie/i.test(d.texte) && /fond|hauteur/i.test(d.texte));
-  check('le contrôle se fait en cartons', /Cartons compt/i.test(d.texte), '');
+  check('le contrôle se fait sur le colis qu’on porte', /Colis compt/i.test(d.texte), '');
   check('le total des cartons est annoncé', /CONTR.LE . LA R.CEPTION/i.test(d.texte));
 
   console.log('\n── Ce qu’il ne doit jamais faire ──');
@@ -224,7 +224,7 @@ const movements = [
     const w = lire();
     // La feuille de contrôle doit annoncer les cartons des 48 000 pcs annoncées, pas ceux de la
     // moitié saisie : sinon tout ce qui arrive en plus est compté comme un écart.
-    const controle = w.texte.slice(w.texte.indexOf('Cartons annoncés'));
+    const controle = w.texte.slice(w.texte.indexOf('Colis annoncés'));
     check('la feuille de contrôle annonce 240 cartons, pas 120',
       controle.includes('240') && !controle.includes('120'), controle.slice(0, 300));
     check('et le document dit que la ventilation est a revoir',

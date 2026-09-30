@@ -8,12 +8,12 @@
  *
  * Le principe : chaque type de produit a une ÉCHELLE de colis, du plus petit au plus grand.
  *
- *   tissu        mètres → rouleau → sac → carton → grand carton
- *   fermeture    pièces → sac → carton → grand carton
- *   fil          pièces → sac → carton → grand carton
- *   curseur      pièces → sac → carton → grand carton
+ *   tissu        mètres → rouleau → sac  (le tissu ne part pas en cartons)
+ *   fermeture    pièces → sac → carton
+ *   fil          pièces → sac → carton
+ *   curseur      pièces → sac → carton
  *   ruban        mètres → rouleau → shrink, et le carton se compte en ROULEAUX (pas en shrinks)
- *   accessoire   pièces → boîte → carton → grand carton
+ *   accessoire   pièces → boîte → carton
  *
  * Chaque échelon vient d'un champ de `QUALITY_SCHEMA`. Un champ vide arrête la chaîne : on
  * n'invente pas un chiffre, on dit lequel manque et où le saisir.
@@ -41,7 +41,6 @@ export const COLIS: Record<string, TypeDeColis> = {
   shrink:  { cle: 'shrink',  nom: 'shrink',       pluriel: 'shrinks',        abrege: 'shrk' },
   boite:   { cle: 'boite',   nom: 'boîte',        pluriel: 'boîtes',         abrege: 'btes' },
   carton:  { cle: 'carton',  nom: 'carton',       pluriel: 'cartons',        abrege: 'ctn' },
-  master:  { cle: 'master',  nom: 'grand carton', pluriel: 'grands cartons', abrege: 'gd ctn' },
 };
 
 /** Un échelon de l'échelle : ce qu'il compte, et d'où vient son chiffre. */
@@ -92,26 +91,23 @@ export interface Echelle {
 
 /** Les échelles des six types, décrites une seule fois. */
 const ECHELLES: Record<string, { colis: string; base: string; champ: string; optionnel?: true }[]> = {
+  // Le tissu se compte en SACS quand plusieurs rouleaux y sont reunis, et en ROULEAUX sinon.
+  // Il ne part pas en cartons : c'est la mercerie qui part en cartons.
   fabric: [
     { colis: 'rouleau', base: '',        champ: 'rollLength' },
     { colis: 'sac',     base: 'rouleau', champ: 'packagingPerBag' },
-    { colis: 'carton',  base: 'sac',     champ: 'bagsPerCarton' },
-    { colis: 'master',  base: 'carton',  champ: 'cartonsPerMaster', optionnel: true },
   ],
   zipper: [
     { colis: 'sac',    base: '',       champ: 'pcsPerBag' },
     { colis: 'carton', base: 'sac',    champ: 'bagsPerCarton' },
-    { colis: 'master', base: 'carton', champ: 'cartonsPerMaster', optionnel: true },
   ],
   thread: [
     { colis: 'sac',    base: '',       champ: 'pcsPerBag' },
     { colis: 'carton', base: 'sac',    champ: 'bagsPerCarton' },
-    { colis: 'master', base: 'carton', champ: 'cartonsPerMaster', optionnel: true },
   ],
   slider: [
     { colis: 'sac',    base: '',       champ: 'pcsPerBag' },
     { colis: 'carton', base: 'sac',    champ: 'bagsPerCarton' },
-    { colis: 'master', base: 'carton', champ: 'cartonsPerMaster', optionnel: true },
   ],
   tape: [
     { colis: 'rouleau', base: '',        champ: 'rollLength' },
@@ -119,12 +115,10 @@ const ECHELLES: Record<string, { colis: string; base: string; champ: string; opt
     // Le carton de ruban se compte en rouleaux, pas en shrinks : c'est ainsi que le champ est
     // saisi (« Rouleaux/carton »), et l'inverser ferait un facteur dix sur le nombre de cartons.
     { colis: 'carton',  base: 'rouleau', champ: 'rollsPerCarton' },
-    { colis: 'master',  base: 'carton',  champ: 'cartonsPerMaster', optionnel: true },
   ],
   accessory: [
     { colis: 'boite',  base: '',       champ: 'pcsPerBox' },
     { colis: 'carton', base: 'boite',  champ: 'boxPerCarton' },
-    { colis: 'master', base: 'carton', champ: 'cartonsPerMaster', optionnel: true },
   ],
 };
 
@@ -330,22 +324,49 @@ export function echelleDeLArticle(
 
   return {
     type, unite, niveaux, enPieces, depart: rangDepart >= 0 ? depart : undefined,
-    empilage: empilageDeLArticle(article, ligneQualite, type, niveaux, rangDepart >= 0 ? depart : undefined, catalogue),
+    empilage: empilageDeLArticle(article, ligneQualite, niveaux, rangDepart >= 0 ? depart : undefined, catalogue),
   };
 }
 
+/**
+ * LE conditionnement en gros : ce qu'on porte, ce qu'on compte, ce qu'on charge.
+ *
+ * Chaque catégorie n'en a qu'un. La mercerie part au CARTON — le sachet qui est dedans n'est pas
+ * une unité de manutention, c'est l'intérieur du carton. Le tissu part au SAC quand plusieurs
+ * rouleaux y sont réunis, et au ROULEAU quand il n'y en a qu'un.
+ *
+ * Rien de tout cela ne se saisit : la règle le déduit de ce qui est déjà rempli dans la qualité.
+ * **Le conditionnement en gros est le plus grand niveau réellement rempli, et un niveau dont le
+ * facteur vaut 1 n'est pas un niveau** — « un rouleau par sac », c'est un rouleau, pas un sac.
+ *
+ * La seule exception est la conversion de base (mètres → rouleau) : un rouleau reste un rouleau
+ * même s'il ne fait qu'un mètre.
+ */
+export function niveauEnGros(niveaux: NiveauColis[]): NiveauColis | null {
+  for (let i = niveaux.length - 1; i >= 0; i--) {
+    const n = niveaux[i];
+    if (!n.parUnite) continue;
+    if (n.base !== '' && n.parUnite <= 1) continue;   // « 1 rouleau par sac » : pas de sac
+    return n;
+  }
+  return null;
+}
+
+/**
+ * L'empilage en barrette. On empile TOUJOURS le conditionnement en gros : il n'y a rien à
+ * choisir, seulement à dire combien de colis par rangée et combien de rangées.
+ */
 function empilageDeLArticle(
-  article: any, ligneQualite: any, type: string | undefined, niveaux: NiveauColis[], depart?: string, catalogue?: any,
+  article: any, ligneQualite: any, niveaux: NiveauColis[], depart?: string, catalogue?: any,
 ): Empilage | null {
   const parRangee = nombreSaisi(valeur(article, ligneQualite, 'stackPerRow', catalogue));
   const rangees = nombreSaisi(valeur(article, ligneQualite, 'stackRows', catalogue));
   if (!parRangee || !rangees) return null;
 
-  const demande = sansAccent(valeur(article, ligneQualite, 'stackLevel', catalogue));
-  const propose = (type ? QUALITY_SCHEMA[type] : undefined)?.find(f => f.key === 'stackLevel')?.options?.[0];
-  const cle = UNITES_COLIS[demande] || UNITES_COLIS[sansAccent(propose)] || 'carton';
-  // Un empilage qui désigne un colis absent de l'échelle du produit ne veut rien dire.
-  if (cle !== depart && !niveaux.some(n => n.colis.cle === cle)) return null;
+  // Rien à empiler quand la chaîne ne produit aucun colis — sauf si l'article s'achète déjà
+  // dans un colis (« 240 cartons »), qui est alors le conditionnement en gros.
+  const cle = niveauEnGros(niveaux)?.colis.cle || depart;
+  if (!cle) return null;
 
   return { niveau: cle, parRangee, rangees, parBarrette: parRangee * rangees };
 }
@@ -384,6 +405,11 @@ export interface Colisage {
   unite: string;
   /** Un comptage par échelon calculable, du plus petit au plus grand. */
   comptages: ComptageColis[];
+  /**
+   * LE colis qu'on compte : le carton pour la mercerie, le sac ou le rouleau pour le tissu.
+   * C'est ce chiffre-là qui s'annonce sur un document et qui se pointe à la réception.
+   */
+  enGros: ComptageColis | null;
   /** Le comptage en cartons, quand la chaîne va jusque-là. */
   cartons: ComptageColis | null;
   barrettes: Barrettes | null;
@@ -429,10 +455,15 @@ export function colisage(quantite: number, echelle: Echelle): Colisage {
   }
 
   const cartons = comptages.find(c => c.colis.cle === 'carton') || null;
-  // Ce que le document réclame, c'est ce qui empêche de compter les CARTONS — la seule chose
-  // qu'on compte vraiment à la réception. Dès qu'ils se comptent, il n'y a plus rien à réclamer :
-  // un article dont le « pcs/carton » est saisi n'a que faire d'un détail des sacs.
-  if (cartons) manquants.length = 0;
+
+  // Le colis en gros : celui qu'on porte. Un article acheté au carton le porte dans son unité.
+  const cleEnGros = niveauEnGros(echelle.niveaux)?.colis.cle || echelle.depart;
+  const enGros = (cleEnGros ? comptages.find(c => c.colis.cle === cleEnGros) : null) || null;
+
+  // Ce que le document réclame, c'est ce qui empêche de compter LE COLIS EN GROS — la seule
+  // chose qu'on compte vraiment à la réception. Dès qu'il se compte, il n'y a plus rien à
+  // réclamer : le détail du sachet à l'intérieur du carton n'intéresse personne au déchargement.
+  if (enGros) manquants.length = 0;
 
   let barrettes: Barrettes | null = null;
   const emp = echelle.empilage;
@@ -450,7 +481,7 @@ export function colisage(quantite: number, echelle: Echelle): Colisage {
     }
   }
 
-  return { echelle, quantite: q, unite: echelle.unite, comptages, cartons, barrettes, manquants };
+  return { echelle, quantite: q, unite: echelle.unite, comptages, enGros, cartons, barrettes, manquants };
 }
 
 /** 240,0000001 carton est un carton rond : la virgule vient de la division, pas du camion. */
@@ -472,7 +503,9 @@ export interface ColisageArticle {
    * que porteront à la fois la ligne du tableau et la feuille de contrôle.
    */
   comptages: ComptageColis[];
-  /** Les cartons à compter à la réception. `null` s'ils ne se comptent pas. */
+  /** Le colis en gros de cette référence — carton, sac ou rouleau — pour le nommer sur le papier. */
+  colisEnGros: TypeDeColis | null;
+  /** Les colis en gros à compter à la réception. `null` s'ils ne se comptent pas. */
   cartons: number | null;
   /** Les barrettes complètes, toutes lignes confondues. */
   barrettes: number | null;
@@ -517,13 +550,15 @@ export function colisageArticle(
 
   const source = coherente ? parQualite.map(x => x.colisage) : [global];
   const comptages = cumulerComptages(source);
-  const carton = comptages.find(c => c.colis.cle === 'carton');
+  // Toutes les lignes d'une même référence partagent son échelle : leur colis en gros est le même.
+  const colisEnGros = source.find(c => c.enGros)?.enGros?.colis || null;
+  const carton = colisEnGros ? comptages.find(c => c.colis.cle === colisEnGros.cle) : undefined;
   const avecBarrettes = source.filter(c => c.barrettes);
   const barrettes = avecBarrettes.length === source.length && source.length > 0
     ? avecBarrettes.reduce((s, c) => s + (c.barrettes?.entieres || 0), 0) : null;
 
   return {
-    global, parQualite, comptages,
+    global, parQualite, comptages, colisEnGros,
     cartons: carton ? carton.aCompter : null,
     barrettes,
     manque: carton ? '' : (source.map(manqueTexte).find(Boolean) || ''),
@@ -617,6 +652,21 @@ export function colisageTexte(c: Colisage, court = false, barrettes = true): str
  * nombres de cartons différents sur la même page — celui de sa quantité totale en haut, celui
  * de ses qualités additionnées en bas — et le magasinier ne savait plus lequel compter.
  */
+/**
+ * LE colis en gros d'une référence, en toutes lettres : « 240 cartons », « 120 rouleaux ».
+ *
+ * C'est le seul chiffre qui compte au déchargement — ce qu'on porte, ce qu'on pointe. La cascade
+ * complète mettait le sachet et le carton sur le même plan, alors que le sachet est l'intérieur
+ * du carton : personne ne décharge des sachets.
+ */
+export function colisEnGrosTexte(ca: ColisageArticle, court = true): string {
+  if (!ca.colisEnGros || ca.cartons == null) return '';
+  const n = ca.cartons;
+  const nom = court ? ca.colisEnGros.abrege : (n > 1 ? ca.colisEnGros.pluriel : ca.colisEnGros.nom);
+  const bout = `${nf(n, 0)} ${nom}`;
+  return ca.barrettes ? `${bout} · ${nf(ca.barrettes, 0)} barrette${ca.barrettes > 1 ? 's' : ''}` : bout;
+}
+
 export function colisageArticleTexte(ca: ColisageArticle, court = false, barrettes = true): string {
   const bouts = ca.comptages.filter(c => !c.depart).map(c => comptageTexte(c, court));
   if (barrettes && ca.barrettes) {

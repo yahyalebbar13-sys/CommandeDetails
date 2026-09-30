@@ -7,7 +7,7 @@ import {
   articleInboundVariants, articleVariantDimension, breakdownRowQuantity, compareLocationCodes, variantKey,
 } from './warehouse-locations';
 import {
-  colisage, colisageArticle, colisageArticleTexte, colisageTexte, echelleDeLArticle, manqueTexte,
+  colisage, colisageArticle, colisEnGrosTexte, colisageTexte, comptageTexte, echelleDeLArticle, manqueTexte,
   type Colisage, type ColisageArticle,
 } from './conditionnement';
 
@@ -236,6 +236,17 @@ export async function exportArrivalPackingPDF(params: ArrivalPackingParams): Pro
 
   const totalCartons = articles.reduce((s, a) => s + (colisageDe.get(a.id)?.cartons || 0), 0);
   const sansCartons = articles.filter(a => colisageDe.get(a.id)?.cartons == null);
+
+  /**
+   * Le mot juste pour le colis qu'on compte. Un dossier de mercerie se compte en cartons, un
+   * dossier de tissu en rouleaux ou en sacs, un dossier mixte « en colis ».
+   */
+  const colisDuDossier = (() => {
+    const cles = new Set(articles.map(a => colisageDe.get(a.id)?.colisEnGros?.cle).filter(Boolean));
+    if (cles.size !== 1) return { un: 'colis', plusieurs: 'colis' };
+    const colis = articles.map(a => colisageDe.get(a.id)?.colisEnGros).find(Boolean)!;
+    return { un: colis.nom, plusieurs: colis.pluriel };
+  })();
   const totalBarrettes = articles.reduce((s, a) => s + (colisageDe.get(a.id)?.barrettes || 0), 0);
 
   // ── Sur quoi se calcule la part de chaque référence ──────────────────────
@@ -531,7 +542,7 @@ export async function exportArrivalPackingPDF(params: ArrivalPackingParams): Pro
   infoBox(M + (colW + gap) * 2, 'CONTENU', [
     ['Références', String(articles.length)],
     ['Quantités', Object.entries(totalsByUnit).map(([u, t]) => `${nf(t.qty)} ${u}`).join(' + ') || '—'],
-    ['Cartons à compter', totalCartons > 0
+    [`${colisDuDossier.plusieurs.charAt(0).toUpperCase()}${colisDuDossier.plusieurs.slice(1)} à compter`, totalCartons > 0
       ? `${nf(totalCartons, 0)}${sansCartons.length > 0 ? ` + ${sansCartons.length} réf. à préciser` : ''}`
       : '—'],
     ['Barrettes', totalBarrettes > 0 ? nf(totalBarrettes, 0) : '—'],
@@ -593,7 +604,13 @@ export async function exportArrivalPackingPDF(params: ArrivalPackingParams): Pro
       // la feuille de controle. Prendre ici le colisage de la quantite totale ferait figurer
       // deux nombres de cartons differents pour le meme article sur la meme page.
       const celluleArticle = (ca: ColisageArticle): string => {
-        const lignes = [colisageArticleTexte(ca, true) || ca.manque || '—'];
+        const lignes = [colisEnGrosTexte(ca) || ca.manque || '—'];
+        // Le detail de ce qu'il y a DEDANS, en second : le sachet est l'interieur du carton, pas
+        // un colis qu'on porte. Il se lit carton en main, il ne se compte pas au dechargement.
+        const dedans = ca.comptages
+          .filter(x => !x.depart && x.colis.cle !== ca.colisEnGros?.cle)
+          .map(x => comptageTexte(x, true));
+        if (dedans.length > 0) lignes.push(dedans.join(' · '));
         // Une ventilation qui ne retombe pas sur la quantité annoncée : le calcul revient au
         // total de l'article, et le papier le dit. Sans cette ligne, le magasinier compterait
         // des cartons sans comprendre pourquoi ils ne correspondent pas à la ventilation.
@@ -746,13 +763,13 @@ export async function exportArrivalPackingPDF(params: ArrivalPackingParams): Pro
   if (afterY > pageH - 70) { doc.addPage(); afterY = 30; }
   afterY = titreSection(afterY, 'CONTRÔLE À LA RÉCEPTION',
     totalCartons > 0
-      ? `${nf(totalCartons, 0)} carton(s) annoncé(s)${sansCartons.length > 0 ? ` · ${sansCartons.length} référence(s) sans conditionnement saisi` : ''}`
+      ? `${nf(totalCartons, 0)} ${colisDuDossier.plusieurs} annoncé(s)${sansCartons.length > 0 ? ` · ${sansCartons.length} référence(s) sans conditionnement saisi` : ''}`
       : 'aucun conditionnement saisi : le contrôle se fait en quantités');
 
   autoTable(doc, {
     startY: afterY,
     margin: { left: M, right: M, top: 30, bottom: 16 },
-    head: [['Réf.', 'Désignation', 'Quantité annoncée', 'Cartons annoncés', 'Cartons comptés', 'Écart', 'Visa']],
+    head: [['Réf.', 'Désignation', 'Quantité annoncée', 'Colis annoncés', 'Colis comptés', 'Écart', 'Visa']],
     body: aControler.map(({ a, cartons }, i) => [
       { content: String(i + 1), styles: { halign: 'center' } },
       pdfText(getArticleFrenchName(a, categories, generalCategories)),

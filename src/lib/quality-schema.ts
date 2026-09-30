@@ -35,40 +35,25 @@ export interface QualityFieldDef {
 /**
  * Les deux niveaux de colis que tout produit partage, quel que soit son type.
  *
- * `cartonsPerMaster` : le grand carton (master carton) n'existe pas chez tous les fournisseurs.
- * Laissé vide, le carton saisi juste au-dessus est le seul, et rien ne change.
  */
-const CARTON_MAITRE: QualityFieldDef = {
-  key: 'cartonsPerMaster', label: 'Petits ctn / grand ctn', type: 'number', groupe: 'conditionnement',
-  aide: "Combien de petits cartons entrent dans un grand carton. À laisser vide s'il n'y a qu'une taille de carton.",
-};
-
 /**
  * La barrette : la pile de colis telle qu'elle se monte sur une palette, « quatre sacs de large,
- * douze de hauteur ». Elle n'est pas la même pour tous les produits — un sac de fermetures et un
- * carton de boutons ne se montent pas pareil — et elle dépend aussi de ce qu'on empile. Elle se
- * saisit donc ici, une fois par qualité, au même endroit que le reste du conditionnement.
+ * douze de hauteur ».
  *
- * @param niveaux ce qu'on peut empiler pour ce type de produit, dans l'ordre du plus petit colis
- *                au plus grand. Le premier est proposé par défaut.
+ * On empile TOUJOURS le conditionnement en gros du produit — celui qu'on porte : le carton pour
+ * la mercerie, le sac ou le rouleau pour le tissu. Il n'y a donc rien a choisir : la question
+ * « on empile quoi ? » se deduit de ce qui est deja saisi (src/lib/conditionnement.ts).
  */
-function champsEmpilage(niveaux: string[]): QualityFieldDef[] {
-  return [
-    {
-      key: 'stackLevel', label: 'On empile', type: 'select', groupe: 'empilage', options: niveaux,
-      placeholder: niveaux[0],
-      aide: "Le colis qui se pose sur la palette : c'est lui qu'on compte pour faire une barrette.",
-    },
-    {
-      key: 'stackPerRow', label: 'Par rangée', type: 'number', groupe: 'empilage',
-      aide: "Combien de colis côte à côte sur une rangée. Ex. : 4.",
-    },
-    {
-      key: 'stackRows', label: 'Rangées (haut.)', type: 'number', groupe: 'empilage',
-      aide: "Combien de rangées empilées en hauteur. Ex. : 12. Avec 4 par rangée, la barrette fait 48 colis.",
-    },
-  ];
-}
+const CHAMPS_EMPILAGE: QualityFieldDef[] = [
+  {
+    key: 'stackPerRow', label: 'Par rangée', type: 'number', groupe: 'empilage',
+    aide: 'Combien de colis côte à côte sur une rangée. Ex. : 4.',
+  },
+  {
+    key: 'stackRows', label: 'Rangées (haut.)', type: 'number', groupe: 'empilage',
+    aide: "Combien de rangées empilées en hauteur. Ex. : 12. Avec 4 par rangée, la barrette fait 48 colis.",
+  },
+];
 
 export const QUALITY_SCHEMA: Record<string, QualityFieldDef[]> = {
   fabric: [
@@ -79,10 +64,7 @@ export const QUALITY_SCHEMA: Record<string, QualityFieldDef[]> = {
     { key: 'rollLengthUnit', label: 'Unité', type: 'text', placeholder: 'm, yds', groupe: 'conditionnement' },
     { key: 'packagingPerBag', label: 'Rouleaux/sac', type: 'number', groupe: 'conditionnement',
       aide: 'Combien de rouleaux entrent dans un sac.' },
-    { key: 'bagsPerCarton', label: 'Sacs/carton', type: 'number', groupe: 'conditionnement',
-      aide: "Combien de sacs entrent dans un carton. À laisser vide si le tissu voyage en rouleaux nus." },
-    CARTON_MAITRE,
-    ...champsEmpilage(['sac', 'carton', 'rouleau']),
+    ...CHAMPS_EMPILAGE,
   ],
   zipper: [
     { key: 'length', label: 'Longueur', type: 'text' },
@@ -95,8 +77,7 @@ export const QUALITY_SCHEMA: Record<string, QualityFieldDef[]> = {
       aide: 'Combien de pièces dans un sac.' },
     { key: 'bagsPerCarton', label: 'Sacs/carton', type: 'number', groupe: 'conditionnement',
       aide: 'Combien de sacs dans un carton.' },
-    CARTON_MAITRE,
-    ...champsEmpilage(['sac', 'carton']),
+    ...CHAMPS_EMPILAGE,
   ],
   thread: [
     { key: 'coneWeightG', label: 'Poids cône (g)', type: 'text' },
@@ -107,8 +88,7 @@ export const QUALITY_SCHEMA: Record<string, QualityFieldDef[]> = {
       aide: 'Combien de cônes dans un sac.' },
     { key: 'bagsPerCarton', label: 'Sacs/carton', type: 'number', groupe: 'conditionnement',
       aide: 'Combien de sacs dans un carton.' },
-    CARTON_MAITRE,
-    ...champsEmpilage(['sac', 'carton']),
+    ...CHAMPS_EMPILAGE,
   ],
   slider: [
     { key: 'imageUrl', label: 'Photo', type: 'image' },
@@ -118,8 +98,7 @@ export const QUALITY_SCHEMA: Record<string, QualityFieldDef[]> = {
       aide: 'Combien de curseurs dans un sac.' },
     { key: 'bagsPerCarton', label: 'Sacs/carton', type: 'number', groupe: 'conditionnement',
       aide: 'Combien de sacs dans un carton.' },
-    CARTON_MAITRE,
-    ...champsEmpilage(['sac', 'carton']),
+    ...CHAMPS_EMPILAGE,
   ],
   tape: [
     { key: 'width', label: 'Largeur', type: 'text' },
@@ -130,8 +109,7 @@ export const QUALITY_SCHEMA: Record<string, QualityFieldDef[]> = {
       aide: 'Combien de rouleaux dans un film rétractable.' },
     { key: 'rollsPerCarton', label: 'Rouleaux/carton', type: 'text', groupe: 'conditionnement',
       aide: 'Combien de rouleaux dans un carton — en rouleaux, pas en shrinks.' },
-    CARTON_MAITRE,
-    ...champsEmpilage(['carton', 'shrink', 'rouleau']),
+    ...CHAMPS_EMPILAGE,
   ],
   accessory: [
     { key: 'size', label: 'Taille', type: 'text', uppercase: true },
@@ -141,8 +119,7 @@ export const QUALITY_SCHEMA: Record<string, QualityFieldDef[]> = {
       aide: 'Combien de pièces dans une boîte.' },
     { key: 'boxPerCarton', label: 'Boîtes/carton', type: 'text', groupe: 'conditionnement',
       aide: 'Combien de boîtes dans un carton.' },
-    CARTON_MAITRE,
-    ...champsEmpilage(['carton', 'boîte']),
+    ...CHAMPS_EMPILAGE,
   ],
 };
 

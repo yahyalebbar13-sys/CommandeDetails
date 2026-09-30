@@ -1290,7 +1290,7 @@ export default function CategoriesView({
      * saisis dans l'ecran Qualites, mais dans LE MEME document Firestore. On les reporte.
      */
     const reporterChampsConserves = (source: any, item: Record<string, any>) => {
-      for (const champ of ['cartonsPerMaster', 'stackLevel', 'stackPerRow', 'stackRows', 'pcsPerCtn']) {
+      for (const champ of ['stackPerRow', 'stackRows', 'pcsPerCtn']) {
         const v = source?.[champ];
         if (v !== undefined && v !== null && String(v).trim() !== '') item[champ] = v;
       }

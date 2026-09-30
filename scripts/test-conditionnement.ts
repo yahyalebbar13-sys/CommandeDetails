@@ -49,13 +49,35 @@ console.log('\n── Le carton entamé ──');
   check('le texte annonce l’entamé', comptageTexte(c.cartons!).includes('+ 1 entamé'), comptageTexte(c.cartons!));
 }
 
-console.log('\n── Un chiffre qui manque : on ne devine pas ──');
+console.log('\n── Le conditionnement en gros : le plus grand niveau réellement rempli ──');
 {
+  // Sans sacs par carton, le colis qu'on porte est le SAC : on le compte, sans rien réclamer.
   const c = calc({ quantity: 48000, unitOfMeasure: 'pcs', pcsPerBag: 20 }, 'zipper');
   eq('les sacs se comptent', c.comptages.length, 1);
-  eq('les cartons, non', c.cartons, null);
-  eq('et on dit lequel manque', c.manquants[0]?.champ, 'bagsPerCarton');
-  check('la phrase dit où saisir', manqueTexte(c).includes('Sacs/carton'), manqueTexte(c));
+  eq('et c’est le sac qu’on porte', c.enGros?.colis.cle, 'sac');
+  eq('2 400 sacs', c.enGros?.entiers, 2400);
+  eq('rien n’est réclamé : la donnée ne manque pas, elle n’existe pas', c.manquants.length, 0);
+}
+{
+  // Avec les sacs par carton, c'est le carton qu'on porte — le sachet est son intérieur.
+  const c = calc({ quantity: 48000, unitOfMeasure: 'pcs', pcsPerBag: 20, bagsPerCarton: 10 }, 'zipper');
+  eq('le carton prend le dessus', c.enGros?.colis.cle, 'carton');
+  eq('240 cartons', c.enGros?.entiers, 240);
+}
+{
+  // « Un rouleau par sac », c'est un rouleau, pas un sac.
+  const c = calc({ quantity: 12000, unitOfMeasure: 'm', rollLength: 100, packagingPerBag: 1 }, 'fabric');
+  eq('un sac d’un seul rouleau n’est pas un sac', c.enGros?.colis.cle, 'rouleau');
+  eq('120 rouleaux', c.enGros?.entiers, 120);
+}
+{
+  const c = calc({ quantity: 12000, unitOfMeasure: 'm', rollLength: 100, packagingPerBag: 6 }, 'fabric');
+  eq('six rouleaux par sac : on porte le sac', c.enGros?.colis.cle, 'sac');
+  eq('20 sacs', c.enGros?.entiers, 20);
+}
+{
+  const c = calc({ quantity: 12000, unitOfMeasure: 'm', rollLength: 100 }, 'fabric');
+  eq('sans sac du tout, on porte le rouleau', c.enGros?.colis.cle, 'rouleau');
 }
 
 console.log('\n── Un tissu au mètre : mètres → rouleaux → sacs ──');
@@ -88,7 +110,7 @@ console.log('\n── Un article acheté AU CARTON ──');
 {
   const c = calc({
     quantity: 240, unitOfMeasure: 'cartons', pcsPerBag: 20, bagsPerCarton: 10,
-    stackLevel: 'carton', stackPerRow: 2, stackRows: 5,
+    stackPerRow: 2, stackRows: 5,
   }, 'zipper');
   eq('et la barrette se monte sur ces cartons', c.barrettes?.entieres, 24);
 }
@@ -110,27 +132,27 @@ console.log('\n── Le ruban : son carton se compte en ROULEAUX, pas en shrink
 
 console.log('\n── L’accessoire : pièces → boîtes → cartons → grand carton ──');
 {
-  const c = calc({ quantity: 10000, unitOfMeasure: 'pcs', pcsPerBox: 100, boxPerCarton: 10, cartonsPerMaster: 4 }, 'accessory');
+  const c = calc({ quantity: 10000, unitOfMeasure: 'pcs', pcsPerBox: 100, boxPerCarton: 10 }, 'accessory');
   eq('100 boîtes', c.comptages[0]?.entiers, 100);
   eq('10 cartons', c.cartons?.entiers, 10);
-  eq('2 grands cartons', c.comptages.find(x => x.colis.cle === 'master')?.entiers, 2);
-  eq('le troisième est à moitié', Math.round((c.comptages.find(x => x.colis.cle === 'master')?.reste || 0) * 100), 50);
+  eq('et c’est le carton qu’on compte', c.enGros?.colis.cle, 'carton');
 }
 
 console.log('\n── La barrette : quatre sacs de large, douze de hauteur ──');
 {
   const c = calc({
-    quantity: 48000, unitOfMeasure: 'pcs', pcsPerBag: 20, bagsPerCarton: 10,
-    stackLevel: 'sac', stackPerRow: 4, stackRows: 12,
+    quantity: 48000, unitOfMeasure: 'pcs', pcsPerBag: 20,
+    stackPerRow: 4, stackRows: 12,
   }, 'zipper');
+  eq('sans carton, on empile les sacs', c.barrettes?.niveau.cle, 'sac');
   eq('48 sacs par barrette', c.barrettes?.parBarrette, 48);
   eq('50 barrettes', c.barrettes?.entieres, 50);
   eq('rien en reste', c.barrettes?.resteColis, 0);
 }
 {
   const c = calc({
-    quantity: 48480, unitOfMeasure: 'pcs', pcsPerBag: 20, bagsPerCarton: 10,
-    stackLevel: 'sac', stackPerRow: 4, stackRows: 12,
+    quantity: 48480, unitOfMeasure: 'pcs', pcsPerBag: 20,
+    stackPerRow: 4, stackRows: 12,
   }, 'zipper');
   eq('50 barrettes', c.barrettes?.entieres, 50);
   eq('24 sacs en reste', c.barrettes?.resteColis, 24);
@@ -142,22 +164,24 @@ console.log('\n── La barrette change selon le produit ET l’emballage ─�
   // Le même besoin, exprimé sur des cartons : la règle n'est pas la même.
   const c = calc({
     quantity: 10000, unitOfMeasure: 'pcs', pcsPerBox: 100, boxPerCarton: 10,
-    stackLevel: 'carton', stackPerRow: 2, stackRows: 5,
+    stackPerRow: 2, stackRows: 5,
   }, 'accessory');
   eq('on empile des cartons', c.barrettes?.niveau.cle, 'carton');
   eq('10 cartons par barrette', c.barrettes?.parBarrette, 10);
   eq('1 barrette', c.barrettes?.entieres, 1);
 }
 {
+  // On empile TOUJOURS le conditionnement en gros : il n'y a rien à choisir.
   const c = calc({
     quantity: 48000, unitOfMeasure: 'pcs', pcsPerBag: 20, bagsPerCarton: 10,
-    stackPerRow: 4, stackRows: 12,   // pas de niveau saisi
+    stackPerRow: 4, stackRows: 12,
   }, 'zipper');
-  eq('sans précision, on empile ce que le modèle propose en premier', c.barrettes?.niveau.cle, 'sac');
+  eq('on empile le colis en gros, sans rien demander', c.barrettes?.niveau.cle, 'carton');
+  eq('240 cartons, 48 par barrette : 5 barrettes', c.barrettes?.entieres, 5);
 }
 {
   const c = calc({
-    quantity: 48000, unitOfMeasure: 'pcs', pcsPerBag: 20, bagsPerCarton: 10, stackLevel: 'sac', stackPerRow: 4,
+    quantity: 48000, unitOfMeasure: 'pcs', pcsPerBag: 20, bagsPerCarton: 10, stackPerRow: 4,
   }, 'zipper');
   eq('une règle à moitié saisie ne produit pas de barrette', c.barrettes, null);
 }
@@ -264,7 +288,7 @@ console.log('\n── Ce qui est saisi dans Qualités rattrape les commandes dé
   // Qualités n'aurait aucun effet sur les dossiers en route.
   const famillePleine = {
     id: 'F1', name: 'F1', generalCategoryId: 'P1',
-    zipperQualities: [{ label: 'CL-5', pcsPerBag: 20, bagsPerCarton: 10, stackLevel: 'sac', stackPerRow: 4, stackRows: 12 }],
+    zipperQualities: [{ label: 'CL-5', pcsPerBag: 20, bagsPerCarton: 10, stackPerRow: 4, stackRows: 12 }],
   };
   const e = echelleDeLArticle(
     { categoryId: 'F1', quantity: 48000, unitOfMeasure: 'pcs' },
@@ -272,7 +296,7 @@ console.log('\n── Ce qui est saisi dans Qualités rattrape les commandes dé
   );
   const c = colisage(48000, e);
   eq('240 cartons, lus dans la famille', c.cartons?.entiers, 240);
-  eq('et la barrette suit', c.barrettes?.entieres, 50);
+  eq('et la barrette empile ces cartons', c.barrettes?.entieres, 5);
 }
 {
   // Deux qualités et aucun libellé pour trancher : on ne devine pas.
