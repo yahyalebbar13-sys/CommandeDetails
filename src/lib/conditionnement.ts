@@ -146,19 +146,21 @@ const saisi = (v: unknown): boolean =>
   v !== null && v !== undefined && String(v).trim() !== '' && String(v).trim() !== '0';
 
 /**
- * La valeur d'un champ de qualité, dans l'ordre où elle fait autorité : la ligne de ventilation
- * d'abord — c'est elle qui distingue deux qualités du même produit — puis l'article, puis le
- * catalogue.
+ * La valeur d'un champ de qualité, dans l'ordre où elle fait autorité : la définition du
+ * catalogue d'abord, puis la ligne de ventilation — c'est elle qui distingue deux qualités du
+ * même produit — puis l'article.
  *
- * Le dernier recours compte plus qu'il n'y paraît : le conditionnement se saisit dans l'écran
- * Qualités, mais un article commandé AVANT cette saisie n'en porte pas la copie. Sans ce
- * rattrapage, remplir « 4 sacs par rangée, 12 de hauteur » n'aurait aucun effet sur les dossiers
- * déjà en route — il aurait fallu rouvrir et réenregistrer chaque commande.
+ * L'ordre compte : la définition du catalogue passe AVANT la copie figée sur la commande. Sans
+ * cela, corriger « rouleaux par sac » dans l'écran Qualités n'aurait aucun effet sur les dossiers
+ * déjà en route — il faudrait rouvrir et réenregistrer chaque commande, une par une.
  */
 function valeur(article: any, ligneQualite: any, champ: string, catalogue?: any): unknown {
+  // Le catalogue d'abord : une qualité fixe est une définition, et la corriger doit se voir sur
+  // les commandes qui la portent — sur le document de réception comme à l'écran. La commande
+  // reprend la main dès que le catalogue laisse le champ vide.
+  if (saisi(catalogue?.[champ])) return catalogue[champ];
   if (saisi(ligneQualite?.[champ])) return ligneQualite[champ];
-  if (saisi(article?.[champ])) return article[champ];
-  return catalogue?.[champ];
+  return article?.[champ];
 }
 
 const libelleDuChamp = (type: string | undefined, champ: string): string =>

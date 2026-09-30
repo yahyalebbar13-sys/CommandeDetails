@@ -71,11 +71,19 @@ console.log('\n── Ce que le catalogue ne dit pas reste à la commande ──
 
 console.log('\n── Le conditionnement, lui, reste celui de l’expédition ──');
 {
-  // Pièces par sac et sacs par carton sont relevés sur le packing list du fournisseur : ils
-  // peuvent légitimement différer du catalogue d'un arrivage à l'autre.
+  // Rouleaux par sac, sacs par carton : corriger la qualité doit se voir sur les commandes, au
+  // même titre que la largeur.
   const cat = famille([{ label: '210T', rollLength: 100, packagingPerBag: 6 }]);
   const article = { categoryId: 'FF', quality: '210T', rollLength: 100, packagingPerBag: 4 };
-  eq('le sac du packing list ne se fait pas écraser',
+  eq('les rouleaux par sac suivent le catalogue',
+    valeur(specificationsArticle(article, cat as any, poles as any), 'packagingPerBag'), '6');
+}
+{
+  // Un champ que le catalogue laisse vide : la commande reprend la main. C'est ainsi qu'une
+  // expédition particulière peut faire foi.
+  const cat = famille([{ label: '210T', rollLength: 100 }]);
+  const article = { categoryId: 'FF', quality: '210T', packagingPerBag: 4 };
+  eq('sans chiffre au catalogue, celui de la commande reste',
     valeur(specificationsArticle(article, cat as any, poles as any), 'packagingPerBag'), '4');
 }
 
@@ -100,14 +108,14 @@ console.log('\n── L’article corrigé, pour les écrans qui lisent ses cham
 {
   // La liste des articles d'un dossier, le Data Lab, les documents fournisseur et client lisent
   // `article.fabricWidth` sans passer par la mise en forme : ils passent par ici.
-  const cat = famille([{ label: '1030EF', gsm: '30', fabricWidth: 160 }]);
+  const cat = famille([{ label: '1030EF', gsm: '30', fabricWidth: 160, packagingPerBag: 6 }]);
   const article = {
     id: 'a1', categoryId: 'FF', quality: '1030EF',
     gsm: '30', fabricWidth: 150, packagingPerBag: 4, quantity: 500,
   };
   const corrige = articleSelonCatalogue(article, cat as any, poles as any);
   eq('la largeur est celle du catalogue', corrige.fabricWidth, 160);
-  eq('le conditionnement de l’expédition est intact', corrige.packagingPerBag, 4);
+  eq('le conditionnement suit lui aussi', corrige.packagingPerBag, 6);
   eq('le reste de l’article ne bouge pas', corrige.quantity, 500);
   eq('et son identifiant non plus', corrige.id, 'a1');
 }

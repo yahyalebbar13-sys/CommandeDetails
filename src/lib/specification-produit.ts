@@ -145,9 +145,11 @@ export function specificationsArticle(
    * bougeaient plus : corriger la largeur d'une qualité ne changeait rien aux commandes qui la
    * portent, elles affichaient éternellement l'ancienne. C'est le catalogue qui fait foi.
    *
-   * Le CONDITIONNEMENT échappe à cette règle : pièces par sac, sacs par carton sont des faits
-   * d'expédition, relevés sur le packing list du fournisseur et écrits sur la commande. Ils
-   * peuvent légitimement différer du catalogue d'un arrivage à l'autre.
+   * Le CONDITIONNEMENT suit la même règle, rouleaux par sac compris. L'import de facture
+   * fournisseur écrit bien le conditionnement relevé sur le packing list, mais il l'écrit sur la
+   * commande : tant que le catalogue renseigne un chiffre, c'est lui qui s'affiche. Pour qu'une
+   * expédition particulière fasse foi, il faut corriger la qualité — ou laisser ce champ vide
+   * dans le catalogue, et la commande reprend la main.
    */
   const definition = ligneQualiteDuCatalogue(article, categories, generalCategories, type, ligneQualite);
 
@@ -156,7 +158,7 @@ export function specificationsArticle(
     if (champ.type === 'image') continue;
     const groupe = groupeDuChamp(champ);
     if (!retenus.has(groupe)) continue;
-    const brut = groupe === 'technique' && rempli(definition?.[champ.key])
+    const brut = rempli(definition?.[champ.key])
       ? definition[champ.key]
       : rempli(ligneQualite?.[champ.key]) ? ligneQualite[champ.key] : article?.[champ.key];
     if (!rempli(brut)) continue;
@@ -174,8 +176,8 @@ export function specificationsArticle(
  * la copie figée au moment de la saisie, et corriger une qualité ne changeait rien chez eux.
  * Ils passent maintenant par ici : un seul appel, et ils lisent la qualité d'aujourd'hui.
  *
- * Seules les CARACTÉRISTIQUES sont corrigées. Le conditionnement reste celui de l'expédition,
- * relevé sur le packing list du fournisseur.
+ * Tout ce que la qualité définit est corrigé — caractéristiques ET conditionnement. Ce que le
+ * catalogue laisse vide reste ce que porte la commande.
  */
 export function articleSelonCatalogue<T extends Record<string, any>>(
   article: T,
@@ -192,7 +194,6 @@ export function articleSelonCatalogue<T extends Record<string, any>>(
 
   const corrige: Record<string, any> = { ...article };
   for (const champ of modele) {
-    if (groupeDuChamp(champ) !== 'technique') continue;
     if (rempli(definition[champ.key])) corrige[champ.key] = definition[champ.key];
   }
   return corrige as T;
