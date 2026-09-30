@@ -7,7 +7,8 @@ import {
   articleInboundVariants, articleVariantDimension, breakdownRowQuantity, compareLocationCodes, variantKey,
 } from './warehouse-locations';
 import {
-  colisage, colisageArticle, colisEnGrosTexte, colisageTexte, comptageTexte, echelleDeLArticle, manqueTexte,
+  COLIS, colisage, colisageArticle, colisEnGrosTexte, colisageTexte, comptageTexte, echelleDeLArticle,
+  manqueTexte,
   type Colisage, type ColisageArticle,
 } from './conditionnement';
 
@@ -301,6 +302,39 @@ export async function exportArrivalPackingPDF(params: ArrivalPackingParams): Pro
   }
   const compteParClasse = (c: string) => classement.filter(l => l.classe === c).length;
 
+  /**
+   * Les colonnes de colis du document : une par niveau réellement présent dans le dossier.
+   *
+   * « Colisage » entassait tout dans une seule cellule — « 865 sacs · 14 barrettes / 3 460 rlx »
+   * — et il fallait la relire pour en tirer un chiffre. Chaque colis a maintenant sa colonne, et
+   * seuls les colis qui existent dans CE dossier en ont une : un dossier de tissu montre
+   * Rouleaux et Sacs, un dossier de mercerie Sacs et Cartons, un dossier mixte les trois.
+   */
+  const colonnesColis: { cle: string; titre: string }[] = (() => {
+    const ordre = ['rouleau', 'shrink', 'boite', 'sac', 'carton'];
+    const presents = new Set<string>();
+    for (const a of articles) {
+      for (const c of colisageDe.get(a.id)?.comptages || []) {
+        if (!c.depart) presents.add(c.colis.cle);
+      }
+    }
+    const colonnes = ordre.filter(cle => presents.has(cle)).map(cle => ({
+      cle,
+      titre: COLIS[cle].pluriel.charAt(0).toUpperCase() + COLIS[cle].pluriel.slice(1),
+    }));
+    // Les barrettes ferment la marche : c'est ce qui se monte sur la palette, pas un contenant.
+    if (totalBarrettes > 0) colonnes.push({ cle: 'barrette', titre: 'Barrettes' });
+    return colonnes;
+  })();
+
+  /** Le compte d'un colis pour une ligne de ventilation, ou un tiret. */
+  const compteDuColis = (c: Colisage | null, cle: string): string => {
+    if (cle === 'barrette') return '—';   // une barrette se monte par référence, pas par couleur
+    const trouve = c?.comptages.find(x => x.colis.cle === cle);
+    if (!trouve) return '—';
+    return trouve.reste > 0 ? `${nf(trouve.entiers, 0)}+1` : nf(trouve.entiers, 0);
+  };
+
   // ── Regroupement par pôle ────────────────────────────────────────────────
   const poleOf = (a: any) => {
     const cat = categories.find((c: any) => c.name === a.categoryId || c.id === a.categoryId);
@@ -345,33 +379,6 @@ export async function exportArrivalPackingPDF(params: ArrivalPackingParams): Pro
 
   // ── Bloc d'informations ──────────────────────────────────────────────────
   let y = 31;
-  const boxH = 39;
-  const gap = 5;
-  const colW = (pageW - M * 2 - gap * 2) / 3;
-
-  const infoBox = (x: number, title: string, lines: [string, string][]) => {
-    doc.setDrawColor(...STONE_200);
-    doc.setFillColor(...STONE_50);
-    doc.roundedRect(x, y, colW, boxH, 2, 2, 'FD');
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(7.5);
-    doc.setTextColor(...STONE_500);
-    doc.text(pdfText(title), x + 4, y + 6);
-    let ly = y + 12;
-    for (const [label, value] of lines) {
-      doc.setFont('helvetica', 'normal');
-      doc.setFontSize(8);
-      doc.setTextColor(...STONE_500);
-      doc.text(pdfText(label), x + 4, ly);
-      doc.setFont('helvetica', 'bold');
-      doc.setTextColor(...INK);
-      const v = pdfText(value || '—');
-      const clipped = doc.splitTextToSize(v, colW - 42)[0] || '—';
-      doc.text(clipped, x + 38, ly);
-      ly += 5.2;
-    }
-  };
-
   /** Un titre de section, souligné d'un filet doré — la charte des documents LEBTEX. */
   const titreSection = (yy: number, texte: string, sous?: string): number => {
     doc.setFont('helvetica', 'bold');
@@ -422,7 +429,7 @@ export async function exportArrivalPackingPDF(params: ArrivalPackingParams): Pro
     autoTable(doc, {
       startY: yb,
       margin: { left: M, right: M, top: 30, bottom: 16 },
-      head: [['Pôle', 'Réf.', 'Quantités', 'Cartons', 'Barrettes', 'Part', '']],
+      head: [['Pôle', 'Réf.', 'Quantités', 'Colis', 'Barrettes', 'Part', '']],
       body: lignesPole.map(l => [
         pdfText(l.pole),
         String(l.list.length),
@@ -486,7 +493,7 @@ export async function exportArrivalPackingPDF(params: ArrivalPackingParams): Pro
     autoTable(doc, {
       startY: yb,
       margin: { left: M, right: M, top: 30, bottom: 16 },
-      head: [['Classe', 'Désignation', 'Pôle', 'Quantité', 'Cartons', 'Part', 'Cumul', 'Où la poser']],
+      head: [['Classe', 'Désignation', 'Pôle', 'Quantité', 'Colis', 'Part', 'Cumul', 'Où la poser']],
       body: classement.map(l => [
         { content: l.classe, styles: { halign: 'center', fontStyle: 'bold', textColor: CLASSES[l.classe].couleur } },
         pdfText(getArticleFrenchName(l.article, categories, generalCategories)),
@@ -525,31 +532,24 @@ export async function exportArrivalPackingPDF(params: ArrivalPackingParams): Pro
     return (doc as any).lastAutoTable.finalY + 7;
   };
 
-  infoBox(M, 'EXPÉDITION', [
-    ['Fournisseur', facture.supplierId || facture.supplier || '—'],
-    ['N° de dossier', facture.id],
-    ['N° de BL', facture.noBL || '—'],
-    ['Compagnie maritime', facture.shippingLine || '—'],
-    ["Date d'expédition", frDate(facture.shippingDate)],
-  ]);
-  infoBox(M + colW + gap, 'RÉCEPTION', [
-    ["Date d'arrivée", frDate(facture.arrivalDate)],
-    ['Entrée en stock', frDate(stockEntryDate || facture.stockEntryDate)],
-    ['Transitaire', facture.forwarder || '—'],
-    ['Statut', isEnteredInStock ? 'Entré en stock' : 'En attente de réception'],
-    ...(onlyStore ? [['Rangé à', onlyStore] as [string, string]] : []),
-  ]);
-  infoBox(M + (colW + gap) * 2, 'CONTENU', [
-    ['Références', String(articles.length)],
-    ['Quantités', Object.entries(totalsByUnit).map(([u, t]) => `${nf(t.qty)} ${u}`).join(' + ') || '—'],
-    [`${colisDuDossier.plusieurs.charAt(0).toUpperCase()}${colisDuDossier.plusieurs.slice(1)} à compter`, totalCartons > 0
-      ? `${nf(totalCartons, 0)}${sansCartons.length > 0 ? ` + ${sansCartons.length} réf. à préciser` : ''}`
-      : '—'],
-    ['Barrettes', totalBarrettes > 0 ? nf(totalBarrettes, 0) : '—'],
-    ['Volume / poids', [totalCbm > 0 ? `${nf(totalCbm)} m³` : null, totalNet > 0 ? `${nf(totalNet)} kg` : null].filter(Boolean).join(' · ') || '—'],
-  ]);
+  // Les encadres EXPEDITION / RECEPTION / CONTENU ont ete retires : trente-neuf millimetres de
+  // haut pour des informations que le magasinier ne lit pas devant un camion. Ce qui identifie
+  // le dossier — le fournisseur, le BL, la date d'arrivee, le lieu de rangement — tient sur une
+  // ligne sous le bandeau, et ne se perd donc pas.
+  const identite = [
+    facture.supplierId || facture.supplier,
+    facture.noBL ? `BL ${facture.noBL}` : null,
+    facture.arrivalDate ? `arrivé le ${frDate(facture.arrivalDate)}` : null,
+    onlyStore ? `rangé à ${onlyStore}` : null,
+  ].filter(Boolean).join('   ·   ');
+  if (identite) {
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8.5);
+    doc.setTextColor(...STONE_500);
+    doc.text(pdfText(identite), M, y + 2);
+  }
 
-  y += boxH + 7;
+  y += identite ? 8 : 2;
 
   // ── Ce qui arrive, et où le poser ────────────────────────────────────────
   y = await blocStrategie(y);
@@ -567,7 +567,7 @@ export async function exportArrivalPackingPDF(params: ArrivalPackingParams): Pro
 
     body.push([{
       content: `${pole}  ·  ${list.length} référence${list.length > 1 ? 's' : ''}`,
-      colSpan: 11,
+      colSpan: 8 + colonnesColis.length,
       styles: { fillColor: INK, textColor: GOLD, fontStyle: 'bold', fontSize: 8, cellPadding: { top: 2.2, bottom: 2.2, left: 3, right: 3 } },
     }]);
 
@@ -603,6 +603,17 @@ export async function exportArrivalPackingPDF(params: ArrivalPackingParams): Pro
       // La ligne de l'article : le comptage de la reference entiere, celui-la meme que reprend
       // la feuille de controle. Prendre ici le colisage de la quantite totale ferait figurer
       // deux nombres de cartons differents pour le meme article sur la meme page.
+      /**
+       * Le compte d'un colis pour la référence entière, ventilations comprises. C'est ce chiffre
+       * qu'on pointe : le même que sur la feuille de contrôle.
+       */
+      const celluleColis = (ca: ColisageArticle, cle: string): string => {
+        if (cle === 'barrette') return ca.barrettes ? nf(ca.barrettes, 0) : '—';
+        const trouve = ca.comptages.find(x => x.colis.cle === cle);
+        if (!trouve) return '—';
+        return nf(trouve.aCompter, 0);
+      };
+
       const celluleArticle = (ca: ColisageArticle): string => {
         const lignes = [colisEnGrosTexte(ca) || ca.manque || '—'];
         // Le detail de ce qu'il y a DEDANS, en second : le sachet est l'interieur du carton, pas
@@ -629,10 +640,22 @@ export async function exportArrivalPackingPDF(params: ArrivalPackingParams): Pro
         colors.length > 0 ? `${colors.length} couleurs` : pdfText(couleurFixe || '—'),
         sizes.length > 0 ? `${sizes.length} tailles` : pdfText(tailleFixe || '—'),
         pdfText(specsTexte(a, undefined, sizes.length > 0 ? '' : tailleFixe) || '—'),
-        { content: pdfText(`${nf(a.quantity)} ${unit}`), styles: { halign: 'right', fontStyle: 'bold', textColor: EMERALD } },
-        { content: pdfText(celluleArticle(colisageDe.get(a.id)!)), styles: { fontSize: 7 } },
-        { content: Number(a.netWeight) > 0 ? nf(a.netWeight) : '—', styles: { halign: 'right' } },
-        { content: Number(a.cubicMeasurement) > 0 ? nf(a.cubicMeasurement) : '—', styles: { halign: 'right' } },
+        {
+          // Sous la quantité : ce qui empêche de compter les colis, et l'écart d'une ventilation
+          // qui ne retombe pas juste. Les colonnes de colis restent des chiffres, rien d'autre.
+          content: pdfText([
+            `${nf(a.quantity)} ${unit}`,
+            colisageDe.get(a.id)?.manque || null,
+            colisageDe.get(a.id)?.ventilationEcartee
+              ? `ventilation à revoir (${nf(colisageDe.get(a.id)!.ventilationEcartee!.ventile)} ventilés)`
+              : null,
+          ].filter(Boolean).join('\n')),
+          styles: { halign: 'right', fontStyle: 'bold', textColor: EMERALD },
+        },
+        ...colonnesColis.map(col => ({
+          content: pdfText(celluleColis(colisageDe.get(a.id)!, col.cle)),
+          styles: { halign: 'right' as const, fontStyle: 'bold' as const },
+        })),
         pdfText(articlePlacementText(a)),
       ]);
 
@@ -648,8 +671,10 @@ export async function exportArrivalPackingPDF(params: ArrivalPackingParams): Pro
         { content: pdfText(s), styles: SUBROW },
         { content: pdfText(specs), styles: { ...SUBROW, fontSize: 7 } },
         { content: pdfText(`${nf(qty)} ${unit}`), styles: { ...SUBROW, halign: 'right', textColor: INK } },
-        { content: pdfText(colisageCellule(colisageLigne(ligne, qty), false)), styles: { ...SUBROW, fontSize: 7 } },
-        { content: '', styles: SUBROW }, { content: '', styles: SUBROW },
+        ...colonnesColis.map(col => ({
+          content: pdfText(compteDuColis(colisageLigne(ligne, qty), col.cle)),
+          styles: { ...SUBROW, halign: 'right' as const, textColor: INK },
+        })),
         { content: pdfText(place), styles: { ...SUBROW, textColor: INK, fontStyle: 'bold' } },
       ];
 
@@ -703,7 +728,7 @@ export async function exportArrivalPackingPDF(params: ArrivalPackingParams): Pro
     margin: { left: M, right: M, top: 30, bottom: 16 },
     head: [[
       'N°', 'Désignation', 'Qualité', 'Couleur', 'Taille', 'Caractéristiques',
-      'Quantité', 'Colisage', 'Poids net\n(kg)', 'Volume\n(m³)', 'Emplacement',
+      'Quantité', ...colonnesColis.map(c => c.titre), 'Emplacement',
     ]],
     body: body as any,
     theme: 'grid',
@@ -720,19 +745,27 @@ export async function exportArrivalPackingPDF(params: ArrivalPackingParams): Pro
     // bloc — et les 13 mm libérés vont au Colisage, qui en réclame le double : « 120 rlx · 30
     // sacs · 3 ctn » est ce que le magasinier compte vraiment. Les caractéristiques cèdent le
     // reste : le conditionnement brut qu'elles répétaient est désormais calculé à côté.
-    columnStyles: {
-      0: { cellWidth: 9 },
-      1: { cellWidth: 44 },
-      2: { cellWidth: 21 },
-      3: { cellWidth: 26 },
-      4: { cellWidth: 16 },
-      5: { cellWidth: 50, fontSize: 7 },
-      6: { cellWidth: 22 },
-      7: { cellWidth: 28 },
-      8: { cellWidth: 14 },
-      9: { cellWidth: 13 },
-      10: { cellWidth: 'auto' },
-    },
+    columnStyles: (() => {
+      // Le poids et le volume ont ete retires : personne ne les lit devant un camion, et ils
+      // prenaient la place de ce qu'on compte vraiment. Chaque colis a desormais SA colonne, de
+      // dix-huit millimetres — « 3 460 » y tient large — et ce qui reste va a la designation,
+      // aux caracteristiques et a l'emplacement.
+      const largeurs: Record<number, any> = {
+        0: { cellWidth: 8 },
+        1: { cellWidth: 42 },
+        2: { cellWidth: 19 },
+        3: { cellWidth: 23 },
+        4: { cellWidth: 14 },
+        5: { cellWidth: 42, fontSize: 7 },
+        6: { cellWidth: 23 },
+      };
+      // Seize millimetres par colis : « 3 460 » y tient. Un dossier melangeant tissu et mercerie
+      // en aligne cinq — rouleaux, boites, sacs, cartons, barrettes — et tout doit tenir dans
+      // les 273 mm utiles d'un A4 paysage.
+      colonnesColis.forEach((_, i) => { largeurs[7 + i] = { cellWidth: 16 }; });
+      largeurs[7 + colonnesColis.length] = { cellWidth: 'auto' };
+      return largeurs;
+    })(),
     // Recopier l'en-tête sombre sur chaque nouvelle page
     willDrawPage: (data: any) => {
       if (data.pageNumber > 1) {

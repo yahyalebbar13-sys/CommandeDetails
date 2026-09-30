@@ -245,8 +245,13 @@ const movements = [
       categories: familles, generalCategories: poles, stores,
     });
     const q = lire();
-    check('20 cartons partout', (q.texte.match(/20 ctn/g) || []).length >= 1 && q.texte.includes('20'));
-    check('et jamais 15 à côté', !/15 ctn/.test(q.texte), q.texte.slice(0, 500));
+    // Chaque colis a sa colonne : la ligne de l'article porte « 20 » dans Cartons, et la feuille
+    // de contrôle annonce le même 20. Le 15 d'autrefois — le total sans arrondi par qualité —
+    // ne doit apparaître nulle part.
+    const controleQ = q.texte.slice(q.texte.indexOf('Colis annoncés'));
+    check('la feuille de contrôle annonce 20 cartons', controleQ.includes('20'), controleQ.slice(0, 200));
+    check('et jamais 15 à côté', !/15/.test(controleQ), controleQ.slice(0, 200));
+    check('la colonne Cartons existe', /Cartons/.test(q.texte), q.texte.slice(0, 300));
   }
 
   console.log('\n── Un article acheté au carton ──');
