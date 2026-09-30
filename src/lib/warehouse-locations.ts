@@ -1,3 +1,5 @@
+import { lieuDeMouvement, type LieuConnu } from './stock-disponible';
+
 /**
  * Modèle d'adressage physique des lieux de stockage — Entrepôt → Zone → Rack → Niveau.
  *
@@ -358,7 +360,12 @@ export type ArticleLocationStock = {
  * comptent : le rack du Rouge ne contient pas de Bleu, même s'il s'agit du même article.
  */
 export function computeArticleLocationStock(
-  movements: any[], storeId: string, articleId: string, variant?: StockVariant | null
+  movements: any[], storeId: string, articleId: string, variant?: StockVariant | null,
+  /**
+   * Les lieux connus, pour savoir lesquels sont des entrepots. Sans eux, la comparaison reste
+   * stricte — c'est le comportement d'avant, conserve pour les appels qui ne ventilent pas.
+   */
+  lieux: LieuConnu[] = [],
 ): ArticleLocationStock[] {
   const acc: Record<string, { qty: number; firstIn: string; locId?: string }> = {};
   // Solde de l'article entier par rack : plafonne celui d'une variante. Une sortie adressée
@@ -371,7 +378,11 @@ export function computeArticleLocationStock(
     if (m.articleId !== articleId) continue;
     // Un transfert entrant est crédité sur toStoreId, tous les autres sur storeId.
     const place = m.type === 'IN' && m.reason === 'TRANSFERT' ? (m.toStoreId || m.storeId) : m.storeId;
-    if (place !== storeId) continue;
+    // Un entrepot, c'est le magasin principal (src/lib/stock-disponible.ts). La marchandise entre
+    // sous l'identifiant de l'entrepot — c'est la que les racks existent — mais elle en SORT sous
+    // celui de CHRIFA. Compare tel quel, aucune sortie ne retrouvait son rack : l'emplacement
+    // affichait eternellement la quantite de l'arrivage, quoi qu'on vende.
+    if (lieuDeMouvement(place, lieux) !== lieuDeMouvement(storeId, lieux)) continue;
 
     const qty = Number(m.quantity) || 0;
     const signed = m.type === 'OUT' ? -qty : qty;
@@ -419,11 +430,14 @@ export function allocateOutbound(params: {
   articleId: string;
   quantity: number;
   variant?: StockVariant | null;
+  /** Les lieux connus, pour rattacher les racks d'un entrepot a son magasin principal. */
+  lieux?: LieuConnu[];
 }): { allocations: OutboundAllocation[]; unallocated: number } {
   const total = Number(params.quantity) || 0;
   if (total <= 0) return { allocations: [], unallocated: 0 };
 
-  const buckets = computeArticleLocationStock(params.movements, params.storeId, params.articleId, params.variant);
+  const buckets = computeArticleLocationStock(
+    params.movements, params.storeId, params.articleId, params.variant, params.lieux || []);
   const allocations: OutboundAllocation[] = [];
   let remaining = total;
 
@@ -451,12 +465,14 @@ export function allocateOutbound(params: {
  */
 export function splitOutboundLines<T extends Record<string, any>>(
   movements: any[], storeId: string, articleId: string, quantity: number, base: T,
-  variant?: StockVariant | null
+  variant?: StockVariant | null,
+  /** Les lieux connus : sans eux, une sortie depuis CHRIFA ne trouve jamais les racks des entrepots. */
+  lieux: LieuConnu[] = [],
 ): (T & { quantity: number; locationCode?: string; locationId?: string })[] {
   const qty = Number(quantity) || 0;
   if (qty <= 0) return [];
 
-  const { allocations, unallocated } = allocateOutbound({ movements, storeId, articleId, quantity: qty, variant });
+  const { allocations, unallocated } = allocateOutbound({ movements, storeId, articleId, quantity: qty, variant, lieux });
   const lines = allocations.map(a => ({
     ...base,
     quantity: a.quantity,

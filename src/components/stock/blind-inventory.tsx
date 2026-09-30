@@ -8,6 +8,7 @@ import {
   SectionFormulaire, Champ, Encadre, LigneResume, Recapitulatif, BoutonValider, CLASSE_CHAMP,
 } from './ui-formulaire';
 import type { StockItem, StockMovement, Store } from '@/lib/types';
+import { MAGASIN_PRINCIPAL } from '@/lib/stock-disponible';
 import { suggestInboundLocation, stockItemVariant } from '@/lib/warehouse-locations';
 
 interface CountedLine {
@@ -50,8 +51,20 @@ export default function BlindInventory({
   const currentStore = stores.find(s => s.id === activeStore);
   const isRealStore = activeStore !== 'ALL' && activeStore !== 'ALL_MAIN';
 
+  /**
+   * Le stock que le logiciel croit avoir dans CE lieu.
+   *
+   * Le magasin principal est un cas a part : c'est lui PLUS ses entrepots
+   * (src/lib/stock-disponible.ts). Sa ligne brute est structurellement negative — une vente
+   * puisee en entrepot s'ecrit sous son nom sans debiter l'entrepot. Comparer un comptage a ce
+   * nombre-la donnait un ecart egal a tout ce qui avait ete vendu depuis les entrepots, et
+   * l'inventaire ecrivait un ajustement qui RESSUSCITAIT cette marchandise. Chaque comptage
+   * regonflait le stock. On prend donc le meme perimetre que la caisse et les transferts :
+   * currentQty, deja calcule par computeStockItems pour la vue active.
+   */
   const theoreticalQty = (item: StockItem): number => {
     if (!isRealStore) return item.currentQty;
+    if (activeStore === MAGASIN_PRINCIPAL) return item.currentQty;
     return item.qtyByStore ? ((item.qtyByStore as any)[activeStore] || 0) : 0;
   };
 
@@ -193,11 +206,22 @@ export default function BlindInventory({
 
       <Encadre ton="astuce" titre="Pourquoi le stock n'apparaît pas avant votre chiffre">
         Quand le chiffre du logiciel s'affiche d'abord, on ne compte plus : on recopie. Il reste donc
-        masqué jusqu'à votre saisie, et l'écran ne compare qu'ensuite. Comptez seulement ce qui est
-        physiquement présent dans <span className="font-black">{nomDuLieu}</span> — ce qui dort en
-        réserve ou dans une autre boutique se compte dans sa propre session, ce lieu sélectionné en
-        haut de l'écran. Un produit décliné en qualités, couleurs ou tailles se compte variante par
-        variante : chacune a son stock à elle.
+        masqué jusqu'à votre saisie, et l'écran ne compare qu'ensuite.{' '}
+        {activeStore === MAGASIN_PRINCIPAL ? (
+          <>
+            Comptez ce qui est présent dans <span className="font-black">{nomDuLieu}</span>{' '}
+            <span className="font-black">ET dans ses entrepôts</span> : ici les deux ne font qu'un
+            seul stock, et ne compter que le rayon effacerait la réserve.
+          </>
+        ) : (
+          <>
+            Comptez seulement ce qui est physiquement présent dans{' '}
+            <span className="font-black">{nomDuLieu}</span> — ce qui dort dans une autre boutique se
+            compte dans sa propre session, ce lieu sélectionné en haut de l'écran.
+          </>
+        )}{' '}
+        Un produit décliné en qualités, couleurs ou tailles se compte variante par variante :
+        chacune a son stock à elle.
       </Encadre>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

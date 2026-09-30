@@ -39,6 +39,7 @@ import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
 import type { StockMovement, StockItem, Sale, StoreLocation, Store, ClientPayment, Invoice, TransferOrder } from '@/lib/types';
+import { getLocalDateString } from '@/lib/constants';
 
 type StockView = 'dashboard' | 'pos' | 'stock' | 'sales' | 'movements' | 'alerts';
 
@@ -104,8 +105,11 @@ export default function StockDashboard({
 
   // Filtres Période
   const today = new Date();
-  const todayStr = today.toISOString().split('T')[0];
-  const firstDayOfMonth = new Date(today.getFullYear(), today.getMonth(), 1).toISOString().split('T')[0];
+  // Les ventes sont datees en heure LOCALE (getLocalDateString). Fabriquer les bornes en UTC
+  // decalait tout d'un jour au Maroc : « Ce mois-ci » demarrait le 31 du mois precedent, et
+  // « Mois precedent » perdait son dernier jour.
+  const todayStr = getLocalDateString(today);
+  const firstDayOfMonth = getLocalDateString(new Date(today.getFullYear(), today.getMonth(), 1));
   const currentMonthStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`;
 
   const [periodPreset, setPeriodPreset] = useState<'today' | 'this_month' | 'last_month' | 'this_year' | 'all' | 'custom'>('this_month');
@@ -128,22 +132,22 @@ export default function StockDashboard({
     setPeriodPreset(preset);
     const now = new Date();
     if (preset === 'today') {
-      const d = now.toISOString().split('T')[0];
+      const d = getLocalDateString(now);
       setDateRange({ from: d, to: d });
     } else if (preset === 'this_month') {
-      const from = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
-      const to = now.toISOString().split('T')[0];
+      const from = getLocalDateString(new Date(now.getFullYear(), now.getMonth(), 1));
+      const to = getLocalDateString(now);
       setDateRange({ from, to });
     } else if (preset === 'last_month') {
-      const from = new Date(now.getFullYear(), now.getMonth() - 1, 1).toISOString().split('T')[0];
-      const to = new Date(now.getFullYear(), now.getMonth(), 0).toISOString().split('T')[0];
+      const from = getLocalDateString(new Date(now.getFullYear(), now.getMonth() - 1, 1));
+      const to = getLocalDateString(new Date(now.getFullYear(), now.getMonth(), 0));
       setDateRange({ from, to });
     } else if (preset === 'this_year') {
-      const from = new Date(now.getFullYear(), 0, 1).toISOString().split('T')[0];
-      const to = now.toISOString().split('T')[0];
+      const from = getLocalDateString(new Date(now.getFullYear(), 0, 1));
+      const to = getLocalDateString(now);
       setDateRange({ from, to });
     } else if (preset === 'all') {
-      setDateRange({ from: '2020-01-01', to: now.toISOString().split('T')[0] });
+      setDateRange({ from: '2020-01-01', to: getLocalDateString(now) });
     }
   };
 
@@ -302,7 +306,7 @@ export default function StockDashboard({
       let invDate = inv.date || '';
       if (!invDate && inv.createdAt) {
         if (typeof inv.createdAt.toDate === 'function') {
-          invDate = inv.createdAt.toDate().toISOString().split('T')[0];
+          invDate = getLocalDateString(inv.createdAt.toDate());
         } else if (typeof inv.createdAt === 'string') {
           invDate = inv.createdAt.split('T')[0];
         }
@@ -495,7 +499,7 @@ export default function StockDashboard({
   const yesterdayStr = useMemo(() => {
     const d = new Date(today);
     d.setDate(d.getDate() - 1);
-    return d.toISOString().split('T')[0];
+    return getLocalDateString(d);
   }, [today]);
 
   const dayBrief = useMemo(() => {
@@ -509,7 +513,7 @@ export default function StockDashboard({
 
     const in7Days = new Date(today);
     in7Days.setDate(in7Days.getDate() + 7);
-    const in7DaysStr = in7Days.toISOString().split('T')[0];
+    const in7DaysStr = getLocalDateString(in7Days);
     const duePayments = payments.filter(p => {
       const isPaper = p.method === 'CHEQUE' || p.method === 'EFFET' || p.method === 'LC' || (p.method as string) === 'LCN';
       if (!isPaper || p.status !== 'PENDING' || !p.dueDate) return false;

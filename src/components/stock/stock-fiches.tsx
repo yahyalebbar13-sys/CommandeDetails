@@ -35,7 +35,12 @@ const GROUPS_ORDER = [
   { title: 'Reste',            keywords: ['ruban','tape','rope','thread','elastic thread','tack pin','hook and loop','divers','opp bag'], isFallback: true },
 ];
 
-function fmt(n: number) { return Math.round(n).toLocaleString('fr-MA'); }
+// Le meme arrondi que le reste de /stock : au millieme. Arrondir a l'entier ici faisait
+// disparaitre les ventes au demi-metre — une coupe de 0,4 m s'affichait « 0 », et un stock de
+// 12,5 m tantot 12, tantot 13, selon l'ecran.
+function fmt(n: number) {
+  return (Math.round(n * 1000) / 1000).toLocaleString('fr-MA', { maximumFractionDigits: 3 });
+}
 
 // ── Ce qu'EST le produit : tout passe par la brique partagée ──────────────────
 /**

@@ -376,9 +376,11 @@ export function computeStockItems(
         let distribue = 0;
         aRepartir.forEach((i, rang) => {
           const part = total > 0 ? (parts[i] / total) : (1 / aRepartir.length);
+          // Au millieme, comme la derniere ligne : arrondir a l'entier ici faisait tomber
+          // 100,5 m repartis sur deux couleurs en 50 + 50,5 au lieu de 50,25 + 50,25.
           const q = (rang === aRepartir.length - 1)
             ? Math.round((totalMagasin - distribue) * 1000) / 1000
-            : Math.round(totalMagasin * part);
+            : Math.round(totalMagasin * part * 1000) / 1000;
           distribue += q;
           cartes[i] = { ...(cartes[i] || {}), [sId]: q };
         });
@@ -1679,7 +1681,7 @@ export default function StockApp() {
       // La caisse ne demande jamais l'emplacement : on décrémente automatiquement en FIFO
       // celui qui contient réellement la marchandise. Une ligne peut donc produire plusieurs
       // mouvements si le produit est éclaté sur plusieurs racks — ceux de sa variante seulement.
-      for (const line of splitOutboundLines(workingMovements, storeId, realArticleId, item.qty, base, stockItemVariant(stockItem))) {
+      for (const line of splitOutboundLines(workingMovements, storeId, realArticleId, item.qty, base, stockItemVariant(stockItem), stores)) {
         batch.set(doc(collection(firestore, 'users', effectiveUid, 'stockMovements')), line);
         workingMovements.push(line);
       }
@@ -1763,7 +1765,11 @@ export default function StockApp() {
     const mainStoreId = stores.find(s => s.isMain)?.id || 'CHRIFA';
     const batch = writeBatch(firestore);
     const invRef = doc(collection(firestore, 'users', effectiveUid, 'invoices'));
-    batch.set(invRef, {
+    // cleanUndefined, comme partout ailleurs : une commande comptoir n'a PAS de clientId, et
+    // Firestore refuse une valeur indefinie en levant de facon SYNCHRONE — avant meme de partir
+    // sur le reseau. Le bouton « Convertir en facture » tournait une demi-seconde et ne faisait
+    // rien, sans message, pour toujours.
+    batch.set(invRef, cleanUndefined({
       clientId: order.clientId,
       clientName: order.clientName,
       orderId: order.id,
@@ -1781,7 +1787,7 @@ export default function StockApp() {
       notes: order.notes,
       storeId: order.storeId || ((activeStore === 'ALL' || activeStore === 'ALL_MAIN') ? mainStoreId : activeStore),
       createdAt: serverTimestamp(),
-    });
+    }));
     const orderRef = doc(firestore, 'users', effectiveUid, 'saleOrders', order.id);
     batch.update(orderRef, { status: 'INVOICED' });
 
@@ -1815,7 +1821,7 @@ export default function StockApp() {
         : ligne.color ? { dimension: 'color' as const, value: ligne.color }
         : ligne.size ? { dimension: 'size' as const, value: ligne.size }
         : null;
-      const lignesSortie = splitOutboundLines(enCours, lieuVente, ligne.articleId, quantite, base, variante);
+      const lignesSortie = splitOutboundLines(enCours, lieuVente, ligne.articleId, quantite, base, variante, stores);
       for (const sortie of lignesSortie) {
         batch.set(doc(collection(firestore, 'users', effectiveUid, 'stockMovements')), sortie);
       }
@@ -1870,7 +1876,7 @@ export default function StockApp() {
         const { quantity, _variant, ...rest } = m;
         const base = { ...cleanUndefined(rest), storeId: movStore, createdAt: serverTimestamp() };
         // Facturation : même règle qu'à la caisse, l'emplacement est résolu tout seul en FIFO.
-        const lines = splitOutboundLines(workingMovements, movStore, m.articleId, quantity, base, _variant);
+        const lines = splitOutboundLines(workingMovements, movStore, m.articleId, quantity, base, _variant, stores);
         for (const line of lines) {
           batch.set(doc(collection(firestore, 'users', effectiveUid, 'stockMovements')), line);
         }
@@ -1980,13 +1986,13 @@ export default function StockApp() {
       const newTotal = Math.max(0, (Number(invoice.totalAfterDiscount) || 0) - returnValue);
       const newRemaining = Math.max(0, newTotal - (Number(invoice.paidAmount) || 0));
       const overpaid = (Number(invoice.paidAmount) || 0) > newTotal ? (Number(invoice.paidAmount) || 0) - newTotal : 0;
-      const newStatus: InvoiceStatus = newTotal === 0
-        ? 'PAID'
-        : newRemaining === 0
-          ? 'PAID'
-          : (Number(invoice.paidAmount) || 0) > 0
-            ? 'PARTIAL'
-            : 'UNPAID';
+      // Le statut passe par la regle unique (src/lib/reglement.ts), comme les trois autres
+      // ecrans. La cascade ecrite a la main ici ignorait le cas PENDING : une facture reglee par
+      // un cheque NON ENCAISSE basculait « Paye » des qu'on enregistrait un retour, et l'argent
+      // en l'air disparaissait des relances.
+      const newStatus: InvoiceStatus = statutFacture(
+        newTotal, Number(invoice.paidAmount) || 0, effetEnCoursSurFacture(invoice.id),
+      ) as InvoiceStatus;
 
       const invRef = doc(firestore, 'users', effectiveUid, 'invoices', invoice.id);
       batch.update(invRef, {
@@ -2341,16 +2347,45 @@ export default function StockApp() {
 
     if (status === 'ENCAISSE') {
       const rem = remittances.find(r => r.id === remittanceId);
+      const facturesTouchees = new Set<string>();
       if (rem && rem.paymentIds) {
         for (const pid of rem.paymentIds) {
           await updateDoc(doc(firestore, 'users', effectiveUid, 'clientPayments', pid), {
             status: 'CLEARED',
           });
+          // On note les factures que ces cheques reglaient : leur statut depend de lui.
+          const paiement = (payments as any[]).find((p: any) => p.id === pid);
+          if (paiement) for (const l of imputationsDuPaiement(paiement)) facturesTouchees.add(l.invoiceId);
         }
       }
+
+      // Encaisser un bordereau ne suffisait pas : les cheques passaient bien a CLEARED, mais
+      // aucune facture n'etait recalculee. Or c'est le statut du cheque qui decide de celui de
+      // la facture — elles restaient « en attente » pour toujours, et le client apparaissait
+      // eternellement debiteur d'une somme deja encaissee.
+      const misesAJour = new Set(rem?.paymentIds || []);
+      for (const invoiceId of facturesTouchees) {
+        const facture = (invoices as any[]).find((f: any) => f.id === invoiceId);
+        if (!facture) continue;
+        const enAttente = (payments as any[]).some((p: any) => {
+          if (!imputationsDuPaiement(p).some(l => l.invoiceId === invoiceId)) return false;
+          // Les cheques du bordereau viennent de passer a CLEARED : on les lit avec leur
+          // NOUVEAU statut, pas avec celui que la liste locale porte encore.
+          return effetEnAttente(misesAJour.has(p.id) ? { ...p, status: 'CLEARED' } : p);
+        });
+        const total = Number(facture.totalAfterDiscount) || 0;
+        const paye = Number(facture.paidAmount) || 0;
+        await updateDoc(doc(firestore, 'users', effectiveUid, 'invoices', invoiceId), {
+          status: statutFacture(total, paye, enAttente),
+          remainingBalance: Math.max(0, centimes(total - paye)),
+        });
+      }
+
       toast({
         title: 'Remise Encaissée',
-        description: `Tous les chèques du bordereau ont été marqués comme ENCAISSÉS.`,
+        description: facturesTouchees.size > 0
+          ? `Chèques encaissés · ${facturesTouchees.size} facture(s) mise(s) à jour.`
+          : `Tous les chèques du bordereau ont été marqués comme ENCAISSÉS.`,
       });
     } else {
       toast({

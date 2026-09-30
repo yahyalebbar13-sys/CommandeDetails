@@ -115,6 +115,17 @@ export default function StockOrders({ orders, clients, onUpdateStatus, onConvert
     }
     setConverting(order.id);
     try { await onConvertToInvoice(order); return true; }
+    catch (err: any) {
+      // Sans ce catch, une écriture refusée laissait le bouton tourner puis redevenir normal,
+      // sans facture et sans un mot. Une panne muette se répète indéfiniment.
+      console.error('[commande → facture]', err);
+      toast({
+        variant: 'destructive',
+        title: 'Facturation impossible',
+        description: err?.message || String(err),
+      });
+      return false;
+    }
     finally { setConverting(null); }
   };
 

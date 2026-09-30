@@ -263,5 +263,35 @@ check('VARIOUS en majuscules', libelleFixe('VARIOUS') === null);
 check('vide', libelleFixe('') === null && libelleFixe(null) === null && libelleFixe(undefined) === null);
 check('vraie couleur gardée, espaces retirés', libelleFixe(' BLEU CIEL ') === 'BLEU CIEL');
 
+// ── Un entrepôt, c'est le magasin principal ──
+// La marchandise ENTRE sous l'identifiant de l'entrepôt — c'est là que les racks existent — mais
+// elle en SORT sous celui de CHRIFA, parce que c'est de là qu'on vend et qu'on transfère.
+// Comparés tels quels, les deux ne se rencontraient jamais : aucune sortie ne retrouvait son
+// rack, et l'emplacement affichait éternellement la quantité de l'arrivage.
+console.log('\n── Les racks d’un entrepôt se vident quand on vend depuis CHRIFA ──');
+{
+  const lieux = [{ id: 'CHRIFA', type: 'STORE' }, { id: 'ENT', type: 'WAREHOUSE' }];
+  const movs = [
+    { articleId: 'a1', type: 'IN', reason: 'ARRIVAGE', storeId: 'ENT', locationCode: 'A-01-01', quantity: 500, date: '2026-09-01' },
+    { articleId: 'a1', type: 'OUT', reason: 'VENTE', storeId: 'CHRIFA', locationCode: 'A-01-01', quantity: 120, date: '2026-09-20' },
+  ];
+  const sansLieux = computeArticleLocationStock(movs, 'ENT', 'a1');
+  check('sans la liste des lieux, le rack ignore la sortie (comportement d’avant)',
+    sansLieux[0]?.quantity === 500, JSON.stringify(sansLieux));
+
+  const avecLieux = computeArticleLocationStock(movs, 'ENT', 'a1', null, lieux);
+  check('avec elle, le rack est débité', avecLieux[0]?.quantity === 380, JSON.stringify(avecLieux));
+
+  // Et une sortie depuis CHRIFA doit trouver les racks de l'entrepôt pour s'y adresser.
+  const lignes = splitOutboundLines(movs, 'CHRIFA', 'a1', 80, { type: 'OUT' }, null, lieux);
+  check('une sortie depuis CHRIFA s’adresse au rack de l’entrepôt',
+    lignes.length === 1 && lignes[0].locationCode === 'A-01-01' && lignes[0].quantity === 80,
+    JSON.stringify(lignes));
+
+  const aveugle = splitOutboundLines(movs, 'CHRIFA', 'a1', 80, { type: 'OUT' }, null);
+  check('sans la liste des lieux, elle sort sans emplacement',
+    aveugle.length === 1 && !aveugle[0].locationCode, JSON.stringify(aveugle));
+}
+
 console.log(`\n${pass} réussis, ${fail} échoués`);
 if (fail > 0) process.exit(1);

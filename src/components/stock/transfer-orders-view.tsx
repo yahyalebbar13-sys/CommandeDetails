@@ -237,7 +237,7 @@ export default function TransferOrdersView({ transferOrders, stockItems, stores,
           toStoreId: toStore,
           notes: `Transfert ${docRef.id} vers ${getStoreLabel(toStore)}`,
         };
-        const outLines = splitOutboundLines(work, fromStore, realId, item.sentQty, outBase, variant);
+        const outLines = splitOutboundLines(work, fromStore, realId, item.sentQty, outBase, variant, stores);
         for (const line of outLines) {
           batch.set(doc(collection(firestore, 'users', adminUid, 'stockMovements')), cleanUndefined(line));
         }
@@ -379,7 +379,7 @@ export default function TransferOrdersView({ transferOrders, stockItems, stores,
             notes: `Perte/Manquant lors de la réception ${order.id}`,
             createdAt: serverTimestamp()
           };
-          const lossLines = splitOutboundLines(work, order.toStore, realId, discrepancy, lossBase, variant);
+          const lossLines = splitOutboundLines(work, order.toStore, realId, discrepancy, lossBase, variant, stores);
           for (const line of lossLines) {
             batch.set(doc(collection(firestore, 'users', adminUid, 'stockMovements')), cleanUndefined(line));
           }
