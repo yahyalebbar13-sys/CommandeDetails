@@ -1012,7 +1012,10 @@ export default function StockSaleFlow({
     // chaque clic : deux impressions du même bon portaient deux numéros, et aucun ne correspondait
     // à ce qu'on retrouvait en base.
     const bcNum = preparedOrder?.reference || `BC-${Date.now().toString(36).toUpperCase()}`;
-    const dateStr = new Date().toLocaleDateString('fr-FR', { day: '2-digit', month: 'long', year: 'numeric' });
+    // La DATE DE LA VENTE, pas celle du jour. Le champ « Date de la vente » existe precisement
+    // pour antidater une sortie faite un autre jour : la vente partait bien a cette date, mais le
+    // papier remis au client en annoncait une autre.
+    const dateStr = new Date(`${finalDate}T00:00:00`).toLocaleDateString('fr-FR', { day: '2-digit', month: 'long', year: 'numeric' });
     const isFullCredit = paymentStatus === 'UNPAID';
     const validLines = isFullCredit ? [] : paymentLines.filter(l => (parseFloat(l.amount) || 0) > 0);
     const totalPaidCalculated = isFullCredit ? 0 : validLines.reduce((s, l) => s + (parseFloat(l.amount) || 0), 0);

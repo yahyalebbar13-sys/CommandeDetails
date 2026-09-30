@@ -1,4 +1,5 @@
 import * as XLSX from 'xlsx';
+import { valeurImprimable } from '@/lib/specification-produit';
 
 type ExportFormat = 'csv' | 'xlsx';
 
@@ -48,8 +49,10 @@ export function formatMovementsForExport(movements: any[]) {
     'Type': m.type === 'IN' ? 'Entrée' : m.type === 'OUT' ? 'Sortie' : 'Ajustement',
     'Motif': m.reason || '',
     'Produit': m.productName || '',
-    'Couleur': m.color || '',
-    'Taille': m.size || '',
+    // « various » est la marque interne d'un article ventile, jamais une couleur : l'ecran et le
+    // PDF l'ecartent deja, l'Excel la recopiait telle quelle.
+    'Couleur': valeurImprimable(m.color),
+    'Taille': valeurImprimable(m.size),
     'Quantité': m.quantity || 0,
     'Magasin': m.storeId || '',
     'Destination': m.toStoreId || '',
@@ -65,12 +68,11 @@ export function formatInvoicesForExport(invoices: any[]) {
     'N° Facture': inv.invoiceNumber || '',
     'Date': inv.date || '',
     'Client': inv.clientName || 'Anonyme',
-    'Montant HT': inv.totalAmount || 0,
+    // Ni TVA ni HT/TTC : /stock n'en ecrit aucune, et ce fichier en inventait une de 20 %
+    // sur chaque ligne — a cote d'un montant de TVA a zero. Il part chez le comptable.
+    'Montant': inv.totalAmount || 0,
     'Remise %': inv.discount || 0,
     'Total après remise': inv.totalAfterDiscount || 0,
-    'TVA %': inv.tvaRate ?? 20,
-    'Montant TVA': inv.tvaAmount || 0,
-    'Total TTC': inv.totalTTC || inv.totalAfterDiscount || 0,
     'Payé': inv.paidAmount || 0,
     'Solde dû': inv.remainingBalance || 0,
     'Statut': inv.status || '',

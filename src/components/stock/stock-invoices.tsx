@@ -15,6 +15,7 @@ import type { Invoice, InvoiceStatus, Client, ClientPayment, PaymentMethod } fro
 import { exportToFile, formatInvoicesForExport } from '@/lib/export-utils';
 import { exportInvoicesPDF, exportFridaySalesPDF } from '@/lib/pdf-export-reports';
 import { cleanUndefined } from '@/lib/utils';
+import { getLocalDateString } from '@/lib/constants';
 import { useToast } from '@/hooks/use-toast';
 import { ScanPiece } from './scan-piece';
 
@@ -154,15 +155,24 @@ export default function StockInvoices({ invoices, clients, payments, onRecordPay
     const monday = new Date(now);
     monday.setDate(now.getDate() - diff);
     monday.setHours(0, 0, 0, 0);
-    const mondayStr = monday.toISOString().split('T')[0];
+    const mondayStr = getLocalDateString(monday);
 
+    // Une semaine vide est une semaine vide : le document basculait sur TOUT l'historique tout
+    // en gardant le titre « Semaine du… » et « chiffre d'affaires hebdo ». Un lundi matin, le
+    // patron lisait l'année entière en croyant lire sa semaine.
     const weekInvoices = invoices.filter(i => i.date && i.date >= mondayStr);
-    const dataToExport = weekInvoices.length > 0 ? weekInvoices : filtered;
+    if (weekInvoices.length === 0) {
+      toast({
+        title: 'Aucune vente cette semaine',
+        description: `Rien depuis le ${monday.toLocaleDateString('fr-FR')}. Le bilan hebdomadaire n'a rien à imprimer.`,
+      });
+      return;
+    }
 
     exportFridaySalesPDF(
-      dataToExport,
+      weekInvoices,
       payments,
-      `Semaine du ${monday.toLocaleDateString('fr-FR')} au ${now.toLocaleDateString('fr-FR')} (${dataToExport.length} bons)`
+      `Semaine du ${monday.toLocaleDateString('fr-FR')} au ${now.toLocaleDateString('fr-FR')} (${weekInvoices.length} bons)`
     );
   };
 

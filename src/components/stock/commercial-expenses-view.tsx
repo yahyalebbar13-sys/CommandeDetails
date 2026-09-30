@@ -25,6 +25,7 @@ import { isFabricLineOrCategory, isZipperLineOrCategory, isThreadLineOrCategory,
 import ColorBreakdownInput, { ColorBreakdownRow } from '@/components/color-breakdown-input';
 import QualityBreakdownInput, { QualityBreakdownRow } from '@/components/quality-breakdown-input';
 import { libelleUnite, uniteImposee } from '@/lib/unites-pole';
+import { useConfirm } from '@/hooks/use-confirm';
 
 interface CommercialExpensesViewProps {
   expenses: CommercialExpense[];
@@ -104,6 +105,7 @@ export default function CommercialExpensesView({
   onDeleteExpense,
 }: CommercialExpensesViewProps) {
   const { toast } = useToast();
+  const confirm = useConfirm();
 
   const [search, setSearch] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('ALL');
@@ -1061,7 +1063,22 @@ export default function CommercialExpensesView({
                             <Button
                               size="sm"
                               variant="ghost"
-                              onClick={() => onDeleteExpense(expense.id)}
+                              onClick={async () => {
+                                // Un seul clic effacait la note ET l'entree en stock qu'elle
+                                // avait produite, sans rien demander.
+                                const ok = await confirm({
+                                  title: 'Supprimer cette note de frais ?',
+                                  description: `${expense.description || 'Cette dépense'}
+
+`
+                                    + ((expense as any).stockMovementId
+                                      ? "L'entrée en stock qu'elle a produite sera retirée avec elle."
+                                      : 'Cette suppression est définitive.'),
+                                  confirmLabel: 'Supprimer',
+                                  variant: 'destructive',
+                                });
+                                if (ok) onDeleteExpense(expense.id);
+                              }}
                               className="h-8 w-8 p-0 text-stone-300 hover:text-red-600 rounded-xl"
                               title="Supprimer la note"
                             >

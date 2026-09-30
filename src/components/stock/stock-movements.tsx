@@ -13,6 +13,7 @@ import { libelleFixe } from '@/lib/warehouse-locations';
 import { specificationsEnLigne, qualiteDeLArticle } from '@/lib/specification-produit';
 import { exportToFile, formatMovementsForExport } from '@/lib/export-utils';
 import { exportMovementsPDF } from '@/lib/pdf-export-reports';
+import { uniteDeStock, poleDeLArticle } from '@/lib/unites-pole';
 
 interface StockMovementsProps {
   movements: StockMovement[];
@@ -148,6 +149,11 @@ export default function StockMovements({ movements, stockItems, categories, gene
     return {
       nom: (m?.nameFR || m?.productName || article?.nameFR || article?.name || '—') as string,
       famille: nomDeLaFamille(m?.categoryId),
+      // L'unite du POLE, celle dans laquelle le stock est tenu. Le mouvement porte celle qui a
+      // ete saisie a la commande : un TAFFETA commande « en rolls » affichait « +500 rolls » au
+      // journal quand sa fiche annonçait « 500 m ». Deux ecrans, deux verites, meme marchandise.
+      unite: (article ? uniteDeStock(poleDeLArticle(article, categories, generalCategories)) : null)
+        || m?.unitOfMeasure || 'unité',
       qualite: qualiteDeLArticle(m),
       couleur: libelleFixe(m?.color),
       taille: libelleFixe(m?.size),
@@ -472,7 +478,7 @@ export default function StockMovements({ movements, stockItems, categories, gene
                       {/* Quantité */}
                       <td className="px-4 py-3 align-top whitespace-nowrap">
                         <span className={`text-sm font-black ${ts.qty}`}>
-                          {signe}{(Number(m.quantity) || 0).toLocaleString('fr-FR')} {m.unitOfMeasure}
+                          {signe}{(Number(m.quantity) || 0).toLocaleString('fr-FR')} {article.unite}
                         </span>
                       </td>
                     </tr>

@@ -325,7 +325,9 @@ export async function exportFridaySalesPDF(invoices: any[], payments: any[] = []
       if (inv.status === 'PAID') statusStr = 'RÉGLÉ';
       else if (inv.status === 'PENDING') statusStr = 'CHÈQUE EN ATTENTE';
       else if (inv.status === 'PARTIAL') statusStr = 'PARTIEL';
-      else if (inv.remainingBalance > 0) statusStr = '🔴 À Crédit';
+      // Pas d'emoji : les polices standard de jsPDF sont en WinAnsi et ne savent pas le
+      // dessiner — la cellule sortait « Ø=Ý4 » a la place du statut.
+      else if (inv.remainingBalance > 0) statusStr = 'À CRÉDIT';
 
       return {
         date: inv.date || '',
@@ -355,8 +357,22 @@ export async function exportTransferOrderPDF(order: any, stores: any[], categori
   const getStoreName = (id: string) => stores.find(s => s.id === id)?.name || id;
   const fromName = getStoreName(order.fromStore);
   const toName = getStoreName(order.toStore);
-  const totalSentQty = (order.items || []).reduce((s: number, i: any) => s + (i.sentQty || 0), 0);
-  const totalReceivedQty = (order.items || []).reduce((s: number, i: any) => s + (i.receivedQty || 0), 0);
+  /**
+   * Les quantites, groupees PAR UNITE. Additionner 300 m de tissu et 50 curseurs donnait
+   * « 350 pcs » : le magasinier d'arrivee pointait son carton contre un total qui ne veut rien
+   * dire. On annonce « 300 m + 50 pcs ».
+   */
+  const totalParUnite = (champ: 'sentQty' | 'receivedQty'): string => {
+    const parUnite: Record<string, number> = {};
+    for (const i of (order.items || []) as any[]) {
+      const q = Number(i?.[champ]) || 0;
+      if (q === 0) continue;
+      const u = String(i?.unitOfMeasure || 'pcs').trim() || 'pcs';
+      parUnite[u] = Math.round(((parUnite[u] || 0) + q) * 1000) / 1000;
+    }
+    const bouts = Object.entries(parUnite).map(([u, q]) => `${fmt(q)} ${u}`);
+    return bouts.length > 0 ? bouts.join(' + ') : '0';
+  };
 
   return exportReportPDF({
     title: `Bon de Transfert Inter-Magasins N° BT-${(order.id || '').slice(0, 8).toUpperCase()}`,
@@ -390,8 +406,8 @@ export async function exportTransferOrderPDF(order: any, stores: any[], categori
     }),
     summaryRows: [
       { label: 'Nombre de références transférées', value: `${(order.items || []).length} réf.` },
-      { label: 'Total unités expédiées', value: `${totalSentQty} pcs` },
-      ...(order.status === 'VALIDATED' ? [{ label: 'Total unités reçues et validées', value: `${totalReceivedQty} pcs` }] : []),
+      { label: 'Total expédié', value: totalParUnite('sentQty') },
+      ...(order.status === 'VALIDATED' ? [{ label: 'Total reçu et validé', value: totalParUnite('receivedQty') }] : []),
       { label: 'Statut du transfert', value: order.status === 'VALIDATED' ? 'VALIDÉ ET EN STOCK' : 'EN TRANSIT' },
     ],
     footer: 'LEBTEX SARL AU — Visa Expéditeur : [                    ]    Visa Chauffeur / Transporteur : [                    ]    Visa Réceptionnaire : [                    ]',

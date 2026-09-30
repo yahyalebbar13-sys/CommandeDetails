@@ -2519,12 +2519,41 @@ export default function StockApp() {
     toast({ title: 'Statut de la dépense mis à jour' });
   }, [user, firestore, adminUid, toast]);
 
+  /**
+   * Supprime une note de frais, ET l'entree en stock qu'elle avait produite.
+   *
+   * Un achat au marche marque « entre en stock » a ecrit un mouvement d'entree : ne supprimer que
+   * la depense laissait la marchandise en rayon sans facture en face — du stock qui n'a jamais
+   * ete achete, invendable a expliquer et impossible a retrouver.
+   */
   const handleDeleteExpense = useCallback(async (id: string) => {
     if (!user || !firestore) return;
     const effectiveUid = adminUid || user.uid;
-    await deleteDoc(doc(firestore, 'users', effectiveUid, 'commercialExpenses', id));
-    toast({ title: 'Dépense supprimée' });
-  }, [user, firestore, adminUid, toast]);
+    const depense = (expenses as any[]).find((e: any) => e.id === id);
+    const mouvementId = depense?.stockMovementId;
+
+    const batch = writeBatch(firestore);
+    batch.delete(doc(firestore, 'users', effectiveUid, 'commercialExpenses', id));
+    if (mouvementId) batch.delete(doc(firestore, 'users', effectiveUid, 'stockMovements', mouvementId));
+    await batch.commit();
+
+    logAudit(firestore, effectiveUid, {
+      action: 'SETTINGS_UPDATED',
+      userId: user.uid,
+      userEmail: user.email || '',
+      entityType: 'settings',
+      entityId: id,
+      description: `Note de frais supprimée${mouvementId ? ' · entrée en stock annulée' : ''}`,
+      metadata: { stockMovementId: mouvementId || null },
+    } as any);
+
+    toast({
+      title: 'Dépense supprimée',
+      description: mouvementId
+        ? "L'entrée en stock qu'elle avait produite a été retirée avec elle."
+        : undefined,
+    });
+  }, [user, firestore, adminUid, toast, expenses]);
 
   // Chèques et LCN à échéance <= 7 jours sans société affectée (Attijariwafa Bank)
   const urgent7DaysEffects = useMemo(() => {
