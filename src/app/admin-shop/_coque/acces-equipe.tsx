@@ -281,8 +281,8 @@ function Presentation() {
           <h2 id="acces-equipe-intro" className="text-white font-semibold text-base">L&apos;espace de l&apos;équipe</h2>
           <p className="mt-1 text-sm leading-relaxed text-gray-300">
             Un seul accès pour toute l&apos;équipe. Avec lui, l&apos;équipe voit et traite les commandes de la boutique
-            et les demandes des clients, rien d&apos;autre (pas de gestion des produits, pas de chiffre d&apos;affaires,
-            pas de publication).
+            et les demandes des clients, et consulte le coût de vente ; rien d&apos;autre (pas de gestion des produits,
+            pas de chiffre d&apos;affaires, pas de publication).
           </p>
         </div>
       </div>
@@ -295,6 +295,7 @@ function Presentation() {
             <li className="flex gap-2"><Check className="w-4 h-4 text-emerald-400 flex-shrink-0 mt-0.5" aria-hidden />Imprimer les bons de livraison</li>
             <li className="flex gap-2"><Check className="w-4 h-4 text-emerald-400 flex-shrink-0 mt-0.5" aria-hidden />Répondre aux demandes des clients</li>
             <li className="flex gap-2"><Eye className="w-4 h-4 text-emerald-400 flex-shrink-0 mt-0.5" aria-hidden />Voir le détail des commandes : articles, prix, nom, téléphone et adresse du client</li>
+            <li className="flex gap-2"><Eye className="w-4 h-4 text-emerald-400 flex-shrink-0 mt-0.5" aria-hidden />Consulter le coût de vente des dossiers validés et en télécharger les PDF (sans pouvoir le verrouiller)</li>
           </ul>
         </div>
         <div className="rounded-xl bg-white/[0.03] border border-white/10 p-3.5">
@@ -302,7 +303,7 @@ function Presentation() {
           <ul className="mt-2 space-y-1.5 text-sm text-gray-300">
             <li className="flex gap-2"><Ban className="w-4 h-4 text-gray-400 flex-shrink-0 mt-0.5" aria-hidden />La modification des produits, des prix et des catégories</li>
             <li className="flex gap-2"><Ban className="w-4 h-4 text-gray-400 flex-shrink-0 mt-0.5" aria-hidden />Le tableau de bord (chiffre d&apos;affaires) et le fichier clients</li>
-            <li className="flex gap-2"><Ban className="w-4 h-4 text-gray-400 flex-shrink-0 mt-0.5" aria-hidden />Le stock, la gestion et la publication du site</li>
+            <li className="flex gap-2"><Ban className="w-4 h-4 text-gray-400 flex-shrink-0 mt-0.5" aria-hidden />Les prix d&apos;achat fournisseur, le stock, la gestion et la publication du site</li>
           </ul>
         </div>
       </div>

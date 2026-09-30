@@ -12,6 +12,11 @@ import { useFirebase } from '@/firebase';
 import { doc, getDoc, getDocs, collection, setDoc } from 'firebase/firestore';
 import { ArticleOverride } from './article-override-modal';
 import { lignesCoutDeVente, calculCoutDeVente } from '@/lib/cout-de-vente';
+import { authedFetch } from '@/lib/authed-fetch';
+import { signalerAccesRefuse } from '@/lib/acces-equipe';
+
+type AnalyseCoutVente = ReturnType<typeof calculCoutDeVente>;
+type Verrou = { value: number; at: string };
 
 // The 4 checklist IDs that must all be true to unlock a dossier in Cost Sale
 const REQUIRED_CHECKS = ['douane_ok', 'facture_mad_ok', 'nw_cbm_ok', 'dp_ok'];
@@ -21,10 +26,37 @@ interface CostSaleViewProps {
   factures: any[];
   subCategories: any[];
   generalCategories: any[];
+  /**
+   * Espace équipe (/staff, compte « coût de vente ») : lecture seule. Rien n'est
+   * lu ni écrit dans la base depuis le navigateur ; le serveur calcule et
+   * renvoie le résultat (/api/equipe/cout-vente). Pas de verrouillage ; PDF oui.
+   * `articles`, `factures`… sont alors ignorés (passer des tableaux vides).
+   */
+  equipe?: boolean;
 }
 
-export default function CostSaleView({ articles, factures, subCategories, generalCategories }: CostSaleViewProps) {
+const ROUTE_EQUIPE = '/api/equipe/cout-vente';
+
+/** Appel de la route de l'équipe ; un refus d'accès prévient l'espace /staff. */
+async function lireRouteEquipe(url: string): Promise<any> {
+  let res: Response;
+  try { res = await authedFetch(url, { cache: 'no-store' }); }
+  catch { throw new Error('Pas de connexion Internet. Réessayez dans un instant.'); }
+  let data: any = null;
+  try { data = await res.json(); } catch { /* réponse non JSON */ }
+  if (!res.ok) {
+    if (res.status === 401 || res.status === 403) signalerAccesRefuse(res.status);
+    throw new Error(typeof data?.error === 'string' ? data.error : `Le serveur n'a pas répondu correctement (code ${res.status}).`);
+  }
+  return data;
+}
+
+export default function CostSaleView({ articles, factures, subCategories, generalCategories, equipe = false }: CostSaleViewProps) {
   const { user, firestore } = useFirebase();
+  // Mode équipe : dossiers, analyse et erreur viennent du serveur.
+  const [dossiersEquipe, setDossiersEquipe] = useState<any[]>([]);
+  const [analyseEquipe, setAnalyseEquipe] = useState<AnalyseCoutVente | null>(null);
+  const [erreurEquipe, setErreurEquipe] = useState<string | null>(null);
 
   // ── Checklist state: map of factureId -> checks object ──
   const [checklists, setChecklists] = useState<Record<string, Record<string, boolean>>>({});
@@ -32,6 +64,13 @@ export default function CostSaleView({ articles, factures, subCategories, genera
 
   // Load all checklists once — stored under users/{uid}/checklists/
   useEffect(() => {
+    if (equipe) {
+      lireRouteEquipe(ROUTE_EQUIPE)
+        .then(data => setDossiersEquipe(Array.isArray(data?.dossiers) ? data.dossiers : []))
+        .catch(err => setErreurEquipe(err.message))
+        .finally(() => setChecklistsLoaded(true));
+      return;
+    }
     if (!firestore || !user) return;
     getDocs(collection(firestore, 'users', user.uid, 'checklists'))
       .then(snap => {
@@ -41,7 +80,7 @@ export default function CostSaleView({ articles, factures, subCategories, genera
       })
       .catch(() => {})
       .finally(() => setChecklistsLoaded(true));
-  }, [firestore, user]);
+  }, [firestore, user, equipe]);
 
   // A dossier is visible in Coût de Vente ONLY when the user has manually checked all 4 items
   const isFactureValidated = (f: any): boolean => {
@@ -51,9 +90,9 @@ export default function CostSaleView({ articles, factures, subCategories, genera
 
   // ── Only show validated factures ──
   const validatedFactures = useMemo(
-    () => checklistsLoaded ? factures.filter(isFactureValidated) : [],
+    () => equipe ? dossiersEquipe : checklistsLoaded ? factures.filter(isFactureValidated) : [],
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [factures, checklists, checklistsLoaded]
+    [factures, checklists, checklistsLoaded, equipe, dossiersEquipe]
   );
 
 
@@ -72,7 +111,7 @@ export default function CostSaleView({ articles, factures, subCategories, genera
   const [loading, setLoading] = useState(false);
 
   // ── État de verrouillage du Coût de Vente ──
-  const [lockedVente, setLockedVente] = useState<{ value: number; at: string } | null>(null);
+  const [lockedVente, setLockedVente] = useState<Verrou | null>(null);
   const [lockLoading, setLockLoading] = useState(false);
 
   const selectedFacture = useMemo(
@@ -82,6 +121,23 @@ export default function CostSaleView({ articles, factures, subCategories, genera
 
   // Load saved DP puMap, overrides AND lock state from Firebase when dossier changes
   useEffect(() => {
+    if (equipe) {
+      if (!selectedFactureId) return;
+      let actuel = true;
+      setLoading(true);
+      setAnalyseEquipe(null);
+      setLockedVente(null);
+      setErreurEquipe(null);
+      lireRouteEquipe(`${ROUTE_EQUIPE}?dossier=${encodeURIComponent(selectedFactureId)}`)
+        .then(data => {
+          if (!actuel) return;
+          setAnalyseEquipe(data?.analysis ?? null);
+          setLockedVente(data?.lockedVente ?? null);
+        })
+        .catch(err => { if (actuel) setErreurEquipe(err.message); })
+        .finally(() => { if (actuel) setLoading(false); });
+      return () => { actuel = false; };
+    }
     if (!selectedFactureId || !firestore || !user) return;
     setLoading(true);
     setPuMap({});
@@ -103,7 +159,7 @@ export default function CostSaleView({ articles, factures, subCategories, genera
       })
       .catch(err => console.error('DP load error:', err))
       .finally(() => setLoading(false));
-  }, [selectedFactureId, firestore, user]);
+  }, [selectedFactureId, firestore, user, equipe]);
 
 
   // Lignes et calcul partagés avec le registre, le tableau et le dashboard (lib/cout-de-vente).
@@ -114,9 +170,10 @@ export default function CostSaleView({ articles, factures, subCategories, genera
   }, [articles, selectedFactureId, subCategories, generalCategories, overrides, puMap]);
 
   const analysis = useMemo(() => {
+    if (equipe) return selectedFacture ? analyseEquipe : null;
     if (!selectedFacture || categoryLines.length === 0) return null;
     return calculCoutDeVente(selectedFacture, categoryLines, puMap);
-  }, [selectedFacture, categoryLines, puMap]);
+  }, [selectedFacture, categoryLines, puMap, equipe, analyseEquipe]);
 
   // ── Valeur live courante du Coût de Vente ──
   const liveVenteTotal = useMemo(
@@ -126,6 +183,7 @@ export default function CostSaleView({ articles, factures, subCategories, genera
 
   // ── Persiste le total Coût de Vente dans Firebase SEULEMENT si non verrouillé ──
   useEffect(() => {
+    if (equipe) return; // L'équipe n'écrit rien
     if (!analysis || !selectedFactureId || !firestore || !user) return;
     if (lockedVente !== null) return; // Verrouillé : on ne touche pas
     if (liveVenteTotal <= 0) return;
@@ -134,11 +192,11 @@ export default function CostSaleView({ articles, factures, subCategories, genera
       { coutVenteTtcTotal: liveVenteTotal },
       { merge: true }
     ).catch(() => {});
-  }, [analysis, liveVenteTotal, lockedVente, selectedFactureId, firestore, user]);
+  }, [analysis, liveVenteTotal, lockedVente, selectedFactureId, firestore, user, equipe]);
 
   // ── Verrouiller le Coût de Vente ──
   const handleLockVente = useCallback(async () => {
-    if (!selectedFactureId || !firestore || !user || liveVenteTotal <= 0) return;
+    if (equipe || !selectedFactureId || !firestore || !user || liveVenteTotal <= 0) return;
     setLockLoading(true);
     const now = new Date().toISOString();
     try {
@@ -158,7 +216,7 @@ export default function CostSaleView({ articles, factures, subCategories, genera
     } finally {
       setLockLoading(false);
     }
-  }, [selectedFactureId, firestore, user, liveVenteTotal]);
+  }, [selectedFactureId, firestore, user, liveVenteTotal, equipe]);
 
   const formatDate = (iso: string) => {
     if (!iso) return '';
@@ -239,7 +297,14 @@ export default function CostSaleView({ articles, factures, subCategories, genera
         </div>
       </header>
 
-      {!selectedFacture && checklistsLoaded && validatedFactures.length === 0 && (
+      {equipe && erreurEquipe && (
+        <div role="alert" className="flex items-center gap-3 bg-red-50 border border-red-200 rounded-2xl px-5 py-4">
+          <AlertTriangle className="w-5 h-5 text-red-500 shrink-0" />
+          <p className="text-[12px] font-bold text-red-700">{erreurEquipe}</p>
+        </div>
+      )}
+
+      {!selectedFacture && checklistsLoaded && validatedFactures.length === 0 && !erreurEquipe && (
         <div className="py-24 text-center">
           <div className="inline-flex flex-col items-center gap-4 bg-amber-50 border border-amber-200 rounded-3xl px-12 py-10">
             <XCircle className="w-10 h-10 text-amber-400" />
@@ -329,7 +394,7 @@ export default function CostSaleView({ articles, factures, subCategories, genera
 
           {/* Bouton Approuver */}
           <div className="flex items-center gap-2 shrink-0">
-            {!lockedVente ? (
+            {equipe ? null : !lockedVente ? (
               <button
                 onClick={handleLockVente}
                 disabled={lockLoading || liveVenteTotal <= 0}

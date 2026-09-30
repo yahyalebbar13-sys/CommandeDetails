@@ -10,13 +10,18 @@
 // Rien d'autre : ni produits, ni catalogue, ni clients, ni chiffres, ni lien
 // vers l'admin, le stock ou la gestion.
 //
+//   • Coût de vente (ajouté le 30/09/2026, choix du patron) : la page de
+//     /gestion, en lecture seule (PDF compris), calculée par le serveur
+//     (/api/equipe/cout-vente) — ni articles, ni factures, ni prix d'achat.
+//
 // Ordinateur : onglets dans l'en-tête. Téléphone : barre du bas (Commandes,
 // Demandes, Compte). La fiche ouverte vit dans l'adresse (?commande=ID) et le
 // bouton Retour du téléphone la ferme au lieu de quitter l'espace.
 
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import type { Firestore } from 'firebase/firestore';
-import { Inbox, LogOut, Package, UserRound, type LucideIcon } from 'lucide-react';
+import { Calculator, Inbox, LogOut, Package, UserRound, type LucideIcon } from 'lucide-react';
+import CostSaleView from '@/components/cost-sale-view';
 import { EcranCommandes } from '@/app/admin-shop/_commandes/ecran-commandes';
 import { actionsFirestore } from '@/app/admin-shop/_commandes/actions-commandes';
 import { useAlerteNouvellesCommandes } from '@/app/admin-shop/_commandes/use-alerte-nouvelles-commandes';
@@ -41,10 +46,11 @@ const CONTENU = 'mx-auto w-full max-w-[1600px] px-4 md:px-6';
  */
 const DECALAGE_ECRAN_COMMANDES = '7.5rem';
 
-const ICONES: Record<OngletEquipe, LucideIcon> = { commandes: Package, demandes: Inbox };
+const ICONES: Record<OngletEquipe, LucideIcon> = { commandes: Package, demandes: Inbox, 'cout-vente': Calculator };
 /** Libellés de la barre du bas : « Demandes clients » ne tient pas dans une case de téléphone. */
-const LIBELLES_COURTS: Record<OngletEquipe, string> = { commandes: 'Commandes', demandes: 'Demandes' };
-const ONGLETS: OngletEquipe[] = ['commandes', 'demandes'];
+const LIBELLES_COURTS: Record<OngletEquipe, string> = { commandes: 'Commandes', demandes: 'Demandes', 'cout-vente': 'Coût vente' };
+const ONGLETS: OngletEquipe[] = ['commandes', 'demandes', 'cout-vente'];
+const VIDE: any[] = [];
 
 /** Titre de l'onglet et page des notifications : ceux de l'espace équipe, pas de l'admin. */
 const OPTIONS_ALERTE = { titre: 'LEBTEX Équipe', page: '/staff' } as const;
@@ -106,6 +112,9 @@ export function EspaceEquipe({ db, email, compte, onDeconnexion }: {
 
   // ── Onglet et fiche ouverte, gardés dans l'adresse ──
   const [onglet, setOnglet] = useState<OngletEquipe>(() => adresseInitiale().onglet);
+  // Le coût de vente n'est chargé qu'à la première visite, puis gardé (pas de rechargement à chaque passage).
+  const [coutVenteVu, setCoutVenteVu] = useState(false);
+  useEffect(() => { if (onglet === 'cout-vente') setCoutVenteVu(true); }, [onglet]);
   const [commandeOuverteId, setCommandeOuverteId] = useState<string | null>(() => adresseInitiale().commande);
   const ongletRef = useRef(onglet);
   ongletRef.current = onglet;
@@ -229,6 +238,7 @@ export function EspaceEquipe({ db, email, compte, onDeconnexion }: {
       if (!resume.aConfirmer) return TITRES_ONGLETS.commandes;
       return `${TITRES_ONGLETS.commandes}, ${resume.aConfirmer} à confirmer${resume.enRetard ? `, dont ${resume.enRetard} en retard` : ''}`;
     }
+    if (o === 'cout-vente') return TITRES_ONGLETS['cout-vente'];
     if (!demandesNouvelles) return TITRES_ONGLETS.demandes;
     return `${TITRES_ONGLETS.demandes}, ${demandesNouvelles} nouvelle${demandesNouvelles > 1 ? 's' : ''}`;
   };
@@ -236,7 +246,9 @@ export function EspaceEquipe({ db, email, compte, onDeconnexion }: {
   const pastille = (o: OngletEquipe, surFondRouge = false, className = ''): ReactNode =>
     o === 'commandes'
       ? <PastilleAConfirmer nombre={resume.aConfirmer} enRetard={resume.enRetard} surFondRouge={surFondRouge} className={className} />
-      : <PastilleDemandes nombre={demandesNouvelles} surFondRouge={surFondRouge} className={className} />;
+      : o === 'demandes'
+        ? <PastilleDemandes nombre={demandesNouvelles} surFondRouge={surFondRouge} className={className} />
+        : null;
 
   return (
     <div
@@ -341,6 +353,16 @@ export function EspaceEquipe({ db, email, compte, onDeconnexion }: {
         <section aria-label="Demandes des clients" className={onglet === 'demandes' ? 'mx-auto max-w-3xl' : 'hidden'}>
           <DemandesEquipe actif={onglet === 'demandes'} onNouvelles={setDemandesNouvelles} />
         </section>
+
+        {/* Coût de vente : la page de /gestion sur son fond clair d'origine, en lecture seule. */}
+        {coutVenteVu && (
+          <section
+            aria-label="Coût de vente"
+            className={onglet === 'cout-vente' ? 'rounded-3xl bg-[#F9F6F0] p-3 text-stone-900 md:p-6' : 'hidden'}
+          >
+            <CostSaleView equipe articles={VIDE} factures={VIDE} subCategories={VIDE} generalCategories={VIDE} />
+          </section>
+        )}
       </main>
 
       {/* ─── Barre du bas (téléphone) ─── */}
@@ -348,7 +370,7 @@ export function EspaceEquipe({ db, email, compte, onDeconnexion }: {
         className="fixed inset-x-0 bottom-0 z-40 border-t border-white/10 bg-[#0F0F0F] pb-[env(safe-area-inset-bottom)] md:hidden"
         aria-label="Écrans de l'espace équipe"
       >
-        <div className="grid grid-cols-3">
+        <div className="grid grid-cols-4">
           {ONGLETS.map(o => {
             const actif = onglet === o && !fenetre;
             const Icone = ICONES[o];

@@ -1,8 +1,10 @@
 // ─── Garde des routes ouvertes à l'équipe (espace /staff) ET à l'administrateur ─
-// Serveur uniquement. Seules deux routes l'utilisent : le traitement des
-// commandes boutique (/api/shop/commandes/interne) et les demandes des clients
-// (/api/admin/demandes-clients). Toutes les autres restent derrière verifyAdmin :
-// l'équipe ne voit ni produits, ni chiffres, ni /stock, ni /gestion.
+// Serveur uniquement. Seules trois routes l'utilisent : le traitement des
+// commandes boutique (/api/shop/commandes/interne), les demandes des clients
+// (/api/admin/demandes-clients) et, en lecture seule, le coût de vente
+// (/api/equipe/cout-vente, ouvert à l'équipe par le patron le 30/09/2026).
+// Toutes les autres restent derrière verifyAdmin : l'équipe ne voit ni
+// produits, ni prix d'achat, ni /stock, ni /gestion.
 //
 // L'équipe partage UN compte Firebase (e-mail fabriqué sur equipe.lebtex.ma, cf.
 // acces-equipe.ts), créé par l'administrateur depuis /admin-shop. Un jeton

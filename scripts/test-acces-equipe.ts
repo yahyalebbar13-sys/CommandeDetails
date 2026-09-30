@@ -24,6 +24,7 @@ import {
   roleDepuisJeton,
   verifierSaisie,
 } from '../src/app/staff/_espace/acces';
+import { adresseEquipe, lireAdresseEquipe } from '../src/app/staff/_espace/adresse';
 import { ADMIN_EMAIL } from '../src/lib/constants';
 
 let pass = 0;
@@ -177,6 +178,13 @@ check('nom d’événement stable', EVENEMENT_ACCES_REFUSE === 'lebtex:acces-equ
   try { signalerAccesRefuse(401); } catch { ok = false; }
   check('sans navigateur (serveur) : ne plante pas', ok);
 }
+
+console.log('\n── Adresse de l’onglet Coût de vente ──');
+check('?onglet=cout-vente → onglet coût de vente', lireAdresseEquipe('?onglet=cout-vente').onglet === 'cout-vente');
+check('une commande demandée l’emporte', lireAdresseEquipe('?onglet=cout-vente&commande=A1').onglet === 'commandes');
+check('onglet inconnu → commandes', lireAdresseEquipe('?onglet=gestion').onglet === 'commandes');
+check('adresse écrite puis relue', lireAdresseEquipe(new URL(adresseEquipe('https://www.lebtex.ma/staff', 'cout-vente', null), 'https://x').search).onglet === 'cout-vente');
+check('retour aux commandes : paramètre retiré', adresseEquipe('https://www.lebtex.ma/staff?onglet=cout-vente', 'commandes', null) === '/staff');
 
 console.log(`\n${fail === 0 ? '✅' : '❌'} ${pass} réussis, ${fail} échoués`);
 process.exit(fail === 0 ? 0 : 1);
