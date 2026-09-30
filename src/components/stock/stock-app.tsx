@@ -65,6 +65,7 @@ import {
   breakdownRowQuantity, libelleFixe,
 } from '@/lib/warehouse-locations';
 import { uniteImposee, uniteDeStock, poleDeLArticle } from '@/lib/unites-pole';
+import { messageSiVersionPerimee } from '@/lib/version-perimee';
 import TreasuryDashboard from './treasury-dashboard';
 import BankReconciliationView from './bank-reconciliation-view';
 import AuditLogView from './audit-log-view';
@@ -1328,7 +1329,7 @@ export default function StockApp() {
       });
     } catch (e: any) {
       console.error('[formation] export PDF impossible :', e);
-      toast({ variant: 'destructive', title: 'Export impossible', description: e?.message || 'Le PDF n’a pas pu être créé.' });
+      toast({ variant: 'destructive', title: 'Export impossible', description: messageSiVersionPerimee(e) || e?.message || 'Le PDF n’a pas pu être créé.' });
     }
   };
 

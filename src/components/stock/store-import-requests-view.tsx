@@ -15,6 +15,7 @@ import AddOrderModal from '@/components/add-order-modal';
 import { getArticleFrenchName } from '@/lib/product-name-utils';
 import { exportDemandesImportPDF } from '@/lib/pdf-demande-import';
 import { etapeDemande, champsEnvoiAuCommercial } from '@/lib/demande-magasin';
+import { messageSiVersionPerimee } from '@/lib/version-perimee';
 
 /**
  * Demandes de nouveaux produits écrites par les magasins.
@@ -291,7 +292,7 @@ export default function StoreImportRequestsView({
       { categories, generalCategories, sousTitre },
     ).catch((e: any) => {
       console.error('[demandes] impression impossible :', e);
-      toast({ variant: 'destructive', title: 'Impression impossible', description: e?.message || 'Réessayez.' });
+      toast({ variant: 'destructive', title: 'Impression impossible', description: messageSiVersionPerimee(e) || e?.message || 'Réessayez.' });
     });
   };
 

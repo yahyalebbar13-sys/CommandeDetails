@@ -8,6 +8,7 @@ import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
 import { getArticleFrenchName } from '@/lib/product-name-utils';
+import { messageSiVersionPerimee } from '@/lib/version-perimee';
 import {
   articleInboundVariants, articleVariantDimension, breakdownRowQuantity, compareLocationCodes,
   variantKey, ventilationIgnoree, type VariantDimension,
@@ -363,7 +364,7 @@ export default function ArrivalDossierModal({
       });
     } catch (e: any) {
       console.error('[packing PDF]', e);
-      toast({ variant: 'destructive', title: 'PDF impossible', description: e?.message || 'La génération du PDF a échoué.' });
+      toast({ variant: 'destructive', title: 'PDF impossible', description: messageSiVersionPerimee(e) || e?.message || 'La génération du PDF a échoué.' });
     } finally {
       setExporting(false);
     }

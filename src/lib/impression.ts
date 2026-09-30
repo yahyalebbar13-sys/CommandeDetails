@@ -1,3 +1,5 @@
+import { messageSiVersionPerimee } from './version-perimee';
+
 /**
  * Imprimer un document du logiciel, sans dépendre d'une fenêtre pop-up.
  *
@@ -21,6 +23,12 @@ export const POPUP_BLOQUEE = 'POPUP_BLOQUEE';
 
 /** Le message à afficher à l'utilisateur pour une impression qui n'a pas pu s'ouvrir. */
 export function messageImpression(e: any): string {
+  // Une nouvelle version mise en ligne pendant que la page etait ouverte : la fabrique de PDF
+  // n'existe plus sous ce nom. Ce n'est pas une panne, c'est une page perimee — on le dit, et
+  // on recharge.
+  const perimee = messageSiVersionPerimee(e);
+  if (perimee) return perimee;
+
   return e?.message === POPUP_BLOQUEE
     ? "Le navigateur n'a pas ouvert la fenêtre d'impression. Autorisez les pop-ups pour ce site, puis réessayez — "
       + "et si le bouton reste sans effet, rechargez la page."
