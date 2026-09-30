@@ -15,18 +15,31 @@ import { exportCostAnalysisPDF, exportCoutRevientSimplePDF, exportDossierArticle
 import ArticleOverrideModal, { ArticleOverride } from './article-override-modal';
 import { useFirebase } from '@/firebase';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { useDossiersDpComplets } from '@/hooks/use-dossiers-dp-complets';
 
 interface CostAnalysisViewProps {
   articles: any[];
   factures: any[];
   subCategories: any[];
+  /** Les pôles : pour retrouver les lignes regroupées de la déclaration provisoire. */
+  generalCategories?: any[];
 }
 
-export default function CostAnalysisView({ articles, factures, subCategories }: CostAnalysisViewProps) {
+export default function CostAnalysisView({ articles, factures: tousLesDossiers, subCategories, generalCategories = [] }: CostAnalysisViewProps) {
   const { user, firestore } = useFirebase();
-  const [selectedFactureId, setSelectedFactureId] = useState<string | null>(
-    factures.length > 0 ? factures[0].id : null
+  // Seuls les dossiers dont la déclaration provisoire a un PU sur chaque ligne :
+  // sans cela, le coût de revient serait faux.
+  const dp = useDossiersDpComplets(articles, tousLesDossiers, subCategories, generalCategories);
+  const factures = useMemo(
+    () => tousLesDossiers.filter(f => dp.complets.has(f.id)),
+    [tousLesDossiers, dp.complets]
   );
+  const [selectedFactureId, setSelectedFactureId] = useState<string | null>(null);
+  // Le dossier choisi n'est plus dans la liste (ou rien de choisi) : le premier.
+  useEffect(() => {
+    if (selectedFactureId && factures.some(f => f.id === selectedFactureId)) return;
+    setSelectedFactureId(factures[0]?.id ?? null);
+  }, [factures, selectedFactureId]);
   // overrides: { [articleId]: ArticleOverride } — persisted in Firebase
   const [overrides, setOverrides] = useState<Record<string, ArticleOverride>>({});
   const [editingArticle, setEditingArticle] = useState<any | null>(null);

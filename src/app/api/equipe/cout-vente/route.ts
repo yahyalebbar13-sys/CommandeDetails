@@ -6,15 +6,18 @@
 // (lib/cout-de-vente) : le navigateur de l'équipe ne reçoit que le résultat,
 // jamais les articles, les factures ni les prix d'achat du fournisseur.
 //
+// Comme dans /gestion, un dossier n'est montré que validé (les 4 vérifications
+// cochées) ET avec une déclaration provisoire complète (un PU sur chaque ligne,
+// dpComplete) : sinon les chiffres seraient faux.
+//
 // GET                → { dossiers: [{ id, arrivalDate, supplierId, noBL }] }
-//                      les dossiers validés (les 4 vérifications cochées), comme /gestion ;
 // GET ?dossier=ID    → { facture: { id, arrivalDate, supplierId, noBL }, analysis, lockedVente }
-//                      404 si le dossier n'existe pas ou n'est pas validé.
+//                      404 si le dossier n'existe pas ou n'est pas montrable.
 
 import { NextResponse } from 'next/server';
 import { verifyEquipe } from '@/lib/require-equipe';
 import { dbAdmin } from '@/lib/firebase-admin-serveur';
-import { calculCoutDeVente, lignesCoutDeVente } from '@/lib/cout-de-vente';
+import { calculCoutDeVente, dpComplete, lignesCoutDeVente } from '@/lib/cout-de-vente';
 import { isLocalMarketPurchaseArticle } from '@/lib/local-purchase';
 import { estBrouillonMagasin } from '@/lib/demande-magasin';
 
@@ -47,6 +50,14 @@ async function dossiersValides(adminUid: string): Promise<Set<string>> {
   return ids;
 }
 
+/** Les articles du dossier, les mêmes que /gestion : ni achats du marché local, ni brouillons de magasin. */
+async function articlesDu(base: string, dossier: string): Promise<any[]> {
+  const snap = await dbAdmin().collection(`${base}/articles`).where('factureId', '==', dossier).get();
+  return snap.docs
+    .map(d => ({ id: d.id, ...d.data() }) as any)
+    .filter(a => !isLocalMarketPurchaseArticle(a) && !estBrouillonMagasin(a));
+}
+
 export async function GET(req: Request) {
   const check = await verifyEquipe(req);
   if (!check.ok) return check.response;
@@ -54,34 +65,41 @@ export async function GET(req: Request) {
   const dossier = new URL(req.url).searchParams.get('dossier')?.trim() || '';
 
   try {
-    const valides = await dossiersValides(check.adminUid);
+    const db = dbAdmin();
+    const [valides, catsSnap, polesSnap] = await Promise.all([
+      dossiersValides(check.adminUid),
+      db.collection(`${base}/categories`).get(),
+      db.collection(`${base}/generalCategories`).get(),
+    ]);
+    const subCategories = catsSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+    const generalCategories = polesSnap.docs.map(d => ({ id: d.id, ...d.data() }));
 
     if (!dossier) {
-      const snap = await dbAdmin().collection(`${base}/factures`).get();
-      const dossiers = snap.docs.filter(d => valides.has(d.id)).map(d => enTete(d.id, d.data()));
+      const [facturesSnap, dpsSnap] = await Promise.all([
+        db.collection(`${base}/factures`).get(),
+        db.collection(`${base}/dp_declarations`).get(),
+      ]);
+      const puMaps = new Map(dpsSnap.docs.map(d => [d.id, d.data()?.puMap || {}]));
+      const candidats = facturesSnap.docs.filter(d => valides.has(d.id));
+      const complets = await Promise.all(candidats.map(async d =>
+        dpComplete(await articlesDu(base, d.id), subCategories, generalCategories, puMaps.get(d.id) || {})));
+      const dossiers = candidats.filter((_, i) => complets[i]).map(d => enTete(d.id, d.data()));
       return NextResponse.json({ dossiers }, { headers: PAS_DE_CACHE });
     }
 
-    if (!ID_VALIDE.test(dossier) || !valides.has(dossier)) return erreur(404, 'Dossier introuvable ou pas encore validé.');
-    const db = dbAdmin();
-    const [factureSnap, articlesSnap, catsSnap, polesSnap, dpSnap] = await Promise.all([
+    const introuvable = () => erreur(404, 'Dossier introuvable, pas encore validé, ou déclaration provisoire incomplète.');
+    if (!ID_VALIDE.test(dossier) || !valides.has(dossier)) return introuvable();
+    const [factureSnap, articles, dpSnap] = await Promise.all([
       db.doc(`${base}/factures/${dossier}`).get(),
-      db.collection(`${base}/articles`).where('factureId', '==', dossier).get(),
-      db.collection(`${base}/categories`).get(),
-      db.collection(`${base}/generalCategories`).get(),
+      articlesDu(base, dossier),
       db.doc(`${base}/dp_declarations/${dossier}`).get(),
     ]);
-    if (!factureSnap.exists) return erreur(404, 'Dossier introuvable ou pas encore validé.');
+    if (!factureSnap.exists) return introuvable();
 
     const facture = factureSnap.data();
-    // Mêmes articles que /gestion : ni achats du marché local, ni brouillons de magasin.
-    const articles = articlesSnap.docs
-      .map(d => ({ id: d.id, ...d.data() }) as any)
-      .filter(a => !isLocalMarketPurchaseArticle(a) && !estBrouillonMagasin(a));
-    const subCategories = catsSnap.docs.map(d => ({ id: d.id, ...d.data() }));
-    const generalCategories = polesSnap.docs.map(d => ({ id: d.id, ...d.data() }));
     const dp = dpSnap.data() || {};
     const puMap = dp.puMap || {};
+    if (!dpComplete(articles, subCategories, generalCategories, puMap)) return introuvable();
 
     const lignes = lignesCoutDeVente(articles, subCategories, generalCategories, puMap, dp.overrides || {});
     const analysis = calculCoutDeVente(facture, lignes, puMap);

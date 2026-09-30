@@ -14,6 +14,7 @@ import { ArticleOverride } from './article-override-modal';
 import { lignesCoutDeVente, calculCoutDeVente } from '@/lib/cout-de-vente';
 import { authedFetch } from '@/lib/authed-fetch';
 import { signalerAccesRefuse } from '@/lib/acces-equipe';
+import { useDossiersDpComplets } from '@/hooks/use-dossiers-dp-complets';
 
 type AnalyseCoutVente = ReturnType<typeof calculCoutDeVente>;
 type Verrou = { value: number; at: string };
@@ -82,6 +83,10 @@ export default function CostSaleView({ articles, factures, subCategories, genera
       .finally(() => setChecklistsLoaded(true));
   }, [firestore, user, equipe]);
 
+  // Et seulement si sa déclaration provisoire a un PU sur chaque ligne (sinon chiffres faux).
+  // En mode équipe, c'est le serveur qui filtre.
+  const dp = useDossiersDpComplets(articles, factures, subCategories, generalCategories, !equipe);
+
   // A dossier is visible in Coût de Vente ONLY when the user has manually checked all 4 items
   const isFactureValidated = (f: any): boolean => {
     const c = checklists[f.id] || {};
@@ -90,9 +95,11 @@ export default function CostSaleView({ articles, factures, subCategories, genera
 
   // ── Only show validated factures ──
   const validatedFactures = useMemo(
-    () => equipe ? dossiersEquipe : checklistsLoaded ? factures.filter(isFactureValidated) : [],
+    () => equipe
+      ? dossiersEquipe
+      : checklistsLoaded && dp.charge ? factures.filter(f => isFactureValidated(f) && dp.complets.has(f.id)) : [],
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [factures, checklists, checklistsLoaded, equipe, dossiersEquipe]
+    [factures, checklists, checklistsLoaded, equipe, dossiersEquipe, dp.charge, dp.complets]
   );
 
 

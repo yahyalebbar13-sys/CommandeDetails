@@ -160,6 +160,22 @@ export function calculCoutDeVente(facture: any, lignes: LigneCoutDeVente[], puMa
   return { tauxChange, mtFraisTotal, cbmTotal, exchange, transitaire, fraisSupp, totalMarge, totalTVA, rows, total };
 }
 
+/**
+ * La déclaration provisoire du dossier a-t-elle un PU pour CHACUNE de ses
+ * lignes (mêmes lignes que l'écran Déc. Prov.) ? Sans cela, coût de vente et
+ * coût de revient seraient faux : ces pages n'affichent pas le dossier.
+ */
+export function dpComplete(
+  articles: any[],
+  subCategories: any[],
+  generalCategories: any[],
+  puMap: Record<string, string> = {},
+): boolean {
+  if (articles.length === 0) return false;
+  return lignesCoutDeVente(articles, subCategories, generalCategories, puMap)
+    .every(l => (parseFloat(puSaisi(puMap, l.categoryId) ?? '') || 0) > 0);
+}
+
 /** Coût de vente TTC du dossier (MAD) : le total de la page « Coût Vente ». */
 export function coutDeVenteDossier(
   facture: any,

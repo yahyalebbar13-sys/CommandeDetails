@@ -616,7 +616,7 @@ function AdminApp() {
               <CategoriesView articles={articles} factures={factures} generalCategories={generalCategories} subCategories={subCategories} selectedCategory={selectedCategoryName} setSelectedCategory={setSelectedCategoryName} selectedGeneralCategoryId={selectedGeneralCategoryId} onSelectGeneralCategory={(id) => { setSelectedGeneralCategoryId(id); if (!id) { if (previousTab) setActiveTab(previousTab); else setActiveTab('general-categories'); setPreviousTab(null); } else { setActiveTab('categories'); } }} onBackToGroupes={() => { setSelectedCategoryName(null); if (previousTab === 'factures') { setActiveTab('factures'); setPreviousTab(null); } }} />
             </div>
             <div className={activeTab === 'cost-analysis' ? 'block animate-in fade-in' : 'hidden'}>
-              <CostAnalysisView articles={articles} factures={factures} subCategories={subCategories} />
+              <CostAnalysisView articles={articles} factures={factures} subCategories={subCategories} generalCategories={generalCategories} />
             </div>
             <div className={activeTab === 'simulateur' ? 'block animate-in fade-in' : 'hidden'}>
               <SimulateurRevientView articles={articles} factures={factures} subCategories={subCategories} />
