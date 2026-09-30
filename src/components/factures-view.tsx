@@ -8,7 +8,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { 
   ChevronLeft, Plus, CalendarDays, Trash2, TrendingDown, 
   AlertCircle, CheckCircle2, FileText, Box, Truck,
-  ShieldCheck, Info, ArrowUpRight, Anchor, Settings2, MousePointer2, Hash, Ship, DollarSign, Building2, Pencil, FileDown, Palette, ClipboardCheck, Archive, AlertTriangle, ExternalLink, Ruler, Lock, Radar, Loader2, FileSpreadsheet, TableProperties
+  ShieldCheck, Info, ArrowUpRight, Anchor, Settings2, MousePointer2, Hash, Ship, DollarSign, Building2, Pencil, FileDown, Palette, ClipboardCheck, Archive, AlertTriangle, ExternalLink, Ruler, Lock, Radar, Loader2, FileSpreadsheet, TableProperties, FileCheck
 } from 'lucide-react';
 import { exportFacturePDF, exportPackingDetailsPDF } from '@/lib/pdf-export';
 import CommercialExportModal from './commercial-export-modal';
@@ -17,7 +17,7 @@ import { Badge } from '@/components/ui/badge';
 import AddFactureModal from './add-facture-modal';
 import EditOrderModal from './edit-order-modal';
 import { useUser, useFirestore } from '@/firebase';
-import { doc, collection, getDocs, writeBatch, deleteField } from 'firebase/firestore';
+import { doc, collection, getDocs, writeBatch, deleteField, onSnapshot } from 'firebase/firestore';
 import { isArrivalOlderThanOneMonth } from '@/lib/status-utils';
 import { effetsSuppression, planSuppressionDossier } from '@/lib/suppression-dossier';
 import { coutsDuDossier, droitsPayesDuDossier, resumerDossier } from '@/lib/chiffres-dossier';
@@ -123,6 +123,8 @@ interface FacturesViewProps {
   actif?: boolean;
   /** Passe au tableau des arrivages (bouton « Vue tableau » de la liste). */
   onVueTableau?: () => void;
+  /** Ouvre la déclaration provisoire du dossier (confirmée ou encore à faire). */
+  onOuvrirDP?: (factureId: string, confirmee: boolean) => void;
 }
 
 export default function FacturesView({ 
@@ -137,6 +139,7 @@ export default function FacturesView({
   onPassToStock,
   actif = true,
   onVueTableau,
+  onOuvrirDP,
 }: FacturesViewProps) {
   const { user } = useUser();
   const firestore = useFirestore();
@@ -154,22 +157,27 @@ export default function FacturesView({
   const [isDeletingArticle, setIsDeletingArticle] = useState(false);
   const [dpDeclarations, setDpDeclarations] = useState<Record<string, Record<string, string>>>({});
   const [overridesPerFacture, setOverridesPerFacture] = useState<Record<string, Record<string, any>>>({});
+  // Dossiers dont la déclaration provisoire est confirmée (verrouillée).
+  const [dpConfirmees, setDpConfirmees] = useState<Set<string>>(new Set());
   const [isCommercialModalOpen, setIsCommercialModalOpen] = useState(false);;
 
   useEffect(() => {
     if (!firestore || !user) return;
-    getDocs(collection(firestore, 'users', user.uid, 'dp_declarations'))
-      .then(snap => {
-        const puResult: Record<string, Record<string, string>> = {};
-        const ovResult: Record<string, Record<string, any>> = {};
-        snap.docs.forEach(d => {
-          const data = d.data();
-          if (data.puMap) puResult[d.id] = data.puMap;
-          if (data.overrides) ovResult[d.id] = data.overrides;
-        });
-        setDpDeclarations(puResult);
-        setOverridesPerFacture(ovResult);
-      }).catch(() => {});
+    // En direct : une déclaration confirmée dans « Déc. Prov. » se voit aussitôt ici.
+    return onSnapshot(collection(firestore, 'users', user.uid, 'dp_declarations'), snap => {
+      const puResult: Record<string, Record<string, string>> = {};
+      const ovResult: Record<string, Record<string, any>> = {};
+      const confirmees = new Set<string>();
+      snap.docs.forEach(d => {
+        const data = d.data();
+        if (data.puMap) puResult[d.id] = data.puMap;
+        if (data.overrides) ovResult[d.id] = data.overrides;
+        if (data.dpLocked) confirmees.add(d.id);
+      });
+      setDpDeclarations(puResult);
+      setOverridesPerFacture(ovResult);
+      setDpConfirmees(confirmees);
+    }, () => {});
   }, [firestore, user]);
 
   // Coût de Revient et Coût de Vente par dossier
@@ -353,6 +361,23 @@ export default function FacturesView({
             <FileDown className="w-3.5 h-3.5" />
             Offre Commerciale PDF
           </button>
+          {onOuvrirDP && (dpConfirmees.has(selectedFacture.id) ? (
+            <button
+              onClick={() => onOuvrirDP(selectedFacture.id, true)}
+              className="flex items-center gap-1.5 text-[9px] font-black uppercase tracking-widest px-4 h-9 rounded-full bg-blue-600 hover:bg-blue-700 text-white shadow-sm transition-colors"
+            >
+              <ShieldCheck className="w-3.5 h-3.5" />
+              Déclaration provisoire
+            </button>
+          ) : (
+            <button
+              onClick={() => onOuvrirDP(selectedFacture.id, false)}
+              className="flex items-center gap-1.5 text-[9px] font-black uppercase tracking-widest px-4 h-9 rounded-full bg-white hover:bg-blue-50 text-blue-700 border border-blue-200 shadow-sm transition-colors"
+            >
+              <FileCheck className="w-3.5 h-3.5" />
+              Faire la déclaration provisoire
+            </button>
+          ))}
         </div>
 
         <header className="bg-white rounded-3xl shadow-xl border border-stone-200 overflow-hidden">

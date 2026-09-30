@@ -11,7 +11,7 @@ import {
 } from 'lucide-react';
 import { exportDPPDF } from '@/lib/pdf-export';
 import { useFirebase } from '@/firebase';
-import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { doc, getDoc, setDoc, collection, onSnapshot } from 'firebase/firestore';
 
 /** Ne garde que les noms vraiment modifiés (vides = on reprend la catégorie). */
 function nomsNettoyes(nomMap: Record<string, string>): Record<string, string> {
@@ -28,14 +28,63 @@ interface DPViewProps {
   factures: any[];
   subCategories: any[];
   generalCategories: any[];
+  /**
+   * Quels dossiers proposer : ceux dont la déclaration n'est pas encore
+   * confirmée (« Déc. Prov. »), ceux déjà confirmés (« DP confirmées »), ou tous.
+   */
+  mode?: 'a-faire' | 'confirmees' | 'tout';
+  /** Dossier à ouvrir (clic depuis la fiche d'arrivage) ; lu une fois puis rendu via onDossierDemandeLu. */
+  dossierDemande?: string | null;
+  onDossierDemandeLu?: () => void;
+  /** Ouvre un dossier dans « DP confirmées » (après confirmation). */
+  onVoirConfirmee?: (factureId: string) => void;
 }
 
-export default function DPView({ articles, factures, subCategories, generalCategories }: DPViewProps) {
+export default function DPView({
+  articles, factures, subCategories, generalCategories,
+  mode = 'tout', dossierDemande = null, onDossierDemandeLu, onVoirConfirmee,
+}: DPViewProps) {
   const { user, firestore } = useFirebase();
 
   const [selectedFactureId, setSelectedFactureId] = useState<string | null>(
-    factures.length > 0 ? factures[0].id : null
+    mode === 'tout' && factures.length > 0 ? factures[0].id : null
   );
+  // Dossiers dont la déclaration est confirmée (verrouillée), tenus à jour en direct.
+  const [confirmees, setConfirmees] = useState<Set<string> | null>(null);
+  // Dossier qui vient d'être confirmé depuis « Déc. Prov. » : il quitte la liste.
+  const [rangee, setRangee] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!firestore || !user) return;
+    return onSnapshot(
+      collection(firestore, 'users', user.uid, 'dp_declarations'),
+      snap => setConfirmees(new Set(snap.docs.filter(d => d.data().dpLocked).map(d => d.id))),
+      err => console.error('DP list error:', err),
+    );
+  }, [firestore, user]);
+
+  const facturesAffichees = useMemo(() => {
+    if (mode === 'tout') return factures;
+    if (!confirmees) return [];
+    return factures.filter(f => (mode === 'confirmees') === confirmees.has(f.id));
+  }, [factures, confirmees, mode]);
+
+  // Clic depuis la fiche d'arrivage : on ouvre ce dossier-là.
+  useEffect(() => {
+    if (!dossierDemande) return;
+    setSelectedFactureId(dossierDemande);
+    setRangee(null);
+    onDossierDemandeLu?.();
+  }, [dossierDemande, onDossierDemandeLu]);
+
+  // Le dossier choisi n'a plus sa place dans cette liste (confirmé, déverrouillé,
+  // changement d'onglet) : on passe au premier de la liste.
+  useEffect(() => {
+    if (dossierDemande) return;
+    if (mode !== 'tout' && !confirmees) return;
+    if (selectedFactureId && facturesAffichees.some(f => f.id === selectedFactureId)) return;
+    setSelectedFactureId(facturesAffichees[0]?.id ?? null);
+  }, [facturesAffichees, selectedFactureId, dossierDemande, mode, confirmees]);
   const [puMap, setPuMap] = useState<Record<string, string>>({});
   // Nom imprimé sur la déclaration, par catégorie. Propre à la DP : ne touche
   // jamais la catégorie, les produits ni les arrivages.
@@ -51,8 +100,8 @@ export default function DPView({ articles, factures, subCategories, generalCateg
   const [lockLoading, setLockLoading] = useState(false);
 
   const selectedFacture = useMemo(
-    () => factures.find(f => f.id === selectedFactureId) || null,
-    [factures, selectedFactureId]
+    () => facturesAffichees.find(f => f.id === selectedFactureId) || null,
+    [facturesAffichees, selectedFactureId]
   );
 
   // ── Load saved PU + totaux depuis Firebase quand le dossier change ──
@@ -202,6 +251,7 @@ export default function DPView({ articles, factures, subCategories, generalCateg
       }
 
       setLockedDP({ at: now });
+      if (mode === 'a-faire') setRangee(selectedFactureId);
 
       // 3. Auto-cocher dp_ok dans la checklist
       const checklistRef = doc(firestore, 'users', user.uid, 'checklists', selectedFactureId);
@@ -218,7 +268,7 @@ export default function DPView({ articles, factures, subCategories, generalCateg
     } finally {
       setLockLoading(false);
     }
-  }, [selectedFactureId, firestore, user, puMap, nomMap, categoryLines, freightInput]);
+  }, [selectedFactureId, firestore, user, puMap, nomMap, categoryLines, freightInput, mode]);
 
   const handleUnlockDP = async () => {
     if (!selectedFactureId || !user || !firestore) return;
@@ -299,7 +349,9 @@ export default function DPView({ articles, factures, subCategories, generalCateg
                 <FileCheck className="w-6 h-6 text-white" />
               </div>
               <div>
-                <p className="text-[10px] font-black text-blue-400 uppercase tracking-[0.2em]">Document Officiel</p>
+                <p className="text-[10px] font-black text-blue-400 uppercase tracking-[0.2em]">
+                  {mode === 'confirmees' ? 'Déclarations confirmées' : mode === 'a-faire' ? 'Dossiers à déclarer' : 'Document Officiel'}
+                </p>
                 <h2 className="text-3xl font-black text-white tracking-tighter uppercase leading-none">Déclaration en Douane</h2>
               </div>
             </div>
@@ -314,10 +366,13 @@ export default function DPView({ articles, factures, subCategories, generalCateg
               <div className="relative flex-1 lg:w-72">
                 <select
                   value={selectedFactureId || ''}
-                  onChange={e => { setSelectedFactureId(e.target.value); setSavedOk(false); }}
+                  onChange={e => { setSelectedFactureId(e.target.value || null); setSavedOk(false); setRangee(null); }}
                   className="w-full bg-white/10 border border-white/20 text-white font-black uppercase text-sm rounded-xl px-4 h-12 appearance-none pr-10 focus:outline-none focus:border-blue-500 transition-colors"
                 >
-                  {factures.map(f => (
+                  {facturesAffichees.length === 0 && (
+                    <option value="" className="text-stone-900 bg-white">Aucun dossier</option>
+                  )}
+                  {facturesAffichees.map(f => (
                     <option key={f.id} value={f.id} className="text-stone-900 bg-white">
                       {f.id} — {f.arrivalDate}
                     </option>
@@ -382,9 +437,35 @@ export default function DPView({ articles, factures, subCategories, generalCateg
         </div>
       </header>
 
+      {rangee && (
+        <div className="flex flex-wrap items-center gap-3 bg-emerald-50 border border-emerald-200 rounded-2xl px-5 py-3">
+          <ShieldCheck className="w-5 h-5 text-emerald-600 shrink-0" />
+          <p className="flex-1 text-[11px] font-black text-emerald-800 uppercase tracking-tight">
+            Déclaration du dossier {rangee} confirmée — rangée dans « DP confirmées »
+          </p>
+          {onVoirConfirmee && (
+            <button
+              onClick={() => { const id = rangee; setRangee(null); onVoirConfirmee(id); }}
+              className="h-8 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-[9px] font-black uppercase tracking-widest"
+            >
+              Voir
+            </button>
+          )}
+          <button onClick={() => setRangee(null)} className="text-[9px] font-black uppercase text-emerald-600 hover:text-emerald-800">
+            Fermer
+          </button>
+        </div>
+      )}
+
       {!selectedFacture && (
         <div className="py-32 text-center text-stone-300 font-black uppercase text-[11px] tracking-widest">
-          Sélectionnez un dossier pour créer la déclaration
+          {mode !== 'tout' && !confirmees
+            ? 'Chargement…'
+            : mode === 'a-faire' && facturesAffichees.length === 0
+            ? 'Toutes les déclarations sont confirmées'
+            : mode === 'confirmees' && facturesAffichees.length === 0
+            ? 'Aucune déclaration confirmée pour le moment'
+            : 'Sélectionnez un dossier pour créer la déclaration'}
         </div>
       )}
 

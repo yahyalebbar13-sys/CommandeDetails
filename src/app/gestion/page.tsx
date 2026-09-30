@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { estBrouillonMagasin } from '@/lib/demande-magasin';
 import { ViewType } from '@/lib/types';
 import { isLocalMarketPurchaseArticle } from '@/lib/local-purchase';
@@ -34,7 +34,7 @@ import { Button } from '@/components/ui/button';
 import {
   LogOut, Loader2, Layers, Plus, Database,
   LayoutDashboard, ClipboardList, Factory, Truck,
-  Anchor, UserCheck, Menu, Timer, Calculator, Package, ShieldOff, ShoppingCart, FileCheck, Table2, TrendingUp, ReceiptText, FileDown, History, ChevronDown, Mail, Sparkles, Inbox, TableProperties, Handshake
+  Anchor, UserCheck, Menu, Timer, Calculator, Package, ShieldOff, ShoppingCart, FileCheck, Table2, TrendingUp, ReceiptText, FileDown, History, ChevronDown, Mail, Sparkles, Inbox, TableProperties, Handshake, ShieldCheck
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useUser, useFirebase, useCollection, useMemoFirebase } from '@/firebase';
@@ -331,7 +331,7 @@ function StaffCostSaleApp({ adminUid, auth, firestore }: { adminUid: string; aut
 
 // ─── Admin Dashboard ──────────────────────────────────────────────────────────
 // Les onglets de l'application, plus ceux propres à cet écran.
-type OngletAdmin = ViewType | 'demandes-clients' | 'tableau-arrivages';
+type OngletAdmin = ViewType | 'demandes-clients' | 'tableau-arrivages' | 'dp-confirmees';
 
 function AdminApp() {
   const { user } = useUser();
@@ -341,6 +341,14 @@ function AdminApp() {
   // Demandes envoyées depuis l'espace client et pas encore prises en charge (pastille du menu).
   const [demandesNouvelles, setDemandesNouvelles] = useState(0);
   const [selectedFactureId, setSelectedFactureId] = useState<string | null>(null);
+  // Dossier à ouvrir dans la déclaration provisoire (clic depuis la fiche d'arrivage).
+  const [dpDossierDemande, setDpDossierDemande] = useState<string | null>(null);
+  const ouvrirDP = useCallback((factureId: string, confirmee: boolean) => {
+    setDpDossierDemande(factureId);
+    setActiveTab(confirmee ? 'dp-confirmees' : 'dp');
+    setIsMobileMenuOpen(false);
+  }, []);
+  const dpDossierLu = useCallback(() => setDpDossierDemande(null), []);
   const [selectedGeneralCategoryId, setSelectedGeneralCategoryId] = useState<string | null>(null);
   const [selectedCategoryName, setSelectedCategoryName] = useState<string | null>(null);
   const [qualitiesFocus, setQualitiesFocus] = useState<{ specType: string; poleId: string } | null>(null);
@@ -434,6 +442,7 @@ function AdminApp() {
       { id: 'client-profitability', label: 'Rentabilité', icon: TrendingUp },
       { id: 'cost-sale', label: 'Coût Vente', icon: ShoppingCart },
       { id: 'dp', label: 'Déc. Prov.', icon: FileCheck },
+      { id: 'dp-confirmees', label: 'DP Confirmées', icon: ShieldCheck },
       { id: 'reconciliation', label: 'Réconcil.', icon: TrendingUp },
       { id: 'simulateur', label: 'Simulateur', icon: Calculator },
     ] },
@@ -583,7 +592,7 @@ function AdminApp() {
               <TimelineView articles={articles} factures={factures} onNavigateToFacture={(id) => { setPreviousTab(activeTab); setSelectedFactureId(id); setActiveTab('factures'); setIsMobileMenuOpen(false); }} />
             </div>
             <div className={activeTab === 'factures' ? 'block animate-in fade-in' : 'hidden'}>
-              <FacturesView actif={activeTab === 'factures'} articles={articles} factures={factures} subCategories={subCategories} generalCategories={generalCategories} selectedFactureId={selectedFactureId} setSelectedFactureId={setSelectedFactureId} onNavigateToCategory={(c) => { setPreviousTab('factures'); setSelectedCategoryName(c); setActiveTab('categories'); }} onBack={() => { setSelectedFactureId(null); if (previousTab) { setActiveTab(previousTab); setPreviousTab(null); } }} onVueTableau={() => { setPreviousTab(null); setActiveTab('tableau-arrivages'); }} />
+              <FacturesView actif={activeTab === 'factures'} articles={articles} factures={factures} subCategories={subCategories} generalCategories={generalCategories} selectedFactureId={selectedFactureId} setSelectedFactureId={setSelectedFactureId} onNavigateToCategory={(c) => { setPreviousTab('factures'); setSelectedCategoryName(c); setActiveTab('categories'); }} onBack={() => { setSelectedFactureId(null); if (previousTab) { setActiveTab(previousTab); setPreviousTab(null); } }} onVueTableau={() => { setPreviousTab(null); setActiveTab('tableau-arrivages'); }} onOuvrirDP={ouvrirDP} />
             </div>
             <div className={activeTab === 'tableau-arrivages' ? 'block animate-in fade-in' : 'hidden'}>
               <TableauArrivagesView
@@ -617,8 +626,15 @@ function AdminApp() {
             <div className={activeTab === 'cost-sale' ? 'block animate-in fade-in' : 'hidden'}>
               <CostSaleView articles={articles} factures={factures} subCategories={subCategories} generalCategories={generalCategories} />
             </div>
-            <div className={activeTab === 'dp' ? 'block animate-in fade-in' : 'hidden'}>
-              <DPView articles={articles} factures={factures} subCategories={subCategories} generalCategories={generalCategories} />
+            {/* Un seul écran pour les deux onglets : à déclarer / déjà confirmées. */}
+            <div className={activeTab === 'dp' || activeTab === 'dp-confirmees' ? 'block animate-in fade-in' : 'hidden'}>
+              <DPView
+                articles={articles} factures={factures} subCategories={subCategories} generalCategories={generalCategories}
+                mode={activeTab === 'dp-confirmees' ? 'confirmees' : 'a-faire'}
+                dossierDemande={dpDossierDemande}
+                onDossierDemandeLu={dpDossierLu}
+                onVoirConfirmee={(id) => ouvrirDP(id, true)}
+              />
             </div>
             <div className={activeTab === 'reconciliation' ? 'block animate-in fade-in' : 'hidden'}>
               <ReconciliationView factures={factures} articles={articles} subCategories={subCategories} generalCategories={generalCategories} />
