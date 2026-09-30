@@ -705,7 +705,7 @@ export function messageConfirmation(o: ShopOrder, maintenant = Date.now(), optio
     ? [`Retrait gratuit : ${lieu.nom}, ${lieu.adresse}`]
     : r.mode === 'transport'
       ? ['Transport : à confirmer par téléphone']
-      : [`Livraison Sendit (${o.shippingAddress?.city || '—'}) : ${fraisColisAnnonces(o)}`];
+      : [`Livraison à domicile (${o.shippingAddress?.city || '—'}) : ${fraisColisAnnonces(o)}`];
 
   // Un rouleau (transport, ou commandé « à domicile ») : le transport se chiffre au téléphone,
   // il n'est pas dans ce total, quel que soit le moyen de paiement.
@@ -997,7 +997,7 @@ export function messageModele(id: ModeleMessage, o: ShopOrder, champs: ChampsMod
       ? prevu === 'camionnette'
         ? `livraison par notre camionnette, ${adresse}`
         : `envoi par ${transporteur || 'notre transporteur'} jusqu’à son dépôt de ${ville}, où vous récupérez la marchandise`
-      : `livraison à domicile par Sendit, ${adresse}`;
+      : `livraison à domicile, ${adresse}`;
   const fraisTexte = r.mode === 'retrait'
     ? 'Retrait : gratuit'
     : r.mode === 'transport'

@@ -48,7 +48,7 @@ const GUARANTEES: {
   {
     id: "livraison",
     icon: Truck,
-    title: { fr: "Livraison Sendit", ar: "التوصيل عبر Sendit" },
+    title: { fr: "Livraison à domicile", ar: "التوصيل إلى المنزل" },
     desc: {
       fr: "Expédition sous 24 h (jours ouvrés), retrait gratuit à Casablanca",
       ar: "الشحن خلال 24 ساعة (أيام العمل)، واستلام مجاني في الدار البيضاء",

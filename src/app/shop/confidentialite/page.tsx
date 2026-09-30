@@ -86,7 +86,7 @@ export default function ConfidentialitePage() {
           <Section n={4} titre="Qui y a accès">
             <Liste items={[
               'L’équipe LEBTEX qui traite votre commande.',
-              'Le transporteur qui livre votre commande (Sendit pour les colis, ou le transporteur chargé d’un envoi) : il reçoit seulement ce qu’il faut pour livrer, c’est-à-dire votre nom, votre téléphone, votre adresse, votre ville et le montant à encaisser.',
+              'Le transporteur qui livre votre commande (la société de livraison pour les colis, ou le transporteur chargé d’un envoi) : il reçoit seulement ce qu’il faut pour livrer, c’est-à-dire votre nom, votre téléphone, votre adresse, votre ville et le montant à encaisser.',
               'Nos prestataires techniques (hébergement du site et de la base de données), qui gardent ces informations pour notre compte.',
             ]} />
             <p>Vos informations ne sont jamais vendues ni louées.</p>

@@ -85,7 +85,7 @@ export default function ConditionsPage() {
           <Section n={3} titre="Prix et frais">
             <Liste items={[
               'Les prix affichés sont les prix à payer, en dirhams (MAD). Aucune taxe ne s’y ajoute.',
-              <>Colis livré par Sendit : {formatPrice(FRAIS_ZONE.casablanca)} à Casablanca ; {formatPrice(FRAIS_ZONE.standard)} dans la périphérie de Casablanca ({PERIPHERIE_CASABLANCA.join(', ')}) et les grandes villes ; {formatPrice(FRAIS_ZONE.eloignee)} dans les villes éloignées et toute ville absente de notre liste. Quelques zones éloignées de Casablanca sont à {formatPrice(FRAIS_ZONE.eloignee)} : nous vous le disons à l’appel, avant l’envoi.</>,
+              <>Colis livré à domicile : {formatPrice(FRAIS_ZONE.casablanca)} à Casablanca ; {formatPrice(FRAIS_ZONE.standard)} dans la périphérie de Casablanca ({PERIPHERIE_CASABLANCA.join(', ')}) et les grandes villes ; {formatPrice(FRAIS_ZONE.eloignee)} dans les villes éloignées et toute ville absente de notre liste. Quelques zones éloignées de Casablanca sont à {formatPrice(FRAIS_ZONE.eloignee)} : nous vous le disons à l’appel, avant l’envoi.</>,
               'Le prix du colis ne dépend que de la ville : il est le même quel que soit le montant de la commande.',
               'Retrait en magasin : toujours gratuit.',
               'Rouleau entier ou grosse quantité : le prix du transport vous est annoncé au téléphone, avant tout envoi. Il n’est jamais ajouté sans votre accord.',
@@ -95,7 +95,7 @@ export default function ConditionsPage() {
           <Section n={4} titre="Modes de réception">
             <p><strong className="text-[#1A1A1A]">Colis à domicile (petits articles, coupes pliées).</strong></p>
             <Liste items={[
-              `Livré par Sendit, qui vous appelle avant de passer. Expédition sous 24 h (jours ouvrés) après l’appel de confirmation. Délai indicatif : Casablanca ${DELAI_ZONE.casablanca}, périphérie et grandes villes ${DELAI_ZONE.standard}, villes éloignées ${DELAI_ZONE.eloignee}.`,
+              `Le livreur vous appelle avant de passer. Expédition sous 24 h (jours ouvrés) après l’appel de confirmation. Délai indicatif : Casablanca ${DELAI_ZONE.casablanca}, périphérie et grandes villes ${DELAI_ZONE.standard}, villes éloignées ${DELAI_ZONE.eloignee}.`,
               'Le colis ne s’ouvre pas et ne s’essaie pas avant le paiement.',
             ]} />
             <p><strong className="text-[#1A1A1A]">Retrait gratuit à Casablanca (toute commande).</strong></p>
@@ -115,7 +115,7 @@ export default function ConditionsPage() {
 
           <Section n={5} titre="Paiement">
             <Liste items={[
-              'En espèces à la réception : au livreur Sendit, ou au magasin lors du retrait.',
+              'En espèces à la réception : au livreur, ou au magasin lors du retrait.',
               'Par virement bancaire, si l’option est proposée au moment de commander : notre RIB s’affiche après la commande. Indiquez votre numéro de commande en motif. La commande est envoyée ou remise dès que l’argent est arrivé sur notre compte ; une capture d’écran de virement ne suffit pas.',
               `Au-delà de ${formatPrice(PLAFOND_ESPECES_COLIS)} d’espèces pour un colis, nous vous proposons au téléphone la solution la plus simple (virement, retrait gratuit ou autre arrangement).`,
               'Pour un rouleau ou un envoi par transporteur, la façon de payer la marchandise et le transport est convenue avec vous au téléphone, avant le départ.',

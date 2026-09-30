@@ -141,18 +141,18 @@ function etapesPour(
       : { icon: Phone, title: 'Confirmation (sous 2 h)', desc: "Nous vous appelons pendant nos horaires pour confirmer la commande et l'adresse.", status: 'current' },
     preparation(),
     ar
-      ? { icon: Truck, title: 'الشحن عبر Sendit', desc: `المدة المتوقعة: ${ville ? delaiColis(ville, language) : 'من 24 ساعة إلى 4 أيام عمل'}`, status: 'pending' }
-      : { icon: Truck, title: 'Expédition par Sendit', desc: `Délai estimé : ${ville ? delaiColis(ville) : '24 h à 4 jours ouvrés'}`, status: 'pending' },
+      ? { icon: Truck, title: 'شحن الطرد', desc: `المدة المتوقعة: ${ville ? delaiColis(ville, language) : 'من 24 ساعة إلى 4 أيام عمل'}`, status: 'pending' }
+      : { icon: Truck, title: 'Expédition du colis', desc: `Délai estimé : ${ville ? delaiColis(ville) : '24 h à 4 jours ouvrés'}`, status: 'pending' },
     {
       icon: MapPin,
       title: ar ? 'التوصيل' : 'Livraison',
       desc: ar
         ? paiement === 'cod'
           ? 'تدفع لعامل التوصيل نقداً. لا يُفتح الطرد قبل الدفع.'
-          : 'التوصيل إلى عنوانك عبر عامل توصيل Sendit.'
+          : 'يوصل عامل التوصيل الطرد إلى عنوانك.'
         : paiement === 'cod'
           ? 'Vous payez le livreur en espèces. Le colis ne s’ouvre pas avant le paiement.'
-          : 'Livraison à votre adresse, par le livreur Sendit.',
+          : 'Le livreur vous apporte le colis à votre adresse.',
       status: 'pending',
     },
   ];
@@ -323,7 +323,7 @@ export default function ConfirmationPage({ params }: { params: Promise<{ id: str
       ? `Retrait à ${lieu.nom}`
       : reception.mode === 'transport'
         ? transport === 'camionnette' ? 'Transport : camionnette LEBTEX' : `Transport jusqu'au dépôt du transporteur${ville ? ` (${ville})` : ''}`
-        : 'À domicile par Sendit';
+        : 'Livraison à domicile';
 
   // Message WhatsApp : reprend le prix réellement facturé, la variante complète, le mode
   // de réception et le moyen de paiement (jamais « livraison gratuite » pour un transport).
@@ -606,7 +606,7 @@ export default function ConfirmationPage({ params }: { params: Promise<{ id: str
               {reception.mode === 'domicile' && ville && (
                 <p className="text-xs text-[#047857] font-semibold mt-2 flex items-center gap-1">
                   <Truck className="w-3.5 h-3.5" />
-                  {ar ? `عبر Sendit · المدة المتوقعة: ${delaiColis(ville, language)}` : `Par Sendit · délai estimé : ${delaiColis(ville)}`}
+                  {ar ? `التوصيل إلى المنزل · المدة المتوقعة: ${delaiColis(ville, language)}` : `Livraison à domicile · délai estimé : ${delaiColis(ville)}`}
                 </p>
               )}
             </div>

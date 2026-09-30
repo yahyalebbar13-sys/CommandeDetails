@@ -1025,7 +1025,7 @@ export default function CheckoutPage() {
                               checked={choix.mode === m}
                               onSelect={() => setField("mode", m)}
                               icone={<Truck className="w-4 h-4" />}
-                              titre={ar ? "التوصيل إلى المنزل عبر Sendit" : "À domicile par Sendit"}
+                              titre={ar ? "التوصيل إلى المنزل" : "Livraison à domicile"}
                               prix={
                                 prixConnu
                                   ? prixFrais(fraisDomicile, language)

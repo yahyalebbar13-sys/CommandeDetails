@@ -6,6 +6,7 @@ import ShopHeader from '@/components/shop/ShopHeader';
 import ShopFooter from '@/components/shop/ShopFooter';
 import CartDrawer from '@/components/shop/CartDrawer';
 import LocalBusinessSchema from '@/components/shop/LocalBusinessSchema';
+import ChoixLangueAccueil from '@/components/shop/ChoixLangueAccueil';
 
 export const metadata: Metadata = {
   title: 'LEBTEX — Mercerie & Fermetures Éclair au Maroc | سحاب، مطاط، أزرار',
@@ -83,6 +84,7 @@ export default function ShopLayout({ children }: { children: React.ReactNode }) 
           >
             <ShopHeader />
             <CartDrawer />
+            <ChoixLangueAccueil />
             <main className="flex-grow pb-16 lg:pb-0">{children}</main>
             <ShopFooter />
           </div>

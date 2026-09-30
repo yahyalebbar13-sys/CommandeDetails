@@ -195,7 +195,7 @@ function etapesSuivi(order: ShopOrder, reglages: ReglagesReception, language: La
     {
       status: 'shipped',
       label: ar ? 'تم الشحن' : 'Expédiée',
-      description: ar ? 'سُلِّم الطرد إلى Sendit' : 'Colis remis à Sendit',
+      description: ar ? 'سُلِّم الطرد إلى عامل التوصيل' : 'Colis remis au livreur',
       icon: <Truck className="w-5 h-5" />,
     },
     {

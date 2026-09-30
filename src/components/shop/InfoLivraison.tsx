@@ -43,7 +43,7 @@ export default function InfoLivraison({
     <div className="flex gap-2 rounded-xl border bg-[#FBF8F3] border-[#E8E4DF] px-4 py-3" dir={ar ? "rtl" : "ltr"}>
       <Truck className="w-4 h-4 flex-shrink-0 mt-0.5 text-[#C8102E]" />
       <div className="text-sm leading-relaxed">
-        <p className="font-semibold text-[#0F0F0F]">{ar ? "التوصيل بواسطة Sendit" : "Livraison Sendit"}</p>
+        <p className="font-semibold text-[#0F0F0F]">{ar ? "التوصيل إلى المنزل" : "Livraison à domicile"}</p>
         <p className="text-[#4A4A4A]">{ar ? RESUME_FRAIS_AR : RESUME_FRAIS}</p>
         <p className="text-[#0F7A55] font-medium">{ar ? "أو استلام مجاني من المحل" : "Ou retrait gratuit en magasin"}</p>
       </div>

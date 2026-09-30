@@ -241,21 +241,21 @@ const mTransport = messageConfirmation(tr, MAINTENANT, { reglages });
 check('transport : « à confirmer par téléphone », jamais « gratuit »',
   mTransport.includes('Transport : à confirmer par téléphone') && !/gratuit/i.test(mTransport) && mTransport.includes('Total des articles'), mTransport);
 const offerte = messageConfirmation(commande({ id: 'of', subtotal: 350, deliveryFee: 0, total: 350 }), MAINTENANT);
-check('colis à 0 DH au-dessus de 300 DH à Casablanca : « offerte »', offerte.includes('Livraison Sendit (Casablanca) : offerte'), offerte);
+check('colis à 0 DH au-dessus de 300 DH à Casablanca : « offerte »', offerte.includes('Livraison à domicile (Casablanca) : offerte'), offerte);
 // Une commande d'aujourd'hui (le checkout écrit `reception`) : nouveaux seuils (300 DH à Casablanca).
 const aConfirmerFrais = messageConfirmation(commande({ id: 'ac', deliveryFee: 0, total: 120, reception: { mode: 'domicile', volumineux: false } }), MAINTENANT);
 check('colis à 0 DH sous le seuil : « à confirmer » (jamais « gratuite »)',
-  aConfirmerFrais.includes('Livraison Sendit (Casablanca) : à confirmer') && !/gratuit/i.test(aConfirmerFrais));
+  aConfirmerFrais.includes('Livraison à domicile (Casablanca) : à confirmer') && !/gratuit/i.test(aConfirmerFrais));
 // Une commande d'avant le 29/09/2026 (sans `reception`) : offerte dès 100 DH à Casablanca, 500 DH ailleurs.
 const ancienneOfferte = messageConfirmation(commande({ id: 'ao', deliveryFee: 0, total: 120 }), MAINTENANT);
 check('ancienne commande de 120 DH à Casablanca à 0 DH : « offerte » (ancien seuil de 100 DH)',
-  ancienneOfferte.includes('Livraison Sendit (Casablanca) : offerte'), ancienneOfferte);
+  ancienneOfferte.includes('Livraison à domicile (Casablanca) : offerte'), ancienneOfferte);
 check('ancienne commande de 120 DH à Rabat à 0 DH : « à confirmer » (ancien seuil de 500 DH)',
   messageConfirmation(commande({ id: 'ar', deliveryFee: 0, total: 120, shippingAddress: { fullName: 'A', phone: '0612345678', address: 'x', city: 'Rabat' } }), MAINTENANT)
-    .includes('Livraison Sendit (Rabat) : à confirmer'));
+    .includes('Livraison à domicile (Rabat) : à confirmer'));
 check('sous-total gonflé : la livraison n’est pas « offerte » (seuil sur les lignes)',
   messageConfirmation(commande({ id: 'sg', subtotal: 5000, deliveryFee: 0, total: 120, reception: { mode: 'domicile', volumineux: false } }), MAINTENANT)
-    .includes('Livraison Sendit (Casablanca) : à confirmer'));
+    .includes('Livraison à domicile (Casablanca) : à confirmer'));
 const mVirement = messageConfirmation(commande({ id: 'vir', paymentMethod: 'virement' }), MAINTENANT, { reglages });
 check('virement : total par virement et motif, sans RIB',
   mVirement.includes('*Total à payer par virement : ') && mVirement.includes('n° de commande LBT-VIR comme motif') && sansRib(mVirement), mVirement);
@@ -305,9 +305,10 @@ const A2 = messageModele('recapitulatif', trFes, { transporteur: 'Transport Atla
 check('A récapitulatif transporteur : dépôt, prix, total des articles',
   A2.includes('envoi par Transport Atlas jusqu’à son dépôt de Fès') && A2.includes('Transport : 120') && A2.includes('Total des articles'), A2);
 const A3 = messageModele('recapitulatif', ancienneCmd, {});
-check('A récapitulatif colis : Sendit, frais, colis pas ouvert', A3.includes('livraison à domicile par Sendit') && A3.includes('Livraison : 25') && A3.includes('ne s’ouvre pas'), A3);
+check('A récapitulatif colis : à domicile, frais, colis pas ouvert', A3.includes('livraison à domicile, ') && A3.includes('Livraison : 25') && A3.includes('ne s’ouvre pas'), A3);
 const tous = [C, D, E, F, A, A2, A3, messageModele('parti_transporteur', trFes, {}), messageModele('veille_tournee', tr, {}), mRetrait, mTransport, mVirement, pret];
 check('aucun message ne contient « undefined » ni le RIB', tous.every(m => !/undefined|null|NaN/.test(m) && sansRib(m)));
+check('aucun message au client ne nomme le transporteur des colis', [...tous, offerte, aConfirmerFrais].every(m => !/sendit/i.test(m)));
 check('champ vide : « à préciser »', messageModele('pret_a_retirer', rt, {}).includes('à préciser'));
 check('prix lu', prixLu('150') === 150 && prixLu(' 150 DH ') === 150 && prixLu('150,5 mad') === 150.5 && prixLu('payé à l’arrivée') === null && prixLu(undefined) === null);
 

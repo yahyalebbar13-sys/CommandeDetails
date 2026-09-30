@@ -18,7 +18,7 @@ import { PLAFOND_ESPECES_COLIS } from '@/lib/commandes-boutique';
 export const metadata: Metadata = {
   title: 'Livraison, retrait et paiement | LEBTEX',
   description:
-    `Colis livrés par Sendit partout au Maroc : ${FRAIS_ZONE.casablanca} MAD à Casablanca en ${DELAI_ZONE.casablanca}, dès ${FRAIS_ZONE.standard} MAD ailleurs. ` +
+    `Colis livrés à domicile partout au Maroc : ${FRAIS_ZONE.casablanca} MAD à Casablanca en ${DELAI_ZONE.casablanca}, dès ${FRAIS_ZONE.standard} MAD ailleurs. ` +
     'Retrait gratuit à Casablanca. Rouleaux entiers : transport organisé par téléphone.',
 };
 
@@ -28,7 +28,7 @@ const FACONS = [
     icon: Truck,
     quoi: 'Petits articles et coupes pliées',
     exemples: 'Fermetures, boutons, fils, élastiques, rubans, tissu coupé',
-    comment: 'À domicile, en colis Sendit',
+    comment: 'Livraison à domicile, en colis',
     prix: `${formatPrice(FRAIS_ZONE.casablanca)} à ${formatPrice(FRAIS_ZONE.eloignee)} selon la ville`,
     prixNote: 'Un seul colis pour toute la commande, payé à la réception',
     delai: '24 h à 4 jours ouvrés',
@@ -84,7 +84,7 @@ const ETAPES = [
   },
   {
     step: '04', title: 'Réception et paiement', icon: MapPin,
-    desc: 'Le livreur Sendit vous appelle avant de passer. Vous payez à la réception, en espèces, ou par virement si l’option vous est proposée en commandant.',
+    desc: 'Le livreur vous appelle avant de passer. Vous payez à la réception, en espèces, ou par virement si l’option vous est proposée en commandant.',
   },
 ];
 
@@ -98,7 +98,7 @@ export default function LivraisonPage() {
           <h1 className="text-3xl sm:text-4xl md:text-5xl font-black mb-4" style={{ fontFamily: 'Outfit, sans-serif' }}>
             Livraison partout au Maroc 🇲🇦
           </h1>
-          <p className="text-gray-300 text-base sm:text-lg">Colis livrés par Sendit • Retrait gratuit à Casablanca • Paiement à la réception</p>
+          <p className="text-gray-300 text-base sm:text-lg">Livraison à domicile • Retrait gratuit à Casablanca • Paiement à la réception</p>
           <div className="mt-6 inline-flex flex-wrap items-center justify-center gap-x-2 gap-y-1 bg-[#D4A843]/20 border border-[#D4A843]/30 rounded-3xl sm:rounded-full px-5 py-2">
             <span className="text-[#D4A843] font-bold">🚚 {formatPrice(FRAIS_ZONE.casablanca)} à Casablanca, en {DELAI_ZONE.casablanca}</span>
             <span className="text-[#E9C77A] text-sm">· dès {formatPrice(FRAIS_ZONE.standard)} partout ailleurs</span>
@@ -111,7 +111,7 @@ export default function LivraisonPage() {
         {/* Key info cards */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
           {[
-            { icon: Truck, title: 'Colis par Sendit', desc: `Partout au Maroc, dès ${formatPrice(FRAIS_ZONE.casablanca)}`, color: '#3B82F6', bg: '#eff6ff' },
+            { icon: Truck, title: 'Livraison à domicile', desc: `Partout au Maroc, dès ${formatPrice(FRAIS_ZONE.casablanca)}`, color: '#3B82F6', bg: '#eff6ff' },
             { icon: Clock, title: 'Expédition sous 24 h', desc: 'Jours ouvrés, après l’appel de confirmation', color: '#10B981', bg: '#f0fdf4' },
             { icon: Store, title: 'Retrait gratuit', desc: 'À Casablanca, pour toute commande', color: '#D4A843', bg: '#fffbeb' },
             { icon: Banknote, title: 'Paiement à la réception', desc: 'En espèces (virement si l’option est proposée)', color: '#C8102E', bg: '#fef2f4' },
@@ -174,7 +174,7 @@ export default function LivraisonPage() {
         {/* Tarifs des colis */}
         <section>
           <h2 className="text-2xl font-bold text-[#1A1A1A] mb-2" style={{ fontFamily: 'Outfit, sans-serif' }}>
-            Tarifs des colis Sendit
+            Tarifs de la livraison à domicile
           </h2>
           <p className="text-sm text-[#6B6B6B] mb-6">Le prix dépend de votre ville. Il s’affiche avant de valider la commande.</p>
           <div className="grid gap-4 md:grid-cols-3">
@@ -204,7 +204,7 @@ export default function LivraisonPage() {
           </div>
           <ul className="space-y-3 text-sm text-[#4B4B4B]">
             {[
-              'Le colis ne s’ouvre pas et ne s’essaie pas avant le paiement : c’est la règle de Sendit. Si vous voulez voir un article avant, demandez-nous des photos sur WhatsApp.',
+              'Le colis ne s’ouvre pas et ne s’essaie pas avant le paiement. Si vous voulez voir un article avant, demandez-nous des photos sur WhatsApp.',
               'Un problème à l’ouverture (article abîmé, erreur de notre part) ? Envoyez-nous une photo sur WhatsApp dans les 48 h : nous remplaçons à nos frais.',
               `Au-delà de ${formatPrice(PLAFOND_ESPECES_COLIS)} d’espèces pour un colis, nous vous proposons au téléphone la solution la plus simple (virement, retrait gratuit ou autre arrangement).`,
             ].map((t) => (
@@ -251,7 +251,7 @@ export default function LivraisonPage() {
                 <Banknote className="w-5 h-5 text-[#10B981]" />
                 <h3 className="font-bold text-[#1A1A1A]" style={{ fontFamily: 'Outfit, sans-serif' }}>En espèces, à la réception</h3>
               </div>
-              <p className="text-sm text-[#6B6B6B]">Au livreur Sendit quand il vous remet le colis, ou au magasin quand vous retirez votre commande. Vous ne payez rien avant.</p>
+              <p className="text-sm text-[#6B6B6B]">Au livreur quand il vous remet le colis, ou au magasin quand vous retirez votre commande. Vous ne payez rien avant.</p>
             </div>
             <div className="bg-white border border-[#E8E4DF] rounded-2xl p-5">
               <div className="flex items-center gap-3 mb-3">
