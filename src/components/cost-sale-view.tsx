@@ -11,12 +11,10 @@ import { exportCostSalePDF, exportCoutVenteSimplePDF } from '@/lib/pdf-export';
 import { useFirebase } from '@/firebase';
 import { doc, getDoc, getDocs, collection, setDoc } from 'firebase/firestore';
 import { ArticleOverride } from './article-override-modal';
-import { regroupeParPole } from '@/lib/regroupement-dp';
+import { lignesCoutDeVente, calculCoutDeVente } from '@/lib/cout-de-vente';
 
 // The 4 checklist IDs that must all be true to unlock a dossier in Cost Sale
 const REQUIRED_CHECKS = ['douane_ok', 'facture_mad_ok', 'nw_cbm_ok', 'dp_ok'];
-
-const MARGE_RATE = 0.05;
 
 interface CostSaleViewProps {
   articles: any[];
@@ -108,132 +106,17 @@ export default function CostSaleView({ articles, factures, subCategories, genera
   }, [selectedFactureId, firestore, user]);
 
 
-  // Build per-category lines. Also collect the first override found for each category key,
-  // so customs overrides from cost-analysis propagate into cost-sale.
+  // Lignes et calcul partagés avec le registre, le tableau et le dashboard (lib/cout-de-vente).
   const categoryLines = useMemo(() => {
     if (!selectedFactureId) return [];
     const dossierArticles = articles.filter(a => a.factureId === selectedFactureId);
-    type MapEntry = { qty: number; nw: number; cbm: number; unit: string; firstCatName: string; genCatId: string | null; isGrouped: boolean; firstOverride: ArticleOverride | null; sizes: Set<string>; colors: Set<string> };
-    const map: Record<string, MapEntry> = {};
-    for (const a of dossierArticles) {
-      const rawCat = a.categoryId || '—';
-      const subCat = subCategories.find((c: any) => c.name === rawCat);
-      const genCatId: string | null = subCat?.generalCategoryId || a.generalCategoryId || null;
-      const genCatName = genCatId ? (generalCategories.find((g: any) => g.id === genCatId)?.name || '') : '';
-      // Même découpage que la déclaration provisoire (regroupement-dp)
-      const shouldGroup = !!genCatId && regroupeParPole(rawCat, genCatName, puMap);
-      const key = shouldGroup ? `GEN:${genCatId}` : rawCat;
-      const isGrouped = shouldGroup;
-      // Capture first override for this category key
-      const articleOverride: ArticleOverride | null = overrides[a.id] ? overrides[a.id] : null;
-      if (!map[key]) map[key] = { qty: 0, nw: 0, cbm: 0, unit: isGrouped ? 'KG' : (a.unitOfMeasure || 'U'), firstCatName: rawCat, genCatId: isGrouped ? genCatId : null, isGrouped, firstOverride: articleOverride, sizes: new Set(), colors: new Set() };
-      map[key].qty += Number(a.quantity) || 0;
-      map[key].nw += Number(a.netWeight) || 0;
-      map[key].cbm += Number(a.cubicMeasurement) || 0;
-      // Collect unique sizes and colors
-      if (a.size && a.size !== 'various') map[key].sizes.add(a.size.toUpperCase());
-      if (a.color && a.color !== 'various') map[key].colors.add(a.color.toUpperCase());
-      // If no override captured yet for this key, grab it from this article
-      if (!map[key].firstOverride && articleOverride) map[key].firstOverride = articleOverride;
-    }
-    return Object.entries(map)
-      .sort(([, a], [, b]) => {
-        const aName = a.genCatId ? (generalCategories.find((g: any) => g.id === a.genCatId)?.name || a.firstCatName) : a.firstCatName;
-        const bName = b.genCatId ? (generalCategories.find((g: any) => g.id === b.genCatId)?.name || b.firstCatName) : b.firstCatName;
-        return aName.localeCompare(bName);
-      })
-      .map(([, { qty, nw, cbm, unit, firstCatName, genCatId, isGrouped, firstOverride, sizes, colors }]) => {
-        const effectiveQty = isGrouped ? nw : qty;
-        const displayId = genCatId ? (generalCategories.find((g: any) => g.id === genCatId)?.name || genCatId) : firstCatName;
-        const cat = subCategories.find((c: any) => c.name === firstCatName);
-        // Unique size: show only if all articles share the same single size
-        const uniqueSize = sizes.size === 1 ? [...sizes][0] : null;
-        // Unique color: show only if all articles share the same single color
-        const uniqueColor = colors.size === 1 ? [...colors][0] : null;
-        return { categoryId: displayId, totalQty: effectiveQty, totalNW: nw, totalCBM: cbm, unit, cat, isPole: isGrouped, ov: firstOverride, uniqueSize, uniqueColor };
-      });
+    return lignesCoutDeVente(dossierArticles, subCategories, generalCategories, puMap, overrides);
   }, [articles, selectedFactureId, subCategories, generalCategories, overrides, puMap]);
 
   const analysis = useMemo(() => {
     if (!selectedFacture || categoryLines.length === 0) return null;
-
-    const invoicePaidDhs = Number(selectedFacture.invoicePaidDhs) || 0;
-    const declaredValue = Number(selectedFacture.declaredValue) || 0;
-    const tauxChange = declaredValue > 0 ? invoicePaidDhs / declaredValue : 0;
-
-    const exchange = Number(selectedFacture.exchangeInvoiceAmount) || 0;
-    const transitaire = Number(selectedFacture.supplierInvoiceAmount) || 0;
-    const fraisSupp = Number(selectedFacture.additionalCostsAmount) || 0;
-    // Fret maritime exclu du coût de vente
-    const mtFraisTotal = (exchange + transitaire + fraisSupp) / 1.20;
-
-    const cbmTotal = categoryLines.reduce((s, l) => s + l.totalCBM, 0);
-
-    const rows = categoryLines.map(line => {
-      const { categoryId, totalQty: qty, totalNW: nw, totalCBM: cbm, unit, cat, ov } = line;
-
-      // PU from DP declaration (USD)
-      const puDollar = parseFloat(puMap[categoryId] ?? '') || 0;
-      const valAchatMad = qty * puDollar * tauxChange;
-
-      // Logistics prorated by CBM
-      const fraisCmd = cbmTotal > 0 ? (cbm / cbmTotal) * mtFraisTotal : 0;
-
-      // Customs: override (from cost-analysis) takes priority over category defaults
-      const customsValuePerKg = ov?.customsValuePerKg != null
-        ? Number(ov.customsValuePerKg)
-        : (cat?.customsValuePerKg != null ? Number(cat.customsValuePerKg) : null);
-      const importDutyRate = ov?.importDutyRate != null
-        ? Number(ov.importDutyRate) / 100
-        : (cat?.importDutyRate != null ? Number(cat.importDutyRate) / 100 : null);
-      const tpiRate = ov?.tpiRate != null
-        ? Number(ov.tpiRate) / 100
-        : (cat?.tpiRate != null ? Number(cat.tpiRate) / 100 : null);
-      const ticRate = ov?.ticRate != null
-        ? Number(ov.ticRate) / 100
-        : (cat?.ticRate != null ? Number(cat.ticRate) / 100 : null);
-      const tvaRate = ov?.tvaRate != null
-        ? Number(ov.tvaRate) / 100
-        : (cat?.tvaRate != null ? Number(cat.tvaRate) / 100 : null);
-      const hasCustData = customsValuePerKg !== null;
-      const hasOverride = !!(ov && Object.keys(ov).length > 0);
-
-      const valDouane = hasCustData ? nw * customsValuePerKg! : 0;
-      const di = importDutyRate != null ? valDouane * importDutyRate : 0;
-      const tpi = tpiRate != null ? valDouane * tpiRate : 0;
-      const tic = ticRate != null ? valDouane * ticRate : 0;
-
-      // Total HT = Valeur Achat + Frais Log + DI + TPI + TIC
-      const totalHT = hasCustData ? valAchatMad + fraisCmd + di + tpi + tic : 0;
-      const marge = hasCustData ? totalHT * MARGE_RATE : 0;
-
-      // Base TVA = Valeur Douane + DI + TPI + TIC + Frais Log (sans valeur d'achat)
-      const baseTva = hasCustData ? valDouane + di + tpi + tic + fraisCmd : 0;
-      const tva = (hasCustData && tvaRate != null) ? baseTva * tvaRate : 0;
-
-      // Total Vente TTC = Total HT + Marge + TVA
-      const totalVenteTtc = hasCustData ? totalHT + marge + tva : 0;
-      const pvuTtc = (hasCustData && qty > 0) ? totalVenteTtc / qty : 0;
-
-      return {
-        categoryId, qty, nw, cbm, unit, cat,
-        puDollar, valAchatMad, fraisCmd,
-        customsValuePerKg, importDutyRate, tpiRate, ticRate, tvaRate,
-        hasCustData, valDouane, di, tpi, tic,
-        totalHT, marge, baseTva, tva, totalVenteTtc, pvuTtc,
-        missingDP: puDollar === 0,
-        missingCust: !hasCustData,
-        hasOverride,
-        uniqueSize: line.uniqueSize ?? null,
-        uniqueColor: line.uniqueColor ?? null,
-      };
-    });
-
-    const totalMarge = rows.reduce((s, r) => s + r.marge, 0);
-    const totalTVA = rows.reduce((s, r) => s + r.tva, 0);
-
-    return { tauxChange, mtFraisTotal, cbmTotal, exchange, transitaire, fraisSupp, totalMarge, totalTVA, rows };
-  }, [selectedFacture, categoryLines, subCategories, puMap]);
+    return calculCoutDeVente(selectedFacture, categoryLines, puMap);
+  }, [selectedFacture, categoryLines, puMap]);
 
   // ── Valeur live courante du Coût de Vente ──
   const liveVenteTotal = useMemo(

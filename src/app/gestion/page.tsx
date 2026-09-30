@@ -600,6 +600,7 @@ function AdminApp() {
                 articles={articles}
                 factures={factures}
                 subCategories={subCategories}
+                generalCategories={generalCategories}
                 onOuvrirDossier={(id) => { setPreviousTab('tableau-arrivages'); setSelectedFactureId(id); setActiveTab('factures'); }}
                 onModifierArticle={setEditingArticle}
                 onVueCartes={() => { setPreviousTab(null); setSelectedFactureId(null); setActiveTab('factures'); }}

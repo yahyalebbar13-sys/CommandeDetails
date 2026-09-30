@@ -37,6 +37,7 @@ import {
   Hash,
 } from 'lucide-react';
 import { ViewType, GeneralCategory } from '@/lib/types';
+import { coutDeVenteDossier } from '@/lib/cout-de-vente';
 
 interface DashboardViewProps {
   articles: any[];
@@ -133,6 +134,7 @@ const DashboardView: React.FC<DashboardViewProps> = ({ articles = [], factures =
   const safeFactures = factures || [];
   const [chartMode, setChartMode] = useState<'value' | 'volume'>('value');
   const [dpDeclarations, setDpDeclarations] = useState<Record<string, Record<string, string>>>({});
+  const [dpOverrides, setDpOverrides] = useState<Record<string, Record<string, any>>>({});
 
   // Load all dp_declarations for all factures
   useEffect(() => {
@@ -140,8 +142,13 @@ const DashboardView: React.FC<DashboardViewProps> = ({ articles = [], factures =
     getDocs(collection(firestore, 'users', user.uid, 'dp_declarations'))
       .then(snap => {
         const result: Record<string, Record<string, string>> = {};
-        snap.docs.forEach(d => { if (d.data().puMap) result[d.id] = d.data().puMap; });
+        const ov: Record<string, Record<string, any>> = {};
+        snap.docs.forEach(d => {
+          if (d.data().puMap) result[d.id] = d.data().puMap;
+          if (d.data().overrides) ov[d.id] = d.data().overrides;
+        });
         setDpDeclarations(result);
+        setDpOverrides(ov);
       })
       .catch(() => {});
   }, [firestore, user, safeFactures.length]);
@@ -150,7 +157,6 @@ const DashboardView: React.FC<DashboardViewProps> = ({ articles = [], factures =
 
   // ── Margin calculation per dossier, grouped by declaringCompany ──────────
   const marginData = useMemo(() => {
-    const MARGE_RATE = 0.05;
     let totalRevient = 0;
     let totalVente = 0;
 
@@ -169,7 +175,6 @@ const DashboardView: React.FC<DashboardViewProps> = ({ articles = [], factures =
       const fraisSupp = Number(facture.additionalCostsAmount) || 0;
       const fretMad = (Number(facture.freightCost) || 0) * tauxChange;
       const mtFraisRevient = (exchange + transitaire + fraisSupp + fretMad) / 1.20;
-      const mtFraisVente = (exchange + transitaire + fraisSupp) / 1.20;
       const cbmTotal = fArticles.reduce((s: number, a: any) => s + (Number(a.cubicMeasurement) || 0), 0);
 
       let dosRevient = 0;
@@ -193,37 +198,8 @@ const DashboardView: React.FC<DashboardViewProps> = ({ articles = [], factures =
         dosRevient += valAchatMad + fraisCmd + di + tpi + tic + tva;
       });
 
-      const catMap: Record<string, { qty: number; nw: number; cbm: number }> = {};
-      fArticles.forEach((a: any) => {
-        const catId = a.categoryId || '—';
-        if (!catMap[catId]) catMap[catId] = { qty: 0, nw: 0, cbm: 0 };
-        catMap[catId].qty += Number(a.quantity) || 0;
-        catMap[catId].nw += Number(a.netWeight) || 0;
-        catMap[catId].cbm += Number(a.cubicMeasurement) || 0;
-      });
-
-      let dosVente = 0;
-      Object.entries(catMap).forEach(([categoryId, { qty, nw, cbm }]) => {
-        const puDollar = parseFloat(puMap[categoryId] ?? '') || 0;
-        if (puDollar === 0) return;
-        const valAchatMad = qty * puDollar * tauxChange;
-        const fraisCmd = cbmTotal > 0 ? (cbm / cbmTotal) * mtFraisVente : 0;
-        const cat = subCategories.find((c: any) => c.name === categoryId);
-        const cvk = cat?.customsValuePerKg != null ? Number(cat.customsValuePerKg) : null;
-        const idr = cat?.importDutyRate != null ? Number(cat.importDutyRate) / 100 : null;
-        const tpr = cat?.tpiRate != null ? Number(cat.tpiRate) / 100 : null;
-        const ticr = cat?.ticRate != null ? Number(cat.ticRate) / 100 : null;
-        const tvar = cat?.tvaRate != null ? Number(cat.tvaRate) / 100 : null;
-        const vd = cvk != null ? nw * cvk : 0;
-        const di = idr != null ? vd * idr : 0;
-        const tpi = tpr != null ? vd * tpr : 0;
-        const tic = ticr != null ? vd * ticr : 0;
-        const totalHT = valAchatMad + fraisCmd + di + tpi + tic;
-        const marge = totalHT * MARGE_RATE;
-        const baseTva = vd + di + tpi + fraisCmd;
-        const tva = tvar != null ? baseTva * tvar : 0;
-        dosVente += totalHT + marge + tva;
-      });
+      // Le coût de vente de la page « Coût Vente » (lignes regroupées de la DP comprises).
+      const dosVente = coutDeVenteDossier(facture, fArticles, subCategories, generalCategories, puMap, dpOverrides[facture.id] || {});
 
       return { id: facture.id, revient: dosRevient, vente: dosVente, diff: dosRevient - dosVente };
     };
@@ -242,7 +218,7 @@ const DashboardView: React.FC<DashboardViewProps> = ({ articles = [], factures =
     const grandRevient = byCompany.reduce((s, c) => s + c.totalRevient, 0);
     const grandVente = byCompany.reduce((s, c) => s + c.totalVente, 0);
     return { byCompany, grandRevient, grandVente, grandDiff: grandRevient - grandVente };
-  }, [safeFactures, safeArticles, subCategories, dpDeclarations]);
+  }, [safeFactures, safeArticles, subCategories, generalCategories, dpDeclarations, dpOverrides]);
 
   // ── KPI Stats ──────────────────────────────────────────────────────────────
   const stats = useMemo(() => {

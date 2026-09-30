@@ -15,6 +15,19 @@ const REGROUPES_HISTORIQUES = ['ZIPPER', 'SLIDER'];
 /** Pôles regroupés depuis le 30/09/2026 (nom du pôle seulement). */
 const REGROUPES_DEPUIS_SEPTEMBRE = ['LABEL', 'BUCKLE'];
 
+/**
+ * PU saisi pour une ligne. Une catégorie renommée depuis (« PVC Luggage
+ * Leather » devenue « PVC LUGGAGE LEATHER ») garde son PU : à défaut du nom
+ * exact, on accepte le même nom aux majuscules et espaces près. Un nom exact
+ * présent, même vide, l'emporte : c'est une saisie faite depuis.
+ */
+export function puSaisi(puMap: Record<string, string>, nom: string): string | undefined {
+  if (Object.prototype.hasOwnProperty.call(puMap, nom)) return puMap[nom];
+  const cle = nom.trim().toUpperCase();
+  const trouve = Object.keys(puMap).find(k => k.trim().toUpperCase() === cle);
+  return trouve === undefined ? undefined : puMap[trouve];
+}
+
 export function regroupeParPole(
   catName: string,
   poleName: string,
@@ -28,5 +41,5 @@ export function regroupeParPole(
   if (catName.trim().toUpperCase() === poleName.trim().toUpperCase()) return true;
   // Déclaration faite avant le regroupement : elle a déjà un PU pour cette
   // catégorie. On garde sa ligne telle quelle, sinon ce PU serait perdu.
-  return !(parseFloat(puMap[catName] ?? '') > 0);
+  return !(parseFloat(puSaisi(puMap, catName) ?? '') > 0);
 }

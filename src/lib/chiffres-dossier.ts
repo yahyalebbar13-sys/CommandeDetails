@@ -6,6 +6,8 @@
 //
 // Pur : aucun Firestore. `articles` = les articles DU dossier.
 
+import { coutDeVenteDossier } from './cout-de-vente';
+
 /** Totaux tirés des articles du dossier. */
 export function resumerDossier(facture: any, articles: any[]) {
   const itemsCount = articles.length;
@@ -29,15 +31,19 @@ export function tauxDeChangeDossier(facture: any): number {
 /**
  * Coût de revient et coût de vente TTC du dossier, en MAD — ceux des cartes du
  * registre. `puMap` : prix unitaires de la déclaration provisoire (DP) par
- * catégorie ; le coût de vente n'existe qu'une fois la DP remplie.
+ * ligne ; le coût de vente n'existe qu'une fois la DP remplie. Le coût de vente
+ * est celui de la page « Coût Vente » (lib/cout-de-vente) : il lui faut les
+ * pôles, pour retrouver le PU des lignes regroupées (Zipper, Label…), et les
+ * retouches de Coût de Revient (`overrides`).
  */
 export function coutsDuDossier(
   facture: any,
   articles: any[],
   subCategories: any[],
   puMap: Record<string, string> = {},
+  generalCategories: any[] = [],
+  overrides: Record<string, any> = {},
 ): { revient: number; vente: number; hasDp: boolean } {
-  const MARGE_RATE = 0.05;
   const hasDp = Object.values(puMap).some(v => parseFloat(v as string) > 0);
   if (articles.length === 0) return { revient: 0, vente: 0, hasDp };
 
@@ -47,7 +53,6 @@ export function coutsDuDossier(
   const fraisSupp = Number(facture.additionalCostsAmount) || 0;
   const fretMad = (Number(facture.freightCost) || 0) * tauxChange;
   const mtFraisRevient = (exchange + transitaire + fraisSupp + fretMad) / 1.20;
-  const mtFraisVente = (exchange + transitaire + fraisSupp) / 1.20;
   const cbmTotal = articles.reduce((s, a) => s + (Number(a.cubicMeasurement) || 0), 0);
 
   let dosRevient = 0;
@@ -71,37 +76,7 @@ export function coutsDuDossier(
     dosRevient += valAchatMad + fraisCmd + di + tpi + tic + tva;
   });
 
-  const catMap: Record<string, { qty: number; nw: number; cbm: number }> = {};
-  articles.forEach(a => {
-    const catId = a.categoryId || '—';
-    if (!catMap[catId]) catMap[catId] = { qty: 0, nw: 0, cbm: 0 };
-    catMap[catId].qty += Number(a.quantity) || 0;
-    catMap[catId].nw += Number(a.netWeight) || 0;
-    catMap[catId].cbm += Number(a.cubicMeasurement) || 0;
-  });
-
-  let dosVente = 0;
-  Object.entries(catMap).forEach(([categoryId, { qty, nw, cbm }]) => {
-    const puDollar = parseFloat(puMap[categoryId] ?? '') || 0;
-    if (puDollar === 0) return;
-    const valAchatMad = qty * puDollar * tauxChange;
-    const fraisCmd = cbmTotal > 0 ? (cbm / cbmTotal) * mtFraisVente : 0;
-    const cat = subCategories.find((c: any) => c.name === categoryId);
-    const cvk = cat?.customsValuePerKg != null ? Number(cat.customsValuePerKg) : null;
-    const idr = cat?.importDutyRate != null ? Number(cat.importDutyRate) / 100 : null;
-    const tpr = cat?.tpiRate != null ? Number(cat.tpiRate) / 100 : null;
-    const ticr = cat?.ticRate != null ? Number(cat.ticRate) / 100 : null;
-    const tvar = cat?.tvaRate != null ? Number(cat.tvaRate) / 100 : null;
-    const vd = cvk != null ? nw * cvk : 0;
-    const di = idr != null ? vd * idr : 0;
-    const tpi = tpr != null ? vd * tpr : 0;
-    const tic = ticr != null ? vd * ticr : 0;
-    const totalHT = valAchatMad + fraisCmd + di + tpi + tic;
-    const marge = totalHT * MARGE_RATE;
-    const baseTva = vd + di + tpi + fraisCmd;
-    const tva = tvar != null ? baseTva * tvar : 0;
-    dosVente += totalHT + marge + tva;
-  });
+  const dosVente = coutDeVenteDossier(facture, articles, subCategories, generalCategories, puMap, overrides);
 
   return { revient: dosRevient, vente: dosVente, hasDp };
 }

@@ -346,6 +346,7 @@ interface TableauArrivagesViewProps {
   articles: any[];
   factures: any[];
   subCategories: any[];
+  generalCategories?: any[];
   onOuvrirDossier: (factureId: string) => void;
   onModifierArticle: (article: any) => void;
   onVueCartes: () => void;
@@ -354,7 +355,7 @@ interface TableauArrivagesViewProps {
 type Confirmation = { id: string; champ: 'arrivalDate' | 'stockEntryDate'; valeur: string };
 
 export default function TableauArrivagesView({
-  actif, articles, factures, subCategories, onOuvrirDossier, onModifierArticle, onVueCartes,
+  actif, articles, factures, subCategories, generalCategories = [], onOuvrirDossier, onModifierArticle, onVueCartes,
 }: TableauArrivagesViewProps) {
   const { user } = useUser();
   const firestore = useFirestore();
@@ -381,8 +382,8 @@ export default function TableauArrivagesView({
     for (const d of (declarationsDocs || []) as any[]) declarations[d.id] = { puMap: d.puMap, overrides: d.overrides };
     const verifications: Record<string, Record<string, boolean>> = {};
     for (const d of (verificationsDocs || []) as any[]) verifications[d.id] = d.checks || {};
-    return construireLignes({ factures, articles, subCategories, declarations, verifications });
-  }, [factures, articles, subCategories, declarationsDocs, verificationsDocs]);
+    return construireLignes({ factures, articles, subCategories, generalCategories, declarations, verifications });
+  }, [factures, articles, subCategories, generalCategories, declarationsDocs, verificationsDocs]);
 
   // ── Filtres, tri, colonnes ────────────────────────────────────────────────
   const [filtres, setFiltres] = useState<FiltresArrivages>(FILTRES_VIDES);

@@ -71,6 +71,8 @@ export function construireLignes(p: {
   factures: any[];
   articles: any[];
   subCategories: any[];
+  /** Les pôles : le coût de vente en a besoin pour les lignes regroupées de la DP. */
+  generalCategories?: any[];
   /** dp_declarations, par dossier. */
   declarations?: Record<string, { puMap?: Record<string, string>; overrides?: Record<string, any> }>;
   /** checklists, par dossier : { douane_ok: true, … }. */
@@ -87,7 +89,7 @@ export function construireLignes(p: {
   return p.factures.map(f => {
     const articles = parDossier.get(f.id) || [];
     const dp = p.declarations?.[f.id] || {};
-    const couts = coutsDuDossier(f, articles, p.subCategories, dp.puMap || {});
+    const couts = coutsDuDossier(f, articles, p.subCategories, dp.puMap || {}, p.generalCategories || [], dp.overrides || {});
 
     const parCategorie = new Map<string, number>();
     for (const a of articles) {

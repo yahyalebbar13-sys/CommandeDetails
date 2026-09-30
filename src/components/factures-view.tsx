@@ -185,10 +185,10 @@ export default function FacturesView({
     const result: Record<string, { revient: number; vente: number; hasDp: boolean }> = {};
     (factures || []).forEach(facture => {
       const fArticles = articles.filter(a => a.factureId === facture.id);
-      result[facture.id] = coutsDuDossier(facture, fArticles, subCategories, dpDeclarations[facture.id] || {});
+      result[facture.id] = coutsDuDossier(facture, fArticles, subCategories, dpDeclarations[facture.id] || {}, generalCategories, overridesPerFacture[facture.id] || {});
     });
     return result;
-  }, [factures, articles, subCategories, dpDeclarations]);
+  }, [factures, articles, subCategories, dpDeclarations, generalCategories, overridesPerFacture]);
 
   const { declaredFactures, orphanedFactureIds } = useMemo(() => {
     const declaredIds = new Set((factures || []).map(f => f.id));

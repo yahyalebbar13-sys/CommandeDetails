@@ -10,7 +10,7 @@ import {
   TrendingUp, TrendingDown, DollarSign, Calculator, Lock, ShieldCheck
 } from 'lucide-react';
 import { exportDPPDF } from '@/lib/pdf-export';
-import { regroupeParPole } from '@/lib/regroupement-dp';
+import { puSaisi, regroupeParPole } from '@/lib/regroupement-dp';
 import { useFirebase } from '@/firebase';
 import { doc, getDoc, setDoc, collection, onSnapshot } from 'firebase/firestore';
 
@@ -187,7 +187,7 @@ export default function DPView({
     try {
       // Compute totalMT from current puMap + categoryLines at save time
       const computedTotalMT = categoryLines.reduce((sum, line) => {
-        const pu = parseFloat(puMap[line.categoryId] ?? '') || 0;
+        const pu = parseFloat(puSaisi(puMap, line.categoryId) ?? '') || 0;
         return sum + pu * line.totalQty;
       }, 0);
 
@@ -227,7 +227,7 @@ export default function DPView({
     try {
       // Compute totalMT from current puMap + categoryLines at save time
       const computedTotalMT = categoryLines.reduce((sum, line) => {
-        const pu = parseFloat(puMap[line.categoryId] ?? '') || 0;
+        const pu = parseFloat(puSaisi(puMap, line.categoryId) ?? '') || 0;
         return sum + pu * line.totalQty;
       }, 0);
 
@@ -287,16 +287,19 @@ export default function DPView({
   const lines = categoryLines.map(line => ({
     ...line,
     libelle: nomMap[line.categoryId]?.trim() || line.categoryId,
-    puNum: parseFloat(puMap[line.categoryId] ?? '') || 0,
-    mt: (parseFloat(puMap[line.categoryId] ?? '') || 0) * line.totalQty,
+    puNum: parseFloat(puSaisi(puMap, line.categoryId) ?? '') || 0,
+    mt: (parseFloat(puSaisi(puMap, line.categoryId) ?? '') || 0) * line.totalQty,
   }));
 
   const totalQty = lines.reduce((s, l) => s + l.totalQty, 0);
   const totalMT = lines.reduce((s, l) => s + l.mt, 0);
 
   // ── Auto-sync declaredValue sur la facture quand le total change ──
+  // Jamais pour une déclaration confirmée : la consulter ne doit rien réécrire
+  // (une catégorie renommée depuis y perd son PU, et fausserait la valeur).
   useEffect(() => {
     if (!selectedFactureId || !firestore || !user) return;
+    if (loading || lockedDP) return;
     if (totalMT <= 0) return;
     // Seulement si on a un puMap (donc une DP existe)
     const hasPu = Object.values(puMap).some(v => parseFloat(v) > 0);
@@ -306,7 +309,7 @@ export default function DPView({
       { declaredValue: totalMT },
       { merge: true }
     ).catch(() => {});
-  }, [totalMT, selectedFactureId, firestore, user, puMap]);
+  }, [totalMT, selectedFactureId, firestore, user, puMap, loading, lockedDP]);
 
   // Valeur déclarée en douane (USD) depuis le dossier
   const declaredValueDollar = Number(selectedFacture?.declaredValue) || 0;
@@ -716,7 +719,7 @@ export default function DPView({
                               type="number"
                               className={inputCls + (lockedDP ? ' opacity-50 cursor-not-allowed' : '')}
                               placeholder="0.00"
-                              value={puMap[line.categoryId] ?? ''}
+                              value={puSaisi(puMap, line.categoryId) ?? ''}
                               onChange={e => setPU(line.categoryId, e.target.value)}
                               disabled={lockedDP !== null}
                               step="0.0001"
