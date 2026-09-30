@@ -632,6 +632,12 @@ export default function DPView({ articles, factures, subCategories, generalCateg
                           ) : (
                             <span className="text-stone-300 font-normal text-[9px]">Saisir le PU</span>
                           )}
+                          {/* MT de la facture réelle pour cette catégorie — info interne, jamais dans le PDF */}
+                          {line.fobValue > 0 && (
+                            <div className="text-[9px] font-bold text-stone-400 mt-1.5 whitespace-nowrap">
+                              Facture réelle : {line.fobValue.toLocaleString('fr-MA', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} $
+                            </div>
+                          )}
                         </TableCell>
                       </TableRow>
                     ))}
