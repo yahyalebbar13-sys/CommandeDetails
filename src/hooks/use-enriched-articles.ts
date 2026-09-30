@@ -8,8 +8,20 @@
 
 import { useMemo } from 'react';
 import { computeEffectiveStatus } from '@/lib/status-utils';
+import { articleSelonCatalogue } from '@/lib/specification-produit';
 
-export function useEnrichedArticles(articles: any[], factures: any[]): any[] {
+export function useEnrichedArticles(
+  articles: any[],
+  factures: any[],
+  /**
+   * Le catalogue. Avec lui, chaque article lit les caracteristiques de sa QUALITE telles qu'elles
+   * sont definies aujourd'hui, et non la copie figee le jour de la saisie : corriger une largeur
+   * dans les qualites se voit alors partout — listes, dossiers, Data Lab, documents — sans
+   * rouvrir une seule commande. Le conditionnement, lui, reste celui de l'expedition.
+   */
+  categories: any[] = [],
+  generalCategories: any[] = [],
+): any[] {
   return useMemo(() => {
     if (!articles || !factures) return articles || [];
 
@@ -66,7 +78,7 @@ export function useEnrichedArticles(articles: any[], factures: any[]): any[] {
       }
 
       return {
-        ...a,
+        ...articleSelonCatalogue(a, categories, generalCategories),
         // Enrich with facture dates so all views have them
         arrivalDate,
         stockEntryDate,
@@ -79,5 +91,5 @@ export function useEnrichedArticles(articles: any[], factures: any[]): any[] {
         status: effectiveStatus,
       };
     });
-  }, [articles, factures]);
+  }, [articles, factures, categories, generalCategories]);
 }

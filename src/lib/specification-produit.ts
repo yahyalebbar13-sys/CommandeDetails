@@ -167,6 +167,38 @@ export function specificationsArticle(
 }
 
 /**
+ * L'article tel qu'il faut le LIRE : ses champs, corrigés par la définition de sa qualité.
+ *
+ * Beaucoup d'écrans lisent `article.fabricWidth` directement — la liste des articles d'un
+ * dossier, le Data Lab, les documents envoyés au fournisseur et au client. Ils affichaient donc
+ * la copie figée au moment de la saisie, et corriger une qualité ne changeait rien chez eux.
+ * Ils passent maintenant par ici : un seul appel, et ils lisent la qualité d'aujourd'hui.
+ *
+ * Seules les CARACTÉRISTIQUES sont corrigées. Le conditionnement reste celui de l'expédition,
+ * relevé sur le packing list du fournisseur.
+ */
+export function articleSelonCatalogue<T extends Record<string, any>>(
+  article: T,
+  categories: any[] = [],
+  generalCategories: any[] = [],
+  ligneQualite?: any,
+): T {
+  const type = specTypeDeLArticle(article, categories, generalCategories);
+  const modele = type ? QUALITY_SCHEMA[type] : null;
+  if (!modele) return article;
+
+  const definition = ligneQualiteDuCatalogue(article, categories, generalCategories, type, ligneQualite);
+  if (!definition) return article;
+
+  const corrige: Record<string, any> = { ...article };
+  for (const champ of modele) {
+    if (groupeDuChamp(champ) !== 'technique') continue;
+    if (rempli(definition[champ.key])) corrige[champ.key] = definition[champ.key];
+  }
+  return corrige as T;
+}
+
+/**
  * Les mêmes caractéristiques sur une seule ligne, pour une cellule de tableau ou un sous-titre :
  * « GSM 180 · Largeur (cm) 150 · Long. rouleau 100 ».
  */

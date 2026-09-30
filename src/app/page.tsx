@@ -362,9 +362,9 @@ function AdminApp() {
   // Meme regle que /gestion : un brouillon de demande magasin n'est pas encore un besoin.
   const rawArticles_ = (rawArticles || []).filter((a: any) => !estBrouillonMagasin(a));
   // Enrich articles with facture dates → computes effective status (TRANSIT/CUSTOMS/STOCK) automatically
-  const articles = useEnrichedArticles(rawArticles_, factures);
   const generalCategories = rawGenCats || [];
   const subCategories = rawSubCats || [];
+  const articles = useEnrichedArticles(rawArticles_, factures, subCategories, generalCategories);
   const movements = rawMovements || [];
   const payments = rawPayments || [];
   

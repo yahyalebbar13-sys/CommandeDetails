@@ -99,6 +99,7 @@ import SuiviConteneurPanneau from './suivi-conteneur-panneau';
 import { getStatusInfo } from '@/lib/status-utils';
 import { LIBELLE_STATUT, dossierAOuvrir, dossierVerrouille, type SuiviConteneur } from '@/lib/suivi-conteneur';
 import { authedFetch } from '@/lib/authed-fetch';
+import { articleSelonCatalogue } from '@/lib/specification-produit';
 
 interface FacturesViewProps {
   articles: any[];
@@ -567,7 +568,11 @@ export default function FacturesView({
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {selectedFactureArticles.map((o) => {
+                {selectedFactureArticles.map((brut) => {
+                  // Les caracteristiques lues ici sont celles de la QUALITE d'aujourd'hui, pas
+                  // la copie figee le jour de la saisie : corriger une largeur dans le catalogue
+                  // doit se voir sur les commandes qui portent cette qualite.
+                  const o = articleSelonCatalogue(brut, subCategories, generalCategories);
                   const isZipper = isZipperCategory(o.categoryId);
                   return (
                     <TableRow 

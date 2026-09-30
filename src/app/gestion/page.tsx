@@ -393,9 +393,9 @@ function AdminApp() {
   // par le commercial, puis envoye depuis /stock. Tant qu'il ne l'est pas, /gestion ne le voit pas.
   const rawArticles_ = (rawArticles || []).filter((a: any) => !isLocalMarketPurchaseArticle(a) && !estBrouillonMagasin(a));
   // Enrich articles with facture dates → computes effective status (TRANSIT/CUSTOMS/STOCK) automatically
-  const articles = useEnrichedArticles(rawArticles_, factures);
   const generalCategories = rawGenCats || [];
   const subCategories = rawSubCats || [];
+  const articles = useEnrichedArticles(rawArticles_, factures, subCategories, generalCategories);
   const payments = rawPayments || [];
 
   // ─── Changements de statut d'arrivage : prévenir les clients, ou non ─────────────────

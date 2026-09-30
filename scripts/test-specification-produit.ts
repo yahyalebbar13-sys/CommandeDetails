@@ -7,7 +7,7 @@
 //   npx tsx scripts/test-specification-produit.ts
 
 import {
-  specificationsArticle, specificationsEnLigne, ligneQualiteDuCatalogue,
+  specificationsArticle, specificationsEnLigne, ligneQualiteDuCatalogue, articleSelonCatalogue,
 } from '../src/lib/specification-produit';
 
 let pass = 0;
@@ -94,6 +94,28 @@ console.log('\n── Retrouver la définition d’une qualité ──');
   const unique = famille([{ label: 'CL-5', fabricWidth: 145 }]);
   eq('sans nom, une famille à une seule qualité ne laisse pas de doute',
     ligneQualiteDuCatalogue({ categoryId: 'FF' }, unique as any, poles as any, 'fabric')?.fabricWidth, 145);
+}
+
+console.log('\n── L’article corrigé, pour les écrans qui lisent ses champs en direct ──');
+{
+  // La liste des articles d'un dossier, le Data Lab, les documents fournisseur et client lisent
+  // `article.fabricWidth` sans passer par la mise en forme : ils passent par ici.
+  const cat = famille([{ label: '1030EF', gsm: '30', fabricWidth: 160 }]);
+  const article = {
+    id: 'a1', categoryId: 'FF', quality: '1030EF',
+    gsm: '30', fabricWidth: 150, packagingPerBag: 4, quantity: 500,
+  };
+  const corrige = articleSelonCatalogue(article, cat as any, poles as any);
+  eq('la largeur est celle du catalogue', corrige.fabricWidth, 160);
+  eq('le conditionnement de l’expédition est intact', corrige.packagingPerBag, 4);
+  eq('le reste de l’article ne bouge pas', corrige.quantity, 500);
+  eq('et son identifiant non plus', corrige.id, 'a1');
+}
+{
+  const cat = famille([{ label: '1030EF', fabricWidth: 160 }]);
+  const article = { id: 'a1', categoryId: 'FF', quality: 'INCONNUE', fabricWidth: 150 };
+  eq('une qualité inconnue rend l’article tel quel',
+    articleSelonCatalogue(article, cat as any, poles as any).fabricWidth, 150);
 }
 
 console.log(`\n${pass} réussis, ${fail} échoués`);
