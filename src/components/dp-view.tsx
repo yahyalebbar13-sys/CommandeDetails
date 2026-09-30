@@ -13,6 +13,16 @@ import { exportDPPDF } from '@/lib/pdf-export';
 import { useFirebase } from '@/firebase';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 
+/** Ne garde que les noms vraiment modifiés (vides = on reprend la catégorie). */
+function nomsNettoyes(nomMap: Record<string, string>): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const [cat, nom] of Object.entries(nomMap)) {
+    const n = nom.trim();
+    if (n && n !== cat) out[cat] = n;
+  }
+  return out;
+}
+
 interface DPViewProps {
   articles: any[];
   factures: any[];
@@ -27,6 +37,9 @@ export default function DPView({ articles, factures, subCategories, generalCateg
     factures.length > 0 ? factures[0].id : null
   );
   const [puMap, setPuMap] = useState<Record<string, string>>({});
+  // Nom imprimé sur la déclaration, par catégorie. Propre à la DP : ne touche
+  // jamais la catégorie, les produits ni les arrivages.
+  const [nomMap, setNomMap] = useState<Record<string, string>>({});
   const [showSuggested, setShowSuggested] = useState(true);
   const [saving, setSaving] = useState(false);
   const [savedOk, setSavedOk] = useState(false);
@@ -52,6 +65,7 @@ export default function DPView({ articles, factures, subCategories, generalCateg
     setSavedCoutRevient(null);
     setSavedCoutVente(null);
     setPuMap({});
+    setNomMap({});
     setFreightInput('');
     setLockedDP(null);
     getDoc(doc(firestore, 'users', user.uid, 'dp_declarations', selectedFactureId))
@@ -59,6 +73,7 @@ export default function DPView({ articles, factures, subCategories, generalCateg
         if (snap.exists()) {
           const data = snap.data();
           if (data.puMap)               setPuMap(data.puMap);
+          if (data.nomMap)              setNomMap(data.nomMap);
           if (data.coutRevientTtcTotal) setSavedCoutRevient(Number(data.coutRevientTtcTotal));
           if (data.coutVenteTtcTotal)   setSavedCoutVente(Number(data.coutVenteTtcTotal));
           if (data.freightValue != null) setFreightInput(String(data.freightValue));
@@ -133,7 +148,7 @@ export default function DPView({ articles, factures, subCategories, generalCateg
       const freightNum = parseFloat(freightInput) || 0;
       await setDoc(
         doc(firestore, 'users', user.uid, 'dp_declarations', selectedFactureId),
-        { puMap, freightValue: freightNum, savedAt: new Date().toISOString(), factureId: selectedFactureId },
+        { puMap, nomMap: nomsNettoyes(nomMap), freightValue: freightNum, savedAt: new Date().toISOString(), factureId: selectedFactureId },
         { merge: true }
       );
 
@@ -155,7 +170,7 @@ export default function DPView({ articles, factures, subCategories, generalCateg
     } finally {
       setSaving(false);
     }
-  }, [selectedFactureId, firestore, user, puMap, categoryLines, freightInput]);
+  }, [selectedFactureId, firestore, user, puMap, nomMap, categoryLines, freightInput]);
 
   // ── Lock to Firebase ──
   const handleLockDP = useCallback(async () => {
@@ -173,7 +188,7 @@ export default function DPView({ articles, factures, subCategories, generalCateg
       const freightNum = parseFloat(freightInput) || 0;
       await setDoc(
         doc(firestore, 'users', user.uid, 'dp_declarations', selectedFactureId),
-        { puMap, freightValue: freightNum, savedAt: now, factureId: selectedFactureId, dpLocked: true, dpLockedAt: now },
+        { puMap, nomMap: nomsNettoyes(nomMap), freightValue: freightNum, savedAt: now, factureId: selectedFactureId, dpLocked: true, dpLockedAt: now },
         { merge: true }
       );
 
@@ -203,7 +218,7 @@ export default function DPView({ articles, factures, subCategories, generalCateg
     } finally {
       setLockLoading(false);
     }
-  }, [selectedFactureId, firestore, user, puMap, categoryLines, freightInput]);
+  }, [selectedFactureId, firestore, user, puMap, nomMap, categoryLines, freightInput]);
 
   const handleUnlockDP = async () => {
     if (!selectedFactureId || !user || !firestore) return;
@@ -223,6 +238,7 @@ export default function DPView({ articles, factures, subCategories, generalCateg
 
   const lines = categoryLines.map(line => ({
     ...line,
+    libelle: nomMap[line.categoryId]?.trim() || line.categoryId,
     puNum: parseFloat(puMap[line.categoryId] ?? '') || 0,
     mt: (parseFloat(puMap[line.categoryId] ?? '') || 0) * line.totalQty,
   }));
@@ -258,6 +274,11 @@ export default function DPView({ articles, factures, subCategories, generalCateg
     const pct  = coutRevientTtc > 0 ? (diff / coutRevientTtc) * 100 : 0;
     return { coutRevientTtc, coutVenteTtc, diff, pct };
   }, [selectedFacture, savedCoutRevient, savedCoutVente]);
+
+  const setNom = (categoryId: string, val: string) => {
+    setNomMap(prev => ({ ...prev, [categoryId]: val }));
+    setSavedOk(false);
+  };
 
   const setPU = (categoryId: string, val: string) => {
     setPuMap(prev => ({ ...prev, [categoryId]: val }));
@@ -520,7 +541,24 @@ export default function DPView({ articles, factures, subCategories, generalCateg
                     {lines.map((line, idx) => (
                       <TableRow key={line.categoryId} className={`border-stone-50 hover:bg-stone-50/50 transition-colors ${idx % 2 === 0 ? '' : 'bg-stone-50/30'}`}>
                         <TableCell className="py-4 px-6">
-                          <div className="font-black text-[12px] text-stone-900 uppercase">{line.categoryId}</div>
+                          <input
+                            type="text"
+                            className="w-full bg-transparent border border-transparent hover:border-stone-200 focus:bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 focus:outline-none rounded-lg px-2 -mx-2 h-8 font-black text-[12px] text-stone-900 uppercase transition-all disabled:cursor-not-allowed"
+                            value={nomMap[line.categoryId] ?? line.categoryId}
+                            onChange={e => setNom(line.categoryId, e.target.value)}
+                            disabled={lockedDP !== null}
+                            title="Nom sur la déclaration uniquement — la catégorie, les produits et les arrivages ne changent pas"
+                          />
+                          {line.libelle !== line.categoryId && (
+                            <div className="text-[9px] text-blue-500 font-bold mt-0.5">
+                              Catégorie : {line.categoryId}
+                              {!lockedDP && (
+                                <button type="button" onClick={() => setNom(line.categoryId, '')} className="ml-2 underline hover:text-blue-700">
+                                  rétablir
+                                </button>
+                              )}
+                            </div>
+                          )}
                           <div className="text-[9px] text-stone-400 font-bold mt-0.5">
                             {line.customsValuePerKg != null
                               ? `Val. douane: ${line.customsValuePerKg.toFixed(2)} MAD/kg`

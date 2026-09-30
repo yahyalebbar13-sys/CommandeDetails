@@ -1342,6 +1342,8 @@ export async function exportDPPDF(
   facture: any,
   lines: Array<{
     categoryId: string;
+    /** Nom saisi dans la DP ; à défaut, la catégorie. */
+    libelle?: string;
     totalQty: number;
     totalNW: number;
     unit: string;
@@ -1448,7 +1450,7 @@ export async function exportDPPDF(
     startY: yPos,
     head: [['Description', 'Quantity', 'Unit', 'Unit Price (USD)', 'Total Amount (USD)']],
     body: validLines.map(l => [
-      l.categoryId.toUpperCase(),
+      (l.libelle || l.categoryId).toUpperCase(),
       l.totalQty.toLocaleString('fr-MA'),
       l.unit.toUpperCase(),
       l.puNum.toLocaleString('fr-MA', { minimumFractionDigits: 2, maximumFractionDigits: 4 }),
