@@ -22,8 +22,8 @@
  * elle dépend du produit ET de ce qu'on empile. Elle se lit donc, elle aussi, dans la qualité.
  */
 
-import { QUALITY_SCHEMA, QUALITIES_FIELD_BY_SPEC } from './quality-schema';
-import { specTypeDeLArticle } from './specification-produit';
+import { QUALITY_SCHEMA } from './quality-schema';
+import { specTypeDeLArticle, ligneQualiteDuCatalogue } from './specification-produit';
 
 // ── Le vocabulaire des colis ────────────────────────────────────────────────
 
@@ -159,48 +159,6 @@ function valeur(article: any, ligneQualite: any, champ: string, catalogue?: any)
   if (saisi(ligneQualite?.[champ])) return ligneQualite[champ];
   if (saisi(article?.[champ])) return article[champ];
   return catalogue?.[champ];
-}
-
-/**
- * La ligne du catalogue qui décrit la qualité qu'on imprime : celle dont le libellé correspond,
- * ou l'unique ligne de la famille quand l'article ne nomme aucune qualité.
- *
- * Deux règles, et elles comptent autant l'une que l'autre :
- *
- * - **On cherche le libellé de la LIGNE avant celui de l'article.** Un article ventilé par
- *   qualités porte `quality: 'VARIOUS'` — c'est la marque d'une ventilation, pas un nom. Chercher
- *   « various » dans le catalogue ne trouve rien, et le conditionnement saisi dans l'écran
- *   Qualités n'atteindrait jamais les commandes ventilées, c'est-à-dire la plupart.
- * - **Un nom qui ne correspond à rien ne se remplace pas par le voisin.** Si l'article dit
- *   AUTOLOCK N8 et que la famille ne connaît que CL-5, on ne prête pas à l'un le carton de
- *   l'autre : le document dira quel champ saisir. Le repli sur la ligne unique ne vaut que
- *   lorsqu'il n'y a aucun nom pour trancher.
- */
-export function ligneQualiteDuCatalogue(
-  article: any, categories: any[] = [], generalCategories: any[] = [], type?: string, ligneQualite?: any,
-): any | undefined {
-  const champ = type ? QUALITIES_FIELD_BY_SPEC[type] : undefined;
-  if (!champ) return undefined;
-
-  const famille = (categories || []).find((c: any) => c?.id === article?.categoryId || c?.name === article?.categoryId);
-  const pole = (generalCategories || []).find((g: any) => g?.id === (article?.generalCategoryId || famille?.generalCategoryId));
-  const lignes = [
-    ...(Array.isArray(famille?.[champ]) ? famille[champ] : []),
-    ...(Array.isArray(pole?.[champ]) ? pole[champ] : []),
-  ];
-  if (lignes.length === 0) return undefined;
-
-  const nomme = [
-    ligneQualite?.quality, ligneQualite?.label, ligneQualite?.nameFR,
-    article?.quality, article?.qualityLabel,
-  ].map(sansAccent).find(v => v && v !== 'various');
-
-  if (nomme) {
-    return lignes.find((l: any) =>
-      [l?.label, l?.nameFR, l?.quality].some(v => sansAccent(v) === nomme));
-  }
-  // Aucun nom pour trancher : une famille qui n'a qu'une qualité ne laisse pas de place au doute.
-  return lignes.length === 1 ? lignes[0] : undefined;
 }
 
 const libelleDuChamp = (type: string | undefined, champ: string): string =>

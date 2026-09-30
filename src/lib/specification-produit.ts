@@ -12,7 +12,9 @@
  * comme sur le papier.
  */
 
-import { QUALITY_SCHEMA, detectSpecType, groupeDuChamp, type QualityFieldGroup } from './quality-schema';
+import {
+  QUALITY_SCHEMA, QUALITIES_FIELD_BY_SPEC, detectSpecType, groupeDuChamp, type QualityFieldGroup,
+} from './quality-schema';
 
 export type LigneSpecification = { cle: string; label: string; valeur: string; groupe: QualityFieldGroup };
 
@@ -68,6 +70,51 @@ export function specTypeDeLArticle(article: any, categories: any[] = [], general
   return undefined;
 }
 
+const sansAccent = (v: unknown): string =>
+  String(v ?? '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim();
+
+/**
+ * La ligne du catalogue qui décrit la qualité qu'on imprime : celle dont le libellé correspond,
+ * ou l'unique ligne de la famille quand l'article ne nomme aucune qualité.
+ *
+ * Deux règles, et elles comptent autant l'une que l'autre :
+ *
+ * - **On cherche le libellé de la LIGNE avant celui de l'article.** Un article ventilé par
+ *   qualités porte `quality: 'VARIOUS'` — c'est la marque d'une ventilation, pas un nom. Chercher
+ *   « various » dans le catalogue ne trouve rien, et le conditionnement saisi dans l'écran
+ *   Qualités n'atteindrait jamais les commandes ventilées, c'est-à-dire la plupart.
+ * - **Un nom qui ne correspond à rien ne se remplace pas par le voisin.** Si l'article dit
+ *   AUTOLOCK N8 et que la famille ne connaît que CL-5, on ne prête pas à l'un le carton de
+ *   l'autre : le document dira quel champ saisir. Le repli sur la ligne unique ne vaut que
+ *   lorsqu'il n'y a aucun nom pour trancher.
+ */
+export function ligneQualiteDuCatalogue(
+  article: any, categories: any[] = [], generalCategories: any[] = [], type?: string, ligneQualite?: any,
+): any | undefined {
+  const champ = type ? QUALITIES_FIELD_BY_SPEC[type] : undefined;
+  if (!champ) return undefined;
+
+  const famille = (categories || []).find((c: any) => c?.id === article?.categoryId || c?.name === article?.categoryId);
+  const pole = (generalCategories || []).find((g: any) => g?.id === (article?.generalCategoryId || famille?.generalCategoryId));
+  const lignes = [
+    ...(Array.isArray(famille?.[champ]) ? famille[champ] : []),
+    ...(Array.isArray(pole?.[champ]) ? pole[champ] : []),
+  ];
+  if (lignes.length === 0) return undefined;
+
+  const nomme = [
+    ligneQualite?.quality, ligneQualite?.label, ligneQualite?.nameFR,
+    article?.quality, article?.qualityLabel,
+  ].map(sansAccent).find(v => v && v !== 'various');
+
+  if (nomme) {
+    return lignes.find((l: any) =>
+      [l?.label, l?.nameFR, l?.quality].some(v => sansAccent(v) === nomme));
+  }
+  // Aucun nom pour trancher : une famille qui n'a qu'une qualité ne laisse pas de place au doute.
+  return lignes.length === 1 ? lignes[0] : undefined;
+}
+
 /**
  * Les caractéristiques à afficher, dans l'ordre du modèle. Une ligne de ventilation par qualité
  * (qualityBreakdown) porte ses propres valeurs : elles priment sur celles de l'article, puisque
@@ -90,12 +137,28 @@ export function specificationsArticle(
   if (!modele) return [];
 
   const retenus = new Set(groupes);
+  /**
+   * La qualité telle que le catalogue la définit AUJOURD'HUI.
+   *
+   * Une qualité fixe est une définition : CL-5 est CL-5, et sa largeur est celle du catalogue.
+   * Ses valeurs étaient pourtant recopiées sur la commande au moment de la choisir, et n'en
+   * bougeaient plus : corriger la largeur d'une qualité ne changeait rien aux commandes qui la
+   * portent, elles affichaient éternellement l'ancienne. C'est le catalogue qui fait foi.
+   *
+   * Le CONDITIONNEMENT échappe à cette règle : pièces par sac, sacs par carton sont des faits
+   * d'expédition, relevés sur le packing list du fournisseur et écrits sur la commande. Ils
+   * peuvent légitimement différer du catalogue d'un arrivage à l'autre.
+   */
+  const definition = ligneQualiteDuCatalogue(article, categories, generalCategories, type, ligneQualite);
+
   const lignes: LigneSpecification[] = [];
   for (const champ of modele) {
     if (champ.type === 'image') continue;
     const groupe = groupeDuChamp(champ);
     if (!retenus.has(groupe)) continue;
-    const brut = rempli(ligneQualite?.[champ.key]) ? ligneQualite[champ.key] : article?.[champ.key];
+    const brut = groupe === 'technique' && rempli(definition?.[champ.key])
+      ? definition[champ.key]
+      : rempli(ligneQualite?.[champ.key]) ? ligneQualite[champ.key] : article?.[champ.key];
     if (!rempli(brut)) continue;
     const valeur = String(brut).trim();
     lignes.push({ cle: champ.key, label: champ.label, valeur: champ.uppercase ? valeur.toUpperCase() : valeur, groupe });
