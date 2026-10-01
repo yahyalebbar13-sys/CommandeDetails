@@ -15,9 +15,10 @@
  *   le prix est déjà connu. Ni couleurs ni emplacements : ils restent à l'écran du gestionnaire ;
  * - en bas, une case « Remise » et une case « Total à payer » à remplir à la main.
  *
- * Le commercial en fait DEUX exemplaires : un pour le client, un pour le gestionnaire. Le papier
- * ne porte donc aucune consigne interne ni aucune mention d'atelier (« longueur inconnue »…) :
- * il doit pouvoir partir chez le client tel quel.
+ * Il en faut DEUX exemplaires : un pour le client, un pour le magasin. Chaque impression les sort
+ * donc tous les deux, chacun sur sa propre feuille et marqué « Exemplaire client » / « Exemplaire
+ * magasin » (voulu par le patron, 01/10/2026). Le papier ne porte aucune consigne interne ni
+ * aucune mention d'atelier (« longueur inconnue »…) : il part chez le client tel quel.
  *
  * Une seule mise en page de bon pour tout /stock : vente comptoir, commande client, commande à
  * préparer, reçu d'une vente directe. La charte est celle de /gestion : logo, bleu nuit et or,
@@ -115,6 +116,9 @@ const MENTION_NATURE: Record<NatureBon, string> = {
   A_PREPARER: 'Commande à préparer — la marchandise sera remise à l\'enlèvement.',
 };
 
+/** Les deux exemplaires imprimés à chaque fois, dans cet ordre. */
+export const EXEMPLAIRES = ['Exemplaire client', 'Exemplaire magasin'] as const;
+
 /** Bon de livraison quand la marchandise part ; bon de commande tant qu'elle n'est pas sortie. */
 export const titreDuBon = (nature: NatureBon): string =>
   (nature === 'A_PREPARER' ? 'Bon de commande' : 'Bon de livraison');
@@ -187,6 +191,9 @@ export function construireBonHtml(d: DonneesBonImprime): string {
   .numero-bloc { text-align: right; }
   .numero-libelle { font-size: 11px; font-weight: 700; letter-spacing: .2em; text-transform: uppercase; color: ${ESTOMPE}; }
   .numero { font-size: 46px; line-height: 1; font-weight: 900; color: ${NAVY}; letter-spacing: -.02em; margin-top: 4px; }
+  .exemplaire { display: inline-block; margin-bottom: 6px; padding: 3px 10px; border: 2px solid ${NAVY}; color: ${NAVY}; font-weight: 900; font-size: 11px; letter-spacing: .15em; text-transform: uppercase; }
+  /* Chaque exemplaire commence sur une feuille neuve. */
+  .saut { break-before: page; page-break-before: always; height: 0; }
   .provisoire { display: inline-block; margin-top: 6px; padding: 3px 8px; border: 2px solid #b91c1c; color: #b91c1c; font-weight: 900; font-size: 11px; text-transform: uppercase; }
   .infos { display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 10px; margin: 14px 0 6px; }
   .info { border: 1px solid ${BORDURE}; border-left: 4px solid ${GOLD}; padding: 8px 10px; background: #f8fafc; }
@@ -220,12 +227,13 @@ export function construireBonHtml(d: DonneesBonImprime): string {
   .pied .bandeau { background: ${NAVY}; border-left: 12px solid ${GOLD}; color: #94a3b8; font-size: 9px; padding: 6px 12px; display: flex; justify-content: space-between; text-transform: uppercase; letter-spacing: .08em; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   table.lignes thead th, .info, .case-total { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 </style></head><body>
-<table class="page">
+${EXEMPLAIRES.map((libelleExemplaire, rang) => `${rang > 0 ? '<div class="saut"></div>' : ''}<table class="page">
   <tfoot><tr><td><div class="reserve-pied"></div></td></tr></tfoot>
   <tbody><tr><td>
   <div class="entete">
     <div>${d.logo ? `<img src="${d.logo}" alt="LEBTEX" />` : `<div class="produit" style="font-size:24px">LEBTEX</div>`}</div>
     <div class="numero-bloc">
+      <div class="exemplaire">${esc(libelleExemplaire)}</div>
       <div class="numero-libelle">${esc(titreDuBon(d.nature))} N°</div>
       <div class="numero">${esc(d.numero)}</div>
       ${provisoire ? '<div class="provisoire">Numéro provisoire — saisi sans connexion</div>' : ''}
@@ -251,7 +259,7 @@ export function construireBonHtml(d: DonneesBonImprime): string {
 
   ${d.notes ? `<div class="notes"><strong>Note :</strong> ${esc(d.notes)}</div>` : ''}
   </td></tr></tbody>
-</table>
+</table>`).join('\n')}
 
   <div class="pied">
     <div class="adresse">LEBTEX TEXTILE IMPORT · 31 Rue 65, Lot. Al Hamd Ain-Chock, Casablanca · Tél : +212 5 22 25 77 78</div>

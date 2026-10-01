@@ -301,8 +301,12 @@ eq('« par rouleau »', libellePrixParUnite('rolls'), 'par rouleau');
   check('la date à la française et l’heure', html.includes('01/10/2026') && html.includes('14:32'));
   check('« Bon de livraison » pour une vente comptoir', html.includes('Bon de livraison N°') && html.includes('<title>Bon de livraison CH-0042'));
   check('la qualité apparaît', html.includes('<div class="qualite">NYLON</div>') && html.includes('<div class="qualite">190T</div>'));
-  check('une ligne par article, sans couleurs', (html.match(/class="designation"/g) || []).length === 4 && !html.includes('ROUGE') && !html.includes('BLANC'));
-  check('deux cases par article : prix unitaire et prix total', (html.match(/<td class="case/g) || []).length === 8 && html.includes('>Prix unitaire (MAD)<') && html.includes('>Prix total (MAD)<'));
+  check('deux exemplaires, chacun sur sa feuille : client puis magasin',
+    (html.match(/class="exemplaire"/g) || []).length === 2
+    && html.indexOf('>Exemplaire client<') < html.indexOf('>Exemplaire magasin<')
+    && (html.match(/class="saut"/g) || []).length === 1);
+  check('une ligne par article (4 par exemplaire), sans couleurs', (html.match(/class="designation"/g) || []).length === 8 && !html.includes('ROUGE') && !html.includes('BLANC'));
+  check('deux cases par article : prix unitaire et prix total', (html.match(/<td class="case/g) || []).length === 16 && html.includes('>Prix unitaire (MAD)<') && html.includes('>Prix total (MAD)<'));
   check('l’unité du prix est rappelée dans la case', html.includes('<div class="case-aide">par mètre</div>') && html.includes('<div class="case-aide">à la pièce</div>'));
   check('le total de chaque groupe', html.includes('<strong>14 pièce(s)</strong>') && html.includes('<strong>12,5 m</strong>'));
   check('ni emplacement ni lieu sur le papier du commercial', !html.includes('A-01-01'));
