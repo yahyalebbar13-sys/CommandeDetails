@@ -18,7 +18,7 @@
  * Tout est pur : le composant applique les écritures dans un seul lot Firestore.
  */
 
-import { repartition } from './rapprochement-facture';
+import { repartition } from './repartition';
 
 export type EcritureSuppression =
   | { op: 'update'; id: string; data: Record<string, any>; retirer?: string[] }

@@ -8,7 +8,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { 
   ChevronLeft, Plus, CalendarDays, Trash2, TrendingDown, 
   AlertCircle, CheckCircle2, FileText, Box, Truck,
-  ShieldCheck, Info, ArrowUpRight, Anchor, Settings2, MousePointer2, Hash, Ship, DollarSign, Building2, Pencil, FileDown, Palette, ClipboardCheck, Archive, AlertTriangle, ExternalLink, Ruler, Lock, Radar, Loader2, FileSpreadsheet, TableProperties, FileCheck
+  ShieldCheck, Info, ArrowUpRight, Anchor, Settings2, MousePointer2, Hash, Ship, DollarSign, Building2, Pencil, FileDown, Palette, ClipboardCheck, Archive, AlertTriangle, ExternalLink, Ruler, Lock, Radar, Loader2, TableProperties, FileCheck, PackagePlus
 } from 'lucide-react';
 import { exportFacturePDF, exportPackingDetailsPDF } from '@/lib/pdf-export';
 import CommercialExportModal from './commercial-export-modal';
@@ -94,7 +94,7 @@ export function getTrackingInfo(blNumber: string, shippingLine?: string): { url:
 import { deleteDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 import { useToast } from '@/hooks/use-toast';
 import DossierChecklistModal from './dossier-checklist-modal';
-import ImportFactureFournisseurModal from './import-facture-fournisseur-modal';
+import AjouterArticlesDossierModal from './ajouter-articles-dossier-modal';
 import SuiviConteneurPanneau from './suivi-conteneur-panneau';
 import { getStatusInfo } from '@/lib/status-utils';
 import { LIBELLE_STATUT, dossierAOuvrir, dossierVerrouille, type SuiviConteneur } from '@/lib/suivi-conteneur';
@@ -151,7 +151,7 @@ export default function FacturesView({
   const [colorDetailArticle, setColorDetailArticle] = useState<any>(null);
   const [sizeDetailArticle, setSizeDetailArticle] = useState<any>(null);
   const [checklistFacture, setChecklistFacture] = useState<any>(null);
-  const [importFactureOuvert, setImportFactureOuvert] = useState(false);
+  const [ajoutArticlesOuvert, setAjoutArticlesOuvert] = useState(false);
   const [factureToDelete, setFactureToDelete] = useState<any>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [articleToDelete, setArticleToDelete] = useState<any>(null);
@@ -679,12 +679,12 @@ export default function FacturesView({
 
         <div className="flex flex-wrap justify-end gap-3">
           <Button
-            onClick={() => setImportFactureOuvert(true)}
+            onClick={() => setAjoutArticlesOuvert(true)}
             disabled={isFactureInStock(selectedFacture)}
-            title={isFactureInStock(selectedFacture) ? 'Dossier en stock : la marchandise est déjà arrivée.' : 'Lire la facture du fournisseur et passer ses lignes en transit'}
+            title={isFactureInStock(selectedFacture) ? 'Dossier en stock : la marchandise est déjà arrivée.' : 'Chercher une commande en production et l’expédier dans ce dossier'}
             className="h-10 text-[10px] font-black uppercase tracking-widest rounded-xl px-6 gap-2 bg-stone-900 hover:bg-black text-white"
           >
-            <FileSpreadsheet className="w-4 h-4" /> Importer la facture
+            <PackagePlus className="w-4 h-4" /> Ajouter des articles
           </Button>
           <Button
             variant="outline"
@@ -746,11 +746,13 @@ export default function FacturesView({
           articles={articles}
         />
 
-        <ImportFactureFournisseurModal
-          open={importFactureOuvert}
-          onOpenChange={setImportFactureOuvert}
+        <AjouterArticlesDossierModal
+          open={ajoutArticlesOuvert}
+          onOpenChange={setAjoutArticlesOuvert}
           dossier={selectedFacture}
           articles={articles}
+          factures={factures}
+          generalCategories={generalCategories}
         />
 
           {/* Confirmation suppression */}

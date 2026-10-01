@@ -10,7 +10,7 @@ import {
   Maximize, Palette, ChevronDown, ChevronUp, Package,
   Building2, Tag, Layers, Sparkles, Search, X
 } from 'lucide-react';
-import ValidateOrderModal from './validate-order-modal';
+import ExpedierModal from './expedier-modal';
 import { useUser, useFirestore, deleteDocumentNonBlocking } from '@/firebase';
 import { doc } from 'firebase/firestore';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
@@ -516,11 +516,12 @@ export default function PendingOrdersView({ articles, factures, generalCategorie
         </div>
       )}
 
-      <ValidateOrderModal
+      <ExpedierModal
         open={isValidating}
         onOpenChange={setIsValidating}
         order={selectedOrder}
         factures={factures}
+        articles={articles}
       />
       <AlertDialog open={deleteConfirm.open} onOpenChange={(o) => !o && setDeleteConfirm({open: false})}>
         <AlertDialogContent>
