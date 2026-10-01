@@ -1,17 +1,23 @@
 /**
- * Le bon imprimé, pensé pour le commercial.
+ * Le bon imprimé, pensé pour le commercial : un BON DE LIVRAISON pas encore chiffré.
  *
  * C'est le papier qui fait la vente : le gestionnaire l'imprime sans prix, le commercial écrit
- * dessus le prix unitaire de chaque produit, la remise et le total, puis le rend. Il doit donc
- * se lire d'un coup d'œil et laisser la place d'écrire :
+ * dessus le prix unitaire et le prix total de chaque article, la remise et le total, puis le
+ * rend. Voulu par le patron (01/10/2026) : « pas de couleurs, juste le nom de l'article, une case
+ * prix unitaire vide et une case prix total vide — comme un bon de livraison pas encore fait ».
  *
+ * - « BON DE LIVRAISON » quand la marchandise part avec le client (comptoir, client) ;
+ *   « BON DE COMMANDE » pour une commande à préparer, qui n'est pas encore sortie ;
  * - le numéro en très gros — c'est par lui qu'on retrouve le bon à l'écran ;
  * - le client (ou « Client comptoir »), la date et l'heure, le magasin ;
- * - les lignes groupées par produit ET qualité, les couleurs et tailles dans leur propre
- *   sous-tableau avec un total ; à côté, UNE case « Prix unitaire » par groupe — vide, ou
- *   remplie si le prix est déjà connu ;
- * - pour chaque ligne, d'où prendre la marchandise quand on le sait (l'emplacement) ;
- * - en bas, une case « Remise » et une case « Total » à remplir à la main.
+ * - UNE ligne par article (produit + qualité, toutes couleurs et tailles confondues) : sa
+ *   quantité totale, une case « Prix unitaire » et une case « Prix total », vides ou remplies si
+ *   le prix est déjà connu. Ni couleurs ni emplacements : ils restent à l'écran du gestionnaire ;
+ * - en bas, une case « Remise » et une case « Total à payer » à remplir à la main.
+ *
+ * Le commercial en fait DEUX exemplaires : un pour le client, un pour le gestionnaire. Le papier
+ * ne porte donc aucune consigne interne ni aucune mention d'atelier (« longueur inconnue »…) :
+ * il doit pouvoir partir chez le client tel quel.
  *
  * Une seule mise en page de bon pour tout /stock : vente comptoir, commande client, commande à
  * préparer, reçu d'une vente directe. La charte est celle de /gestion : logo, bleu nuit et or,
@@ -37,11 +43,12 @@ export interface DonneesBonImprime {
   /** L'heure d'enregistrement, « 14:32 ». */
   heure?: string;
   items: any[];
-  /** Les emplacements d'où prendre chaque ligne, par rang de ligne. */
+  /** Les emplacements d'où prendre chaque ligne, par rang de ligne. Plus imprimés depuis le
+   *  01/10/2026 (le bon du commercial n'a ni couleurs ni emplacements) ; gardés pour les appelants. */
   emplacements?: Record<number, string[]>;
-  /** Les noms des lieux, pour afficher « CHRIFA » plutôt qu'un identifiant. */
+  /** Les noms des lieux (plus imprimés, cf. ci-dessus). */
   nomsLieux?: Record<string, string>;
-  /** Le lieu du bon : une ligne qui sort d'ailleurs l'indique. */
+  /** Le lieu du bon (plus imprimé, cf. ci-dessus). */
   lieuDuBon?: string;
   discount?: number;
   totalAmount?: number;
@@ -103,10 +110,14 @@ export function libelleContenance(unite: string, contenance: { facteur: number; 
 }
 
 const MENTION_NATURE: Record<NatureBon, string> = {
-  COMPTOIR: 'Vente comptoir — la marchandise est sortie du stock à l\'enregistrement de ce bon.',
-  CLIENT: 'Vente client — la marchandise est sortie du stock à l\'enregistrement de ce bon.',
-  A_PREPARER: 'Commande à préparer — la marchandise sort du stock à l\'enlèvement.',
+  COMPTOIR: 'Vente comptoir — marchandise remise au client.',
+  CLIENT: 'Vente client — marchandise remise au client.',
+  A_PREPARER: 'Commande à préparer — la marchandise sera remise à l\'enlèvement.',
 };
+
+/** Bon de livraison quand la marchandise part ; bon de commande tant qu'elle n'est pas sortie. */
+export const titreDuBon = (nature: NatureBon): string =>
+  (nature === 'A_PREPARER' ? 'Bon de commande' : 'Bon de livraison');
 
 /** Hauteur réservée en bas de CHAQUE page pour le bandeau de pied (adresse + bandeau bleu nuit). */
 const HAUTEUR_PIED = '64px';
@@ -121,67 +132,47 @@ export function construireBonHtml(d: DonneesBonImprime): string {
     : (d.date || '');
   const toutChiffre = (d.items || []).length > 0 && (d.items || []).every((i: any) => Number(i?.unitPrice) > 0);
   const remise = Number(d.discount) || 0;
-  const nomLieu = (id?: string) => (id ? (d.nomsLieux?.[id] || id) : '');
 
-  const blocs = groupes.map(g => {
-    const colonnes = [
-      '<th>Couleur</th>',
-      g.avecTailles ? '<th>Taille</th>' : '',
-      '<th class="num">Quantité</th>',
-      '<th>Où la prendre</th>',
-      g.prixDifferents ? `<th class="num">Prix ${esc(libellePrixParUnite(g.unitePrix))}</th>` : '',
-    ].join('');
-    const lignes = g.lignes.map(l => {
-      const emplacements = d.emplacements?.[l.index] || [];
-      const autreLieu = l.lieu && d.lieuDuBon && l.lieu !== d.lieuDuBon ? nomLieu(l.lieu) : '';
-      const ou = [autreLieu, emplacements.join(', ')].filter(Boolean).join(' · ');
-      // Une ligne en rouleaux dit aussi combien de mètres : c'est ce que le commercial multiplie.
-      const enBase = l.contenance
-        ? ` <span class="petit">(${esc(nombre(l.quantite * l.contenance.facteur))} ${esc(uniteAffichee(l.contenance.uniteBase))})</span>`
-        : '';
-      return `<tr>
-        <td>${esc(l.couleur || '—')}</td>
-        ${g.avecTailles ? `<td>${esc(l.taille || '—')}</td>` : ''}
-        <td class="num"><strong>${esc(nombre(l.quantite))}</strong> ${esc(uniteAffichee(l.unite))}${enBase}</td>
-        <td class="ou">${ou ? esc(ou) : '<span class="vide">—</span>'}</td>
-        ${g.prixDifferents ? `<td class="num">${l.prixUnitaire > 0 ? esc(prixUnitaire(l.prixUnitaire)) : ''}</td>` : ''}
-      </tr>`;
-    }).join('');
+  // Une ligne par article : nom, qualité, quantité totale, case prix unitaire, case prix total.
+  const lignesArticles = groupes.map(g => {
     const totalQte = g.totaux.map(t => `${nombre(t.quantite)} ${uniteAffichee(t.unite)}`).join(' + ');
-    const contenances = Array.from(new Set(g.lignes.filter(l => l.contenance).map(l => libelleContenance(l.unite, l.contenance))));
-    const nbCol = 3 + (g.avecTailles ? 1 : 0) + (g.prixDifferents ? 1 : 0);
-    const libelleCase = g.prixAuColis
-      ? `Prix ${esc(libellePrixParUnite(g.unitePrix))} ENTIER (MAD)`
-      : `Prix unitaire ${esc(libellePrixParUnite(g.unitePrix))} (MAD)`;
-    const aideCase = g.prixAuColis
-      ? '<div class="case-alerte">Contenance inconnue : écrivez le prix du colis entier</div>'
-      : (contenances.length > 0 ? `<div class="case-aide">${esc(contenances.join(' · '))}</div>` : '');
-    return `<section class="groupe">
-      <div class="groupe-tete">
-        <div class="groupe-titre">
-          <div class="produit">${esc(g.produit)}</div>
-          <div class="qualite">${g.qualite ? `Qualité : <strong>${esc(g.qualite)}</strong>` : 'Qualité : —'}</div>
-        </div>
-        <div class="case-prix${g.prixAuColis ? ' case-prix-alerte' : ''}">
-          <div class="case-libelle">${libelleCase}</div>
-          <div class="case-valeur">${g.prixUnique ? esc(prixUnitaire(g.prixUnique)) : g.prixDifferents ? '<span class="petit">voir les lignes</span>' : ''}</div>
-          ${aideCase}
-        </div>
-      </div>
-      <table class="lignes">
-        <thead><tr>${colonnes}</tr></thead>
-        <tbody>${lignes}</tbody>
-        <tfoot><tr><td colspan="${nbCol}">Total ${esc(g.produit)}${g.qualite ? ` · ${esc(g.qualite)}` : ''} : <strong>${esc(totalQte)}</strong> (${g.lignes.length} ligne${g.lignes.length > 1 ? 's' : ''})</td></tr></tfoot>
-      </table>
-    </section>`;
+    // Des rouleaux de longueur connue : la quantité au mètre aussi (12 rouleaux de 50 m + 10 m →
+    // « 610 m ») — c'est elle que le prix unitaire multiplie.
+    const memeUnite = (u: string) => String(u || '').trim().toLowerCase() === String(g.unitePrix || '').trim().toLowerCase();
+    const enColis = g.lignes.filter(l => l.contenance);
+    const convertible = !g.prixAuColis && enColis.length > 0 && g.lignes.every(l => l.contenance || memeUnite(l.unite));
+    const enBase = convertible
+      ? ` <span class="petit">(${esc(nombre(g.lignes.reduce((s, l) => s + l.quantite * (l.contenance ? l.contenance.facteur : 1), 0)))} ${esc(uniteAffichee(enColis[0].contenance!.uniteBase))})</span>`
+      : '';
+    const contenances = Array.from(new Set(enColis.map(l => libelleContenance(l.unite, l.contenance))));
+    const toutesChiffrees = g.lignes.every(l => l.prixUnitaire > 0);
+    const totalArticle = toutesChiffrees ? g.lignes.reduce((s, l) => s + (Number(l.total) || 0), 0) : 0;
+    // Rouleau de longueur inconnue : le prix s'écrit pour le rouleau entier — dit simplement, car
+    // le client reçoit un exemplaire de ce papier.
+    const aideUnitaire = g.prixAuColis
+      ? `<div class="case-aide">${esc(libellePrixParUnite(g.unitePrix))} entier</div>`
+      : `<div class="case-aide">${esc([libellePrixParUnite(g.unitePrix), ...contenances].join(' · '))}</div>`;
+    const valeurUnitaire = g.prixUnique ? esc(prixUnitaire(g.prixUnique)) : g.prixDifferents ? '<span class="petit">prix variés</span>' : '';
+    return `<tr>
+      <td class="designation"><div class="produit">${esc(g.produit)}</div>${g.qualite ? `<div class="qualite">${esc(g.qualite)}</div>` : ''}</td>
+      <td class="num"><strong>${esc(totalQte)}</strong>${enBase}</td>
+      <td class="case"><div class="case-valeur">${valeurUnitaire}</div>${aideUnitaire}</td>
+      <td class="case"><div class="case-valeur">${totalArticle > 0 ? esc(montant(totalArticle)) : ''}</div></td>
+    </tr>`;
   }).join('');
+  const blocs = lignesArticles
+    ? `<table class="lignes">
+        <thead><tr><th>Désignation</th><th class="num">Quantité</th><th class="num">Prix unitaire (MAD)</th><th class="num">Prix total (MAD)</th></tr></thead>
+        <tbody>${lignesArticles}</tbody>
+      </table>`
+    : '';
 
   // La remise déjà convenue s'imprime toujours : le commercial doit la voir pour que son total
   // tombe juste. Le total, lui, n'est connu que quand tout est chiffré.
   const remiseTexte = remise > 0 ? `${nombre(remise)} %` : '';
   const totalTexte = toutChiffre && Number(d.totalAfterDiscount) > 0 ? `${montant(Number(d.totalAfterDiscount))} MAD` : '';
 
-  return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Bon ${esc(d.numero)}</title>
+  return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${esc(titreDuBon(d.nature))} ${esc(d.numero)}</title>
 <style>
   @page { size: A4; margin: 12mm 12mm 10mm 12mm; }
   * { box-sizing: border-box; }
@@ -204,37 +195,30 @@ export function construireBonHtml(d: DonneesBonImprime): string {
   .info .sous { font-size: 11px; color: ${ESTOMPE}; }
   .mention { font-size: 11px; color: ${ESTOMPE}; margin: 6px 0 12px; }
   h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .1em; color: ${NAVY}; margin: 16px 0 8px; padding-bottom: 4px; border-bottom: 2px solid ${GOLD}; }
-  .groupe { margin-bottom: 14px; page-break-inside: avoid; }
-  .groupe-tete { display: flex; justify-content: space-between; align-items: stretch; gap: 10px; margin-bottom: 4px; }
-  .produit { font-size: 15px; font-weight: 900; color: ${NAVY}; text-transform: uppercase; }
-  .qualite { font-size: 12px; color: ${TEXTE}; margin-top: 2px; }
-  .case-prix { min-width: 200px; border: 2px solid ${NAVY}; padding: 4px 8px; }
-  .case-prix-alerte { border-color: #b91c1c; }
+  .produit { font-size: 14px; font-weight: 900; color: ${NAVY}; text-transform: uppercase; }
+  .qualite { font-size: 11px; color: ${TEXTE}; margin-top: 2px; }
   .case-libelle { font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; color: ${ESTOMPE}; }
-  .case-prix-alerte .case-libelle { color: #b91c1c; }
-  .case-valeur { min-height: 26px; font-size: 18px; font-weight: 900; color: ${NAVY}; text-align: right; }
-  .case-aide { font-size: 10px; font-weight: 700; color: ${NAVY}; }
-  .case-alerte { font-size: 10px; font-weight: 900; color: #b91c1c; }
+  .case-valeur { min-height: 26px; font-size: 16px; font-weight: 900; color: ${NAVY}; text-align: right; }
+  .case-aide { font-size: 9px; font-weight: 700; color: ${ESTOMPE}; text-align: right; }
   .petit { font-size: 10px; font-weight: 600; color: ${ESTOMPE}; }
   table.lignes { width: 100%; border-collapse: collapse; }
-  table.lignes thead th { background: ${NAVY}; color: #fff; font-size: 9px; text-transform: uppercase; letter-spacing: .1em; text-align: left; padding: 6px 8px; }
-  table.lignes tbody td { padding: 6px 8px; border-bottom: 1px solid ${BORDURE}; font-size: 12px; }
-  table.lignes tbody tr:nth-child(even) td { background: #f8fafc; }
-  table.lignes tfoot td { background: ${GOLD_PALE}; border-top: 2px solid ${GOLD}; padding: 6px 8px; font-size: 12px; }
+  table.lignes thead th { background: ${NAVY}; color: #fff; font-size: 9px; text-transform: uppercase; letter-spacing: .1em; text-align: left; padding: 7px 8px; }
+  table.lignes thead th.num { text-align: right; }
+  table.lignes tbody td { padding: 8px; border-bottom: 1px solid ${BORDURE}; font-size: 12px; vertical-align: middle; }
   table.lignes tr { page-break-inside: avoid; }
+  td.designation { width: 44%; }
+  /* Les deux cases à remplir à la main : un vrai cadre, assez haut pour écrire au stylo. */
+  td.case { width: 20%; border: 2px solid ${NAVY}; height: 46px; }
   .num { text-align: right; white-space: nowrap; }
-  .ou { font-size: 11px; color: ${TEXTE}; }
-  .vide { color: #cbd5e1; }
   .bas { display: flex; justify-content: flex-end; gap: 12px; margin-top: 18px; page-break-inside: avoid; }
   .case-bas { width: 230px; border: 2px solid ${NAVY}; padding: 6px 10px; }
   .case-bas .case-valeur { min-height: 34px; font-size: 20px; }
   .case-total { border-color: ${GOLD}; background: ${GOLD_PALE}; }
   .notes { margin-top: 14px; border: 1px solid ${BORDURE}; padding: 8px 10px; font-size: 12px; }
-  .consigne { margin-top: 14px; font-size: 11px; font-weight: 700; color: ${NAVY}; }
   .pied { position: fixed; left: 0; right: 0; bottom: 0; }
   .pied .adresse { text-align: center; font-size: 9px; color: ${ESTOMPE}; padding: 4px 0; background: #fff; }
   .pied .bandeau { background: ${NAVY}; border-left: 12px solid ${GOLD}; color: #94a3b8; font-size: 9px; padding: 6px 12px; display: flex; justify-content: space-between; text-transform: uppercase; letter-spacing: .08em; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-  table.lignes thead th, table.lignes tfoot td, .info, table.lignes tbody tr:nth-child(even) td, .case-total { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  table.lignes thead th, .info, .case-total { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 </style></head><body>
 <table class="page">
   <tfoot><tr><td><div class="reserve-pied"></div></td></tr></tfoot>
@@ -242,7 +226,7 @@ export function construireBonHtml(d: DonneesBonImprime): string {
   <div class="entete">
     <div>${d.logo ? `<img src="${d.logo}" alt="LEBTEX" />` : `<div class="produit" style="font-size:24px">LEBTEX</div>`}</div>
     <div class="numero-bloc">
-      <div class="numero-libelle">Bon N°</div>
+      <div class="numero-libelle">${esc(titreDuBon(d.nature))} N°</div>
       <div class="numero">${esc(d.numero)}</div>
       ${provisoire ? '<div class="provisoire">Numéro provisoire — saisi sans connexion</div>' : ''}
     </div>
@@ -255,7 +239,7 @@ export function construireBonHtml(d: DonneesBonImprime): string {
   </div>
   <div class="mention">${esc(MENTION_NATURE[d.nature])}</div>
 
-  <h2>Marchandise</h2>
+  <h2>Articles</h2>
   ${blocs || '<p class="mention">Aucune ligne.</p>'}
 
   ${d.reglement ? `<div class="notes"><strong>Règlement :</strong> ${esc(d.reglement)}</div>` : ''}
@@ -266,13 +250,12 @@ export function construireBonHtml(d: DonneesBonImprime): string {
   </div>
 
   ${d.notes ? `<div class="notes"><strong>Note :</strong> ${esc(d.notes)}</div>` : ''}
-  ${toutChiffre ? '' : '<div class="consigne">Commercial : écrivez le prix unitaire de chaque produit (au mètre ou à la pièce, comme indiqué dans chaque case), la remise en %, et le total à payer après remise, puis rendez ce bon au gestionnaire.</div>'}
   </td></tr></tbody>
 </table>
 
   <div class="pied">
     <div class="adresse">LEBTEX TEXTILE IMPORT · 31 Rue 65, Lot. Al Hamd Ain-Chock, Casablanca · Tél : +212 5 22 25 77 78</div>
-    <div class="bandeau"><span>Bon ${esc(d.numero)} · ${esc(client)}</span><span>Ce bon ne vaut pas facture</span></div>
+    <div class="bandeau"><span>${esc(titreDuBon(d.nature))} ${esc(d.numero)} · ${esc(client)}</span><span>Ce bon ne vaut pas facture</span></div>
   </div>
 </body></html>`;
 }

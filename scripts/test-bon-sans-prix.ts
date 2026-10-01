@@ -299,13 +299,16 @@ eq('« par rouleau »', libellePrixParUnite('rolls'), 'par rouleau');
   check('le numéro en très gros', html.includes('class="numero">CH-0042<'));
   check('« Client comptoir »', html.includes('Client comptoir'));
   check('la date à la française et l’heure', html.includes('01/10/2026') && html.includes('14:32'));
-  check('la qualité apparaît', html.includes('Qualité : <strong>NYLON</strong>') && html.includes('Qualité : <strong>190T</strong>'));
-  check('une case prix par groupe, dans l’unité de la ligne', (html.match(/class="case-prix"/g) || []).length === 4 && html.includes('Prix unitaire par mètre'));
+  check('« Bon de livraison » pour une vente comptoir', html.includes('Bon de livraison N°') && html.includes('<title>Bon de livraison CH-0042'));
+  check('la qualité apparaît', html.includes('<div class="qualite">NYLON</div>') && html.includes('<div class="qualite">190T</div>'));
+  check('une ligne par article, sans couleurs', (html.match(/class="designation"/g) || []).length === 4 && !html.includes('ROUGE') && !html.includes('BLANC'));
+  check('deux cases par article : prix unitaire et prix total', (html.match(/<td class="case/g) || []).length === 8 && html.includes('>Prix unitaire (MAD)<') && html.includes('>Prix total (MAD)<'));
+  check('l’unité du prix est rappelée dans la case', html.includes('<div class="case-aide">par mètre</div>') && html.includes('<div class="case-aide">à la pièce</div>'));
   check('le total de chaque groupe', html.includes('<strong>14 pièce(s)</strong>') && html.includes('<strong>12,5 m</strong>'));
-  check('d’où prendre la marchandise', html.includes('A-01-01'));
+  check('ni emplacement ni lieu sur le papier du commercial', !html.includes('A-01-01'));
   check('les cases Remise (%) et Total à payer après remise', html.includes('>Remise (%)<') && html.includes('>Total à payer, après remise (MAD)<'));
   check('le pied de page a sa place réservée sur chaque page', html.includes('class="page"') && html.includes('<tfoot><tr><td><div class="reserve-pied">'));
-  check('la consigne au commercial', html.includes('Commercial : écrivez le prix unitaire'));
+  check('aucune consigne interne : le client reçoit un exemplaire', !html.includes('Commercial') && !html.includes('gestionnaire'));
   check('les données sont échappées', html.includes('BOUTON &lt;A&amp;B&gt;') && !html.includes('<A&B>'));
   check('la charte : bleu nuit et or, bandeau de pied', html.includes('#0f172a') && html.includes('#c4a062') && html.includes('class="bandeau"'));
   check('aucun prix de revient', !/revient|purchasePrice|costPrice/i.test(html));
@@ -318,7 +321,10 @@ eq('« par rouleau »', libellePrixParUnite('rolls'), 'par rouleau');
   check('et les cases Remise et Total', chiffre.includes('10 %') && chiffre.includes('0,32 MAD'));
   check('le numéro provisoire est signalé', chiffre.includes('Numéro provisoire'));
   check('le nom du client', chiffre.includes('Atelier X'));
-  check('pas de consigne quand tout est chiffré', !chiffre.includes('Commercial : écrivez'));
+  check('pas de consigne quand tout est chiffré', !chiffre.includes('Commercial :'));
+  check('un article chiffré remplit sa case prix total', chiffre.includes('0,35'));
+  const aPreparer = construireBonHtml({ numero: 'CH-0043', nature: 'A_PREPARER', clientNom: 'Y', date: '2026-10-01', items: [ligne()] });
+  check('« Bon de commande » pour une commande à préparer', aPreparer.includes('Bon de commande N°') && !aPreparer.includes('Bon de livraison'));
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -347,10 +353,10 @@ console.log('\n── Le prix au mètre ou à la pièce, jamais au conditionneme
   eq('un seul groupe TAFFETA, prix au mètre', [g[0].unitePrix, g[0].lignes.length], ['m', 2]);
   eq('un rouleau sans contenance : prix au colis entier, signalé', [g[1].unitePrix, g[1].prixAuColis], ['rolls', true]);
   const html = construireBonHtml({ numero: 'CH-0100', nature: 'CLIENT', clientNom: 'X', date: '2026-10-01', items: [rouleau, auMetre, sansContenance] });
-  check('le papier demande le prix par mètre', html.includes('Prix unitaire par mètre (MAD)'));
+  check('le papier demande le prix par mètre', html.includes('par mètre · 1 rouleau = 50 m'));
   check('il dit ce que fait un rouleau', html.includes('1 rouleau = 50 m'));
-  check('et combien de mètres font 12 rouleaux', html.includes('(600 m)'));
-  check('un rouleau sans contenance est signalé en rouge', html.includes('par rouleau ENTIER') && html.includes('Contenance inconnue'));
+  check('et combien de mètres en tout : 12 rouleaux de 50 m + 10 m', html.includes('(610 m)'));
+  check('un rouleau sans contenance : prix du rouleau entier, dit simplement', html.includes('par rouleau entier') && !html.includes('inconnue'));
   const avecRemise = construireBonHtml({ numero: 'CH-0101', nature: 'CLIENT', clientNom: 'X', date: '2026-10-01', items: [auMetre], discount: 5 });
   check('une remise déjà convenue s’imprime même sur un bon sans prix', avecRemise.includes('5 %'));
 }
