@@ -16,7 +16,7 @@ import { doc, serverTimestamp, writeBatch } from 'firebase/firestore';
 import { toast } from '@/hooks/use-toast';
 import { sendStatusNotification } from '@/lib/send-status-notification';
 import { computeEffectiveStatus } from '@/lib/status-utils';
-import { lireClasseurFacture, lireTexteColle, type LectureFacture, type LigneFacture } from '@/lib/facture-fournisseur';
+import { lireClasseursFacture, lireTexteColle, type LectureFacture, type LigneFacture } from '@/lib/facture-fournisseur';
 import {
   articlesCandidats, changePrix, construirePlan, ecritures, evaluer, fournisseurSansArticle, proposer, regrouperDetails,
   type Confiance, type ModePassage, type PlanArticle, type Proposition, type RepartitionEcrite,
@@ -158,10 +158,13 @@ function Contenu({ dossier, articles, fermer, envoi, setEnvoi }: {
     setMajFret(l.fret != null && l.frets.length === 1 && !(Number(dossier.freightCost) > 0));
   };
 
-  const lireFichier = async (f: File) => {
-    if (!/\.(xlsx|xlsm|xls)$/i.test(f.name)) {
-      setErreur(/\.pdf$/i.test(f.name)
-        ? "Les PDF ne se lisent pas encore : prends l'Excel du fournisseur (…+INV.xlsx), ou colle le tableau ci-dessous."
+  // Un ou plusieurs classeurs, lus ensemble : facture, PL et PD peuvent arriver en fichiers séparés.
+  const lireFichiers = async (liste: File[]) => {
+    const excels = liste.filter(f => /\.(xlsx|xlsm|xls)$/i.test(f.name));
+    const ecartes = liste.filter(f => !excels.includes(f));
+    if (!excels.length) {
+      setErreur(ecartes.some(f => /\.pdf$/i.test(f.name))
+        ? "Les PDF ne se lisent pas : prends l'Excel du fournisseur (…+INV.xlsx), ou colle le tableau ci-dessous."
         : "Ce fichier n'est pas un classeur Excel : prends l'Excel du fournisseur (…+INV.xlsx), ou colle le tableau ci-dessous.");
       return;
     }
@@ -169,8 +172,10 @@ function Contenu({ dossier, articles, fermer, envoi, setEnvoi }: {
     setErreur(null);
     try {
       const XLSX = await import('xlsx');
-      const wb = XLSX.read(await f.arrayBuffer(), { type: 'array' });
-      demarrer(lireClasseurFacture(wb, XLSX.utils), f.name);
+      const classeurs = await Promise.all(excels.map(async f => ({ nom: f.name, wb: XLSX.read(await f.arrayBuffer(), { type: 'array' }) })));
+      const l = lireClasseursFacture(classeurs, XLSX.utils);
+      if (ecartes.length) l.avertissements.push(`Non lu${ecartes.length > 1 ? 's' : ''} (pas un Excel) : ${ecartes.map(f => f.name).join(', ')}.`);
+      demarrer(l, excels.map(f => f.name).join(' + '));
     } catch (e: any) {
       setErreur(`Lecture impossible : ${e?.message || e}`);
     } finally {
@@ -431,22 +436,24 @@ function Contenu({ dossier, articles, fermer, envoi, setEnvoi }: {
             htmlFor="fichier-facture-fournisseur"
             onDragOver={e => { e.preventDefault(); setSurvol(true); }}
             onDragLeave={() => setSurvol(false)}
-            onDrop={e => { e.preventDefault(); setSurvol(false); const f = e.dataTransfer.files?.[0]; if (f) lireFichier(f); }}
+            onDrop={e => { e.preventDefault(); setSurvol(false); const fs = Array.from(e.dataTransfer.files || []); if (fs.length) lireFichiers(fs); }}
             className={`block cursor-pointer rounded-2xl border-2 border-dashed p-5 text-center transition-colors focus-within:ring-2 focus-within:ring-amber-400 ${survol ? 'border-amber-500 bg-amber-50' : 'border-stone-300 bg-stone-50 hover:bg-stone-100'}`}
           >
             {chargement
               ? <Loader2 className="w-8 h-8 mx-auto text-stone-400 animate-spin" />
               : <Upload className="w-8 h-8 mx-auto text-stone-400" />}
-            <span className="mt-2 block text-xs font-black text-stone-800 uppercase tracking-tight">Ou dépose l'Excel du fournisseur, ou clique pour le choisir</span>
+            <span className="mt-2 block text-xs font-black text-stone-800 uppercase tracking-tight">Ou dépose les Excel du fournisseur, ou clique pour les choisir</span>
             <span className="mt-1 block text-[11px] text-stone-500">
-              Le classeur « {dossier.id}+INV.xlsx » : l'onglet INV donne les prix, l'onglet PL les poids et volumes.
+              Le classeur « {dossier.id}+INV.xlsx » : l'onglet INV donne les prix, l'onglet PL les poids et volumes, le PD les couleurs et tailles.
+              Facture, PL et PD en fichiers séparés : dépose-les ensemble.
             </span>
             <input
               id="fichier-facture-fournisseur"
               type="file"
               accept=".xlsx,.xls,.xlsm"
+              multiple
               className="sr-only"
-              onChange={e => { const f = e.target.files?.[0]; if (f) lireFichier(f); e.target.value = ''; }}
+              onChange={e => { const fs = Array.from(e.target.files || []); if (fs.length) lireFichiers(fs); e.target.value = ''; }}
             />
           </label>
 

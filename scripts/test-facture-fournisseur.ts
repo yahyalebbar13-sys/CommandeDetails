@@ -3,7 +3,7 @@
 //   npx tsx scripts/test-facture-fournisseur.ts
 
 import * as XLSX from 'xlsx';
-import { detecterFormat, lireClasseurFacture, lireNombre, lireTexteColle } from '../src/lib/facture-fournisseur';
+import { detecterFormat, lireClasseurFacture, lireClasseursFacture, lireNombre, lireTexteColle } from '../src/lib/facture-fournisseur';
 import {
   articlesCandidats, choisirConversion, construirePlan, conversionsPossibles, ecritures, proposer,
 } from '../src/lib/rapprochement-facture';
@@ -430,6 +430,118 @@ const opsEnrichi = ecritures(
 );
 const copie = opsEnrichi.find(o => o.id === 'copie')!;
 check('copie partielle sans les champs calculés', !('effectiveStatus' in copie.data) && !('rawStatus' in copie.data));
+
+console.log('\n── Format NINGBO APPAREL (titre « 119-01. », 100PCS, cellules fusionnées, PD en phrases) ──');
+const enteteNA = (n: string) => [
+  [null, 'NINGBO APPAREL FASHION CO.,LTD', null, null, null, null, null, null, 'INVOICE NO:', null, n],
+  [null, null, null, null, null, null, null, null, 'ORDER NO:', null, 'LEBBAR- 119'],
+];
+const plNA = [
+  ...enteteNA('AD12505JG25921A'),
+  [null, 'DESCRIPTION OF GOODS', null, null, null, null, 'QUANTITY', null, 'PKG.', 'N.W.', 'G.W.', 'MEAS.'],
+  [null, null, null, null, null, null, null, null, '(pkgs)', '(KGS)', '(KGS)', '(CBM)'],
+  [null, '119-01. No.3 Nylon Zipper'],
+  [null, '20cm , C/E , PIN LOCK SLIDER', null, null, null, null, 1900, '100PCS', 38, 494, 513, 2],
+  [null, '123-01.NO.5 Nylon Zipper'],
+  [null, '75cm , O/E , Half tour slider , Black color', null, null, null, null, 780, '100PCS', 602, 8608.6, 8909.6, 26],
+  [null, '123-02.NO.5 Nylon Zipper'],
+  [null, '75cm , O/E , Half tour slider , Various color', null, null, null, null, 5240, '100PCS'],
+  [null, '125-01.Knitting Elastic Tape'],
+  [null, 'White color , 25m/roll', null, null, null, null, 4860.8, 'KG', 196, 4860.8, 5017.6, 17],
+  [null, null, null, null, null, null, 'TOTAL:', null, 836, 13963.4, 14440.2, 45],
+];
+const invNA = [
+  ...enteteNA('AD12505JG25921A'),
+  ['DESCRIPTION OF GOODS', null, null, null, null, 'QUANTITY', null, 'UNIT PRICE', 'AMOUNT'],
+  ['119-01. No.3 Nylon Zipper'],
+  ['20cm , C/E , PIN LOCK SLIDER', null, null, null, null, 1900, '100PCS', 0.88, 1672],
+  ['123-01.NO.5 Nylon Zipper'],
+  ['75cm , O/E , Half tour slider , Black color', null, null, null, null, 780, '100PCS', 3.65, 2847],
+  ['123-02.NO.5 Nylon Zipper'],
+  ['75cm , O/E , Half tour slider , Various color', null, null, null, null, 5240, '100PCS', 4, 20960],
+  ['125-01.Knitting Elastic Tape'],
+  ['White color , 25m/roll', null, null, null, null, 4860.8, 'KG', 1.9, 9235.52],
+  [null, null, null, null, null, null, null, 'SEA FREIGHT', 3250],
+  ['TOTAL AMOUNT:', null, null, null, null, null, null, null, 37964.52],
+];
+const pdNA = [
+  ['PACKING DETAILS-25921A'],
+  ['119-01. No.3 Nylon Zipper'], ['20cm , C/E , PIN LOCK SLIDER'], ['BLACK COLOR'],
+  ['PACKS: 5000PCS/CTN , TOTAL 38CTNS , 190000PCS'],
+  ['123-01.NO.5 Nylon Zipper'], ['75cm , O/E , Half tour slider , Black color'],
+  ['Packs :1000pcs/ctn , total 78ctns , 78000pcs'],
+  ['123-02.NO.5 Nylon Zipper'], ['75cm , O/E , Half tour slider , Various color'],
+  ['color', 'ctn no.', 'ctn qtn', 'qtn(pcs)'],
+  ['WHITE', '201-230', 30, 30000], ['B360', '231-280', 50, 50000], ['A501', '281-724', 444, 444000],
+  ['total:', null, 524, 524000],
+  ['Packs: 1000pcs/ctn , total 524ctns , 524000pcs'],
+  ['125-01.Knitting Elastic Tape'], ['White color , 25m/roll'],
+  ['Size: 4.0cm , 25m/roll , 40roll/ctn , total 100ctns , total 2480kg'],
+  ['size: 5.0cm , 25m/roll , 40roll/ctn , total 96ctns , total 2380.8kg'],
+  ['total: 2480kg + 2380.8kg =4860.80'],
+];
+const classeurNA = (feuilles: [string, any[][]][]) => {
+  const w = XLSX.utils.book_new();
+  for (const [n, f] of feuilles) XLSX.utils.book_append_sheet(w, XLSX.utils.aoa_to_sheet(f), n);
+  return w;
+};
+const na = lireClasseursFacture([
+  { nom: 'INVOICE.xlsx', wb: classeurNA([['Sheet1', invNA]]) },
+  { nom: 'PACKING LIST.xlsx', wb: classeurNA([['Sheet1', plNA]]) },
+  { nom: 'PACKING DETAILS.xlsx', wb: classeurNA([['Sheet1', pdNA]]) },
+], XLSX.utils);
+const [z119, z123a, z123b, ela] = na.lignes;
+check('3 fichiers lus ensemble : 4 lignes, prix et poids', na.lignes.length === 4 && na.aLesPrix && na.aLesPoids, `→ ${na.lignes.length}`);
+check('titre « 119-01. » : référence et titre gardés', z119.ref === '119-01' && z119.titre === 'No.3 Nylon Zipper' && z119.spec.startsWith('20cm'));
+check('titre « 123-01.NO.5 » collé', z123a.ref === '123-01' && z123a.titre === 'NO.5 Nylon Zipper');
+check('100PCS → pièces, prix à la pièce', z119.quantite === 190000 && z119.unite === 'pcs' && proche(z119.prixUnitaire, 0.0088));
+check('fret dans la colonne des prix', na.fret === 3250);
+check('cellules fusionnées : colis au prorata (78 + 524)', z123a.colis === 78 && z123b.colis === 524, `→ ${z123a.colis} + ${z123b.colis}`);
+check('cellules fusionnées : poids et volume gardent leur total', proche(z123a.poidsNet! + z123b.poidsNet!, 8608.6, 1e-6) && proche(z123a.volume! + z123b.volume!, 26, 1e-6));
+check('cellules fusionnées : dit à l’utilisateur', na.avertissements.some(a => /cellules fusionnées/.test(a) && /123-01 et 123-02/.test(a)));
+check('PD en phrase : « BLACK COLOR » + « 190000PCS »', z119.details?.length === 1 && z119.details[0].couleur === 'BLACK' && z119.details[0].quantite === 190000);
+check('PD en phrase : couleur de la ligne de spec', z123a.details?.[0].couleur === 'BLACK' && z123a.details[0].quantite === 78000);
+check('PD tableau : la phrase « total 524000pcs » ne double pas', z123b.details?.length === 3 && z123b.details.reduce((s, d) => s + d.quantite, 0) === 524000);
+check('PD en phrase : tailles « Size: 4.0cm », couleur du dessus', ela.details?.length === 2
+  && ela.details.every(d => d.couleur === 'WHITE') && ela.details[0].taille === '4.0CM' && ela.details[1].quantite === 2380.8);
+check('PD du même n° (suffixe) : pas d’alerte', !na.avertissements.some(a => /porte le n°/.test(a)), na.avertissements.join(' | '));
+const naAutrePD = lireClasseursFacture([
+  { nom: 'PD.xlsx', wb: classeurNA([['Sheet1', [['PACKING DETAILS OF 26MH999999'], ...pdNA.slice(1)]]]) },
+  { nom: 'PL.xlsx', wb: classeurNA([['Sheet1', plNA]]) },
+], XLSX.utils);
+check('PD d’une autre facture : signalé', naAutrePD.avertissements.some(a => /26MH999999/.test(a)));
+check('n° de facture pris sur la facture, pas sur le PD', naAutrePD.numeroFacture === 'AD12505JG25921A', naAutrePD.numeroFacture);
+
+console.log('\n── PD : couleurs à combiner (Twill, PL coupé en deux lignes) ──');
+const plTwill = (petite: number, grande: number) => [
+  ['DESCRIPTION OF GOODS', '', '', '', '', 'QUANTITY', '', 'PKG.', 'N.W.', 'G.W.', 'MEAS.'].join(T),
+  '03-1 T/C Twill 3/1 200gsm',
+  ['8153-0020 58/60",100m/roll', '', '', '', '', String(petite), 'm', '21', '613.2', '650', '1.5'].join(T),
+  ['8153-0020 58/60",100m/roll', '', '', '', '', String(grande), 'm', '84', '2400', '2500', '6'].join(T),
+  ['', '', '', '', '', 'TOTAL:', '', '105', '3013.2', '3150', '7.5'].join(T),
+].join('\n');
+const pdTwill = (rangs: string[][]) => [
+  'PACKING DETAILS OF 25MH114168',
+  '03-1 T/C Twill 3/1 200gsm',
+  '8153-0020 58/60",100m/roll',
+  '8153-0020 58/60",100m/roll',
+  ['COLOR', 'ROLL NO#', 'ROLLS', 'METERS/ROLL', 'METERS'].join(T),
+  ...rangs.map(r => r.join(T)),
+  ['TOTAL', '', '105', '', ''].join(T),
+].join('\n');
+const tw = lireTexteColle(plTwill(2057, 8398), pdTwill([
+  ['1#', '1--26', '26', '100', '2600'], ['', '27', '1', '98', '98'],
+  ['BLACK', '1--57', '57', '100', '5700'],
+  ['WHITE', '1--20', '20', '100', '2000'], ['', '21', '1', '57', '57'],
+]));
+check('Twill : la petite ligne reçoit WHITE entière (2000 + 57)', tw.lignes[0].details?.every(d => d.couleur === 'WHITE') === true
+  && tw.lignes[0].details!.reduce((s, d) => s + d.quantite, 0) === 2057, JSON.stringify(tw.lignes[0].details));
+check('Twill : la grande ligne reçoit le reste (1#, BLACK)', tw.lignes[1].details?.reduce((s, d) => s + d.quantite, 0) === 8398
+  && !tw.lignes[1].details!.some(d => d.couleur === 'WHITE'));
+const twAmbigu = lireTexteColle(plTwill(1000, 6000), pdTwill([
+  ['BLACK', '1--50', '50', '100', '5000'], ['RED', '1--10', '10', '100', '1000'], ['WHITE', '1--10', '10', '100', '1000'],
+]));
+check('Twill : deux combinaisons possibles → rien de lu', !twAmbigu.lignes.some(l => l.details), JSON.stringify(twAmbigu.lignes.map(l => l.details)));
 
 console.log(`\n${pass} ok, ${fail} échec${fail > 1 ? 's' : ''}`);
 if (fail) process.exit(1);

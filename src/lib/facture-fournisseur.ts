@@ -181,7 +181,10 @@ function trouverColonnes(ligne: Cellule[]): Colonnes | null {
   return colonnes;
 }
 
-const RE_TITRE = /^(\d{1,3}(?:-\d{1,3})+)\s+(.+)$/;
+// « 43-24 13# No.5 … » (MH), « 119-01. No.3 … », « 123-01.NO.5 … » (NINGBO APPAREL).
+const RE_TITRE = /^(\d{1,3}(?:-\d{1,3})+)(?:\.\s*|\s+)(.+)$/;
+/** Une unité par lot : « 100PCS » = la quantité se compte par centaines de pièces. */
+const RE_UNITE_LOT = /^(\d+)\s*(PCS?|PIECES?|SETS?)\.?$/i;
 const RE_CODE = /^(\d{3,4}-\d{3,4}[A-Z]{0,2})(?=[\s,/(]|$)\s*(.*)$/i;
 const RE_TOTAL = /^(GRAND\s+|SUB\s*-?\s*)?TOTAL(\s+AMOUNT)?\s*[:：]?$/i;
 
@@ -193,6 +196,8 @@ type Tableau = {
   aUnTotal: boolean;
   aLesPrix: boolean;
   aLesPoids: boolean;
+  /** Lignes qui partageaient leurs colis, poids et volume (cellules fusionnées), réparties au prorata. */
+  partages: string[];
 };
 
 /**
@@ -209,6 +214,10 @@ function lireTableau(grille: Cellule[][], debut: number, format: Format): Tablea
   const frets: number[] = [];
   let aUnTotal = false;
   let titre = { ref: '', texte: '' };
+  // Un titre numéroté vient d'être lu et n'a pas encore de ligne : la ligne
+  // suivante sans code est son détail (« 119-01. No.3 Nylon Zipper » puis
+  // « 20cm , C/E , PIN LOCK SLIDER | 1900 | 100PCS »), pas une ligne autonome.
+  let titreEnAttente = false;
 
   for (let i = debut + 1; i < grille.length; i++) {
     const r = grille[i] || [];
@@ -236,20 +245,29 @@ function lireTableau(grille: Cellule[][], debut: number, format: Format): Tablea
       continue;
     }
     if (/^(SAYS|PACKED IN|SHIPPING MARK)/i.test(desc)) continue;
-    if (/FREIGHT/i.test(desc)) {
+    // « FREIGHT CHARGE » en description (MH), « SEA FREIGHT » dans la colonne des prix (NINGBO APPAREL).
+    if (/FREIGHT/i.test(desc) || (!desc && cellules.some(c => /FREIGHT/i.test(c)))) {
       const f = num(r, col.montant);
       if (f != null) frets.push(f);
       continue;
     }
 
-    const quantite = num(r, col.qte);
-    const prixUnitaire = num(r, col.prix);
+    let quantite = num(r, col.qte);
+    let prixUnitaire = num(r, col.prix);
     const montant = num(r, col.montant);
     const colis = num(r, col.colis);
     const poidsNet = num(r, col.nw);
     const poidsBrut = num(r, col.gw);
     const volume = num(r, col.cbm);
-    const unite = texte(r[col.unite]);
+    let unite = texte(r[col.unite]);
+    // « 1900 | 100PCS » : ramené en pièces (190 000 pcs), le prix à la pièce.
+    const lot = unite.match(RE_UNITE_LOT);
+    if (lot && Number(lot[1]) > 1) {
+      const k = Number(lot[1]);
+      if (quantite != null) quantite = Math.round(quantite * k * 1000) / 1000;
+      if (prixUnitaire != null) prixUnitaire = Math.round((prixUnitaire / k) * 1e8) / 1e8;
+      unite = lot[2].toLowerCase().replace(/^pieces?$/, 'pcs');
+    }
     const aDesChiffres = [quantite, prixUnitaire, montant, colis, poidsNet, volume].some(v => v != null);
     const code = desc.match(RE_CODE);
 
@@ -262,7 +280,10 @@ function lireTableau(grille: Cellule[][], debut: number, format: Format): Tablea
     if (!aDesChiffres || (titreSeul && !code && quantiteSeule)) {
       // Ligne titre (« 43-24 13# No.5 … »), ou libellé sans chiffres (« ELSE FEE »).
       // Une ligne à code sans chiffres ne devient pas le titre des suivantes.
-      if (desc && !code) titre = titreSeul ? { ref: titreSeul[1], texte: titreSeul[2].trim() } : { ref: '', texte: desc };
+      if (desc && !code) {
+        titre = titreSeul ? { ref: titreSeul[1], texte: titreSeul[2].trim() } : { ref: '', texte: desc };
+        titreEnAttente = Boolean(titreSeul);
+      }
       continue;
     }
     // Montant seul sans quantité ni poids : frais divers, pas une marchandise.
@@ -271,13 +292,15 @@ function lireTableau(grille: Cellule[][], debut: number, format: Format): Tablea
     // Ligne détail « 6573-5140 500pcs/bag… » sous son titre ; ou ligne autonome
     // (« SMART LOCK | 7 | PKGS ») qui porte elle-même sa description.
     const m = code;
-    const autonome = !m && Boolean(desc);
+    const sousLeTitre = !m && titreEnAttente;
+    const autonome = !m && !sousLeTitre && Boolean(desc);
+    titreEnAttente = false;
     lignes.push({
       index: lignes.length,
       ref: autonome ? '' : titre.ref,
       titre: autonome ? desc : titre.texte,
       code: m ? m[1].toUpperCase() : '',
-      spec: m ? m[2].trim() : '',
+      spec: m ? m[2].trim() : sousLeTitre ? desc : '',
       quantite,
       unite,
       prixUnitaire,
@@ -289,14 +312,56 @@ function lireTableau(grille: Cellule[][], debut: number, format: Format): Tablea
     });
   }
 
+  const aLesPoids = col.nw >= 0 || col.cbm >= 0;
   return {
     lignes,
     frets,
     totaux,
     aUnTotal,
     aLesPrix: col.prix >= 0 || col.montant >= 0,
-    aLesPoids: col.nw >= 0 || col.cbm >= 0,
+    aLesPoids,
+    partages: aLesPoids ? repartirCellulesFusionnees(lignes) : [],
   };
+}
+
+const sansMesures = (l: LigneFacture) => [l.colis, l.poidsNet, l.poidsBrut, l.volume].every(v => v == null);
+
+/**
+ * Cellules fusionnées du packing list : une ligne sans colis, poids ni volume
+ * qui suit une ligne qui en a partage les siens (NINGBO APPAREL, 123-01 et
+ * 123-02 : 602 colis, 8 608,6 kg, 26 m³ pour les deux). Sans partage, la
+ * première porterait le tout. On répartit au prorata des quantités, même
+ * unité seulement ; la dernière ligne prend l'arrondi pour garder le total.
+ * Renvoie les groupes répartis, pour le dire à l'utilisateur.
+ */
+function repartirCellulesFusionnees(lignes: LigneFacture[]): string[] {
+  const dits: string[] = [];
+  for (let i = 0; i < lignes.length; i++) {
+    const tete = lignes[i];
+    if (sansMesures(tete) || tete.quantite == null) continue;
+    let fin = i + 1;
+    while (fin < lignes.length && sansMesures(lignes[fin]) && lignes[fin].quantite != null
+      && lignes[fin].unite.toLowerCase() === tete.unite.toLowerCase()) fin++;
+    if (fin === i + 1) continue;
+    const groupe = lignes.slice(i, fin);
+    const total = groupe.reduce((s, l) => s + l.quantite!, 0);
+    if (total <= 0) continue;
+    const champs: [keyof Pick<LigneFacture, 'colis' | 'poidsNet' | 'poidsBrut' | 'volume'>, number][] =
+      [['colis', 0], ['poidsNet', 2], ['poidsBrut', 2], ['volume', 3]];
+    for (const [k, d] of champs) {
+      const v = tete[k];
+      if (v == null) continue;
+      let reste = v;
+      groupe.forEach((l, j) => {
+        const part = j === groupe.length - 1 ? reste : Math.round((v * l.quantite! / total) * 10 ** d) / 10 ** d;
+        l[k] = Math.round(part * 10 ** d) / 10 ** d;
+        reste -= part;
+      });
+    }
+    dits.push(groupe.map(l => [l.ref, l.code].filter(Boolean).join(' ') || l.titre).join(' et '));
+    i = fin - 1;
+  }
+  return dits;
 }
 
 // ── En-tête : n° de facture, commande, date, fournisseur ──────────────────────
@@ -318,14 +383,17 @@ function lireEntete(grille: Cellule[][]) {
     grille.slice(0, 5).map(r => r.map(texte).find(c => /CO\.?,?\s*LTD|INDUSTRY|TRADING/i.test(c))).find(Boolean) || '';
   return {
     fournisseur,
-    numeroFacture: (valeurApres(/^INVOICE NO\.?:?/i)
-      // « PACKING DETAILS OF 26MH114221 » en tête du PD.
-      || grille.slice(0, 5).map(r => r.map(texte).map(c => c.match(/^PACKING DETAILS OF\s+(\S+)/i)?.[1]).find(Boolean)).find(Boolean)
-      || '').toUpperCase(),
+    numeroFacture: valeurApres(/^INVOICE NO\.?:?/i).toUpperCase(),
+    numeroPD: numeroPackingDetails(grille),
     numeroCommande: valeurApres(/^ORDER NO\.?:?$/i),
     dateFacture: valeurApres(/^DATE:?$/i),
   };
 }
+
+/** « PACKING DETAILS OF 26MH114221 » (MH), « PACKING DETAILS-25931A » (NINGBO APPAREL) en tête du PD. */
+const RE_TETE_PD = /^PACKING DETAILS?(?:\s+OF)?[\s:：-]+([A-Z0-9][A-Z0-9-]*)/i;
+const numeroPackingDetails = (grille: Cellule[][]) =>
+  (grille.slice(0, 5).flatMap(r => r.map(texte)).map(c => c.match(RE_TETE_PD)?.[1]).find(Boolean) || '').toUpperCase();
 
 // ── Assemblage facture + packing list ────────────────────────────────────────
 
@@ -390,12 +458,18 @@ function boutABout(tableaux: Tableau[]): Tableau | undefined {
     aUnTotal: tableaux.some(t => t.aUnTotal),
     aLesPrix: tableaux.some(t => t.aLesPrix),
     aLesPoids: tableaux.some(t => t.aLesPoids),
+    partages: tableaux.flatMap(t => t.partages),
   };
 }
 
-function assembler(grilles: { nom: string; grille: Cellule[][]; format: Format }[]): LectureFacture {
+/** `nom` : ce qu'on montre (« fichier · onglet » quand il y a plusieurs fichiers) ; `onglet` : le nom de l'onglet seul. */
+type Grille = { nom: string; onglet: string; grille: Cellule[][]; format: Format };
+
+function assembler(grilles: Grille[]): LectureFacture {
   const avertissements: string[] = [];
   let entete = { fournisseur: '', numeroFacture: '', numeroCommande: '', dateFacture: '' };
+  let numeroPD = '';
+  const numerosFacture = new Set<string>();
   const factures: { nom: string; t: Tableau }[] = [];
   const packings: { nom: string; t: Tableau }[] = [];
   let yahi = false;
@@ -408,6 +482,8 @@ function assembler(grilles: { nom: string; grille: Cellule[][]; format: Format }
       numeroCommande: entete.numeroCommande || e.numeroCommande,
       dateFacture: entete.dateFacture || e.dateFacture,
     };
+    numeroPD ||= e.numeroPD;
+    if (e.numeroFacture) numerosFacture.add(e.numeroFacture);
     const inv: Tableau[] = [];
     const pl: Tableau[] = [];
     grille.forEach((r, i) => {
@@ -423,6 +499,8 @@ function assembler(grilles: { nom: string; grille: Cellule[][]; format: Format }
     if (p) packings.push({ nom, t: p });
   }
 
+  // Sans « INVOICE NO. » nulle part, le n° en tête du PD.
+  entete.numeroFacture ||= numeroPD;
   const vide = {
     ...entete, lignes: [], fret: null, frets: [],
     totaux: { colis: null, poidsNet: null, poidsBrut: null, volume: null, montant: null },
@@ -443,20 +521,25 @@ function assembler(grilles: { nom: string; grille: Cellule[][]; format: Format }
   const pl = packings[0]?.t;
 
   const lignes = fusionner(inv?.lignes || [], pl?.lignes || [], avertissements).map((l, index) => ({ ...l, index }));
+  if (pl?.partages.length) {
+    avertissements.push(`Colis, poids et volume communs dans le packing list (cellules fusionnées) pour ${pl.partages.join(' ; ')} : répartis au prorata des quantités, vérifie.`);
+  }
 
   // Couleurs et tailles du packing details, quand il est là (onglet PD ou collage).
   const blocs = grilles.flatMap(g => lireBlocsDetails(g.grille, g.format));
   const avecDetails = blocs.length ? rattacherDetails(lignes, blocs, avertissements) : 0;
-  const debutDe = (g: { grille: Cellule[][] }) => g.grille.slice(0, 5).flatMap(r => r.map(texte));
-  const numeroPD = grilles.flatMap(debutDe).map(c => c.match(/^PACKING DETAILS OFs+(S+)/i)?.[1]).find(Boolean)?.toUpperCase();
-  const pdFourni = grilles.some(g => g.nom === 'packing details' || /^PD/i.test(g.nom)) || Boolean(numeroPD);
+  const pdFourni = grilles.some(g => g.onglet === 'packing details' || /^PD/i.test(g.onglet)) || Boolean(numeroPD);
   if (pdFourni && !blocs.length) {
     avertissements.push('Packing details : aucun tableau COLOR / SIZE reconnu — couleurs et tailles non lues.');
   } else if (pdFourni && !avecDetails) {
     avertissements.push('Packing details lu mais rattaché à aucune ligne du PL (titres ou codes différents ?) — couleurs et tailles non lues.');
   }
-  if (numeroPD && entete.numeroFacture && numeroPD !== entete.numeroFacture) {
-    avertissements.push(`Le packing details est celui de la facture ${numeroPD}, le PL celui de la facture ${entete.numeroFacture}.`);
+  if (numerosFacture.size > 1) {
+    avertissements.push(`Les fichiers portent des n° de facture différents (${[...numerosFacture].join(', ')}) : vérifie qu'ils vont ensemble.`);
+  }
+  const memeNumero = (a: string, b: string) => a === b || a.endsWith(b) || b.endsWith(a);
+  if (numeroPD && entete.numeroFacture && !memeNumero(numeroPD, entete.numeroFacture)) {
+    avertissements.push(`Le packing details porte le n° ${numeroPD}, la facture le n° ${entete.numeroFacture} : vérifie que c'est le bon PD.`);
   }
   const totaux: TotauxFacture = {
     colis: pl?.totaux.colis ?? null,
@@ -472,11 +555,11 @@ function assembler(grilles: { nom: string; grille: Cellule[][]; format: Format }
   let totauxIncoherents = false;
   if (ecart(somme('poidsNet'), totaux.poidsNet)) {
     totauxIncoherents = true;
-    avertissements.push(`Poids net : les lignes font ${arrondir(somme('poidsNet'))} kg, le total du packing list ${totaux.poidsNet} kg.`);
+    avertissements.push(`Poids net : les lignes font ${arrondir(somme('poidsNet'))} kg, le total du packing list ${arrondir(totaux.poidsNet!)} kg.`);
   }
   if (ecart(somme('volume'), totaux.volume)) {
     totauxIncoherents = true;
-    avertissements.push(`Volume : les lignes font ${arrondir(somme('volume'))} m³, le total du packing list ${totaux.volume} m³.`);
+    avertissements.push(`Volume : les lignes font ${arrondir(somme('volume'))} m³, le total du packing list ${arrondir(totaux.volume!)} m³.`);
   }
   if (pl && !pl.aUnTotal) avertissements.push('Packing list sans ligne TOTAL : les sommes de poids et de volume ne peuvent pas être contrôlées.');
   const sansQuantite = lignes.filter(l => l.quantite == null).length;
@@ -556,7 +639,8 @@ function facteurDetail(de: UniteDetail, vers: UniteDetail | null): number | null
   return null;
 }
 
-type RangDetail = { style: string; couleur: string; taille: string; valeurs: { unite: UniteDetail; valeur: number }[] };
+/** `libre` : lue dans une phrase (« total 190000PCS »), pas dans un tableau — écartée si le bloc a un tableau. */
+type RangDetail = { style: string; couleur: string; taille: string; valeurs: { unite: UniteDetail; valeur: number }[]; libre?: boolean };
 type BlocDetails = { refs: string[]; codes: string[]; rangs: RangDetail[] };
 type ColonnesDetails = { couleur: number; taille: number; style: number; quantites: { i: number; unite: UniteDetail }[] };
 
@@ -571,6 +655,23 @@ function enteteDetails(r: Cellule[]): ColonnesDetails | null {
     .map((x, i) => ({ i, unite: [couleur, taille, style].includes(i) ? null : uniteColonne(x) }))
     .filter((q): q is { i: number; unite: UniteDetail } => q.unite != null);
   return quantites.length ? { couleur, taille, style, quantites } : null;
+}
+
+// Quantité totale écrite en phrase : « TOTAL 38CTNS , 190000PCS », « total 2480kg », « 2880rolls ».
+// Pas un contenu (« 5000PCS/CTN », « 25m/roll », « 4.0g/200m »), pas des cartons.
+const RE_QTE_LIBRE = /(?<![\/\d.,])(\d+(?:[.,]\d+)?)\s*(PCS|PC|PIECES?|SETS?|DOZ(?:ENS?)?|GROSS|ROLLS?|KGS?|MTS|METERS?|METRES?|M|YDS|YARDS?|BAGS?)(?![A-Z])(?!\s*\/)/gi;
+const COULEUR_VAGUE = /^(VARIOUS|MIXED|ASSORTED|MULTI|DIFFERENT|ALL|SAME|AS|THE|ANY|BY)$/;
+
+/** Ce qu'une phrase du PD dit : « 75cm , O/E , Black color », « Size: 4.0cm , … total 2480kg ». */
+function lirePhraseDetail(t: string, format: Format) {
+  const valeurs = [...t.matchAll(RE_QTE_LIBRE)]
+    .map(m => ({ unite: uniteLigne(m[2]), valeur: lireNombre(m[1], format) }))
+    .filter((v): v is { unite: UniteDetail; valeur: number } => v.unite != null && v.valeur != null && v.valeur > 0);
+  const couleurEcrite = t.match(/COLOU?RS?\s*[:：]\s*([^,，;]+)/i)?.[1].trim().toUpperCase();
+  const couleurAvant = [...t.matchAll(/([A-Z][A-Z0-9#]*)\s+COLOU?RS?\b/gi)]
+    .map(m => m[1].toUpperCase()).filter(c => !COULEUR_VAGUE.test(c)).pop();
+  const taille = t.match(/SIZES?\s*[:：]\s*([^,，;]+)/i)?.[1].trim().toUpperCase() || '';
+  return { valeurs, couleur: couleurEcrite || couleurAvant || '', taille };
 }
 
 /** Les blocs d'un packing details, dans l'ordre du document. */
@@ -589,6 +690,9 @@ function lireBlocsDetails(grille: Cellule[][], format: Format): BlocDetails[] {
 
   // Un PL collé avec le PD : ses lignes (de « DESCRIPTION OF GOODS » à TOTAL) ne sont pas des blocs.
   let dansLePL = false;
+  // Sans tableau (NINGBO APPAREL), couleur et taille s'écrivent en phrases sous le titre :
+  // « BLACK COLOR » puis « PACKS: 5000PCS/CTN , TOTAL 38CTNS , 190000PCS ».
+  let phrase = { couleur: '', taille: '' };
   for (const r of grille) {
     const cellules = r.map(texte);
     const premier = cellules.find(Boolean) ?? '';
@@ -623,10 +727,27 @@ function lireBlocsDetails(grille: Cellule[][], format: Format): BlocDetails[] {
     }
     const code = premier.match(RE_CODE);
     const titre = code ? null : premier.match(RE_TITRE);
-    if (titre) courant(true).refs.push(titre[1]);
-    else if (code) courant(true).codes.push(code[1].toUpperCase());
+    if (titre || code) {
+      if (titre) courant(true).refs.push(titre[1]);
+      else courant(true).codes.push(code![1].toUpperCase());
+      phrase = { couleur: '', taille: '' };
+      continue;
+    }
+    // Une phrase sous un titre ; « total: 2480kg + 2380.8kg » récapitule, on ne la compte pas.
+    const dernier = blocs[blocs.length - 1];
+    if (!dernier || (!dernier.refs.length && !dernier.codes.length) || /^TOTAL\b/i.test(premier)) continue;
+    precedent = null;
+    const lu = lirePhraseDetail(cellules.filter(Boolean).join(' , '), format);
+    if (!lu.valeurs.length) {
+      phrase = { couleur: lu.couleur || phrase.couleur, taille: lu.taille || phrase.taille };
+      continue;
+    }
+    dernier.rangs.push({ style: '', couleur: lu.couleur || phrase.couleur, taille: lu.taille || phrase.taille, valeurs: lu.valeurs, libre: true });
   }
-  return blocs.filter(b => b.rangs.length);
+  // Un bloc qui a son tableau : les phrases (« total 524ctns , 524000pcs ») le doubleraient.
+  return blocs
+    .map(b => (b.rangs.some(r => !r.libre) ? { ...b, rangs: b.rangs.filter(r => !r.libre) } : b))
+    .filter(b => b.rangs.length);
 }
 
 /** La quantité d'une variante dans l'unité de la ligne (null si aucune colonne ne s'y ramène). */
@@ -641,6 +762,30 @@ function quantiteDans(rang: RangDetail, ligne: LigneFacture): number | null {
 }
 
 const egal = (a: number, b: number) => Math.abs(a - b) <= Math.max(0.011, Math.abs(b) * 0.005);
+
+/**
+ * Les ensembles de valeurs dont la somme tombe sur `cible` (à la tolérance de
+ * `egal`) — deux au plus : au-delà d'une, c'est ambigu. Une valeur null n'entre
+ * dans aucun ensemble. Recherche bornée : trop longue, elle se dit ambiguë.
+ */
+function combinaisons(valeurs: (number | null)[], cible: number): number[][] {
+  const tol = Math.max(0.011, Math.abs(cible) * 0.005);
+  const idx = valeurs.map((v, i) => i).filter(i => valeurs[i] != null && valeurs[i]! > 0).sort((a, b) => valeurs[b]! - valeurs[a]!);
+  const reste = idx.map((_, k) => idx.slice(k).reduce((s, i) => s + valeurs[i]!, 0));
+  const trouvees: number[][] = [];
+  let pas = 0;
+  const chercher = (k: number, somme: number, pris: number[]) => {
+    if (trouvees.length > 1 || ++pas > 200_000) return;
+    if (Math.abs(somme - cible) <= tol && pris.length) { trouvees.push([...pris]); return; }
+    if (k >= idx.length || somme > cible + tol || somme + reste[k] < cible - tol) return;
+    pris.push(idx[k]);
+    chercher(k + 1, somme + valeurs[idx[k]]!, pris);
+    pris.pop();
+    chercher(k + 1, somme, pris);
+  };
+  chercher(0, 0, []);
+  return pas > 200_000 ? [[], []] : trouvees;
+}
 
 /** Pour comparer des couleurs écrites différemment : « Black Nickle » = « BLACK NICKEL ». */
 export const cleTexte = (t: string) => t.toUpperCase().replace(/NICKLE/g, 'NICKEL').replace(/[^0-9A-Z]+/g, ' ').trim();
@@ -724,8 +869,35 @@ function rattacherDetails(lignes: LigneFacture[], blocs: BlocDetails[], avertiss
       }
       return m;
     };
+    // 4. Par combinaison : chaque couleur reste entière et chaque ligne doit
+    //    retomber juste, dans n'importe quel ordre (Twill 25MH114168 : le PL
+    //    coupe le 03-1 en 2 057 m et 69 946 m ; les 2 057 m sont WHITE, la
+    //    dernière couleur du PD). Une seule combinaison possible, sinon rien.
+    const parCombinaison = () => {
+      const m = new Map<LigneFacture, RangDetail[]>();
+      if (cibles.length < 2) return m;
+      const parCle = new Map<string, RangDetail[]>();
+      for (const r of bloc.rangs) {
+        const k = [r.style, r.couleur, r.taille].map(cleTexte).join('|');
+        parCle.set(k, [...(parCle.get(k) || []), r]);
+      }
+      let restants = [...parCle.values()];
+      const ordre = [...cibles].sort((a, b) => a.quantite! - b.quantite!);
+      for (const l of ordre.slice(0, -1)) {
+        const qtes = restants.map(g => (g.every(r => memeCode(r, l))
+          ? g.reduce<number | null>((s, r) => { const q = quantiteDans(r, l); return s == null || q == null ? null : s + q; }, 0)
+          : null));
+        const solutions = combinaisons(qtes, l.quantite!);
+        if (solutions.length !== 1) return new Map<LigneFacture, RangDetail[]>();
+        const pris = new Set(solutions[0]);
+        m.set(l, restants.filter((_, i) => pris.has(i)).flat());
+        restants = restants.filter((_, i) => !pris.has(i));
+      }
+      m.set(ordre[ordre.length - 1], restants.flat());
+      return m;
+    };
     // La première lecture dont toutes les sommes retombent juste l'emporte.
-    const essais = [...(parCode ? [parLeCode] : []), parLaCouleur, dansLOrdre];
+    const essais = [...(parCode ? [parLeCode] : []), parLaCouleur, dansLOrdre, parCombinaison];
     const affectation = essais.map(e => e()).find(retombe) ?? new Map<LigneFacture, RangDetail[]>();
     for (const l of cibles) {
       const rangs = affectation.get(l) || [];
@@ -758,11 +930,20 @@ const estCopie = (nom: string) => /\(\s*\d+\s*\)\s*$/.test(nom);
 
 /** Lit un classeur déjà ouvert avec la bibliothèque xlsx. */
 export function lireClasseurFacture(wb: WorkBook, utils: typeof import('xlsx').utils): LectureFacture {
-  const noms = wb.SheetNames.filter(n => !estCopie(n));
-  const grilles = noms.map(nom => {
-    const grille = utils.sheet_to_json<Cellule[]>(wb.Sheets[nom], { header: 1, raw: true, defval: null, blankrows: true });
-    return { nom, grille, format: detecterFormat(grille.flat()) };
-  });
+  return lireClasseursFacture([{ nom: '', wb }], utils);
+}
+
+/**
+ * Lit plusieurs classeurs ensemble, comme un seul : facture, PL et PD envoyés
+ * en fichiers séparés (« ORIGINAL INVOICE-25931A.xlsx », « PACKING
+ * DETAILS-25931A.xlsx »…).
+ */
+export function lireClasseursFacture(classeurs: { nom: string; wb: WorkBook }[], utils: typeof import('xlsx').utils): LectureFacture {
+  const grilles = classeurs.flatMap(({ nom: fichier, wb }) => wb.SheetNames.filter(n => !estCopie(n)).map(onglet => {
+    const grille = utils.sheet_to_json<Cellule[]>(wb.Sheets[onglet], { header: 1, raw: true, defval: null, blankrows: true });
+    const nom = classeurs.length > 1 ? `${fichier} · ${onglet}` : onglet;
+    return { nom, onglet, grille, format: detecterFormat(grille.flat()) };
+  }));
   return assembler(grilles);
 }
 
@@ -774,8 +955,8 @@ const enGrille = (t: string): Cellule[][] => t.replace(/\r/g, '').split('\n').ma
  */
 export function lireTexteColle(textelibre: string, details = ''): LectureFacture {
   const morceaux = [
-    { nom: 'collage', grille: enGrille(textelibre) },
-    { nom: 'packing details', grille: details.trim() ? enGrille(details) : [] },
+    { nom: 'collage', onglet: 'collage', grille: enGrille(textelibre) },
+    { nom: 'packing details', onglet: 'packing details', grille: details.trim() ? enGrille(details) : [] },
   ];
   // Un seul format pour les deux : les poids décimaux du PL tranchent pour le PD.
   const format = detecterFormat(morceaux.flatMap(m => m.grille.flat()));
