@@ -88,6 +88,20 @@ const parTaille = plan(base(taille, { parLigne: [60, 0] }));
 check('répartition par taille : la part prend 4CM', parTaille.ecritures[0].data.size === '4CM' && parTaille.ecritures[0].data.sizeBreakdown.length === 1);
 check('répartition par taille : le reste garde 5CM', parTaille.ecritures[1].data.size === '5CM' && parTaille.ecritures[1].data.quantity === 40);
 
+console.log('\n── Écraser le reste ──');
+const ecrase = plan(base(fil, { parLigne: [600, 290, 100], ecraserReste: true }));
+const ec = ecrase.ecritures[0];
+check('reste écrasé : une seule écriture, l’article passe en entier', ecrase.ecritures.length === 1 && ec.id === 'fil' && ec.data.status === 'SHIPPED');
+check('reste écrasé : quantité 990, A726 à 290', ec.data.quantity === 990 && ec.data.colorBreakdown[1].rolls === 290);
+check('reste écrasé : dit (10)', ecrase.resteEcrase === 10 && ecrase.envoye.quantite === 990);
+check('reste écrasé : poids au prorata (594 kg)', ec.data.netWeight === 594);
+const ecraseLigne = plan(base(fil, { parLigne: [600, 300, 0], ecraserReste: true })).ecritures[0];
+check('ligne non expédiée écrasée : elle disparaît de la répartition', ecraseLigne.data.quantity === 900 && ecraseLigne.data.colorBreakdown.length === 2);
+const ecraseQte = plan(base(curseur, { quantite: 199500, ecraserReste: true }));
+check('reste écrasé en quantité : 199 500, rien en production', ecraseQte.ecritures.length === 1 && ecraseQte.ecritures[0].data.quantity === 199500 && ecraseQte.resteEcrase === 500);
+const sansReste = plan(base(curseur, { quantite: 200000, ecraserReste: true }));
+check('rien à écraser : fiche inchangée', sansReste.resteEcrase === 0 && !('quantity' in sansReste.ecritures[0].data));
+
 console.log('\n── Deuxième part de la même commande ──');
 const dejaParti = { id: 'p1', originalOrderId: 'fil', factureId: DOSSIER.id, status: 'SHIPPED', quantity: 100, purchasePricePerUnit: 2.5, netWeight: 60, color: 'A501' };
 const suite = plan(base(fil, { parLigne: [200, 0, 0], poidsNet: 125, articles: [fil, dejaParti] }));

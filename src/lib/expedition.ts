@@ -28,6 +28,11 @@ export type DemandeExpedition = {
    */
   parLigne?: number[];
   quantite?: number;
+  /**
+   * Le petit reste de la commande ne reste pas en production : la commande est
+   * soldée avec ce qui part (choix confirmé par l'utilisateur).
+   */
+  ecraserReste?: boolean;
   /** Poids net total de la part expédiée (kg) ; null = estimation de la fiche. */
   poidsNet: number | null;
   /** Volume total de la part expédiée (m³) ; null = estimation de la fiche. */
@@ -48,6 +53,8 @@ export type ResultatExpedition = {
   fusionneAvec: string | null;
   /** Ce qui part au-delà de la commande (packing list plus généreux), dans l'unité de l'article. */
   surplus: number;
+  /** Ce qui aurait dû rester en production et a été écrasé (0 sinon). */
+  resteEcrase: number;
 };
 
 const CHAMPS_CALCULES = ['effectiveStatus', 'rawStatus', 'statutEnBase'];
@@ -169,8 +176,11 @@ export function planExpedition(d: DemandeExpedition): ResultatExpedition | { err
     }
   }
 
-  // ── Rien ne reste en production : l'article passe en entier, surplus compris ──
-  if (qteRestante <= 0) {
+  // ── Rien ne reste en production (ou le reste est écrasé) : l'article passe
+  //    en entier, avec la quantité qui part, surplus compris ──────────────────
+  const resteEcrase = d.ecraserReste && qteRestante > 0 ? qteRestante : 0;
+  if (resteEcrase) modifiee = true;
+  if (qteRestante <= 0 || resteEcrase) {
     const data: Record<string, any> = { ...transit, ...couleurNormalisee(a) };
     if (modifiee) {
       data.quantity = qteEnvoyee;
@@ -188,6 +198,7 @@ export function planExpedition(d: DemandeExpedition): ResultatExpedition | { err
       envoye: { quantite: modifiee ? qteEnvoyee : qteArticle, couleur },
       fusionneAvec: null,
       surplus,
+      resteEcrase,
     };
   }
 
@@ -246,5 +257,5 @@ export function planExpedition(d: DemandeExpedition): ResultatExpedition | { err
   if (a.factureId === d.dossier.id) reste.factureId = '';
   ecritures.push({ op: 'update', id: a.id, data: reste });
 
-  return { ecritures, envoye: { quantite: qteEnvoyee, couleur: couleurEnvoyee }, fusionneAvec: cible?.id ?? null, surplus };
+  return { ecritures, envoye: { quantite: qteEnvoyee, couleur: couleurEnvoyee }, fusionneAvec: cible?.id ?? null, surplus, resteEcrase: 0 };
 }

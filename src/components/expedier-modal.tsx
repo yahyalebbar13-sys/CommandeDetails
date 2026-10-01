@@ -15,6 +15,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { useUser, useFirestore } from '@/firebase';
 import { doc, serverTimestamp, writeBatch } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
@@ -22,7 +23,7 @@ import { sendStatusNotification } from '@/lib/send-status-notification';
 import { computeEffectiveStatus } from '@/lib/status-utils';
 import { planExpedition, type ModeExpedition } from '@/lib/expedition';
 import { libelleLigne, repartition } from '@/lib/repartition';
-import { Ship, CalendarDays, CheckCircle2, Loader2, Scissors, Package, ClipboardPaste, Scale, Box, AlertTriangle } from 'lucide-react';
+import { Ship, CalendarDays, CheckCircle2, Loader2, Scissors, Package, ClipboardPaste, Scale, Box, AlertTriangle, Eraser, Undo2 } from 'lucide-react';
 
 interface ExpedierModalProps {
   open: boolean;
@@ -71,6 +72,9 @@ export default function ExpedierModal({ open, onOpenChange, order, factures, art
   const [collage, setCollage] = useState<string | null>(null);
   const [resultatCollage, setResultatCollage] = useState<{ trouves: number; inconnus: string[] } | null>(null);
   const [envoi, setEnvoi] = useState(false);
+  // Le petit reste ne reste pas en production : la commande est soldée avec ce qui part.
+  const [ecraser, setEcraser] = useState(false);
+  const [confirmerEcraser, setConfirmerEcraser] = useState(false);
 
   const rep = useMemo(() => (order ? repartition(order) : null), [order]);
   const parLignes = Boolean(rep && rep.lignes.length > 1);
@@ -81,6 +85,7 @@ export default function ExpedierModal({ open, onOpenChange, order, factures, art
   // packing list peut dire plus) ; « Fractionner » les vide.
   const choisirMode = (m: ModeExpedition) => {
     setMode(m);
+    setEcraser(false);
     setParLigne(rep ? rep.lignes.map(l => (m === 'tout' ? String(Number(l[rep.qte]) || 0) : '')) : []);
     setQuantite(m === 'tout' ? String(qteArticle) : '');
   };
@@ -153,6 +158,7 @@ export default function ExpedierModal({ open, onOpenChange, order, factures, art
       articles,
       maintenant: serverTimestamp(),
       nouvelId: () => crypto.randomUUID(),
+      ecraserReste: ecraser,
     });
     if ('erreur' in plan) {
       toast({ variant: 'destructive', title: 'Expédition impossible', description: plan.erreur });
@@ -174,7 +180,7 @@ export default function ExpedierModal({ open, onOpenChange, order, factures, art
     }
     toast({
       title: 'Expédié',
-      description: `${order.name} : ${fmt(plan.envoye.quantite)} ${unite}${plan.surplus > 0 ? ` (dont +${fmt(plan.surplus)} de surplus)` : ''} dans le dossier ${factureId.trim()}${plan.fusionneAvec ? ' (ajouté à la part déjà expédiée)' : ''}.`,
+      description: `${order.name} : ${fmt(plan.envoye.quantite)} ${unite}${plan.surplus > 0 ? ` (dont +${fmt(plan.surplus)} de surplus)` : ''}${plan.resteEcrase > 0 ? `, reste de ${fmt(plan.resteEcrase)} écrasé` : ''} dans le dossier ${factureId.trim()}${plan.fusionneAvec ? ' (ajouté à la part déjà expédiée)' : ''}.`,
     });
 
     // Le client de la commande est prévenu, comme avant.
@@ -351,7 +357,28 @@ export default function ExpedierModal({ open, onOpenChange, order, factures, art
             {qteEnvoyee > 0 && (
               <div className="flex flex-wrap gap-x-4 gap-y-1 pt-2 border-t border-orange-200 text-[10px]">
                 <span><b className="text-blue-700 uppercase">Transit :</b> {fmt(qteEnvoyee)} {unite}</span>
-                <span><b className="text-stone-600 uppercase">Reste en production :</b> {qteRestante > 0 ? `${fmt(qteRestante)} ${unite}` : 'rien'}</span>
+                {qteRestante > 0 && ecraser ? (
+                  <span className="inline-flex items-center gap-1.5">
+                    <b className="text-red-700 uppercase">Reste écrasé :</b> <s>{fmt(qteRestante)} {unite}</s>
+                    <button type="button" onClick={() => setEcraser(false)} className="inline-flex items-center gap-0.5 text-[9px] font-black uppercase text-stone-500 hover:text-stone-900">
+                      <Undo2 className="w-3 h-3" /> Garder
+                    </button>
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1.5">
+                    <b className="text-stone-600 uppercase">Reste en production :</b> {qteRestante > 0 ? `${fmt(qteRestante)} ${unite}` : 'rien'}
+                    {qteRestante > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => setConfirmerEcraser(true)}
+                        title="Le reste ne reste pas en production : la commande est soldée avec ce qui part"
+                        className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded border border-red-200 bg-white text-[9px] font-black uppercase text-red-600 hover:bg-red-50"
+                      >
+                        <Eraser className="w-3 h-3" /> Écraser le reste
+                      </button>
+                    )}
+                  </span>
+                )}
                 {surplus > 0 && <span><b className="text-amber-700 uppercase">Surplus :</b> +{fmt(surplus)} {unite} (part avec la commande)</span>}
               </div>
             )}
@@ -425,6 +452,20 @@ export default function ExpedierModal({ open, onOpenChange, order, factures, art
             Confirmer l'expédition
           </Button>
         </DialogFooter>
+        <AlertDialog open={confirmerEcraser} onOpenChange={setConfirmerEcraser}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Écraser le reste ?</AlertDialogTitle>
+              <AlertDialogDescription>
+                {fmt(qteRestante)} {unite} de « {order.name} » ne resteront pas en production : la commande est soldée avec les {fmt(qteEnvoyee)} {unite} qui partent.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Garder le reste</AlertDialogCancel>
+              <AlertDialogAction onClick={() => setEcraser(true)} className="bg-red-600 hover:bg-red-700">Écraser le reste</AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </DialogContent>
     </Dialog>
   );
