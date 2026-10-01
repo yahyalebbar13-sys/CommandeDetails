@@ -69,6 +69,7 @@ export type GeneralCategory = {
     width?: string | number;
     weightPerM?: number | string;
     rollLength?: number | string;
+    rollLengthUnit?: string;
     rollsPerShrink?: number | string;
     rollsPerCarton?: number | string;
   }[];
@@ -140,7 +141,8 @@ export type Category = {
     nameFR?: string;           // Nom commercial / français pour la vente
     width?: string | number;   // Largeur (taille) (ex: "25mm", "38mm", 25)
     weightPerM?: number | string; // Poids/m (g/m)
-    rollLength?: number | string; // Longueur/roll (m/rouleau)
+    rollLength?: number | string; // Longueur/roll
+    rollLengthUnit?: string;      // Unité de cette longueur (m, yds) ; vide = unité d'achat du pôle
     rollsPerShrink?: number | string; // Roll/shrink (rouleaux par paquet)
     rollsPerCarton?: number | string; // Rolls/ctn (rouleaux par carton)
   }[];

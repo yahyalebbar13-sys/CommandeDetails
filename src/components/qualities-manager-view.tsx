@@ -11,7 +11,7 @@ import { getStorage, ref as storageRef, uploadBytesResumable, getDownloadURL } f
 import { getApp } from 'firebase/app';
 import { useToast } from '@/hooks/use-toast';
 import { GeneralCategory, Category } from '@/lib/types';
-import { echelleDeLArticle, niveauEnGros } from '@/lib/conditionnement';
+import { echelleDeLArticle, niveauEnGros, contenuDuColis, uniteDeLongueur, LIBELLE_SOURCE } from '@/lib/conditionnement';
 import {
   QUALITY_SCHEMA, QUALITIES_FIELD_BY_SPEC, SPEC_BADGES, detectSpecType,
   groupeDuChamp, LIBELLE_GROUPE, type QualityFieldGroup,
@@ -293,6 +293,13 @@ export default function QualitiesManagerView({ generalCategories = [], subCatego
                     {families.length} famille{families.length !== 1 ? 's' : ''}
                   </span>
                 </div>
+                {/* Ce qui manque AU PÔLE pour compter ses cartons et rouleaux en unité de vente :
+                    les qualités ne peuvent pas le compenser. */}
+                {contenuDuColis({ pole: gc, catalogue: {} }).manques
+                  .filter(m => m.genre === 'type' || m.genre === 'unite-vente')
+                  .map(m => (
+                    <p key={m.genre} className="px-1 text-[10px] font-bold text-amber-700">⚠ {m.texte}</p>
+                  ))}
 
                 {families.length === 0 ? (
                   <div className="py-10 text-center border-2 border-dashed border-stone-200 rounded-2xl bg-white/60">
@@ -383,9 +390,28 @@ export default function QualitiesManagerView({ generalCategories = [], subCatego
                                     // porte. Un « rlx/sac » à 1 doit basculer en rouleau, pas en
                                     // sac — autant le voir tout de suite, ici, plutôt que sur un
                                     // document de réception une semaine plus tard.
+                                    // Le tissu et le ruban se mesurent en longueur : sans unité, la
+                                    // ligne passait pour des pièces et l'indicateur restait vide.
+                                    // (« y », que la fenêtre de Groupes enregistre pour les yards, est lu « yds ».)
+                                    const uniteDeLaLigne = activeSpecType === 'fabric' || activeSpecType === 'tape'
+                                      ? (uniteDeLongueur(row.rollLengthUnit) || (gc.uniteAchat === 'yds' ? 'yds' : 'm')) : 'pcs';
                                     const enGros = niveauEnGros(
-                                      echelleDeLArticle({ ...row, categoryId: fam.id }, [{ ...fam, specType: activeSpecType }] as any, [], row).niveaux,
+                                      echelleDeLArticle({ ...row, categoryId: fam.id, unitOfMeasure: uniteDeLaLigne }, [{ ...fam, specType: activeSpecType }] as any, [], row).niveaux,
                                     );
+                                    // Ce qui SORTIRA de la réserve : le carton ou le rouleau, et ce
+                                    // qu'il contient en unité de vente du pôle. Le même calcul que le
+                                    // rapport « Cartons et rouleaux » de /stock.
+                                    const sortie = contenuDuColis({
+                                      pole: gc, type: activeSpecType, catalogue: row,
+                                      emplacement: {
+                                        ligne: row, rangement: 'famille', numero: idx + 1,
+                                        famille: fam.name, pole: gc.name, nombreDeLignes: rows.length,
+                                      },
+                                    });
+                                    // Ce qui est à saisir, corriger ou confirmer sur CETTE ligne (le
+                                    // type et l'unité de vente se règlent sur le pôle, plus haut).
+                                    const manquesDeLigne = sortie.manques.filter(m => m.libelles?.length);
+                                    const verbe = { saisir: 'saisir', corriger: 'corriger', confirmer: 'confirmer' } as const;
                                     return (
                                       <tr key={idx} className="border-t border-stone-50 hover:bg-stone-50/30">
                                         <td className="p-2">
@@ -404,10 +430,22 @@ export default function QualitiesManagerView({ generalCategories = [], subCatego
                                             />
                                             <p className="text-[8px] font-black uppercase tracking-widest text-stone-400 pl-0.5"
                                                title="Le colis qu'on porte, qu'on compte et qu'on charge — déduit de ce qui est saisi à droite.">
-                                              En gros : <span className={enGros ? 'text-emerald-700' : 'text-stone-300'}>
+                                              N°{idx + 1} · En gros : <span className={enGros ? 'text-emerald-700' : 'text-stone-300'}>
                                                 {enGros ? enGros.colis.nom : 'à compléter'}
                                               </span>
                                             </p>
+                                            {sortie.colis.map(c => (
+                                              <p key={c.colis}
+                                                 className={`text-[8px] font-bold pl-0.5 leading-tight ${c.enUniteDeVente && sortie.pret ? 'text-emerald-700' : 'text-amber-700'}`}
+                                                 title={c.facteurs.map(f => `${f.label} : ${f.valeur} (${LIBELLE_SOURCE[f.source]})`).join('\n')}>
+                                                Sortie : {c.detail}{c.enUniteDeVente ? '' : ' — pas encore en unité de vente (voir le pôle)'}
+                                              </p>
+                                            ))}
+                                            {manquesDeLigne.map(m => (
+                                              <p key={m.texte} className="text-[8px] font-bold text-red-600 pl-0.5 leading-tight" title={m.texte}>
+                                                Sortie : {verbe[m.action || 'saisir']} {m.libelles!.map(l => `« ${l} »`).join(' et ')}
+                                              </p>
+                                            ))}
                                           </div>
                                         </td>
                                         {schemaFields.map(f => (

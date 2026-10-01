@@ -22,8 +22,11 @@
  * elle dépend du produit ET de ce qu'on empile. Elle se lit donc, elle aussi, dans la qualité.
  */
 
-import { QUALITY_SCHEMA } from './quality-schema';
-import { specTypeDeLArticle, ligneQualiteDuCatalogue } from './specification-produit';
+import { QUALITY_SCHEMA, detectSpecType } from './quality-schema';
+import {
+  specTypeDeLArticle, ligneQualiteDuCatalogue, emplacementQualiteDuCatalogue, type EmplacementQualite,
+} from './specification-produit';
+import { poleDeLArticle, uniteImposee } from './unites-pole';
 
 // ── Le vocabulaire des colis ────────────────────────────────────────────────
 
@@ -262,6 +265,11 @@ export function echelleDeLArticle(
     let parUnite = nombreSaisi(valeur(article, ligneQualite, def.champ, catalogue));
     // Une longueur de rouleau peut être saisie en yards alors que l'article s'achète au mètre.
     if (parUnite !== null && def.base === '') {
+      // Pour le ruban, on lit toujours `lengthUnit` (en pratique jamais rempli : facteur 1) et PAS
+      // la nouvelle case « Unité rouleau » : les formulaires de commande écrivent `rollLengthUnit
+      // = 'm'` par défaut sur chaque ruban, sans que personne l'ait choisi. Le lire ici changerait
+      // le nombre de rouleaux des bons de réception de tous les rubans achetés en yards. Seul le
+      // colis de sortie (`contenuDuColis`, plus bas) lit cette case — et seulement au catalogue.
       parUnite *= facteurDeLongueur(unite, valeur(article, ligneQualite, type === 'tape' ? 'lengthUnit' : 'rollLengthUnit', catalogue));
     }
     niveaux.push({
@@ -653,4 +661,841 @@ export function manqueTexte(c: Colisage): string {
   const m = c.manquants[0];
   if (!m) return '';
   return `saisir « ${m.label} » pour compter les ${m.colis.pluriel}`;
+}
+
+// ── Le colis de sortie, compté en unité de vente ────────────────────────────
+//
+// Le nouveau système de stock voulu par le patron : la réserve (CHRIFA et les entrepôts) ne sort
+// plus qu'au CARTON ou au ROULEAU, et le logiciel convertit ce colis dans l'unité où le pôle se
+// VEND — la pièce ou le mètre (cf. unites-pole.ts). Ce qui suit dit, pour un produit, quel colis
+// sort et ce qu'il contient. Rien n'est écrit ni compté ici : c'est le calcul seul, que l'écran
+// Qualités et le rapport « Cartons et rouleaux » de /stock affichent pour qu'on complète ce qui
+// manque AVANT que le stock ne change de mode de comptage.
+//
+// Rien de ce qui précède n'est modifié : `niveauEnGros`, `colisage` et `colisageArticle` font les
+// bons de réception et les documents imprimés. Le colis de sortie n'est pas le colis en gros : un
+// tissu arrive en sacs mais sort au rouleau ; le sac, la boîte et le shrink ne sortent jamais.
+//
+// Ce calcul est volontairement PLUS EXIGEANT que celui des documents, puisqu'il décidera d'une
+// conversion de stock : un nombre ambigu (« 1,000 ») est à corriger, une unité de rouleau
+// supposée est à confirmer, et deux longueurs de rouleau qui se contredisent sont à trancher.
+
+/** Les deux seuls colis qui sortent de la réserve. */
+export type ColisDeSortie = 'carton' | 'rouleau';
+
+/** D'où vient un chiffre : relevé sur l'arrivage (packing list), saisi au catalogue, ou porté par le pôle. */
+export type SourceFacteur = 'arrivage' | 'catalogue' | 'pole';
+
+export const LIBELLE_SOURCE: Record<SourceFacteur, string> = {
+  arrivage: 'arrivage',
+  catalogue: 'catalogue',
+  pole: 'pôle',
+};
+
+export interface FacteurColis {
+  champ: string;
+  label: string;
+  valeur: number | string;
+  source: SourceFacteur;
+}
+
+export interface ContenuColis {
+  colis: ColisDeSortie;
+  nom: TypeDeColis;
+  /** Ce que contient un colis, dans `unite`. */
+  contenu: number;
+  /**
+   * L'unité de vente du pôle quand elle est fixée et qu'elle convient ; sinon l'unité de base du
+   * produit (pièces, ou celle de la longueur du rouleau) — et `enUniteDeVente` vaut faux.
+   */
+  unite: string;
+  enUniteDeVente: boolean;
+  /** « 1 carton = 20 sacs × 120 pcs = 2 400 pcs », « 1 rouleau = 100 yds = 91,44 m ». */
+  detail: string;
+  facteurs: FacteurColis[];
+}
+
+export interface DesaccordColis {
+  champ: string;
+  label: string;
+  texte: string;
+  /**
+   * Le désaccord porte sur la LONGUEUR du rouleau (chaque côté ramené en mètres) : c'est le
+   * chiffre même de la conversion, il faut trancher avant de compter — le produit n'est pas
+   * « prêt ». Un écart de Pcs/sac, lui, est un fait d'expédition : l'arrivage est retenu.
+   */
+  bloquant?: boolean;
+}
+
+export type GenreManque = 'pole' | 'type' | 'unite-vente' | 'facteur' | 'unite-longueur';
+
+/** Ce qui manque, et la consigne exacte pour le compléter. */
+export interface ManqueColis {
+  genre: GenreManque;
+  /** Saisir une case vide, corriger une valeur illisible, ou confirmer une unité supposée. */
+  action?: 'saisir' | 'corriger' | 'confirmer';
+  /** Les champs de qualité concernés, pour un manque de facteur… */
+  champs?: string[];
+  /** … et leurs noms, tels que les colonnes de l'écran Qualités les affichent. */
+  libelles?: string[];
+  texte: string;
+}
+
+export interface ResultatColis {
+  /** Vrai quand chaque colis de sortie se convertit en unité de vente, sans rien à compléter. */
+  pret: boolean;
+  type?: string;
+  /** Le type n'est pas fixé sur le pôle : il a été supposé d'après le nom ou la ligne du pôle. */
+  typeDevine: boolean;
+  pole?: { id: string; name: string };
+  uniteAchat?: string;
+  uniteVente?: string;
+  /** Un colis (carton ou rouleau), deux pour un ruban qui a ses rouleaux par carton, aucun si rien n'est calculable. */
+  colis: ContenuColis[];
+  manques: ManqueColis[];
+  desaccords: DesaccordColis[];
+}
+
+export interface EntreeColis {
+  /** L'article, avec sa copie du conditionnement relevé à l'arrivage. Vide pour une qualité du catalogue. */
+  article?: any;
+  /** Sa ligne de ventilation par qualité (qualityBreakdown), quand l'article est ventilé. */
+  ligneQualite?: any;
+  categories?: any[];
+  generalCategories?: any[];
+  /** Le pôle, quand on le connaît déjà (écran Qualités) ; sinon il est retrouvé par la famille. */
+  pole?: any;
+  /** Le type imposé — l'onglet ouvert de l'écran Qualités. Sinon : celui du pôle. */
+  type?: string;
+  /** L'unité de vente imposée. Sinon : celle du pôle. */
+  uniteVente?: string | null;
+  /** La ligne du catalogue, quand on la tient déjà (écran Qualités). */
+  catalogue?: any;
+  /** Où se trouve cette ligne, pour écrire la consigne. */
+  emplacement?: EmplacementQualite;
+}
+
+const CHEMIN_GROUPES = '/gestion → Catalogue → Groupes';
+const CHEMIN_POLE = `${CHEMIN_GROUPES} → Modifier le pôle (crayon ✎ à côté de son nom)`;
+const CHEMIN_QUALITES = '/gestion → Catalogue → Qualités';
+const CHEMIN_ARTICLE = "/gestion → Arrivages → Arrivages → son dossier → crayon ✎ de la ligne de l'article";
+
+const METRES_PAR: Record<string, number> = { m: 1, yds: YARD_EN_METRE, cm: 0.01 };
+
+/**
+ * « m », « mètres », « MTR » → m ; « yards », « YD », « y » → yds ; le reste → undefined.
+ *
+ * « y » est ce qu'enregistre la fenêtre de modification d'une qualité de tissu dans Groupes
+ * (« Yards (y) »). Il n'est reconnu QUE par le calcul du colis de sortie : `facteurDeLongueur`,
+ * qui fait les documents, n'est pas touché.
+ */
+export function uniteDeLongueur(u: unknown): 'm' | 'yds' | 'cm' | undefined {
+  const v = sansAccent(u);
+  if (/^(m|metre|metres|mtr|ml)$/.test(v)) return 'm';
+  if (/^(y|yd|yds|yard|yards)$/.test(v)) return 'yds';
+  if (v === 'cm') return 'cm';
+  return undefined;
+}
+
+/** Forme courte d'une unité, pour le détail d'un calcul. */
+function uniteCourte(u: string): string {
+  const l = uniteDeLongueur(u);
+  if (l) return l;
+  const f = facteurEnPieces(u);
+  if (f === 12) return 'doz';
+  if (f === 144) return 'grosses';
+  if (f === 1) return 'pcs';
+  return u;
+}
+
+/** Les types qui se mesurent en longueur ; les autres se comptent en pièces. */
+const TYPES_EN_LONGUEUR = new Set(['fabric', 'tape']);
+const TYPES_CONNUS = new Set(['fabric', 'zipper', 'thread', 'slider', 'tape', 'accessory']);
+
+export const NOM_DU_TYPE: Record<string, string> = {
+  fabric: 'Tissu', zipper: 'Fermeture', thread: 'Fil', slider: 'Curseur', tape: 'Ruban', accessory: 'Accessoire',
+};
+
+/** L'unité de vente qui convient à un type : le mètre pour le tissu et le ruban, la pièce sinon. */
+export function uniteDeVenteAttendue(type?: string): 'mètres' | 'pièces' | undefined {
+  if (!type || !TYPES_CONNUS.has(type)) return undefined;
+  return TYPES_EN_LONGUEUR.has(type) ? 'mètres' : 'pièces';
+}
+
+/**
+ * Un nombre lu SANS deviner. `nombreSaisi` (plus haut, qui sert aux documents) garde le premier
+ * nombre venu : « 1 000 » y vaut 1, « 1,000 » aussi. Pour décider qu'un produit est prêt à être
+ * converti, il faut mieux : un seul nombre, éventuellement suivi d'une unité, sinon rien.
+ *
+ *   « 120 », « 2,5 », « 0.5 », « 120 pcs », « 100 yds »           → lus
+ *   « 1 000 » (les documents le liraient 1), « 1,000 », « 1.000 »   → illisibles (mille, ou un ?)
+ *   « 20/30 », « VARIOUS », « -5 »                                  → illisibles
+ */
+type NombreLu = { n: number; unite: string } | { illisible: true };
+
+function nombreStrict(v: unknown): NombreLu {
+  if (typeof v === 'number') return isFinite(v) && v > 0 ? { n: v, unite: '' } : { illisible: true };
+  const texte = String(v ?? '').replace(/[  ]/g, ' ').trim();
+  const m = texte.match(/^(\d+)(?:[.,](\d+))?\s*(.*)$/);
+  if (!m) return { illisible: true };
+  const [, entier, decimales, reste] = m;
+  // « 1 000 » : un second nombre après le premier.
+  if (/^\d/.test(reste)) return { illisible: true };
+  // « 1,000 » ou « 2.500 » : séparateur de milliers ou virgule décimale ? Personne ne peut le dire.
+  if (decimales !== undefined && decimales.length === 3 && Number(entier) !== 0) return { illisible: true };
+  const n = Number(decimales !== undefined ? `${entier}.${decimales}` : entier);
+  if (!isFinite(n) || n <= 0) return { illisible: true };
+  return { n, unite: reste.trim() };
+}
+
+/** L'unité écrite derrière un facteur de comptage : rien, des pièces, ou un colis (« 20 sacs »). */
+function uniteDeCompteAcceptee(u: string): boolean {
+  if (!u) return true;
+  const v = sansAccent(u).replace(/[.\s]+$/, '');
+  return facteurEnPieces(v) === 1 || !!UNITES_COLIS[v];
+}
+
+/** Une valeur lue, avec sa provenance — et, pour signaler un désaccord, ce que dit chaque côté. */
+interface Lu { brut: unknown; source: SourceFacteur; arrivage?: unknown; catalogue?: unknown }
+type Lecteur = (champ: string) => Lu | undefined;
+
+/**
+ * Lit un champ dans des sources rangées par autorité : ligne de ventilation, article, catalogue —
+ * le même ordre que `valeur()` plus haut. Un zéro ou une case vide ne compte pas.
+ */
+function lecteur(sources: { objet: any; source: SourceFacteur }[]): Lecteur {
+  return (champ: string) => {
+    let retenu: Lu | undefined;
+    let arrivage: unknown, catalogue: unknown;
+    for (const { objet, source } of sources) {
+      const v = objet?.[champ];
+      if (!saisi(v)) continue;
+      if (source === 'arrivage' && arrivage === undefined) arrivage = v;
+      if (source === 'catalogue' && catalogue === undefined) catalogue = v;
+      if (!retenu) retenu = { brut: v, source };
+    }
+    return retenu ? { ...retenu, arrivage, catalogue } : undefined;
+  };
+}
+
+/** L'unité de la longueur d'un rouleau, et d'où on la tient. */
+interface UniteRouleau { unite: 'm' | 'yds' | 'cm'; source: SourceFacteur; champ: string; label: string }
+
+/** Une valeur saisie qu'on ne sait pas lire : on ne la remplace pas en silence, on demande de la corriger. */
+interface Illisible { champ: string; brut: string; source: SourceFacteur; pourquoi: string }
+
+/**
+ * Ce qu'on sait de l'unité de la longueur d'un rouleau, avant de savoir d'où vient la longueur.
+ *
+ * Le RUBAN n'a pas de case `arrivage` : les formulaires de commande écrivent « m » par défaut
+ * dans `rollLengthUnit` sur chaque ruban, sans proposer d'autre choix (le champ s'y intitule
+ * « Longueur / roll (m) »). Ce « m » n'a été choisi par personne ; il passerait devant ce que le
+ * patron saisit dans Qualités et compterait 100 m un rouleau de 100 yds. Pour le ruban, seule la
+ * case du catalogue fait foi. Le tissu, lui, a un vrai choix d'unité à la commande.
+ */
+interface ContexteUnite {
+  arrivage?: unknown;
+  catalogue?: unknown;
+  /** L'unité d'achat du pôle, quand c'est une longueur. */
+  achatPole?: 'm' | 'yds' | 'cm';
+  /** L'unité de l'article, quand c'est une longueur : celle où le bon de réception compte le rouleau. */
+  article?: 'm' | 'yds' | 'cm';
+}
+
+type UniteResolue =
+  | { ok: true; unite: UniteRouleau; aConfirmer?: string }
+  | { ok: false; illisible?: Illisible };
+
+/**
+ * L'unité d'une longueur de rouleau.
+ *
+ *  1. Celle saisie dans la case de l'unité (arrivage pour le tissu, puis catalogue).
+ *  2. Sinon, celle écrite avec la longueur (« 100 yds »).
+ *  3. Sinon, une unité par défaut : pour une longueur relevée sur l'ARRIVAGE, l'unité de
+ *     l'article — c'est ainsi que le bon de réception la compte ; pour une longueur du CATALOGUE,
+ *     l'unité d'achat du pôle — c'est ce que dit l'aide du champ. Quand l'article et le pôle ne
+ *     disent pas la même chose, le choix est signalé « à confirmer » : 100 yds ne sont pas 100 m.
+ */
+function resoudreUnite(
+  ctx: ContexteUnite, type: string, sourceLongueur: SourceFacteur,
+  ecrite: 'm' | 'yds' | 'cm' | undefined, brutLongueur: string, coteCatalogueSeul = false,
+): UniteResolue {
+  const label = labelDuChamp(type, 'rollLengthUnit');
+  const saisie = [
+    ...(!coteCatalogueSeul && saisi(ctx.arrivage) ? [{ brut: ctx.arrivage, source: 'arrivage' as const }] : []),
+    ...(saisi(ctx.catalogue) ? [{ brut: ctx.catalogue, source: 'catalogue' as const }] : []),
+  ][0];
+  if (saisie) {
+    const u = uniteDeLongueur(saisie.brut);
+    if (!u) {
+      return { ok: false, illisible: { champ: 'rollLengthUnit', brut: String(saisie.brut).trim(), source: saisie.source, pourquoi: 'écrire m ou yds' } };
+    }
+    if (ecrite && ecrite !== u) {
+      return { ok: false, illisible: { champ: 'rollLength', brut: brutLongueur, source: sourceLongueur, pourquoi: `l'unité écrite contredit « ${label} » (${u})` } };
+    }
+    return { ok: true, unite: { unite: u, source: saisie.source, champ: 'rollLengthUnit', label } };
+  }
+  if (ecrite) return { ok: true, unite: { unite: ecrite, source: sourceLongueur, champ: 'rollLength', label: 'unité écrite avec la longueur' } };
+
+  const pole: UniteRouleau | undefined = ctx.achatPole
+    ? { unite: ctx.achatPole, source: 'pole', champ: 'uniteAchat', label: "unité d'achat du pôle" } : undefined;
+  const article: UniteRouleau | undefined = ctx.article
+    ? { unite: ctx.article, source: 'arrivage', champ: 'unitOfMeasure', label: "unité de l'article" } : undefined;
+  const retenue = (sourceLongueur === 'arrivage' ? [article, pole] : [pole, article]).find(Boolean);
+  if (!retenue) return { ok: false };
+  const aConfirmer = article && pole && article.unite !== pole.unite
+    ? `l'article est compté en ${article.unite}, le pôle achète en ${pole.unite} : ${retenue.unite} retenu en attendant`
+    : undefined;
+  return { ok: true, unite: retenue, aConfirmer };
+}
+
+/**
+ * Ce que contient UN colis, dans l'unité de base du produit : des pièces, ou une longueur dans
+ * l'unité du rouleau. C'est le cœur commun de `contenuDuColis` et de `versUniteDeVente`.
+ */
+type Brut =
+  | { ok: true; quantite: number; uniteBase: string; calcul: string; facteurs: FacteurColis[]; desaccords: DesaccordColis[]; aConfirmer: string[] }
+  | { ok: false; manquants: string[]; illisibles: Illisible[]; impossible?: string };
+
+/**
+ * Le nom d'un champ dans une consigne, tel que la colonne de l'écran Qualités l'affiche. Le
+ * raccourci « Pcs/carton » n'y a pas de colonne ; l'unité du rouleau s'appelle « Unité » pour le
+ * tissu et « Unité rouleau » pour le ruban — avec, dans les deux cas, ce qu'on peut y mettre.
+ */
+function labelDuChamp(type: string, champ: string): string {
+  if (champ === 'pcsPerCtn') return 'Pcs/carton';
+  if (champ === 'rollLengthUnit') return `${libelleDuChamp(type, champ)} (m ou yds)`;
+  return libelleDuChamp(type, champ);
+}
+
+function contenuBrut(cle: string, type: string, lire: Lecteur, ctx: ContexteUnite): Brut {
+  const label = (champ: string) => labelDuChamp(type, champ);
+  const echec = (manquants: string[], illisibles: Illisible[] = [], impossible?: string): Brut =>
+    ({ ok: false, manquants, illisibles, impossible });
+
+  // Un facteur de comptage (Pcs/sac, Sacs/carton…) : absent, illisible, ou un nombre.
+  type Lecture = { n: number; f: FacteurColis } | { absent: true } | { illisible: Illisible };
+  const facteur = (champ: string): Lecture => {
+    const lu = lire(champ);
+    if (!lu) return { absent: true };
+    const p = nombreStrict(lu.brut);
+    const brut = String(lu.brut).trim();
+    if ('illisible' in p) {
+      return { illisible: { champ, brut, source: lu.source, pourquoi: 'écrire le nombre seul, en chiffres, sans espace ni séparateur de milliers' } };
+    }
+    if (!uniteDeCompteAcceptee(p.unite)) {
+      return { illisible: { champ, brut, source: lu.source, pourquoi: `« ${p.unite} » n'est pas un nombre de pièces` } };
+    }
+    return { n: p.n, f: { champ, label: label(champ), valeur: p.n, source: lu.source } };
+  };
+  const desaccordsDe = (champs: string[]): DesaccordColis[] => champs.flatMap(champ => {
+    const lu = lire(champ);
+    if (!lu || lu.arrivage === undefined || lu.catalogue === undefined) return [];
+    const a = nombreStrict(lu.arrivage), c = nombreStrict(lu.catalogue);
+    const pareil = !('illisible' in a) && !('illisible' in c)
+      ? Math.abs(a.n - c.n) < 1e-9
+      : sansAccent(lu.arrivage) === sansAccent(lu.catalogue);
+    if (pareil) return [];
+    return [{
+      champ, label: label(champ),
+      texte: `« ${label(champ)} » : ${String(lu.arrivage).trim()} sur l'arrivage, ${String(lu.catalogue).trim()} au catalogue — l'arrivage est retenu`,
+    }];
+  });
+
+  /**
+   * Arrivage et catalogue donnent-ils la même longueur de rouleau ? On compare des MÈTRES, chaque
+   * côté dans sa propre unité : 100 yds et 91,44 m sont le même rouleau, 100 m et 100 yds non.
+   */
+  const desaccordDeLongueur = (lu: Lu): DesaccordColis[] => {
+    if (lu.arrivage === undefined || lu.catalogue === undefined) return [];
+    const cote = (brut: unknown, source: SourceFacteur, catalogueSeul: boolean) => {
+      const p = nombreStrict(brut);
+      if ('illisible' in p) return undefined;
+      const ecrite = p.unite ? uniteDeLongueur(p.unite) : undefined;
+      const r = resoudreUnite(ctx, type, source, ecrite, String(brut), catalogueSeul);
+      return { n: p.n, u: r.ok ? r.unite.unite : undefined };
+    };
+    const a = cote(lu.arrivage, 'arrivage', false), c = cote(lu.catalogue, 'catalogue', true);
+    if (!a || !c) return [];
+    const pareil = a.u && c.u
+      ? Math.abs(a.n * METRES_PAR[a.u] - c.n * METRES_PAR[c.u]) <= 0.001 * Math.max(a.n * METRES_PAR[a.u], c.n * METRES_PAR[c.u])
+      : Math.abs(a.n - c.n) < 1e-9;
+    if (pareil) return [];
+    const dit = (x: { n: number; u?: string }) => `${nf(x.n)}${x.u ? ` ${x.u}` : ''}`;
+    return [{
+      champ: 'rollLength', label: label('rollLength'), bloquant: true,
+      texte: `« ${label('rollLength')} » : ${dit(a)} sur l'arrivage, ${dit(c)} au catalogue — l'un des deux est faux : vérifier le rouleau, puis corriger l'article ou la qualité`,
+    }];
+  };
+
+  // Le rouleau : une longueur, dans l'unité du rouleau.
+  const rouleau = (): Brut => {
+    const lu = lire('rollLength');
+    if (!lu) {
+      // La longueur est à saisir au catalogue : son unité aussi, si rien ne la donne par défaut.
+      const r = resoudreUnite(ctx, type, 'catalogue', undefined, '');
+      return echec(['rollLength', ...(r.ok || r.illisible ? [] : ['rollLengthUnit'])], !r.ok && r.illisible ? [r.illisible] : []);
+    }
+    const brut = String(lu.brut).trim();
+    const p = nombreStrict(lu.brut);
+    if ('illisible' in p) {
+      return echec([], [{ champ: 'rollLength', brut, source: lu.source, pourquoi: 'écrire la longueur seule, en chiffres, sans séparateur de milliers' }]);
+    }
+    const ecrite = p.unite ? uniteDeLongueur(p.unite) : undefined;
+    if (p.unite && !ecrite) {
+      return echec([], [{ champ: 'rollLength', brut, source: lu.source, pourquoi: `« ${p.unite} » n'est pas une longueur` }]);
+    }
+    const r = resoudreUnite(ctx, type, lu.source, ecrite, brut);
+    if (!r.ok) return echec(r.illisible ? [] : ['rollLengthUnit'], r.illisible ? [r.illisible] : []);
+    return {
+      ok: true, quantite: p.n, uniteBase: r.unite.unite, calcul: `${nf(p.n)} ${r.unite.unite}`,
+      facteurs: [
+        { champ: 'rollLength', label: label('rollLength'), valeur: p.n, source: lu.source },
+        { champ: r.unite.champ, label: r.unite.label, valeur: r.unite.unite, source: r.unite.source },
+      ],
+      desaccords: desaccordDeLongueur(lu),
+      aConfirmer: r.aConfirmer ? [r.aConfirmer] : [],
+    };
+  };
+  // Un colis fait d'un nombre de colis plus petits : « 10 rouleaux × 25 m ».
+  const multiple = (champ: string, interieur: Brut, nomInterieur: TypeDeColis): Brut => {
+    const k = facteur(champ);
+    if (!interieur.ok) {
+      return echec(
+        [...interieur.manquants, ...('absent' in k ? [champ] : [])],
+        [...interieur.illisibles, ...('illisible' in k ? [k.illisible] : [])],
+        interieur.impossible,
+      );
+    }
+    if ('absent' in k) return echec([champ]);
+    if ('illisible' in k) return echec([], [k.illisible]);
+    const total = arrondi(k.n * interieur.quantite);
+    return {
+      ok: true, quantite: total, uniteBase: interieur.uniteBase,
+      calcul: `${nf(k.n)} ${k.n > 1 ? nomInterieur.pluriel : nomInterieur.nom} × ${interieur.calcul} = ${nf(total)} ${uniteCourte(interieur.uniteBase)}`,
+      facteurs: [k.f, ...interieur.facteurs],
+      desaccords: [...desaccordsDe([champ]), ...interieur.desaccords],
+      aConfirmer: interieur.aConfirmer,
+    };
+  };
+  // Un compte de pièces : « 120 pcs ».
+  const pieces = (champ: string): Brut => {
+    const p = facteur(champ);
+    if ('absent' in p) return echec([champ]);
+    if ('illisible' in p) return echec([], [p.illisible]);
+    return { ok: true, quantite: p.n, uniteBase: 'pièces', calcul: `${nf(p.n)} pcs`, facteurs: [p.f], desaccords: desaccordsDe([champ]), aConfirmer: [] };
+  };
+  /**
+   * Le carton de mercerie. Le détail (sacs × pièces, boîtes × pièces) prime ; le raccourci
+   * historique « Pcs/carton » ne sert que lorsqu'il manque — comme dans `echelleDeLArticle`. Quand
+   * les deux sont là et ne disent pas la même chose, on le signale. Une valeur illisible dans le
+   * détail n'est pas contournée par le raccourci : elle est à corriger.
+   */
+  const cartonDeMercerie = (champPetit: string, champCarton: string, petit: TypeDeColis): Brut => {
+    const chaine = multiple(champCarton, pieces(champPetit), petit);
+    const direct = facteur('pcsPerCtn');
+    if (chaine.ok) {
+      if ('n' in direct && Math.abs(direct.n - chaine.quantite) > 1e-9) {
+        chaine.desaccords.push({
+          champ: 'pcsPerCtn', label: 'Pcs/carton',
+          texte: `« Pcs/carton » vaut ${nf(direct.n)}, mais ${chaine.calcul} — le détail est retenu`,
+        });
+      }
+      return chaine;
+    }
+    if (chaine.illisibles.length > 0) return chaine;
+    if ('n' in direct) {
+      return {
+        ok: true, quantite: direct.n, uniteBase: 'pièces', calcul: `${nf(direct.n)} pcs (Pcs/carton)`,
+        facteurs: [direct.f], desaccords: desaccordsDe(['pcsPerCtn']), aConfirmer: [],
+      };
+    }
+    if ('illisible' in direct) return echec(chaine.manquants, [direct.illisible]);
+    return chaine;
+  };
+
+  const pasPourCeType = (): Brut => echec([], [],
+    `un produit de type ${(NOM_DU_TYPE[type] || type).toLowerCase()} ne se compte pas en ${COLIS[cle]?.pluriel || cle}`);
+
+  switch (cle) {
+    case 'rouleau':
+      return TYPES_EN_LONGUEUR.has(type) ? rouleau() : pasPourCeType();
+    case 'sac':
+      if (type === 'fabric') return multiple('packagingPerBag', rouleau(), COLIS.rouleau);
+      if (type === 'zipper' || type === 'thread' || type === 'slider') return pieces('pcsPerBag');
+      return pasPourCeType();
+    case 'shrink':
+      return type === 'tape' ? multiple('rollsPerShrink', rouleau(), COLIS.rouleau) : pasPourCeType();
+    case 'boite':
+      return type === 'accessory' ? pieces('pcsPerBox') : pasPourCeType();
+    case 'carton':
+      if (type === 'tape') return multiple('rollsPerCarton', rouleau(), COLIS.rouleau);
+      if (type === 'zipper' || type === 'thread' || type === 'slider') return cartonDeMercerie('pcsPerBag', 'bagsPerCarton', COLIS.sac);
+      if (type === 'accessory') return cartonDeMercerie('pcsPerBox', 'boxPerCarton', COLIS.boite);
+      return pasPourCeType();
+    default:
+      return pasPourCeType();
+  }
+}
+
+/**
+ * Convertit une quantité de base (pièces, ou longueur) vers l'unité de vente. `null` quand les
+ * deux ne mesurent pas la même chose : des pièces ne deviennent pas des mètres.
+ */
+function baseVersVente(quantite: number, uniteBase: string, uniteVente: string): number | null {
+  const lb = uniteDeLongueur(uniteBase), lv = uniteDeLongueur(uniteVente);
+  if (lb && lv) return arrondi(quantite * METRES_PAR[lb] / METRES_PAR[lv]);
+  if (lb || lv) return null;
+  const fb = facteurEnPieces(uniteBase), fv = facteurEnPieces(uniteVente);
+  if (fb === null || fv === null) return null;
+  return arrondi(quantite * fb / fv);
+}
+
+/**
+ * La consigne pour le TYPE d'un pôle.
+ *
+ * Un pôle tient son type de sa ligne logistique, et c'est sur la LIGNE qu'il se règle : le
+ * bouton « Spécifications de la ligne » de Groupes l'applique à tous ses pôles. « Modifier le
+ * pôle » n'y peut rien quand la ligne est déjà choisie (ses spécifications y sont verrouillées,
+ * et l'enregistrement recopie celles de la ligne) : on n'y renvoie que le pôle sans ligne.
+ */
+function consigneDeType(pole: any, nomPole: string, suppose?: string): string {
+  const ligne = String(pole?.line || '').trim();
+  const supposition = suppose
+    ? ` — en attendant, on le suppose ${NOM_DU_TYPE[suppose].toLowerCase()} d'après son nom ou sa ligne : à confirmer`
+    : '';
+  if (ligne) {
+    return `Régler les spécifications de la ligne « ${ligne} » (bouton « Spécifications de la ligne » dans ${CHEMIN_GROUPES}) : le pôle ${nomPole} n'a pas encore de type${supposition}`;
+  }
+  return `Choisir la ligne logistique du pôle ${nomPole} dans ${CHEMIN_POLE}${supposition}`;
+}
+
+/**
+ * La consigne pour l'UNITÉ DE VENTE d'un pôle qui n'en a pas.
+ *
+ * Attention à l'ordre. Sans unité d'achat, l'unité de vente devient AUSSITÔT celle du stock
+ * (`uniteDeStock`, unites-pole.ts) et la caisse, les transferts et l'inventaire la reprennent —
+ * sans aucune conversion : 120 rouleaux s'afficheraient « 120 m ». Il faut donc fixer d'abord
+ * l'unité d'achat sur celle où le stock est compté aujourd'hui. Et quand ce stock est compté
+ * dans PLUSIEURS unités, toute unité fixée sur le pôle s'imposerait à tout : on attend l'étape 3.
+ *
+ * @param unitesDuStock les unités où le stock du pôle est compté aujourd'hui (rapport : toutes
+ *                      celles de ses lignes de stock ; un article : la sienne).
+ */
+export function consigneUniteDeVente(
+  nomPole: string, attendue: string, uniteAchat?: string, unitesDuStock: string[] = [], suppose?: string,
+): string {
+  const si = suppose ? `, si c'est bien un ${NOM_DU_TYPE[suppose].toLowerCase()}` : '';
+  if (uniteAchat) {
+    return `Fixer l'unité de vente du pôle ${nomPole} (${attendue}${si}) dans ${CHEMIN_POLE} — son stock reste compté en ${uniteAchat}`;
+  }
+  const unites = Array.from(new Set(unitesDuStock.map(u => String(u ?? '').trim()).filter(Boolean)));
+  if (unites.length > 1) {
+    return `Unité de vente du pôle ${nomPole} (${attendue}${si}) : ne la fixer qu'au passage au carton/rouleau — son stock est compté en ${unites.join(', ')}, et toute unité fixée sur le pôle (achat ou vente) s'imposerait à tout ce stock, sans conversion`;
+  }
+  const actuelle = unites[0] ? ` sur « ${unites[0]} » (l'unité où son stock est compté aujourd'hui)` : " (l'unité où son stock est compté aujourd'hui)";
+  return `Fixer d'abord l'unité d'achat du pôle ${nomPole}${actuelle}, puis son unité de vente (${attendue}${si}), dans ${CHEMIN_POLE} — fixer la vente seule changerait aussitôt l'unité de tout son stock, sans conversion`;
+}
+
+/**
+ * LE colis qui sort de la réserve, et ce qu'il contient en unité de vente.
+ *
+ *   fermeture, fil, curseur   carton  = Pcs/sac × Sacs/carton (ou Pcs/carton)
+ *   accessoire                carton  = Pcs/boîte × Boîtes/carton (ou Pcs/carton)
+ *   tissu                     rouleau = Long. rouleau (yds → m si l'on vend au mètre)
+ *   ruban                     rouleau = Long./rouleau ; carton = Rouleaux/carton × Long./rouleau
+ *
+ * Aucun chiffre n'est inventé : ce qui manque est listé avec l'endroit où le saisir. Le poids
+ * n'est jamais une unité de vente acceptée ici — un carton ne se convertit pas en kilos.
+ */
+export function contenuDuColis(entree: EntreeColis): ResultatColis {
+  const article = entree.article || {};
+  const categories = entree.categories || [];
+  const generalCategories = entree.generalCategories || [];
+  const pole = entree.pole ?? poleDeLArticle(article, categories, generalCategories);
+  const nomPole = pole?.name ? String(pole.name) : '';
+  const famille = categories.find((c: any) => c?.id === article?.categoryId || c?.name === article?.categoryId);
+  const nomFamille = String(famille?.name || entree.emplacement?.famille || article?.categoryId || '').trim();
+  const uniteAchat = uniteImposee(pole, 'achat');
+
+  const manques: ManqueColis[] = [];
+  const resultat = (r: Partial<ResultatColis>): ResultatColis => ({
+    pret: false, typeDevine: false, colis: [], desaccords: [], manques,
+    pole: pole ? { id: String(pole.id ?? ''), name: nomPole } : undefined,
+    uniteAchat,
+    ...r,
+  });
+
+  if (!pole) {
+    manques.push({
+      genre: 'pole',
+      texte: nomFamille
+        ? `Rattacher la famille « ${nomFamille} » à un pôle dans ${CHEMIN_GROUPES}`
+        : `Rattacher cet article à une famille et à un pôle dans ${CHEMIN_GROUPES}`,
+    });
+  }
+
+  // ── Le type : celui que le pôle tient de sa ligne logistique. À défaut, supposé d'après le NOM
+  // ou la LIGNE du pôle — jamais d'après les champs de l'article : les formulaires de commande
+  // recopient Pcs/sac dans Rouleaux/shrink, Sacs/carton dans Rouleaux/carton, le poids du ruban
+  // dans celui de la bande… une étiquette y passerait pour un ruban, un ruban pour une fermeture.
+  let type = entree.type && TYPES_CONNUS.has(entree.type) ? entree.type : undefined;
+  let typeDevine = false;
+  if (!type && pole) {
+    if (pole.specType && TYPES_CONNUS.has(pole.specType)) type = pole.specType;
+    else {
+      const devine = detectSpecType({ ...pole, specType: undefined });
+      if (devine && TYPES_CONNUS.has(devine)) { type = devine; typeDevine = true; }
+    }
+  }
+  if (pole && (!type || typeDevine)) {
+    manques.push({ genre: 'type', texte: consigneDeType(pole, nomPole, typeDevine ? type : undefined) });
+  }
+  if (!type) return resultat({ type: undefined, typeDevine });
+
+  // ── L'unité de vente : celle du pôle, pièces ou mètres.
+  const uniteVente = entree.uniteVente !== undefined ? (entree.uniteVente || undefined) : uniteImposee(pole, 'vente');
+  const enLongueur = TYPES_EN_LONGUEUR.has(type);
+  const attendue = uniteDeVenteAttendue(type)!;
+  const suppose = typeDevine ? type : undefined;
+  let venteUtilisable = false;
+  if (!uniteVente) {
+    if (pole) {
+      manques.push({
+        genre: 'unite-vente',
+        texte: consigneUniteDeVente(nomPole, attendue, uniteAchat, article?.unitOfMeasure ? [String(article.unitOfMeasure)] : [], suppose),
+      });
+    }
+  } else {
+    const nature = natureUnite(uniteVente);
+    const ok = enLongueur ? nature === 'longueur' && !!uniteDeLongueur(uniteVente) : nature === 'compte';
+    if (ok) venteUtilisable = true;
+    else {
+      const pourquoi = nature === 'poids'
+        ? 'un colis ne se convertit pas en poids'
+        : nature === 'colis'
+          ? `« ${uniteVente} » est un colis, pas une unité de vente`
+          : enLongueur
+            ? `un ${NOM_DU_TYPE[type].toLowerCase()} se vend en longueur`
+            : `un produit de type ${NOM_DU_TYPE[type].toLowerCase()} se vend à la pièce`;
+      manques.push({
+        genre: 'unite-vente',
+        texte: `Changer l'unité de vente du pôle ${nomPole || '—'} : « ${uniteVente} » ne convient pas (${pourquoi}) — choisir ${attendue}${suppose ? `, si c'est bien un ${NOM_DU_TYPE[suppose].toLowerCase()}` : ''}, dans ${CHEMIN_POLE}`,
+      });
+    }
+  }
+
+  // ── Les facteurs : arrivage (ligne de ventilation, puis article), puis catalogue.
+  const emplacement = entree.emplacement
+    ?? emplacementQualiteDuCatalogue(article, categories, generalCategories, type, entree.ligneQualite);
+  const catalogue = entree.catalogue ?? emplacement.ligne;
+  const lire = lecteur([
+    { objet: entree.ligneQualite, source: 'arrivage' },
+    { objet: entree.article, source: 'arrivage' },
+    { objet: catalogue, source: 'catalogue' },
+  ]);
+  const luUnite = enLongueur ? lire('rollLengthUnit') : undefined;
+  const ctx: ContexteUnite = {
+    arrivage: type === 'fabric' ? luUnite?.arrivage : undefined,   // ruban : voir ContexteUnite
+    catalogue: luUnite?.catalogue,
+    achatPole: uniteDeLongueur(uniteAchat),
+    article: uniteDeLongueur(article?.unitOfMeasure),
+  };
+
+  const colis: ContenuColis[] = [];
+  const desaccords: DesaccordColis[] = [];
+  const aSaisir: string[] = [];
+  const aCorriger: Illisible[] = [];
+  const aConfirmer: string[] = [];
+
+  const sorties: ColisDeSortie[] = type === 'fabric' ? ['rouleau']
+    : type === 'tape' ? (lire('rollsPerCarton') ? ['rouleau', 'carton'] : ['rouleau'])
+      : ['carton'];
+
+  for (const cle of sorties) {
+    const brut = contenuBrut(cle, type, lire, ctx);
+    if (!brut.ok) {
+      for (const m of brut.manquants) if (!aSaisir.includes(m)) aSaisir.push(m);
+      for (const i of brut.illisibles) if (!aCorriger.some(x => x.champ === i.champ && x.brut === i.brut)) aCorriger.push(i);
+      continue;
+    }
+    for (const d of brut.desaccords) if (!desaccords.some(x => x.texte === d.texte)) desaccords.push(d);
+    for (const t of brut.aConfirmer) if (!aConfirmer.includes(t)) aConfirmer.push(t);
+    const converti = venteUtilisable ? baseVersVente(brut.quantite, brut.uniteBase, uniteVente!) : null;
+    const enUniteDeVente = converti !== null;
+    const contenu = enUniteDeVente ? converti! : brut.quantite;
+    const unite = enUniteDeVente ? uniteVente! : brut.uniteBase;
+    const memeUnite = uniteCourte(unite) === uniteCourte(brut.uniteBase);
+    colis.push({
+      colis: cle, nom: COLIS[cle], contenu, unite, enUniteDeVente,
+      detail: `1 ${COLIS[cle].nom} = ${brut.calcul}${memeUnite ? '' : ` = ${nf(contenu)} ${uniteCourte(unite)}`}`,
+      facteurs: brut.facteurs,
+    });
+  }
+
+  const etiquette = (c: string) => `« ${labelDuChamp(type!, c)} »`;
+  const enListe = (l: string[]) => l.length > 1 ? `${l.slice(0, -1).join(', ')} et ${l[l.length - 1]}` : l[0];
+  if (aSaisir.length > 0) {
+    manques.push({
+      genre: aSaisir.every(c => c === 'rollLengthUnit') ? 'unite-longueur' : 'facteur',
+      action: 'saisir',
+      champs: aSaisir,
+      libelles: aSaisir.map(c => labelDuChamp(type!, c)),
+      texte: consigneDeSaisie('Saisir', enListe(aSaisir.map(etiquette)), emplacement, nomFamille, catalogue),
+    });
+  }
+  for (const i of aCorriger) {
+    const quoi = `${etiquette(i.champ)} (« ${i.brut} » : ${i.pourquoi})`;
+    manques.push({
+      genre: i.champ === 'rollLengthUnit' ? 'unite-longueur' : 'facteur',
+      action: 'corriger',
+      champs: [i.champ],
+      libelles: [labelDuChamp(type, i.champ)],
+      // Une valeur de l'arrivage se corrige sur l'article ; une valeur du catalogue, dans Qualités.
+      texte: i.source === 'arrivage'
+        ? `Corriger ${quoi} sur l'article : ${CHEMIN_ARTICLE}`
+        : consigneDeSaisie('Corriger', quoi, emplacement, nomFamille, catalogue),
+    });
+  }
+  for (const t of aConfirmer) {
+    manques.push({
+      genre: 'unite-longueur',
+      action: 'confirmer',
+      champs: ['rollLengthUnit'],
+      libelles: [labelDuChamp(type, 'rollLengthUnit')],
+      texte: `${consigneDeSaisie('Saisir', etiquette('rollLengthUnit'), emplacement, nomFamille, catalogue)} (${t})`,
+    });
+  }
+
+  return resultat({
+    type, typeDevine, uniteVente, colis, desaccords,
+    pret: manques.length === 0 && colis.length > 0 && colis.every(c => c.enUniteDeVente)
+      && !desaccords.some(d => d.bloquant),
+  });
+}
+
+/** « Saisir « Sacs/carton » pour la qualité N°5 (CL-5) de la famille NYLON N°3 dans … Qualités ». */
+function consigneDeSaisie(verbe: string, champs: string, emp: EmplacementQualite, nomFamille: string, catalogue: any): string {
+  const famille = emp.famille || nomFamille;
+  if (catalogue) {
+    const libelle = String(catalogue?.label || catalogue?.nameFR || '').trim();
+    const numero = emp.numero ? `N°${emp.numero}` : '';
+    const qualite = ['la qualité', numero, libelle ? `(${libelle})` : ''].filter(Boolean).join(' ');
+    if (emp.rangement === 'pole' && emp.pole) {
+      return `${verbe} ${champs} pour ${qualite} du pôle ${emp.pole} dans ${CHEMIN_GROUPES}`;
+    }
+    return `${verbe} ${champs} pour ${qualite}${famille ? ` de la famille ${famille}` : ''} dans ${CHEMIN_QUALITES}`;
+  }
+  if (emp.qualiteNommee) {
+    return `Ajouter la qualité « ${emp.qualiteNommee} »${famille ? ` à la famille ${famille}` : ''} avec ${champs} dans ${CHEMIN_QUALITES} (elle n'existe pas au catalogue)`;
+  }
+  if (emp.nombreDeLignes > 1) {
+    // Le vrai problème est là : l'article ne dit pas laquelle des qualités il est. Le nommer
+    // règle d'un coup tous ses champs, puisqu'ils viennent alors du catalogue.
+    return `Nommer la qualité de cet article (la famille ${famille} en a ${emp.nombreDeLignes} au catalogue) : ${CHEMIN_ARTICLE} — ou y ${verbe.toLowerCase()} directement ${champs}`;
+  }
+  return `Ajouter une qualité${famille ? ` à la famille ${famille}` : ''} avec ${champs} dans ${CHEMIN_QUALITES}`;
+}
+
+export type ConversionVente =
+  | { ok: true; quantite: number; unite: string; detail: string }
+  | { ok: false; quantite: null; raison: string };
+
+export interface OptionsConversion {
+  /** L'unité de vente du pôle : pièces (doz, grosses) ou longueur (m, yds). */
+  uniteVente: string | null | undefined;
+  /** Le type du produit : il dit ce que contient un sac, un rouleau, un carton — et en quoi il se vend. */
+  type?: string;
+  /**
+   * Les objets RELEVÉS À L'ARRIVAGE où lire le conditionnement, du plus au moins fiable : ligne
+   * de ventilation, puis article. Un objet seul est accepté.
+   */
+  facteurs?: any | any[];
+  /** La ligne du catalogue, lue en dernier — et seule à donner l'unité du rouleau d'un ruban. */
+  catalogue?: any;
+  /** L'unité d'achat du pôle : celle d'une longueur de rouleau dont l'unité n'est saisie nulle part. */
+  uniteLongueurParDefaut?: string;
+  /** L'unité de l'article : celle où le bon de réception compte une longueur relevée à l'arrivage. */
+  uniteArticle?: string;
+}
+
+/**
+ * Convertit une quantité vers l'unité de vente : sacs, rouleaux, cartons, boîtes, shrinks,
+ * douzaines (× 12), grosses (× 144), yards, pièces ou mètres. `ok: false` et la raison quand ce
+ * n'est pas possible — jamais un chiffre approximatif, jamais un poids.
+ *
+ * (Écrite pour l'étape 3, quand le stock se comptera en unité de vente ; testée dès maintenant.)
+ */
+export function versUniteDeVente(quantite: number, uniteSource: string, options: OptionsConversion): ConversionVente {
+  const refus = (raison: string): ConversionVente => ({ ok: false, quantite: null, raison });
+  const q = Number(quantite);
+  if (!isFinite(q)) return refus('quantité illisible');
+  const vente = String(options.uniteVente || '').trim();
+  if (!vente) return refus("le pôle n'a pas d'unité de vente");
+  const natureVente = natureUnite(vente);
+  if (natureVente === 'poids') return refus(`unité de vente au poids (${vente}) : rien ne se convertit en kilos`);
+  if (natureVente !== 'compte' && natureVente !== 'longueur') return refus(`unité de vente « ${vente} » non utilisable : choisir pièces ou mètres`);
+  if (natureVente === 'longueur' && !uniteDeLongueur(vente)) return refus(`unité de vente « ${vente} » non reconnue`);
+
+  // Même règle que `contenuDuColis` : le tissu et le ruban se vendent en longueur, le reste à la pièce.
+  const type = options.type && TYPES_CONNUS.has(options.type) ? options.type : undefined;
+  if (type && TYPES_EN_LONGUEUR.has(type) !== (natureVente === 'longueur')) {
+    return refus(`un produit de type ${NOM_DU_TYPE[type].toLowerCase()} se vend ${TYPES_EN_LONGUEUR.has(type) ? 'en longueur' : 'à la pièce'}, pas en ${vente}`);
+  }
+
+  const source = String(uniteSource || '').trim();
+  const nature = natureUnite(source);
+  if (nature === 'poids') return refus(`quantité au poids (${source}) : elle ne se convertit pas en ${vente}`);
+  if (nature === 'inconnue') return refus(`unité « ${source || '—'} » non reconnue`);
+
+  if (nature === 'compte' || nature === 'longueur') {
+    const r = baseVersVente(q, source, vente);
+    if (r === null) {
+      return refus(nature === 'compte'
+        ? `des ${source} ne deviennent pas des ${vente} : il faut un rouleau ou un carton pour passer de l'un à l'autre`
+        : `une longueur (${source}) ne devient pas des ${vente}`);
+    }
+    const memeUnite = uniteCourte(source) === uniteCourte(vente);
+    return {
+      ok: true, quantite: r, unite: vente,
+      detail: memeUnite ? `${nf(q)} ${uniteCourte(vente)}` : `${nf(q)} ${uniteCourte(source)} = ${nf(r)} ${uniteCourte(vente)}`,
+    };
+  }
+
+  // Un colis : il faut savoir ce qu'il contient.
+  const cle = UNITES_COLIS[sansAccent(source)];
+  if (!type) return refus(`le type du produit est inconnu : un ${COLIS[cle].nom} ne se convertit pas sans lui`);
+  const objets = (Array.isArray(options.facteurs) ? options.facteurs : [options.facteurs]).filter(Boolean);
+  const lire = lecteur([
+    ...objets.map((objet: any) => ({ objet, source: 'arrivage' as SourceFacteur })),
+    { objet: options.catalogue, source: 'catalogue' as SourceFacteur },
+  ]);
+  const luUnite = TYPES_EN_LONGUEUR.has(type) ? lire('rollLengthUnit') : undefined;
+  const ctx: ContexteUnite = {
+    arrivage: type === 'fabric' ? luUnite?.arrivage : undefined,
+    catalogue: luUnite?.catalogue,
+    achatPole: uniteDeLongueur(options.uniteLongueurParDefaut),
+    article: uniteDeLongueur(options.uniteArticle),
+  };
+  const brut = contenuBrut(cle, type, lire, ctx);
+  if (!brut.ok) {
+    if (brut.impossible) return refus(brut.impossible);
+    if (brut.illisibles.length > 0) {
+      return refus(`valeur illisible : ${brut.illisibles.map(i => `« ${labelDuChamp(type, i.champ)} » vaut « ${i.brut} » (${i.pourquoi})`).join(' ; ')}`);
+    }
+    const labels = brut.manquants.map(c => `« ${labelDuChamp(type, c)} »`);
+    return refus(`il manque ${labels.join(' et ')} pour savoir ce que contient un ${COLIS[cle].nom}`);
+  }
+  if (brut.aConfirmer.length > 0) return refus(`unité du rouleau à confirmer : ${brut.aConfirmer.join(' ; ')}`);
+  const bloquant = brut.desaccords.find(d => d.bloquant);
+  if (bloquant) return refus(bloquant.texte);
+  const parColis = baseVersVente(brut.quantite, brut.uniteBase, vente);
+  if (parColis === null) {
+    return refus(`un ${COLIS[cle].nom} de ${NOM_DU_TYPE[type].toLowerCase()} se compte en ${brut.uniteBase}, pas en ${vente}`);
+  }
+  const total = arrondi(q * parColis);
+  return {
+    ok: true, quantite: total, unite: vente,
+    detail: `${nf(q)} ${q > 1 ? COLIS[cle].pluriel : COLIS[cle].nom} × ${nf(parColis)} ${uniteCourte(vente)} = ${nf(total)} ${uniteCourte(vente)}`,
+  };
 }

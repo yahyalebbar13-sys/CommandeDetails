@@ -80,9 +80,10 @@ import BankReconciliationView from './bank-reconciliation-view';
 import AuditLogView from './audit-log-view';
 import ChequesImpayesView from './cheques-impayes-view';
 import CommercialExpensesView from './commercial-expenses-view';
+import RapportCartonsRouleaux from './rapport-cartons-rouleaux';
 import { Landmark } from 'lucide-react';
 
-type StockView = 'dashboard' | 'sale' | 'stock' | 'analytics' | 'clients' | 'orders' | 'invoices' | 'cheques-impayes' | 'expenses' | 'movements' | 'alerts' | 'arrivals' | 'transfers' | 'stores' | 'warehouses' | 'locations' | 'import-requests' | 'treasury' | 'reconciliation' | 'audit' | 'inventory';
+type StockView = 'dashboard' | 'sale' | 'stock' | 'analytics' | 'clients' | 'orders' | 'invoices' | 'cheques-impayes' | 'expenses' | 'movements' | 'alerts' | 'arrivals' | 'transfers' | 'stores' | 'warehouses' | 'locations' | 'import-requests' | 'treasury' | 'reconciliation' | 'audit' | 'inventory' | 'cartons-rouleaux';
 
 // Formate une Date en YYYY-MM-DD à partir de ses composantes LOCALES — contrairement à
 // toISOString() (qui convertit en UTC), ça évite qu'un calcul "il y a N jours" bascule sur le
@@ -3204,6 +3205,8 @@ export default function StockApp() {
     { id: 'movements', label: 'Mouvements',    category: 'logistique', icon: ArrowLeftRight },
     { id: 'transfers', label: 'Transferts',    category: 'logistique', icon: Truck,           color: 'blue' },
     { id: 'inventory', label: 'Inventaire',    category: 'logistique', icon: ClipboardList,   color: 'amber' },
+    // Vérification avant le passage au carton/rouleau compté en unité de vente : lecture seule.
+    { id: 'cartons-rouleaux', label: 'Cartons et rouleaux', category: 'logistique', icon: Boxes, adminOnly: true },
 
     { id: 'treasury',  label: 'Trésorerie',    category: 'finance', icon: Landmark,        badge: urgent7DaysEffects.length > 0 ? urgent7DaysEffects.length : undefined, color: 'emerald', adminOnly: true },
     { id: 'reconciliation', label: 'Rappro. Bancaire', category: 'finance', icon: ArrowLeftRight, color: 'blue', adminOnly: true },
@@ -3731,6 +3734,15 @@ export default function StockApp() {
             )}
             {activeView === 'alerts' && (
               <StockAlerts stockItems={stockItems} articles={articles} categories={categories} movements={filteredMovements} stores={stores} locations={storageLocations} activeStore={activeStore} onNavigate={setActiveView} adminUid={adminUid} onAddMovement={handleAddMovement} readOnly={userRole === 'ADMIN'} />
+            )}
+            {activeView === 'cartons-rouleaux' && userRole === 'ADMIN' && (
+              <RapportCartonsRouleaux
+                stockItems={stockItems}
+                articles={articles}
+                categories={categories}
+                generalCategories={generalCategories}
+                factures={factures}
+              />
             )}
             {activeView === 'audit' && (
               <AuditLogView entries={auditLogEntries} />

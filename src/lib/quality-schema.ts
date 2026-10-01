@@ -104,7 +104,13 @@ export const QUALITY_SCHEMA: Record<string, QualityFieldDef[]> = {
     { key: 'width', label: 'Largeur', type: 'text' },
     { key: 'weightPerM', label: 'Poids/m', type: 'text' },
     { key: 'rollLength', label: 'Long./rouleau', type: 'text', groupe: 'conditionnement',
-      aide: "Longueur d'un rouleau, dans l'unité d'achat du produit." },
+      aide: "Longueur d'un rouleau. Son unité est dans la colonne suivante (unité d'achat du pôle si elle est vide)." },
+    // L'unité de cette longueur. Même nom que pour le tissu — et surtout PAS `lengthUnit`, qui
+    // pour le fil est la longueur d'UNE pièce : un rouleau de 100 yds n'est pas un rouleau de
+    // 100 m, et sans cette case le logiciel ne pouvait pas le savoir.
+    { key: 'rollLengthUnit', label: 'Unité rouleau', type: 'select', options: ['m', 'yds'],
+      placeholder: "unité d'achat", groupe: 'conditionnement',
+      aide: "Unité de la longueur du rouleau : m ou yds. Vide = l'unité d'achat du pôle." },
     { key: 'rollsPerShrink', label: 'Rouleaux/shrink', type: 'text', groupe: 'conditionnement',
       aide: 'Combien de rouleaux dans un film rétractable.' },
     { key: 'rollsPerCarton', label: 'Rouleaux/carton', type: 'text', groupe: 'conditionnement',

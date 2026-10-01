@@ -1288,9 +1288,10 @@ export default function CategoriesView({
      * partir d'une liste ecrite en dur. Tout champ du modele qu'ils ignorent serait donc EFFACE
      * par un simple enregistrement de cet ecran — le grand carton et l'empilage en barrette sont
      * saisis dans l'ecran Qualites, mais dans LE MEME document Firestore. On les reporte.
+     * L'unite du rouleau de ruban (rollLengthUnit, saisie dans Qualites) en fait partie.
      */
     const reporterChampsConserves = (source: any, item: Record<string, any>) => {
-      for (const champ of ['stackPerRow', 'stackRows', 'pcsPerCtn']) {
+      for (const champ of ['stackPerRow', 'stackRows', 'pcsPerCtn', 'rollLengthUnit']) {
         const v = source?.[champ];
         if (v !== undefined && v !== null && String(v).trim() !== '') item[champ] = v;
       }

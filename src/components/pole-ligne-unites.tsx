@@ -157,6 +157,16 @@ export function ChampsUnitesPole({
         Une unité fixée devient obligatoire dans les formulaires : commandes et achats au marché pour
         l'achat ; caisse, factures, transferts, inventaire et mouvements pour la vente et le stock.
       </p>
+      {/* Sans unité d'achat, l'unité de vente devient tout de suite celle du stock (uniteDeStock) :
+          rien n'est converti, 120 rouleaux s'afficheraient « 120 m ». Le dire AVANT d'enregistrer. */}
+      {uniteVente && !uniteAchat && (
+        <p className="text-[10px] font-bold text-red-700 leading-relaxed">
+          Sans unité d'achat, tout le stock de ce pôle sera compté en {LIBELLE_UNITE[uniteVente] || uniteVente} dès
+          l'enregistrement, sans conversion : un article compté aujourd'hui en rouleaux ou en douzaines garderait son
+          nombre (120 rouleaux deviendraient « 120 {uniteVente} »). Fixez d'abord l'unité d'achat — celle où le stock
+          est compté aujourd'hui.
+        </p>
+      )}
       {differentes && (
         <p className="text-[10px] font-bold text-amber-700 leading-relaxed">
           Achat en {LIBELLE_UNITE[uniteAchat!] || uniteAchat}, vente en {LIBELLE_UNITE[uniteVente!] || uniteVente} :

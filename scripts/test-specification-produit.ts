@@ -118,5 +118,21 @@ console.log('\n── L’article corrigé, pour les écrans qui lisent ses cham
     articleSelonCatalogue(article, cat as any, poles as any).fabricWidth, 150);
 }
 
+console.log('\n── Ruban : l’unité du rouleau ne s’imprime pas ──');
+{
+  // Les formulaires posent rollLengthUnit = 'm' sur chaque ruban, sans choix. Imprimée, la ligne
+  // serait souvent fausse et repousserait « Rouleaux/carton » au-delà des 5 caractéristiques.
+  const polesRuban = [{ id: 'PR', name: 'RIBBON', specType: 'tape' }];
+  const cats = [{ id: 'FR', name: 'SATIN', generalCategoryId: 'PR' }];
+  const ruban = {
+    categoryId: 'FR', width: '25MM', weightPerM: 12, rollLength: 100, rollLengthUnit: 'm',
+    rollsPerShrink: 5, rollsPerCarton: 50,
+  };
+  const lignes = specificationsArticle(ruban, cats as any, polesRuban as any);
+  check('pas de ligne « Unité rouleau »', !lignes.some(l => l.cle === 'rollLengthUnit'), JSON.stringify(lignes));
+  eq('les 5 caractéristiques du ruban', lignes.map(l => l.label).join(' · '),
+    'Largeur · Poids/m · Long./rouleau · Rouleaux/shrink · Rouleaux/carton');
+}
+
 console.log(`\n${pass} réussis, ${fail} échoués`);
 if (fail > 0) process.exit(1);

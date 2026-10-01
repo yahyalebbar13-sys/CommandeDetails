@@ -91,28 +91,74 @@ const sansAccent = (v: unknown): string =>
 export function ligneQualiteDuCatalogue(
   article: any, categories: any[] = [], generalCategories: any[] = [], type?: string, ligneQualite?: any,
 ): any | undefined {
-  const champ = type ? QUALITIES_FIELD_BY_SPEC[type] : undefined;
-  if (!champ) return undefined;
+  return emplacementQualiteDuCatalogue(article, categories, generalCategories, type, ligneQualite).ligne;
+}
 
+/**
+ * La même recherche que `ligneQualiteDuCatalogue`, mais qui dit aussi OÙ se trouve la ligne — ou
+ * pourquoi on ne l'a pas trouvée.
+ *
+ * C'est ce qu'il faut pour écrire une consigne qu'on peut suivre : « saisir Sacs/carton pour la
+ * qualité N°5 de la famille NYLON N°3 dans Qualités », plutôt que « Sacs/carton manque ». Le
+ * numéro est la position de la ligne dans sa liste, en partant de 1 — l'ordre de l'écran Qualités.
+ */
+export interface EmplacementQualite {
+  /** La ligne du catalogue retenue, si on en a trouvé une. */
+  ligne?: any;
+  /** Où elle est rangée : dans la famille (le cas courant) ou directement sur le pôle. */
+  rangement?: 'famille' | 'pole';
+  /** Sa position dans la liste, à partir de 1. */
+  numero?: number;
+  /** Le nom de la famille de l'article (même quand aucune ligne n'est trouvée). */
+  famille?: string;
+  /** Le nom du pôle qui porte les qualités, quand on le connaît. */
+  pole?: string;
+  /** Le libellé de qualité que l'article ou sa ligne de ventilation nomme, s'il en nomme un. */
+  qualiteNommee?: string;
+  /** Combien de lignes de qualité la famille et le pôle proposent en tout. */
+  nombreDeLignes: number;
+}
+
+export function emplacementQualiteDuCatalogue(
+  article: any, categories: any[] = [], generalCategories: any[] = [], type?: string, ligneQualite?: any,
+): EmplacementQualite {
   const famille = (categories || []).find((c: any) => c?.id === article?.categoryId || c?.name === article?.categoryId);
   const pole = (generalCategories || []).find((g: any) => g?.id === (article?.generalCategoryId || famille?.generalCategoryId));
-  const lignes = [
-    ...(Array.isArray(famille?.[champ]) ? famille[champ] : []),
-    ...(Array.isArray(pole?.[champ]) ? pole[champ] : []),
-  ];
-  if (lignes.length === 0) return undefined;
+  const base: EmplacementQualite = {
+    famille: famille?.name ? String(famille.name) : undefined,
+    pole: pole?.name ? String(pole.name) : undefined,
+    nombreDeLignes: 0,
+  };
 
-  const nomme = [
+  const champ = type ? QUALITIES_FIELD_BY_SPEC[type] : undefined;
+  if (!champ) return base;
+
+  // La famille d'abord, le pôle ensuite : même ordre qu'avant, chaque ligne gardant sa place.
+  const lignes: { ligne: any; rangement: 'famille' | 'pole'; numero: number }[] = [
+    ...(Array.isArray(famille?.[champ]) ? famille[champ] : [])
+      .map((ligne: any, i: number) => ({ ligne, rangement: 'famille' as const, numero: i + 1 })),
+    ...(Array.isArray(pole?.[champ]) ? pole[champ] : [])
+      .map((ligne: any, i: number) => ({ ligne, rangement: 'pole' as const, numero: i + 1 })),
+  ];
+  base.nombreDeLignes = lignes.length;
+
+  const brut = [
     ligneQualite?.quality, ligneQualite?.label, ligneQualite?.nameFR,
     article?.quality, article?.qualityLabel,
-  ].map(sansAccent).find(v => v && v !== 'various');
+  ].find(v => { const s = sansAccent(v); return s && s !== 'various'; });
+  const nomme = brut !== undefined ? sansAccent(brut) : undefined;
+  if (brut !== undefined) base.qualiteNommee = String(brut).trim();
+  if (lignes.length === 0) return base;
 
+  let trouve: (typeof lignes)[number] | undefined;
   if (nomme) {
-    return lignes.find((l: any) =>
+    trouve = lignes.find(({ ligne: l }) =>
       [l?.label, l?.nameFR, l?.quality].some(v => sansAccent(v) === nomme));
+  } else if (lignes.length === 1) {
+    // Aucun nom pour trancher : une famille qui n'a qu'une qualité ne laisse pas de place au doute.
+    trouve = lignes[0];
   }
-  // Aucun nom pour trancher : une famille qui n'a qu'une qualité ne laisse pas de place au doute.
-  return lignes.length === 1 ? lignes[0] : undefined;
+  return trouve ? { ...base, ...trouve } : base;
 }
 
 /**
@@ -154,6 +200,11 @@ export function specificationsArticle(
   const lignes: LigneSpecification[] = [];
   for (const champ of modele) {
     if (champ.type === 'image') continue;
+    // L'unité du rouleau de RUBAN (case ajoutée dans Qualités) ne s'imprime pas : les formulaires
+    // de commande écrivent « m » par défaut sur chaque ruban, sans choix possible — la ligne
+    // « Unité rouleau m » serait souvent fausse, et elle repousserait « Rouleaux/carton » au-delà
+    // des 5 caractéristiques que les factures et les PI affichent.
+    if (type === 'tape' && champ.key === 'rollLengthUnit') continue;
     const groupe = groupeDuChamp(champ);
     if (!retenus.has(groupe)) continue;
     const brut = groupe === 'technique' && rempli(definition?.[champ.key])
