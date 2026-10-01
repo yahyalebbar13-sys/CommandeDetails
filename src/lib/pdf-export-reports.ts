@@ -2,6 +2,8 @@ import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import type { CheckRemittance } from '@/lib/types';
 import { precisionsLigne, qualiteDeLArticle, specificationsArticle, valeurImprimable } from '@/lib/specification-produit';
+import { totauxJournal, texteTotaux, libelleMotif, stockDuMouvement, uniteDuMouvement } from '@/lib/journal-mouvements';
+import { uniteEnFrancais } from '@/lib/etageres';
 import {
   MARGE, HAUTEUR_PIED, NAVY, ESTOMPE, FOND, STYLES_TABLEAU,
   enTeteDocument, piedDeDocument,
@@ -134,9 +136,9 @@ export async function exportReportPDF(options: PDFReportOptions) {
  * Export des mouvements de stock en PDF
  */
 export async function exportMovementsPDF(movements: any[], customTitle?: string, customSubtitle?: string) {
-  const totalIN = movements.filter(m => m.type === 'IN').reduce((s, m) => s + (m.quantity || 0), 0);
-  const totalOUT = movements.filter(m => m.type === 'OUT').reduce((s, m) => s + (m.quantity || 0), 0);
-  const net = totalIN - totalOUT;
+  // Les totaux unité par unité, réserve et étagères à part, sans les mises en rayon (un mouvement
+  // interne) : additionner des sacs et des pièces donnait un « flux net » sans aucun sens.
+  const totaux = totauxJournal(movements);
 
   return exportReportPDF({
     title: customTitle || 'Rapport des Mouvements de Stock',
@@ -151,6 +153,8 @@ export async function exportMovementsPDF(movements: any[], customTitle?: string,
       { header: 'Couleur', dataKey: 'color', width: 20 },
       { header: 'Taille', dataKey: 'size', width: 16 },
       { header: 'Qté', dataKey: 'quantity', width: 13 },
+      { header: 'Unité', dataKey: 'unite', width: 14 },
+      { header: 'Stock', dataKey: 'stock', width: 16 },
       { header: 'Magasin / Dépôt', dataKey: 'storeId', width: 24 },
       { header: 'Notes / Réf', dataKey: 'notes' },
     ],
@@ -159,19 +163,24 @@ export async function exportMovementsPDF(movements: any[], customTitle?: string,
     data: movements.map(m => ({
       date: m.date || '',
       type: m.type === 'IN' ? 'Entrée' : m.type === 'OUT' ? 'Sortie' : 'Ajustement',
-      reason: m.reason || '',
+      reason: libelleMotif(m.reason),
       productName: m.productName || '',
       quality: qualiteDeLArticle(m) || '—',
       color: valeurImprimable(m.color, '—'),
       size: valeurImprimable(m.size, '—'),
       quantity: m.quantity || 0,
+      unite: uniteEnFrancais(uniteDuMouvement(m), Number(m.quantity) || 0) || '—',
+      stock: stockDuMouvement(m),
       storeId: m.storeId || '',
       notes: m.notes || '',
     })),
     summaryRows: [
-      { label: 'Total Entrées', value: `+${totalIN.toLocaleString('fr-MA')} pcs` },
-      { label: 'Total Sorties', value: `-${totalOUT.toLocaleString('fr-MA')} pcs` },
-      { label: 'Flux Net Global', value: `${net >= 0 ? '+' : ''}${net.toLocaleString('fr-MA')} pcs` },
+      { label: 'Total Entrées', value: texteTotaux(totaux.entrees, { signe: true }) },
+      { label: 'Total Sorties', value: texteTotaux(totaux.sorties) },
+      { label: 'Flux Net', value: texteTotaux(totaux.net, { signe: true }) },
+      ...(totaux.misesEnRayon > 0
+        ? [{ label: 'Mises en rayon', value: `${totaux.misesEnRayon} (de la réserve vers les étagères, hors totaux)` }]
+        : []),
     ],
     footer: 'LEBTEX SARL AU — Traçabilité des Mouvements & Bilan Hebdomadaire',
   });

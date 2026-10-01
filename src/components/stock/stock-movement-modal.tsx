@@ -44,7 +44,7 @@ interface StockMovementModalProps {
   preselectedArticleId?: string;
   preselectedType?: StockMovementType;
   activeStore?: StoreLocation | 'ALL';
-  onSubmit: (movement: Omit<StockMovement, 'id' | 'createdAt'>) => Promise<void>;
+  onSubmit: (movement: Omit<StockMovement, 'id' | 'createdAt'>) => Promise<boolean | void>;
 }
 
 /**

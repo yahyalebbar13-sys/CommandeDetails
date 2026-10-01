@@ -43,7 +43,7 @@ interface StockInvoicesProps {
   onUpdateStatus: (id: string, status: InvoiceStatus) => Promise<void>;
   onProcessReturn?: (
     invoice: Invoice,
-    returnLines: { articleId: string; categoryId: string; productName: string; nameFR?: string; color?: string; size?: string; quality?: string; unitOfMeasure: string; qty: number; unitPrice: number }[]
+    returnLines: { articleId: string; categoryId: string; productName: string; nameFR?: string; color?: string; size?: string; quality?: string; unitOfMeasure: string; qty: number; unitPrice: number; etagere?: boolean }[]
   ) => Promise<void>;
   /**
    * L'encaissement à ouvrir tout de suite : celui d'un bon qu'on vient de finaliser depuis
@@ -127,6 +127,8 @@ export default function StockInvoices({ invoices, clients, payments, onRecordPay
         unitOfMeasure: item.unitOfMeasure,
         qty: Math.min(Math.max(0, Number(returnQtys[idx]) || 0), retournable[idx] ?? item.qty),
         unitPrice: item.unitPrice,
+        // Vendu aux étagères : il y revient (src/lib/etageres.ts).
+        ...((item as any).etagere ? { etagere: true } : {}),
       }))
       .filter(l => l.qty > 0);
 

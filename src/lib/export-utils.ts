@@ -1,5 +1,6 @@
 import * as XLSX from 'xlsx';
 import { valeurImprimable } from '@/lib/specification-produit';
+import { libelleMotif, stockDuMouvement, uniteDuMouvement } from '@/lib/journal-mouvements';
 
 type ExportFormat = 'csv' | 'xlsx';
 
@@ -47,13 +48,18 @@ export function formatMovementsForExport(movements: any[]) {
   return movements.map(m => ({
     'Date': m.date || '',
     'Type': m.type === 'IN' ? 'Entrée' : m.type === 'OUT' ? 'Sortie' : 'Ajustement',
-    'Motif': m.reason || '',
+    // Le motif en clair (« Mise en rayon — Réserve → Étagères », pas « MISE_EN_RAYON »).
+    'Motif': libelleMotif(m.reason),
+    // Au magasin principal, deux stocks : la réserve (sacs, rouleaux…) et les étagères (pièces,
+    // mètres). Sans ces deux colonnes, « Sortie 50 » ne disait ni d'où, ni en quoi.
+    'Stock': stockDuMouvement(m),
     'Produit': m.productName || '',
     // « various » est la marque interne d'un article ventile, jamais une couleur : l'ecran et le
     // PDF l'ecartent deja, l'Excel la recopiait telle quelle.
     'Couleur': valeurImprimable(m.color),
     'Taille': valeurImprimable(m.size),
     'Quantité': m.quantity || 0,
+    'Unité': uniteDuMouvement(m),
     'Magasin': m.storeId || '',
     'Destination': m.toStoreId || '',
     'Notes': m.notes || '',

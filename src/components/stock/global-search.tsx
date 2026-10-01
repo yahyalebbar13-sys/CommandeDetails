@@ -4,6 +4,7 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Search, Package, Users, FileText, CornerDownLeft, X } from 'lucide-react';
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
 import type { StockItem, Client, Invoice } from '@/lib/types';
+import { LIBELLE_ETAGERES } from '@/lib/etageres';
 
 type StockView = string;
 
@@ -33,14 +34,21 @@ export default function GlobalSearch({ open, onOpenChange, stockItems, clients, 
 
   const matchedProducts = useMemo(() => {
     if (!q) return [];
-    return stockItems
+    const trouves = stockItems
       .filter(i =>
         (i.nameFR || i.productName || '').toLowerCase().includes(q) ||
         (i.color || '').toLowerCase().includes(q) ||
         (i.size || '').toLowerCase().includes(q) ||
-        (i.quality || '').toLowerCase().includes(q)
-      )
-      .slice(0, 5);
+        (i.quality || '').toLowerCase().includes(q) ||
+        // « étagère » retrouve les lignes des étagères de CHRIFA (src/lib/etageres.ts).
+        (Boolean((i as any)._etagere) && q.length >= 3 && ('étagères'.includes(q) || 'etageres'.includes(q)))
+      );
+    // Les lignes Étagères viennent en fin de liste (computeStockItems) : coupées à 5 après les
+    // couleurs de la réserve, elles n'apparaissaient jamais pour un produit à 5 couleurs. On leur
+    // garde leur place (deux au plus), puis la réserve complète.
+    const etageres = trouves.filter(i => Boolean((i as any)._etagere)).slice(0, 2);
+    const reserve = trouves.filter(i => !(i as any)._etagere);
+    return [...reserve.slice(0, 5 - etageres.length), ...etageres];
   }, [stockItems, q]);
 
   const matchedClients = useMemo(() => {
@@ -111,7 +119,11 @@ export default function GlobalSearch({ open, onOpenChange, stockItems, clients, 
                       <div className="flex-1 min-w-0">
                         <p className="text-xs font-black text-stone-900 truncate">{item.nameFR || item.productName}</p>
                         <p className="text-[10px] text-stone-400 font-bold truncate">
-                          {[item.quality, item.color, item.size].filter(Boolean).join(' · ') || item.categoryId}
+                          {/* Un produit de CHRIFA a deux stocks : la réserve (par couleur) et les
+                              étagères (sans couleur, en unité de vente). On dit lequel. */}
+                          {(item as any)._etagere
+                            ? `${LIBELLE_ETAGERES} · ${[item.quality, item.size].filter(Boolean).join(' · ') || 'sans couleur'}`
+                            : [item.quality, item.color, item.size].filter(Boolean).join(' · ') || item.categoryId}
                         </p>
                       </div>
                       <span className={`text-[10px] font-black px-2 py-1 rounded-lg shrink-0 ${item.currentQty > 0 ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'}`}>

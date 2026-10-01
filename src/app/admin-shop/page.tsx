@@ -1528,7 +1528,9 @@ function ProduitsView() {
         if (a.slider) parts.push(a.slider);
         const productName = parts.length > 0 ? parts.join(' ') : (a.name || a.specs || a.categoryId || 'Produit');
         
-        const artMovements = stockMovements.filter((m: any) => m.articleId === a.id);
+        // Les mouvements des étagères de CHRIFA (sans couleur, en unité de vente) ne comptent pas
+        // dans le stock de la boutique ; la sortie de réserve d'une mise en rayon, elle, compte.
+        const artMovements = stockMovements.filter((m: any) => m.articleId === a.id && m.etagere !== true);
         // Filter out old arrivals
         const RESET_DATE = '2026-07-06';
         const filteredMov = artMovements.filter((m: any) => {

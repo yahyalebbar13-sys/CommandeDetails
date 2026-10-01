@@ -50,6 +50,9 @@ export function disponibleDepuis(
   lieux: LieuConnu[] = [],
 ): number {
   if (!item) return 0;
+  // Les étagères de CHRIFA (src/lib/etageres.ts) ne sont pas de la réserve : une ligne
+  // « Étagères » ne se transfère pas, ne se range pas, et se compte avec disponibleSurEtageres.
+  if ((item as any)._etagere) return 0;
   const parLieu = item.qtyByStore;
   if (!parLieu) return Number(item.currentQty) || 0;
 
@@ -64,4 +67,26 @@ export function disponibleDepuis(
   }
 
   return Math.max(0, Number(parLieu[lieuId]) || 0);
+}
+
+/**
+ * Ce que les étagères du magasin principal ont sous la main, en unité de vente.
+ *
+ * Seule une ligne « Étagères » (`_etagere`, fabriquée par computeStockItems) en a : une ligne de
+ * réserve vaut 0 ici, comme une ligne Étagères vaut 0 pour disponibleDepuis. Sans lieu précisé,
+ * tout ce que la ligne porte ; avec un lieu, ce qu'elle porte sous ce lieu (les étagères n'existent
+ * qu'au magasin principal : tout autre lieu vaut 0).
+ */
+export function disponibleSurEtageres(
+  item: { _etagere?: boolean; qtyByStore?: Partial<Record<string, number>> | null; currentQty?: number } | null | undefined,
+  lieuId?: string,
+): number {
+  if (!item || !item._etagere) return 0;
+  const parLieu = item.qtyByStore;
+  let total: number;
+  if (lieuId) total = parLieu ? (Number(parLieu[lieuId]) || 0) : (lieuId === MAGASIN_PRINCIPAL ? Number(item.currentQty) || 0 : 0);
+  else total = parLieu
+    ? Object.values(parLieu).reduce((somme: number, q) => somme + (Number(q) || 0), 0)
+    : Number(item.currentQty) || 0;
+  return Math.max(0, Math.round(total * 1000) / 1000);
 }

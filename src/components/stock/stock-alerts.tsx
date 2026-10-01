@@ -15,6 +15,7 @@ import { computeReorderAlert, formatReorderBadge } from '@/lib/reorder-utils';
 import type { StoreLocation } from '@/lib/types';
 import StockMovementModal from './stock-movement-modal';
 import type { StorageLocation } from '@/lib/warehouse-locations';
+import { cleEtagere, magasinDesEtageres, uniteEnFrancais } from '@/lib/etageres';
 
 type StockView = 'dashboard' | 'stock' | 'movements' | 'alerts';
 
@@ -28,11 +29,16 @@ interface StockAlertsProps {
   activeStore: StoreLocation | 'ALL';
   onNavigate: (v: StockView) => void;
   adminUid?: string | null;
-  onAddMovement: (m: Omit<StockMovement, 'id' | 'createdAt'>) => Promise<void>;
+  onAddMovement: (m: Omit<StockMovement, 'id' | 'createdAt'>) => Promise<boolean | void>;
   readOnly?: boolean;
+  /**
+   * Les lignes « Étagères » de CHRIFA (src/lib/etageres.ts). Les alertes portent sur la RÉSERVE ;
+   * un produit dont la réserve est vide mais qui est encore sur les étagères n'est pas en rupture.
+   */
+  etageres?: StockItem[];
 }
 
-export default function StockAlerts({ stockItems, articles, categories, movements, stores = [], locations = [], activeStore, onNavigate, adminUid, onAddMovement, readOnly = false }: StockAlertsProps) {
+export default function StockAlerts({ stockItems, articles, categories, movements, stores = [], locations = [], activeStore, onNavigate, adminUid, onAddMovement, readOnly = false, etageres = [] }: StockAlertsProps) {
   const { user } = useUser();
   const firestore = useFirestore();
   const { toast } = useToast();
@@ -115,6 +121,20 @@ export default function StockAlerts({ stockItems, articles, categories, movement
 
   const totalAlerts = lowStockItems.length + ruptureItems.length;
 
+  // Ce qui reste sur les étagères pour une ligne d'alerte (au magasin principal seulement) : la
+  // quantité, dans son unité, jamais additionnée à la réserve ni comparée au seuil.
+  const magasinPrincipalId = magasinDesEtageres(stores);
+  const surEtageres = (item: any): string | null => {
+    if (etageres.length === 0) return null;
+    const lieu = item?._storeLabel;
+    if (lieu && lieu !== magasinPrincipalId) return null;
+    const cle = cleEtagere(item);
+    const lignes = etageres.filter(e => cleEtagere(e) === cle && (Number(e.currentQty) || 0) > 0);
+    if (lignes.length === 0) return null;
+    const q = Math.round(lignes.reduce((s, e) => s + (Number(e.currentQty) || 0), 0) * 1000) / 1000;
+    return `${q.toLocaleString('fr-FR')} ${uniteEnFrancais(lignes[0].unitOfMeasure, q)}`;
+  };
+
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
 
@@ -169,7 +189,7 @@ export default function StockAlerts({ stockItems, articles, categories, movement
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {ruptureItems.map((item: any) => (
-              <AlertCard key={`${item.articleId}-${item._storeLabel || 'x'}`} item={item} level="rupture" readOnly={readOnly}
+              <AlertCard key={`${item.articleId}-${item._storeLabel || 'x'}`} item={item} level="rupture" readOnly={readOnly} etageres={surEtageres(item)}
                 onOrder={() => { setMovementItem(item); setMovementModalOpen(true); }}
                 onThreshold={() => { setThresholdItem(item); setThresholdValue(String(item.minThreshold || '')); }}
               />
@@ -190,7 +210,7 @@ export default function StockAlerts({ stockItems, articles, categories, movement
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {lowStockItems.filter(i => i.currentQty > 0).map((item: any) => (
-              <AlertCard key={`${item.articleId}-${item._storeLabel || 'x'}`} item={item} level="low" readOnly={readOnly}
+              <AlertCard key={`${item.articleId}-${item._storeLabel || 'x'}`} item={item} level="low" readOnly={readOnly} etageres={surEtageres(item)}
                 onOrder={() => { setMovementItem(item); setMovementModalOpen(true); }}
                 onThreshold={() => { setThresholdItem(item); setThresholdValue(String(item.minThreshold || '')); }}
               />
@@ -317,12 +337,14 @@ export default function StockAlerts({ stockItems, articles, categories, movement
 }
 
 // ─── Alert Card ───────────────────────────────────────────────────────────────
-function AlertCard({ item, level, onOrder, onThreshold, readOnly = false }: {
+function AlertCard({ item, level, onOrder, onThreshold, readOnly = false, etageres = null }: {
   item: StockItem;
   level: 'rupture' | 'low';
   onOrder: () => void;
   onThreshold: () => void;
   readOnly?: boolean;
+  /** Ce qui reste sur les étagères de CHRIFA (« 7 200 pièces »), s'il y en a. */
+  etageres?: string | null;
 }) {
   const pct = item.minThreshold ? Math.round((item.currentQty / item.minThreshold) * 100) : 0;
   const isRupture = level === 'rupture';
@@ -347,7 +369,8 @@ function AlertCard({ item, level, onOrder, onThreshold, readOnly = false }: {
           </div>
           <div className="flex flex-col items-end gap-1 shrink-0">
             <span className={`text-[11px] font-black px-2 py-0.5 rounded-full uppercase ${isRupture ? 'bg-red-100 text-red-700' : 'bg-orange-100 text-orange-700'}`}>
-              {isRupture ? 'Rupture' : 'Bas'}
+              {/* Réserve vide mais produit encore en rayon : pas une rupture, le magasin vend toujours. */}
+              {isRupture ? (etageres ? 'Réserve vide' : 'Rupture') : (etageres ? 'Réserve basse' : 'Bas')}
             </span>
             {(item as any)._storeLabel && (
               <span className="text-[10px] font-black px-2 py-0.5 rounded-full uppercase bg-stone-100 text-stone-500">
@@ -360,7 +383,7 @@ function AlertCard({ item, level, onOrder, onThreshold, readOnly = false }: {
         {/* Barre de niveau */}
         <div className="space-y-1">
           <div className="flex justify-between text-[11px] font-black uppercase">
-            <span className="text-stone-400">Stock actuel</span>
+            <span className="text-stone-400">{etageres ? 'Réserve' : 'Stock actuel'}</span>
             <span className={isRupture ? 'text-red-600' : 'text-orange-600'}>
               {(Number(item.currentQty) || 0).toLocaleString('fr-FR')} / {(Number(item.minThreshold) || 0).toLocaleString('fr-FR')} {item.unitOfMeasure}
             </span>
@@ -371,6 +394,9 @@ function AlertCard({ item, level, onOrder, onThreshold, readOnly = false }: {
               style={{ width: `${Math.min(100, pct)}%` }}
             />
           </div>
+          {etageres && (
+            <p className="text-[11px] font-bold text-teal-700">Encore sur les étagères : {etageres}</p>
+          )}
         </div>
 
         <div className="flex gap-2 pt-1">

@@ -31,7 +31,7 @@
  */
 
 import { echapperHtml } from './impression';
-import { grouperLignesBon, estNumeroProvisoire, type NatureBon } from './bon-sans-prix';
+import { grouperLignesBon, estNumeroProvisoire, type NatureBon, type GroupeBon, type LigneDeGroupe } from './bon-sans-prix';
 
 export interface DonneesBonImprime {
   numero: string;
@@ -123,12 +123,49 @@ export const EXEMPLAIRES = ['Exemplaire client', 'Exemplaire magasin'] as const;
 export const titreDuBon = (nature: NatureBon): string =>
   (nature === 'A_PREPARER' ? 'Bon de commande' : 'Bon de livraison');
 
+const arrondi3 = (n: number) => Math.round((Number(n) || 0) * 1000) / 1000;
+const uniteNormalisee = (u: unknown) => String(u ?? '').normalize('NFD').replace(/[̀-ͯ]/g, '').trim().toLowerCase();
+
+/** Un groupe réduit à une partie de ses lignes : ses totaux et son prix commun recalculés. */
+function sousGroupe(g: GroupeBon, lignes: LigneDeGroupe[], suffixe: string): GroupeBon {
+  const parUnite = new Map<string, number>();
+  for (const l of lignes) parUnite.set(l.unite, arrondi3((parUnite.get(l.unite) || 0) + l.quantite));
+  const prix = new Set(lignes.map(l => l.prixUnitaire));
+  return {
+    ...g,
+    cle: `${g.cle}|${suffixe}`,
+    lignes,
+    totaux: Array.from(parUnite.entries()).map(([unite, quantite]) => ({ unite, quantite })),
+    prixDifferents: prix.size > 1,
+    prixUnique: prix.size === 1 && lignes[0].prixUnitaire > 0 ? lignes[0].prixUnitaire : null,
+    // Une ligne d'étagère se compte toujours à l'unité de vente : jamais « au colis entier ».
+    prixAuColis: suffixe === 'etageres' ? false : g.prixAuColis,
+    avecTailles: lignes.some(l => !!l.taille),
+  };
+}
+
+/**
+ * Un article vendu à la fois depuis la réserve et depuis les étagères de CHRIFA
+ * (src/lib/etageres.ts) : ses lignes ne s'additionnent sur le papier que si elles sont dans la
+ * MÊME unité (des pièces avec des pièces). Sinon — des sacs de la réserve et des pièces des
+ * étagères — il s'imprime en deux lignes, chacune avec sa quantité ; le prix unitaire reste
+ * celui de l'unité de vente.
+ */
+export function separerReserveEtEtageres(g: GroupeBon): GroupeBon[] {
+  const etageres = g.lignes.filter(l => l.etagere);
+  const reserve = g.lignes.filter(l => !l.etagere);
+  if (etageres.length === 0 || reserve.length === 0) return [g];
+  const unites = new Set(g.lignes.map(l => uniteNormalisee(l.unite)));
+  if (unites.size === 1) return [g];
+  return [sousGroupe(g, reserve, 'reserve'), sousGroupe(g, etageres, 'etageres')];
+}
+
 /** Hauteur réservée en bas de CHAQUE page pour le bandeau de pied (adresse + bandeau bleu nuit). */
 const HAUTEUR_PIED = '64px';
 
 /** Le document HTML complet du bon, prêt pour `imprimerHtml`. */
 export function construireBonHtml(d: DonneesBonImprime): string {
-  const groupes = grouperLignesBon(d.items || []);
+  const groupes = grouperLignesBon(d.items || []).flatMap(separerReserveEtEtageres);
   const provisoire = estNumeroProvisoire(d.numero);
   const client = d.nature === 'COMPTOIR' || !String(d.clientNom || '').trim() ? 'Client comptoir' : String(d.clientNom);
   const dateLisible = /^\d{4}-\d{2}-\d{2}$/.test(String(d.date || ''))

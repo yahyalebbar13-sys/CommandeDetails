@@ -12,6 +12,7 @@ const ACTION_STYLE: Record<string, { label: string; cls: string }> = {
   STOCK_OUT:            { label: 'Sortie Stock',      cls: 'bg-red-100 text-red-700' },
   STOCK_ADJUSTMENT:     { label: 'Ajustement',        cls: 'bg-blue-100 text-blue-700' },
   STOCK_TRANSFER:       { label: 'Transfert',         cls: 'bg-indigo-100 text-indigo-700' },
+  STOCK_MISE_EN_RAYON:  { label: 'Mise en rayon',     cls: 'bg-teal-100 text-teal-800' },
   SALE_CREATED:         { label: 'Vente',             cls: 'bg-violet-100 text-violet-700' },
   INVOICE_CREATED:      { label: 'Facture',           cls: 'bg-purple-100 text-purple-700' },
   INVOICE_PAID:         { label: 'Facture Payée',     cls: 'bg-emerald-100 text-emerald-700' },

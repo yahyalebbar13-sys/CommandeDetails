@@ -20,6 +20,10 @@ import {
   type LigneSpecification,
 } from '@/lib/specification-produit';
 import { QUALITIES_FIELD_BY_SPEC } from '@/lib/quality-schema';
+import {
+  LIBELLE_RESERVE, LIBELLE_ETAGERES, MESSAGE_SANS_UNITE_VENTE, lignesDeReserve, lignesDesEtageres,
+  uniteVenteDuProduit, cartesAvecEtageres, uniteEnFrancais,
+} from '@/lib/etageres';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 const UI_COLORS = ['#CC8626','#1E293B','#3B82F6','#10B981','#6366F1','#F43F5E','#8B5CF6','#EC4899'];
@@ -146,10 +150,16 @@ function StockHeader({
 // ── Fiche complète d'un produit (niveau 4) ───────────────────────────────────
 function ProductFiche({
   article, variants, movements, factures, onBack, color, inline = false,
-  categories = [], generalCategories = [],
+  categories = [], generalCategories = [], etageres = [], avecEtageres = false, onMettreEnRayon,
 }: {
   article: any; variants: any[]; movements: any[]; factures: any[]; onBack: () => void; color: string; inline?: boolean;
   categories?: any[]; generalCategories?: any[];
+  /** Les lignes « Étagères » de ce produit (une par qualité / taille, sans couleur). */
+  etageres?: any[];
+  /** Vue du magasin principal : le produit montre sa réserve ET ses étagères. */
+  avecEtageres?: boolean;
+  /** Ouvrir la mise en rayon sur ce produit (magasin principal et administrateur seulement). */
+  onMettreEnRayon?: (recherche?: string) => void;
 }) {
   const artMovs = useMemo(() =>
     movements.filter(m => variants.some(v => m.articleId === v.articleId))
@@ -163,6 +173,12 @@ function ProductFiche({
 
   const isAlert   = variants.some(v => v.minThreshold != null && v.currentQty <= v.minThreshold);
   const pct       = totalIn > 0 ? Math.min(100, Math.round((currentQty / totalIn) * 100)) : 100;
+
+  // ── Étagères (détail) : un chiffre par qualité / taille, sans couleur, en unité de vente ──
+  // L'unité est celle du pôle ; sans elle, rien n'est compté (on ne devine pas un chiffre).
+  const uniteEtageres: string | undefined = etageres.find(e => !e._sansUniteVente)?.unitOfMeasure
+    || uniteVenteDuProduit(article, categories, generalCategories);
+  const totalEtageres = etageres.reduce((s, e) => s + (Number(e.currentQty) || 0), 0);
 
   // Regrouper les variantes pour le tableau propre
   const groupedVariantsDetails = useMemo(() => {
@@ -335,9 +351,22 @@ function ProductFiche({
             </div>
             <div className="w-px h-8 bg-stone-100 hidden sm:block"></div>
             <div className="text-center">
-              <p className="text-[11px] font-black text-stone-400 uppercase tracking-wider mb-1">En Stock</p>
+              <p className="text-[11px] font-black text-stone-400 uppercase tracking-wider mb-1">{avecEtageres ? LIBELLE_RESERVE : 'En Stock'}</p>
               <p className={`text-2xl font-black ${isAlert ? 'text-amber-600' : 'text-stone-900'}`}>{fmt(currentQty)} <span className="text-xs text-stone-400">{article.unitOfMeasure}</span></p>
             </div>
+            {avecEtageres && (
+              <>
+                <div className="w-px h-8 bg-stone-100 hidden sm:block"></div>
+                <div className="text-center">
+                  <p className="text-[11px] font-black text-teal-700 uppercase tracking-wider mb-1">{LIBELLE_ETAGERES}</p>
+                  {uniteEtageres ? (
+                    <p className="text-2xl font-black text-teal-800">{fmt(totalEtageres)} <span className="text-xs text-teal-600/70">{uniteEtageres}</span></p>
+                  ) : (
+                    <p className="text-[11px] font-bold text-amber-700 max-w-[14rem] leading-snug">{MESSAGE_SANS_UNITE_VENTE}</p>
+                  )}
+                </div>
+              </>
+            )}
           </div>
         </div>
         <div className="h-1.5 bg-stone-100 w-full">
@@ -407,6 +436,7 @@ function ProductFiche({
           <div className="px-6 py-4 border-b border-stone-50 bg-stone-50/50 flex items-center gap-3 flex-wrap">
             <Package className="w-4 h-4 text-stone-500 shrink-0" />
             <h4 className="text-[11px] font-black text-stone-700 uppercase tracking-wider">
+              {avecEtageres ? `${LIBELLE_RESERVE} · ` : ''}
               {hasQualities 
                 ? `Couleurs & Variantes · ${selectedGroup}`
                 : selectedGroup === 'STANDARD' ? 'État des Variantes' : `Couleurs pour la taille : ${selectedGroup}`}
@@ -527,6 +557,62 @@ function ProductFiche({
         </div>
       </div>
 
+      {/* ── Étagères (détail) ── un chiffre par qualité et par taille, jamais par couleur ── */}
+      {avecEtageres && (
+        <div className="bg-white rounded-3xl border border-teal-100 shadow-sm overflow-hidden">
+          <div className="px-6 py-4 border-b border-teal-50 bg-teal-50/50 flex items-center gap-3 flex-wrap">
+            <Layers className="w-4 h-4 text-teal-600 shrink-0" />
+            <h4 className="text-[11px] font-black text-teal-900 uppercase tracking-wider">{LIBELLE_ETAGERES}</h4>
+            <span className="text-[11px] font-bold text-teal-700/80">
+              Ce qui est en rayon pour la vente au détail, sans couleur{uniteEtageres ? `, en ${uniteEtageres}` : ''}.
+            </span>
+            {onMettreEnRayon && (
+              <button
+                type="button"
+                onClick={() => onMettreEnRayon(String(article?.nameFR || article?.productName || ''))}
+                className="ml-auto h-9 px-4 rounded-xl bg-teal-700 hover:bg-teal-600 text-white text-[10px] font-black uppercase tracking-widest flex items-center gap-1.5"
+                title="Sortir des cartons ou des rouleaux de la réserve pour garnir les étagères"
+              >
+                <Layers className="w-3.5 h-3.5" /> Mettre en rayon
+              </button>
+            )}
+          </div>
+          {!uniteEtageres ? (
+            <p className="px-6 py-5 text-[12px] font-bold text-amber-800 bg-amber-50">{MESSAGE_SANS_UNITE_VENTE}</p>
+          ) : etageres.length === 0 ? (
+            <p className="px-6 py-5 text-[12px] font-medium text-stone-500 leading-snug">
+              Rien n'est encore compté sur les étagères pour ce produit. Les quantités de départ
+              s'installent par l'Inventaire, mode « Étagères ».
+            </p>
+          ) : (
+            <table className="w-full text-xs">
+              <thead>
+                <tr className="border-b border-stone-100">
+                  <th className="px-6 py-3 text-left font-black text-stone-400 uppercase tracking-wider text-[11px]">Qualité</th>
+                  <th className="px-6 py-3 text-left font-black text-stone-400 uppercase tracking-wider text-[11px]">Taille</th>
+                  <th className="px-6 py-3 text-right font-black text-teal-800 uppercase tracking-wider text-[11px]">Sur les étagères</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-stone-50">
+                {[...etageres]
+                  .sort((x, y) => `${x.quality || ''} ${x.size || ''}`.localeCompare(`${y.quality || ''} ${y.size || ''}`, undefined, { numeric: true }))
+                  .map((e: any) => (
+                    <tr key={e.articleId}>
+                      <td className="px-6 py-3 font-bold text-stone-700">{libelleVariante(e.quality) || <span className="text-stone-300">—</span>}</td>
+                      <td className="px-6 py-3 font-bold text-stone-700">{libelleVariante(e.size) || <span className="text-stone-300">—</span>}</td>
+                      <td className={`px-6 py-3 text-right font-black text-sm ${(Number(e.currentQty) || 0) <= 0 ? 'text-red-600' : 'text-teal-900'}`}>
+                        {e._sansUniteVente
+                          ? <span className="text-[11px] font-bold text-amber-700">{MESSAGE_SANS_UNITE_VENTE}</span>
+                          : <>{fmt(Number(e.currentQty) || 0)} <span className="text-[11px] text-stone-400">{e.unitOfMeasure}</span></>}
+                      </td>
+                    </tr>
+                  ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+      )}
+
       {/* ── Historique des mouvements récent ── */}
       {artMovs.length > 0 && (
         <div className="bg-white rounded-3xl border border-stone-100 shadow-sm overflow-hidden">
@@ -572,12 +658,18 @@ function ProductFiche({
                           : <span className="text-stone-300">—</span>}
                       </td>
                       <td className="px-6 py-3 text-stone-400 font-medium">
-                        {mv.reason || '—'}
+                        {mv.reason === 'MISE_EN_RAYON' ? 'Mise en rayon' : (mv.reason || '—')}
+                        {mv.etagere && <span className="ml-1.5 text-[10px] font-black text-teal-700 bg-teal-50 border border-teal-200 px-1.5 py-0.5 rounded uppercase">Étagères</span>}
                       </td>
-                      <td className="px-6 py-3 text-right font-black text-sm">
+                      <td className="px-6 py-3 text-right font-black text-sm whitespace-nowrap">
                         {isIN ? <span className="text-emerald-600">+{fmt(qty)}</span> : 
                          isOUT ? <span className="text-rose-600">-{fmt(qty)}</span> :
                          <span className="text-amber-600">{fmt(qty)}</span>}
+                        {/* L'unité de CHAQUE ligne : une mise en rayon sort des sacs de la réserve et
+                            entre des pièces sur les étagères — sans unité, « +200 » se lisait en sacs. */}
+                        {(mv.uniteReelle || mv.unitOfMeasure) && (
+                          <span className="ml-1 text-[11px] font-bold text-stone-400">{uniteEnFrancais(mv.uniteReelle || mv.unitOfMeasure, qty)}</span>
+                        )}
                       </td>
                     </tr>
                   );
@@ -586,7 +678,7 @@ function ProductFiche({
               {/* Cinq colonnes, comme les lignes au-dessus : le pied ne déborde plus la table. */}
               <tfoot>
                 <tr className="bg-stone-900 text-white border-t-2 border-stone-700">
-                  <td colSpan={2} className="px-6 py-3 text-[11px] font-black text-stone-400 uppercase tracking-wider">Totaux</td>
+                  <td colSpan={2} className="px-6 py-3 text-[11px] font-black text-stone-400 uppercase tracking-wider">{etageres.length > 0 ? 'Totaux réserve' : 'Totaux'}</td>
                   <td className="px-6 py-3 text-left font-black text-emerald-400">Entrées +{fmt(totalIn)}</td>
                   <td className="px-6 py-3 text-left font-black text-rose-400">Sorties {totalOut > 0 ? `-${fmt(totalOut)}` : '—'}</td>
                   <td className="px-6 py-3 text-right font-black text-white text-[14px]">{fmt(article.currentQty)}</td>
@@ -603,23 +695,37 @@ function ProductFiche({
 // ── Tableau niveau 3 : produits d'une sous-catégorie ─────────────────────────
 function ProductsTable({
   items, subCatName, movements, factures, onBack, headerProp,
-  categories = [], generalCategories = [],
+  categories = [], generalCategories = [], etageres = [], avecEtageres = false, onMettreEnRayon,
 }: {
   items: any[]; subCatName: string; movements: any[]; factures: any[];
   onBack: () => void; headerProp?: React.ReactNode;
   categories?: any[]; generalCategories?: any[];
+  /** Les lignes « Étagères » de cette famille (magasin principal seulement). */
+  etageres?: any[];
+  avecEtageres?: boolean;
+  onMettreEnRayon?: (recherche?: string) => void;
 }) {
   const [selectedArticle, setSelectedArticle] = useState<any | null>(null);
 
-  const groupedVariants = useMemo(() => {
-    const grouped = new Map<string, any[]>();
-    items.forEach(i => {
-      const pid = (i.nameFR || i.productName || '').trim().toLowerCase();
-      if (!grouped.has(pid)) grouped.set(pid, []);
-      grouped.get(pid)!.push(i);
-    });
-    return Array.from(grouped.values());
-  }, [items]);
+  /**
+   * Les produits de la famille, regroupés par nom : [nom, lignes de réserve], et les lignes
+   * Étagères de chaque carte.
+   *
+   * Chaque ligne Étagères va sur UNE SEULE carte, jamais deux : d'abord celle dont une ligne de
+   * réserve est le même produit d'étagère (cleEtagere : famille + qualité + taille) ; à défaut celle
+   * du même nom ; à défaut celle qui partage un article (deux commandes d'un même produit peuvent
+   * porter des noms légèrement différents). Rattachée par le seul article, une qualité sœur (un
+   * TAFFETA CL-8 sur la carte du CL-5, même article ventilé) s'additionnait à la mauvaise carte.
+   * Un produit qui n'a de stock QUE sur les étagères garde sa carte (sans couleur de réserve).
+   */
+  const { groupes, etageresParCarte } = useMemo(() => {
+    const { cartes, etageresParCarte: parCarte } = cartesAvecEtageres(items, etageres);
+    return { groupes: cartes, etageresParCarte: parCarte };
+  }, [items, etageres]);
+  const groupedVariants = useMemo(() => groupes.map(([, variants]) => variants), [groupes]);
+
+  /** Les lignes Étagères d'une carte (voir le rattachement ci-dessus). */
+  const etageresDuProduit = (idx: number): any[] => etageresParCarte.get((groupes[idx] || [''])[0]) || [];
 
   const totalIn  = items.reduce((s, i) => s + i.initialQty + i.mouvementsIn, 0);
   const totalQty = items.reduce((s, i) => s + i.currentQty, 0);
@@ -627,7 +733,8 @@ function ProductsTable({
 
   if (groupedVariants.length === 1) {
     const variants = groupedVariants[0];
-    const a = variants?.[0];
+    const etageresDuSeul = etageresDuProduit(0);
+    const a = variants?.[0] || etageresDuSeul[0];
     if (!a) return null;
     return (
       <div className="animate-in fade-in duration-300">
@@ -641,6 +748,9 @@ function ProductsTable({
           inline={false}
           categories={categories}
           generalCategories={generalCategories}
+          etageres={etageresDuSeul}
+          avecEtageres={avecEtageres}
+          onMettreEnRayon={onMettreEnRayon}
         />
       </div>
     );
@@ -659,6 +769,9 @@ function ProductsTable({
           inline={false}
           categories={categories}
           generalCategories={generalCategories}
+          etageres={selectedArticle._etageres || []}
+          avecEtageres={avecEtageres}
+          onMettreEnRayon={onMettreEnRayon}
         />
       </div>
     );
@@ -705,8 +818,12 @@ function ProductsTable({
             </div>
           ) : (
             groupedVariants.map((variants, idx) => {
-              const a = variants?.[0];
+              const etageresCarte = etageresDuProduit(idx);
+              const a = variants?.[0] || etageresCarte[0];
               if (!a) return null;
+              const totalEtageresCarte = etageresCarte.reduce((s: number, e: any) => s + (Number(e.currentQty) || 0), 0);
+              const uniteEtageresCarte: string | undefined = etageresCarte.find((e: any) => !e._sansUniteVente)?.unitOfMeasure
+                || uniteVenteDuProduit(a, categories, generalCategories);
               const isMulti = variants.length > 1;
               const color  = UI_COLORS[idx % UI_COLORS.length];
               const totalIn = variants.reduce((s, v) => s + v.initialQty + v.mouvementsIn, 0);
@@ -718,7 +835,7 @@ function ProductsTable({
 
               return (
                 <div key={a._realArticleId || a.articleId} 
-                  onClick={() => setSelectedArticle({ ...a, _variants: variants })}
+                  onClick={() => setSelectedArticle({ ...a, _variants: variants, _etageres: etageresCarte })}
                   className="group flex flex-col bg-white rounded-3xl shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300 border border-stone-100 overflow-hidden cursor-pointer relative"
                 >
                   <div className="h-2 w-full" style={{ background: `linear-gradient(90deg, ${color}, ${color}88)` }} />
@@ -794,9 +911,9 @@ function ProductsTable({
                   <div className="mt-auto pt-4 border-t border-stone-100">
                     <div className="flex justify-between items-end mb-3">
                       <div>
-                        <p className="text-[11px] font-black text-stone-400 uppercase tracking-wider mb-0.5">Stock Réel</p>
+                        <p className="text-[11px] font-black text-stone-400 uppercase tracking-wider mb-0.5">{avecEtageres ? LIBELLE_RESERVE : 'Stock Réel'}</p>
                         <p className={`text-2xl font-black leading-none ${totalCurrent === 0 ? 'text-red-600' : isAlert ? 'text-amber-600' : 'text-stone-900'}`}>
-                          {fmt(totalCurrent)} <span className="text-[11px] text-stone-400 font-bold">{a.unitOfMeasure}</span>
+                          {fmt(totalCurrent)} <span className="text-[11px] text-stone-400 font-bold">{variants[0]?.unitOfMeasure || ''}</span>
                         </p>
                       </div>
                       <div className="text-right">
@@ -804,6 +921,20 @@ function ProductsTable({
                         <p className="text-sm font-black text-emerald-700">+{fmt(totalIn)}</p>
                       </div>
                     </div>
+                    {/* Magasin principal : le second stock, celui des étagères — un seul chiffre,
+                        sans couleur, en unité de vente. */}
+                    {avecEtageres && (
+                      <div className="flex justify-between items-center mb-3 px-3 py-2 rounded-xl bg-teal-50 border border-teal-100">
+                        <p className="text-[11px] font-black text-teal-800 uppercase tracking-wider">{LIBELLE_ETAGERES}</p>
+                        {uniteEtageresCarte ? (
+                          <p className="text-sm font-black text-teal-900">
+                            {fmt(totalEtageresCarte)} <span className="text-[11px] text-teal-700/70 font-bold">{uniteEtageresCarte}</span>
+                          </p>
+                        ) : (
+                          <p className="text-[10px] font-bold text-amber-700 text-right leading-tight max-w-[10rem]">Unité de vente à définir</p>
+                        )}
+                      </div>
+                    )}
 
                     <div className="h-1.5 bg-stone-100 rounded-full overflow-hidden">
                       <div className="h-full rounded-full" style={{ width: `${Math.max(0, Math.min(100, pct))}%`, backgroundColor: pctColor }} />
@@ -824,12 +955,14 @@ function ProductsTable({
 export default function StockFiches({
   stockItems: rawStockItems, allStockItems, movements, categories, generalCategories, factures, userRole = 'COMMERCIAL',
   activeStore = 'ALL', adminUid, onAddMovement,
-  stores = []
+  stores = [], onMettreEnRayon,
 }: {
   stockItems: any[]; allStockItems?: any[]; movements: any[]; categories: any[];
   generalCategories: any[]; factures: any[]; userRole?: string;
   activeStore?: string; adminUid?: string | null; onAddMovement?: any;
   stores?: any[];
+  /** Mise en rayon (Réserve → Étagères), pour le magasin principal et l'administrateur. */
+  onMettreEnRayon?: (recherche?: string) => void;
 }) {
   const { user } = useUser();
   const firestore = useFirestore();
@@ -842,12 +975,19 @@ export default function StockFiches({
   const isMainStore = stores.some(s => s.id === activeStore && s.isMain) || activeStore === 'CHRIFA';
   const showAllProducts = isMainStore;
 
-  const stockItems = useMemo(() => {
+  const lignesAffichees = useMemo(() => {
     if (showAllProducts) {
       return (allStockItems && allStockItems.length > 0) ? allStockItems : rawStockItems;
     }
     return rawStockItems.filter(i => i.currentQty > 0);
   }, [rawStockItems, allStockItems, showAllProducts]);
+
+  // Deux stocks au magasin principal (src/lib/etageres.ts) : la RÉSERVE (magasin + entrepôts, par
+  // couleur) fait tous les comptes de cet écran ; les ÉTAGÈRES (sans couleur, en unité de vente)
+  // s'affichent à part, produit par produit. Les additionner mélangerait des sacs et des pièces.
+  const stockItems = useMemo(() => lignesDeReserve(lignesAffichees), [lignesAffichees]);
+  const lignesEtageres = useMemo(() => lignesDesEtageres(lignesAffichees), [lignesAffichees]);
+  const avecEtageres = isMainStore;
 
   const targetStore = activeStore === 'ALL' || activeStore === 'ALL_MAIN' ? (stores?.[0]?.id || 'CHRIFA') : activeStore;
 
@@ -981,12 +1121,20 @@ export default function StockFiches({
       (subCat?.nameFR && i.categoryId === subCat.nameFR) ||
       (subCat?.name && stockByCategory[subCat.name]?.some((x: any) => x.articleId === i.articleId))
     );
+    const etageresFamille = lignesEtageres.filter(i =>
+      i.categoryId === selSubCat ||
+      i.categoryId === subCat?.name ||
+      i.categoryId === subCat?.id ||
+      (subCat?.nameFR && i.categoryId === subCat.nameFR)
+    );
     return (
       <div className="space-y-6">
         <ProductsTable
           items={items} subCatName={subCat?.nameFR || subCat?.name || selSubCat}
           movements={movements} factures={factures}
           categories={categories} generalCategories={generalCategories}
+          etageres={etageresFamille} avecEtageres={avecEtageres}
+          onMettreEnRayon={avecEtageres ? onMettreEnRayon : undefined}
           onBack={() => setSelSubCat(null)}
           headerProp={
             <div className="space-y-4 mb-6">

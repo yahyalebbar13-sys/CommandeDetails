@@ -288,8 +288,12 @@ export type StockMovementType = 'IN' | 'OUT' | 'ADJUSTMENT';
 // ANNULATION_BON / CORRECTION_BON : le retour en stock d'un bon déjà sorti, annulé ou corrigé
 // (src/lib/bon-sans-prix.ts). Un compte magasin ne peut pas effacer un mouvement : il écrit
 // l'inverse, lié au bon, et le journal le dit en toutes lettres.
+// ACHAT_LOCAL : achat au marché local entré directement en stock (écrit depuis longtemps par
+// stock-app, jamais déclaré ici). MISE_EN_RAYON (01/10/2026) : des cartons ou rouleaux sortent
+// de la réserve de CHRIFA pour garnir ses étagères — la sortie de réserve et l'entrée d'étagère
+// portent le même miseEnRayonId et partent dans le même lot.
 export type StockMovementReason = 'ARRIVAGE' | 'VENTE' | 'PERTE' | 'RETOUR' | 'INVENTAIRE' | 'TRANSFERT'
-  | 'ANNULATION_BON' | 'CORRECTION_BON';
+  | 'ANNULATION_BON' | 'CORRECTION_BON' | 'ACHAT_LOCAL' | 'MISE_EN_RAYON';
 
 export type StockMovement = {
   id: string;
@@ -342,6 +346,25 @@ export type StockMovement = {
   bonId?: string;
   bonNumero?: string;
   ligneBonId?: string;
+  // ── Étagères de CHRIFA (depuis le 01/10/2026, src/lib/etageres.ts) ──
+  // Le magasin principal a deux stocks : sa RÉSERVE (le magasin et ses entrepôts, comptée par
+  // couleur, dans l'unité de la réserve) et ses ÉTAGÈRES (le détail, d'où l'on vend à l'unité de
+  // vente du pôle, sans couleur). Un mouvement d'étagère porte `etagere: true`, le magasin
+  // principal en storeId, AUCUNE couleur (qualité et taille gardées) et l'unité de vente.
+  etagere?: boolean;
+  /** L'unité exacte de `quantity` au moment de l'écriture (sacs, rouleaux, m, pièces…). */
+  uniteReelle?: string;
+  /** Relie, dans une mise en rayon, les sorties de réserve et l'entrée d'étagère. */
+  miseEnRayonId?: string;
+  /** Mise en rayon : ce qui est sorti de la réserve (carton / rouleau / reste d'un carton ouvert). */
+  colis?: string;
+  nbColis?: number;
+  /** Contenu d'un colis, en unité de vente. */
+  parColis?: number;
+  /** Facteur de conversion appliqué : 1 unité de réserve = facteur unités de vente. */
+  facteur?: number;
+  /** Mise en rayon : ce que cette sortie de réserve apporte aux étagères, en unité de vente. */
+  quantiteVente?: number;
   createdAt?: any;
 };
 
@@ -402,6 +425,13 @@ export type StockItem = {
   _colorKey?: string;             // couleur de la variante
   _sizeKey?: string;              // taille de la variante
   _qualityKey?: string;           // qualité de la variante
+  // Ligne « Étagères » du magasin principal (src/lib/etageres.ts) : un produit sans couleur, en
+  // unité de vente. Jamais transférée, jamais rangée dans un emplacement, jamais fusionnée avec
+  // une ligne de réserve.
+  _etagere?: boolean;
+  /** Ligne Étagères : le pôle n'a pas d'unité de vente — rien ne doit s'y écrire. */
+  _sansUniteVente?: boolean;
+  _mergedArticleIds?: string[];
 };
 
 // ── Types de vente (POS rapide) ────────────────────────────────────────────────
@@ -527,6 +557,14 @@ export type OrderItem = {
   contenance?: { facteur: number; uniteBase: string };
   /** Le prix au mètre ou à la pièce saisi pour une ligne en conditionnement ; unitPrice en découle. */
   prixBase?: number;
+  /**
+   * Ligne vendue depuis les ÉTAGÈRES de CHRIFA (src/lib/etageres.ts) : sans couleur ni
+   * emplacement, à l'unité de vente du pôle. Sa sortie, sa correction, son annulation, sa
+   * facturation et son retour restent sur les étagères. `etagere` est ce que lisent les calculs ;
+   * `source` le dit en toutes lettres.
+   */
+  etagere?: boolean;
+  source?: 'ETAGERE';
 };
 
 export type SaleOrderStatus = 'DRAFT' | 'CONFIRMED' | 'INVOICED' | 'CANCELLED';
@@ -689,6 +727,8 @@ export interface CheckRemittance {
 // ── Journal d'Audit ──────────────────────────────────────────────────────────
 export type AuditAction = 
   | 'STOCK_IN' | 'STOCK_OUT' | 'STOCK_ADJUSTMENT' | 'STOCK_TRANSFER'
+  // Des cartons ou rouleaux sortis de la réserve de CHRIFA pour garnir ses étagères.
+  | 'STOCK_MISE_EN_RAYON'
   | 'SALE_CREATED' | 'INVOICE_CREATED' | 'INVOICE_PAID' | 'INVOICE_CANCELLED'
   | 'PAYMENT_RECORDED' | 'PAYMENT_REJECTED' | 'PAYMENT_CLEARED'
   | 'CLIENT_CREATED' | 'CLIENT_UPDATED'

@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useMemo } from 'react';
-import { Plus, ArrowDown, ArrowUp, ArrowLeftRight, ArrowRight, SlidersHorizontal, Search, Calendar, Download, MapPin, FileText, StickyNote } from 'lucide-react';
+import { Plus, ArrowDown, ArrowUp, ArrowLeftRight, ArrowRight, SlidersHorizontal, Search, Calendar, Download, MapPin, FileText, StickyNote, Layers } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -14,6 +14,7 @@ import { specificationsEnLigne, qualiteDeLArticle } from '@/lib/specification-pr
 import { exportToFile, formatMovementsForExport } from '@/lib/export-utils';
 import { exportMovementsPDF } from '@/lib/pdf-export-reports';
 import { uniteDeStock, poleDeLArticle } from '@/lib/unites-pole';
+import { LIBELLES_MOTIF, totauxJournal, texteTotaux } from '@/lib/journal-mouvements';
 
 interface StockMovementsProps {
   movements: StockMovement[];
@@ -24,8 +25,13 @@ interface StockMovementsProps {
   stores: any[];
   locations?: StorageLocation[];
   activeStore: StoreLocation | 'ALL';
-  onAddMovement: (m: Omit<StockMovement, 'id' | 'createdAt'>) => Promise<void>;
+  onAddMovement: (m: Omit<StockMovement, 'id' | 'createdAt'>) => Promise<boolean | void>;
   readOnly?: boolean;
+  /**
+   * Ouvrir la mise en rayon (Réserve → Étagères de CHRIFA, src/lib/mise-en-rayon.ts). Absent :
+   * le compte n'y a pas droit (ni magasin principal, ni administrateur).
+   */
+  onMettreEnRayon?: () => void;
 }
 
 /**
@@ -50,12 +56,8 @@ const cleDuMouvement = (m: StockMovement): string =>
     ? (m.type === 'IN' ? ((m as any).annulationTransfert === true ? 'TRANSFERT_ANNULE' : 'TRANSFERT_IN') : 'TRANSFERT_OUT')
     : (m?.type && STYLE_MOUVEMENT[m.type] ? m.type : 'ADJUSTMENT');
 
-const REASON_LABELS: Record<string, string> = {
-  ARRIVAGE: 'Arrivage', VENTE: 'Vente', PERTE: 'Perte',
-  RETOUR: 'Retour', INVENTAIRE: 'Inventaire', TRANSFERT: 'Transfert',
-  // Retours en stock d'un bon déjà sorti (src/lib/bon-sans-prix.ts).
-  ANNULATION_BON: 'Annulation de bon', CORRECTION_BON: 'Correction de bon',
-};
+// Les motifs en clair : partagés avec les exports Excel et PDF (src/lib/journal-mouvements.ts).
+const REASON_LABELS: Record<string, string> = LIBELLES_MOTIF;
 
 /** 2026-09-23 → 23/09/2026, sans passer par Date (aucun décalage de fuseau possible). */
 const dateFR = (iso?: string): string => {
@@ -96,7 +98,7 @@ const fusionnerCaracteristiques = (...sources: any[]): Record<string, any> => {
   return out;
 };
 
-export default function StockMovements({ movements, stockItems, categories, generalCategories = [], articles, stores, locations = [], activeStore, onAddMovement, readOnly = false }: StockMovementsProps) {
+export default function StockMovements({ movements, stockItems, categories, generalCategories = [], articles, stores, locations = [], activeStore, onAddMovement, readOnly = false, onMettreEnRayon }: StockMovementsProps) {
   const [search, setSearch] = useState('');
   const [filterType, setFilterType] = useState<'all' | 'IN' | 'OUT' | 'ADJUSTMENT' | 'TRANSFERT'>('all');
   const [filterCat, setFilterCat] = useState('all');
@@ -157,7 +159,11 @@ export default function StockMovements({ movements, stockItems, categories, gene
       // L'unite du POLE, celle dans laquelle le stock est tenu. Le mouvement porte celle qui a
       // ete saisie a la commande : un TAFFETA commande « en rolls » affichait « +500 rolls » au
       // journal quand sa fiche annonçait « 500 m ». Deux ecrans, deux verites, meme marchandise.
-      unite: (article ? uniteDeStock(poleDeLArticle(article, categories, generalCategories)) : null)
+      // Sauf quand le mouvement dit lui-même son unité exacte (uniteReelle) : un mouvement des
+      // étagères se compte en unité de vente (m, pièces), pas dans l'unité de la réserve.
+      unite: (m as any)?.uniteReelle
+        || ((m as any)?.etagere ? m?.unitOfMeasure : null)
+        || (article ? uniteDeStock(poleDeLArticle(article, categories, generalCategories)) : null)
         || m?.unitOfMeasure || 'unité',
       qualite: qualiteDeLArticle(m),
       couleur: libelleFixe(m?.color),
@@ -212,7 +218,9 @@ export default function StockMovements({ movements, stockItems, categories, gene
         contient(m.notes) ||
         contient(m.factureRef) ||
         contient(m.reason) ||
-        contient(REASON_LABELS[m.reason])
+        contient(REASON_LABELS[m.reason]) ||
+        // « étagères » retrouve les mouvements des étagères de CHRIFA.
+        ((m as any).etagere && q.length >= 3 && (contient('étagères') || contient('etageres')))
       );
     }
     return r.sort((a, b) =>
@@ -220,9 +228,9 @@ export default function StockMovements({ movements, stockItems, categories, gene
     );
   }, [movements, filterType, filterCat, filterMonth, search, nomDeLaFamille, nomDuMagasin]);
 
-  // Totaux filtrés
-  const totalIN  = filtered.filter(m => m.type === 'IN').reduce((s, m) => s + m.quantity, 0);
-  const totalOUT = filtered.filter(m => m.type === 'OUT').reduce((s, m) => s + m.quantity, 0);
+  // Totaux filtrés, UNITÉ PAR UNITÉ (réserve et étagères à part) et sans les mises en rayon :
+  // une mise en rayon sort 10 sacs et entre 200 pièces, sans que rien n'entre au magasin.
+  const totaux = useMemo(() => totauxJournal(filtered), [filtered]);
   const nbTransferts = filtered.filter(m => m.reason === 'TRANSFERT').length;
 
   // Export Bilan Hebdomadaire Vendredi
@@ -280,6 +288,15 @@ export default function StockMovements({ movements, stockItems, categories, gene
             >
               <Download className="w-4 h-4" /> PDF
             </Button>
+            {onMettreEnRayon && (
+              <Button
+                onClick={onMettreEnRayon}
+                className="bg-teal-600 hover:bg-teal-500 text-white font-black uppercase text-[10px] tracking-widest px-5 h-11 rounded-2xl shadow-lg shadow-teal-500/30 gap-2 shrink-0"
+                title="Sortir des cartons ou des rouleaux de la réserve pour garnir les étagères de CHRIFA"
+              >
+                <Layers className="w-4 h-4" /> Mettre en rayon
+              </Button>
+            )}
             {!readOnly && (
               <Button
                 onClick={() => setModalOpen(true)}
@@ -295,17 +312,21 @@ export default function StockMovements({ movements, stockItems, categories, gene
       {/* Stats rapides */}
       <div className="grid grid-cols-3 gap-4">
         {[
-          { label: 'Total Entrées', value: totalIN, color: 'emerald', icon: ArrowDown },
-          { label: 'Total Sorties', value: totalOUT, color: 'red', icon: ArrowUp },
-          { label: 'Résultat Net', value: totalIN - totalOUT, color: totalIN - totalOUT >= 0 ? 'emerald' : 'red', icon: SlidersHorizontal },
-        ].map(({ label, value, color, icon: Icon }) => (
+          { label: 'Total Entrées', texte: texteTotaux(totaux.entrees, { signe: true, max: 3 }), color: 'emerald', icon: ArrowDown },
+          { label: 'Total Sorties', texte: texteTotaux(totaux.sorties, { max: 3 }), color: 'red', icon: ArrowUp },
+          {
+            label: 'Résultat Net', texte: texteTotaux(totaux.net, { signe: true, max: 3 }),
+            color: totaux.net.some(t => t.quantite < 0) && !totaux.net.some(t => t.quantite > 0) ? 'red' : 'emerald',
+            icon: SlidersHorizontal,
+          },
+        ].map(({ label, texte, color, icon: Icon }) => (
           <div key={label} className={`bg-white rounded-2xl p-4 shadow-lg border border-${color}-100`}>
             <div className={`flex items-center gap-2 mb-1`}>
               <Icon className={`w-3.5 h-3.5 text-${color}-500`} />
               <p className={`text-[11px] font-black uppercase tracking-widest text-${color}-500`}>{label}</p>
             </div>
-            <p className={`text-2xl font-black text-${color === 'red' ? 'red' : 'emerald'}-700`}>
-              {value > 0 ? '+' : ''}{(Number(value) || 0).toLocaleString('fr-FR')}
+            <p className={`text-lg font-black leading-snug text-${color === 'red' ? 'red' : 'emerald'}-700`}>
+              {texte}
             </p>
           </div>
         ))}
@@ -444,6 +465,16 @@ export default function StockMovements({ movements, stockItems, categories, gene
                           ) : (
                             <span className="text-[11px] font-black text-stone-600 uppercase">{nomDuMagasin(m.storeId)}</span>
                           )}
+                          {/* CHRIFA a deux stocks : la réserve et les étagères (src/lib/etageres.ts). */}
+                          {(m as any).etagere ? (
+                            <span className="inline-flex items-center bg-teal-50 text-teal-800 border border-teal-200 px-1.5 py-0.5 rounded text-[10px] font-black uppercase">
+                              Étagères
+                            </span>
+                          ) : m.reason === 'MISE_EN_RAYON' ? (
+                            <span className="inline-flex items-center bg-stone-100 text-stone-700 border border-stone-200 px-1.5 py-0.5 rounded text-[10px] font-black uppercase">
+                              Réserve
+                            </span>
+                          ) : null}
                           {codeEmplacement && (
                             <span
                               className="inline-flex items-center gap-1 bg-blue-50 text-blue-700 border border-blue-100 px-1.5 py-0.5 rounded font-mono text-[10px] font-black"
@@ -499,8 +530,13 @@ export default function StockMovements({ movements, stockItems, categories, gene
           <div className="px-4 py-3 bg-stone-50 border-t border-stone-100 flex flex-wrap items-center justify-between gap-2">
             <span className="text-[11px] font-black text-stone-400 uppercase tracking-widest">{filtered.length} mouvement{filtered.length > 1 ? 's' : ''}</span>
             <div className="flex flex-wrap gap-4">
-              <span className="text-[11px] font-black text-emerald-600 uppercase">+{(Number(totalIN) || 0).toLocaleString('fr-FR')} entrées</span>
-              <span className="text-[11px] font-black text-red-600 uppercase">-{(Number(totalOUT) || 0).toLocaleString('fr-FR')} sorties</span>
+              <span className="text-[11px] font-black text-emerald-600 uppercase">Entrées : {texteTotaux(totaux.entrees, { signe: true })}</span>
+              <span className="text-[11px] font-black text-red-600 uppercase">Sorties : {texteTotaux(totaux.sorties)}</span>
+              {totaux.misesEnRayon > 0 && (
+                <span className="text-[11px] font-black text-teal-700 uppercase">
+                  {totaux.misesEnRayon} mise{totaux.misesEnRayon > 1 ? 's' : ''} en rayon (réserve → étagères, hors totaux)
+                </span>
+              )}
               {nbTransferts > 0 && (
                 <span className="text-[11px] font-black text-amber-600 uppercase">{nbTransferts} ligne{nbTransferts > 1 ? 's' : ''} de transfert</span>
               )}

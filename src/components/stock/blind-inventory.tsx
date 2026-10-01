@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useMemo } from 'react';
-import { ClipboardCheck, CheckCircle2, History, Search, X, EyeOff, Minus, Plus, Equal, Flag } from 'lucide-react';
+import { ClipboardCheck, CheckCircle2, History, Search, X, EyeOff, Minus, Plus, Equal, Flag, Layers, Warehouse } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { ProductPicker } from './stock-movement-modal';
 import {
@@ -11,6 +11,8 @@ import type { StockItem, StockMovement, Store, TransferOrder } from '@/lib/types
 import { MAGASIN_PRINCIPAL } from '@/lib/stock-disponible';
 import { suggestInboundLocation, stockItemVariant } from '@/lib/warehouse-locations';
 import { transfertsAReceptionner, numeroBonTransfert } from '@/lib/transferts';
+import { lignesDeReserve, magasinDesEtageres, LIBELLE_ETAGERES, LIBELLE_RESERVE } from '@/lib/etageres';
+import ComptageEtageres, { type CompteEtagere } from './comptage-etageres';
 
 interface CountedLine {
   articleId: string;
@@ -23,9 +25,18 @@ interface CountedLine {
   unitOfMeasure: string;
   theoretical: number;
   counted: number;
+  /** Comptage des étagères de CHRIFA (sans couleur, en unité de vente), pas de la réserve. */
+  etagere?: boolean;
+  /** Première installation sur les étagères : la réserve de ce produit est à recompter. */
+  reserveARecompter?: boolean;
 }
 
 interface BlindInventoryProps {
+  /**
+   * Les lignes de stock de la vue active. Au magasin principal, elles comprennent les lignes
+   * « Étagères » (src/lib/etageres.ts) : le mode Réserve les écarte, le mode Étagères ne compte
+   * qu'elles.
+   */
   stockItems: StockItem[];
   categories: any[];
   generalCategories: any[];
@@ -33,7 +44,8 @@ interface BlindInventoryProps {
   stores: Store[];
   /** Mouvements, pour rattacher l'ajustement à l'emplacement où le produit se trouve. */
   movements?: any[];
-  onAddMovement: (m: Omit<StockMovement, 'id' | 'createdAt'>) => Promise<void>;
+  /** Rend false quand l'écriture a échoué (message déjà affiché). */
+  onAddMovement: (m: Omit<StockMovement, 'id' | 'createdAt'>) => Promise<boolean | void>;
   onFinalizeSession?: (storeId: string, itemCount: number, varianceCount: number) => Promise<void>;
   adminUid: string | null;
   /**
@@ -56,6 +68,16 @@ export default function BlindInventory({
 
   const currentStore = stores.find(s => s.id === activeStore);
   const isRealStore = activeStore !== 'ALL' && activeStore !== 'ALL_MAIN';
+
+  // ── Deux comptages au magasin principal (src/lib/etageres.ts) ──
+  // La RÉSERVE (le magasin et ses entrepôts, couleur par couleur, dans l'unité de la réserve) et
+  // les ÉTAGÈRES (le détail, sans couleur, en unité de vente). Seul le magasin principal a des
+  // étagères. Les deux ne se comptent jamais ensemble : sacs et pièces ne s'additionnent pas.
+  const magasinEtageres = magasinDesEtageres(stores);
+  const etageresPossibles = isRealStore && activeStore === magasinEtageres;
+  const [modeChoisi, setModeChoisi] = useState<'reserve' | 'etageres'>('reserve');
+  const mode: 'reserve' | 'etageres' = etageresPossibles ? modeChoisi : 'reserve';
+  const lignesReserve = useMemo(() => lignesDeReserve(stockItems), [stockItems]);
   /** La case « je ne l'ai pas comptée » pour le produit choisi, quand il est dans un transfert en route. */
   const [horsTransfertConfirme, setHorsTransfertConfirme] = useState(false);
 
@@ -106,9 +128,10 @@ export default function BlindInventory({
   // affichait currentQty : pour CHRIFA il additionne les entrepôts. Le magasinier voyait 700,
   // comptait 700, et la fiche annonçait un théorique de 400 : l'écran écrivait un ajustement de
   // +300 qui créait de la marchandise. Les deux regardent désormais le même nombre.
+  // Les lignes Étagères n'y figurent jamais : elles ont leur propre comptage (mode « Étagères »).
   const stockDuPerimetre = useMemo(
-    () => stockItems.map(i => ({ ...i, currentQty: theoreticalQty(i) })),
-    [stockItems, activeStore, isRealStore]
+    () => lignesReserve.map(i => ({ ...i, currentQty: theoreticalQty(i) })),
+    [lignesReserve, activeStore, isRealStore]
   );
 
   const handlePick = (articleId: string) => {
@@ -142,7 +165,8 @@ export default function BlindInventory({
         // que si le produit n'est rangé qu'à un seul endroit — sinon on ne devine pas. Pour un
         // article éclaté, on compte une variante : seuls les racks de cette variante comptent.
         const spot = suggestInboundLocation(movements, invStore, realId, stockItemVariant(selected));
-        await onAddMovement({
+        // Écriture refusée : le comptage n'est pas noté fait (la saisie reste pour recommencer).
+        const ok = await onAddMovement({
           articleId: (selected as any)._realArticleId || selected.articleId,
           categoryId: selected.categoryId,
           productName: selected.nameFR || selected.productName,
@@ -159,6 +183,7 @@ export default function BlindInventory({
           date: new Date().toISOString().split('T')[0],
           notes: `Inventaire physique : théorique ${theoretical}, compté ${counted}`,
         });
+        if (ok === false) return;
       }
       setSession(prev => [{
         articleId: selected.articleId,
@@ -179,7 +204,34 @@ export default function BlindInventory({
     }
   };
 
-  const varianceCount = session.filter(l => l.counted !== l.theoretical).length;
+  /** Un comptage des étagères validé : il rejoint la liste de la session, marqué « Étagères ». */
+  const handleCompteEtagere = (l: CompteEtagere) => {
+    setSession(prev => [{
+      articleId: l.cle,
+      realArticleId: l.cle,
+      productName: l.productName,
+      size: l.size,
+      quality: l.quality,
+      categoryId: '',
+      unitOfMeasure: l.unite,
+      theoretical: l.theorique,
+      counted: l.compte,
+      etagere: true,
+      ...(l.reserveARecompter ? { reserveARecompter: true } : {}),
+    }, ...prev]);
+  };
+
+  /** Passer de la réserve aux étagères (ou l'inverse) : le produit en cours est relâché. */
+  const changerDeMode = (m: 'reserve' | 'etageres') => {
+    setModeChoisi(m);
+    setSelected(null);
+    setPicking(false);
+    setCountedValue('');
+    setHorsTransfertConfirme(false);
+  };
+
+  const ecartArrondi = (l: CountedLine) => Math.round((l.counted - l.theoretical) * 1000) / 1000;
+  const varianceCount = session.filter(l => ecartArrondi(l) !== 0).length;
 
   const handleFinalize = async () => {
     if (!onFinalizeSession || !isRealStore || session.length === 0 || finalizing) return;
@@ -208,11 +260,13 @@ export default function BlindInventory({
               <p className="text-[11px] font-black text-amber-300 uppercase tracking-[0.3em]">Inventaire physique</p>
             </div>
             <h1 className="text-3xl font-black text-white uppercase tracking-tighter">
-              Comptage à l'aveugle
+              {mode === 'etageres' ? 'Comptage des étagères' : "Comptage à l'aveugle"}
             </h1>
             <p className="text-[13px] font-bold text-amber-100/90 leading-snug mt-2 max-w-xl">
               {isRealStore
-                ? <>Lieu compté : <span className="text-white">{nomDuLieu}</span>. </>
+                ? <>Lieu compté : <span className="text-white">{nomDuLieu}</span>{etageresPossibles
+                    ? <> · <span className="text-white">{mode === 'etageres' ? LIBELLE_ETAGERES : `${LIBELLE_RESERVE}, hors étagères`}</span></>
+                    : null}. </>
                 : <>Aucun lieu choisi pour l'instant. </>}
               Un produit à la fois : vous saisissez ce que vous avez sous la main, et le logiciel ne
               montre son chiffre qu'après.
@@ -233,7 +287,45 @@ export default function BlindInventory({
         </div>
       </div>
 
-      {transfertsEnAttente.length > 0 && (
+      {etageresPossibles && (
+        <div className="bg-white rounded-3xl shadow-lg border border-stone-100 p-4">
+          <p className="text-[11px] font-black text-stone-500 uppercase tracking-wider mb-2.5">Que comptez-vous ?</p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+            <button
+              type="button"
+              onClick={() => changerDeMode('reserve')}
+              aria-pressed={mode === 'reserve'}
+              className={`text-left rounded-2xl border p-3.5 transition-colors ${
+                mode === 'reserve' ? 'border-amber-400 bg-amber-50 ring-2 ring-amber-200' : 'border-stone-200 hover:bg-stone-50'
+              }`}
+            >
+              <span className="flex items-center gap-2 text-[13px] font-black text-stone-900">
+                <Warehouse className="w-4 h-4 text-amber-700" /> {LIBELLE_RESERVE}
+              </span>
+              <span className="block text-[11px] font-medium text-stone-500 leading-snug mt-1">
+                Couleur par couleur, dans l'unité de la réserve (sacs, rouleaux, pièces…). Hors étagères.
+              </span>
+            </button>
+            <button
+              type="button"
+              onClick={() => changerDeMode('etageres')}
+              aria-pressed={mode === 'etageres'}
+              className={`text-left rounded-2xl border p-3.5 transition-colors ${
+                mode === 'etageres' ? 'border-teal-400 bg-teal-50 ring-2 ring-teal-200' : 'border-stone-200 hover:bg-stone-50'
+              }`}
+            >
+              <span className="flex items-center gap-2 text-[13px] font-black text-stone-900">
+                <Layers className="w-4 h-4 text-teal-700" /> {LIBELLE_ETAGERES}
+              </span>
+              <span className="block text-[11px] font-medium text-stone-500 leading-snug mt-1">
+                Un chiffre par produit, toutes couleurs ensemble, à l'unité de vente (pièce ou mètre).
+              </span>
+            </button>
+          </div>
+        </div>
+      )}
+
+      {mode === 'reserve' && transfertsEnAttente.length > 0 && (
         <Encadre ton="attention" titre={`${transfertsEnAttente.length} transfert${transfertsEnAttente.length > 1 ? 's' : ''} en route vers ${nomDuLieu}, pas encore réceptionné${transfertsEnAttente.length > 1 ? 's' : ''}`}>
           Leur marchandise n'est pas encore dans le stock de ce lieu. Si elle est déjà arrivée, réceptionnez
           d'abord {transfertsEnAttente.length > 1 ? 'ces transferts' : 'ce transfert'} (écran Transferts) avant de compter :
@@ -253,11 +345,19 @@ export default function BlindInventory({
       <Encadre ton="astuce" titre="Pourquoi le stock n'apparaît pas avant votre chiffre">
         Quand le chiffre du logiciel s'affiche d'abord, on ne compte plus : on recopie. Il reste donc
         masqué jusqu'à votre saisie, et l'écran ne compare qu'ensuite.{' '}
-        {activeStore === MAGASIN_PRINCIPAL ? (
+        {mode === 'etageres' ? (
+          <>
+            Comptez seulement ce qui est <span className="font-black">sur les étagères</span> de{' '}
+            {nomDuLieu}, toutes couleurs ensemble, à l'unité de vente. Les cartons et rouleaux de la
+            réserve ne se comptent pas ici : ils ont leur propre comptage (mode « Réserve »).
+          </>
+        ) : activeStore === MAGASIN_PRINCIPAL || etageresPossibles ? (
           <>
             Comptez ce qui est présent dans <span className="font-black">{nomDuLieu}</span>{' '}
             <span className="font-black">ET dans ses entrepôts</span> : ici les deux ne font qu'un
-            seul stock, et ne compter que le rayon effacerait la réserve.
+            seul stock, et ne compter que le magasin effacerait les entrepôts.{' '}
+            <span className="font-black">Hors étagères</span> : ce qui est en rayon pour le détail
+            se compte à part, dans le mode « Étagères ».
           </>
         ) : (
           <>
@@ -266,15 +366,26 @@ export default function BlindInventory({
             compte dans sa propre session, ce lieu sélectionné en haut de l'écran.
           </>
         )}{' '}
-        Un produit décliné en qualités, couleurs ou tailles se compte variante par variante :
-        chacune a son stock à elle.
+        {mode === 'etageres'
+          ? 'La qualité et la taille, elles, restent séparées : chacune a sa propre ligne.'
+          : 'Un produit décliné en qualités, couleurs ou tailles se compte variante par variante : chacune a son stock à elle.'}
       </Encadre>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Colonne de gauche : comptage */}
         <div className="lg:col-span-2 space-y-4">
           <div className="bg-white rounded-3xl shadow-lg border border-stone-100 p-5 space-y-6">
-            {!selected ? (
+            {mode === 'etageres' ? (
+              <ComptageEtageres
+                stockItems={stockItems}
+                categories={categories}
+                generalCategories={generalCategories}
+                magasin={magasinEtageres}
+                nomDuLieu={nomDuLieu}
+                onAddMovement={onAddMovement}
+                onCompte={handleCompteEtagere}
+              />
+            ) : !selected ? (
               picking ? (
                 <SectionFormulaire
                   numero={1}
@@ -340,6 +451,11 @@ export default function BlindInventory({
                   }
                 >
                   <div className="rounded-2xl border border-stone-200 bg-stone-50 p-3.5">
+                    {etageresPossibles && (
+                      <p className="text-[10px] font-black uppercase tracking-widest text-amber-700 mb-1">
+                        {LIBELLE_RESERVE} · hors étagères
+                      </p>
+                    )}
                     <p className="text-sm font-black text-stone-900 leading-tight">
                       {selected.nameFR || selected.productName}
                     </p>
@@ -359,7 +475,7 @@ export default function BlindInventory({
                     obligatoire
                     htmlFor="inventaire-quantite-comptee"
                     indice={unite}
-                    aide={`Tout ce qui est présent dans ${nomDuLieu} pour cette variante, y compris les rouleaux entamés et les cartons du fond. Recomptez avant de valider : c'est ce chiffre qui fera foi.`}
+                    aide={`Tout ce qui est présent dans ${nomDuLieu}${etageresPossibles ? ' et ses entrepôts, hors étagères,' : ''} pour cette variante, y compris les rouleaux entamés et les cartons du fond. Recomptez avant de valider : c'est ce chiffre qui fera foi.`}
                   >
                     <Input
                       id="inventaire-quantite-comptee"
@@ -542,12 +658,25 @@ export default function BlindInventory({
               </div>
             ) : (
               session.map((l, i) => {
-                const diff = l.counted - l.theoretical;
+                const diff = ecartArrondi(l);
                 return (
                   <div key={i} className={`p-3 rounded-2xl border ${diff === 0 ? 'bg-stone-50 border-stone-100' : diff > 0 ? 'bg-blue-50 border-blue-100' : 'bg-red-50 border-red-100'}`}>
-                    <p className="text-[13px] font-bold text-stone-900 leading-tight">{l.productName}</p>
-                    {(l.color || l.size || l.quality) && (
-                      <p className="text-[11px] font-medium text-stone-500 mt-0.5">{[l.quality, l.color, l.size].filter(Boolean).join(' · ')}</p>
+                    <p className="text-[13px] font-bold text-stone-900 leading-tight">
+                      {l.productName}
+                      {l.etagere && (
+                        <span className="ml-1.5 align-middle text-[10px] font-black text-teal-700 bg-teal-50 border border-teal-200 px-1.5 py-0.5 rounded uppercase">Étagères</span>
+                      )}
+                    </p>
+                    {(l.color || l.size || l.quality || l.etagere) && (
+                      <p className="text-[11px] font-medium text-stone-500 mt-0.5">
+                        {[l.quality, l.color, l.size].filter(Boolean).join(' · ')}
+                        {l.etagere ? `${l.quality || l.size ? ' · ' : ''}toutes couleurs` : ''}
+                      </p>
+                    )}
+                    {l.reserveARecompter && (
+                      <p className="text-[11px] font-bold text-amber-800 mt-1">
+                        Réserve à recompter (mode Réserve, hors étagères) : sinon ces quantités comptent deux fois.
+                      </p>
                     )}
                     <div className="flex justify-between items-center gap-3 mt-2 pt-2 border-t border-black/5">
                       <span className="text-[11px] font-medium text-stone-500 leading-snug">

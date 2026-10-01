@@ -109,12 +109,22 @@ export function prixParUnitePrix(ligne: any): number {
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
+ * La ligne a-t-elle été vendue depuis les ÉTAGÈRES de CHRIFA (src/lib/etageres.ts) ? Elle porte
+ * alors `etagere: true` (et `source: 'ETAGERE'`) : sans couleur, sans emplacement, à l'unité de
+ * vente. Sa sortie, sa correction, son annulation et son retour restent sur les étagères.
+ */
+export const estLigneDeBonEtagere = (ligne: any): boolean =>
+  ligne?.etagere === true || ligne?.source === 'ETAGERE';
+
+/**
  * La variante dont la ligne a puisé le stock : celle que la caisse a notée sur la ligne
  * (`varianteStock`) ; pour un bon plus ancien, la dimension de ventilation de l'article, comme
  * pour un retour. Jamais « la qualité d'abord » : sur un article ventilé par couleur, toutes les
  * couleurs portent la même qualité, et la FIFO irait puiser dans le rack d'une autre couleur.
  */
 export function varianteDeLigne(ligne: any, articles: any[] = []): StockVariant | null {
+  // Une ligne vendue aux étagères n'a pas de variante de réserve : elle ne puise dans aucun rack.
+  if (estLigneDeBonEtagere(ligne)) return null;
   const v = ligne?.varianteStock;
   if (v && (v.dimension === 'quality' || v.dimension === 'color' || v.dimension === 'size') && String(v.value ?? '').trim()) {
     return { dimension: v.dimension, value: String(v.value) };
@@ -426,6 +436,8 @@ export interface LigneDeGroupe {
   lieu?: string;
   /** Ce que contient une unité de la ligne (1 rouleau = 50 m), quand elle se compte en colis. */
   contenance: Contenance | null;
+  /** Vendue depuis les étagères de CHRIFA (sans couleur, à l'unité de vente). */
+  etagere?: boolean;
 }
 
 export interface GroupeBon {
@@ -491,6 +503,7 @@ export function grouperLignesBon(items: any[]): GroupeBon[] {
       total: prixLigne > 0 ? arrondi2(prixLigne * quantite) : 0,
       lieu: item?.storeId || undefined,
       contenance: contenanceDeLigne(item),
+      ...(estLigneDeBonEtagere(item) ? { etagere: true } : {}),
     });
   });
 
@@ -742,6 +755,9 @@ const identiteDuMouvement = (m: any): Record<string, any> => {
 export const cleEmplacement = (m: any): string => [
   m?.storeId || '', m?.locationCode || '', m?.articleId || '',
   normaliser(m?.quality), normaliser(m?.color), normaliser(m?.size), normaliser(m?.unitOfMeasure),
+  // Étagères et réserve : deux tas distincts, même sans emplacement (src/lib/etageres.ts). Le
+  // retour d'un bon vendu aux étagères repart sur les étagères, jamais dans la réserve.
+  ...(m?.etagere ? ['etagere'] : []),
 ].join('|');
 
 export interface SoldeEmplacement { modele: any; quantite: number }
@@ -825,6 +841,12 @@ export function mouvementDepuisLigne(ligne: any, storeId: string): Record<string
     storeId: ligne?.storeId || storeId,
   };
   if (ligne?.ligneId) m.ligneBonId = ligne.ligneId;
+  // Une ligne vendue aux étagères : sans couleur, en unité de vente (src/lib/etageres.ts).
+  if (estLigneDeBonEtagere(ligne)) {
+    m.etagere = true;
+    m.color = null;
+    m.uniteReelle = m.unitOfMeasure;
+  }
   return m;
 }
 

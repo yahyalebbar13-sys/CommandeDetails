@@ -19,6 +19,9 @@ const arrondi3 = (n: unknown) => Math.round((Number(n) || 0) * 1000) / 1000;
 /** Le mouvement de retour concerne-t-il cette ligne ? Même article, même couleur et taille ; la qualité si les deux la portent. */
 function memeMarchandise(m: any, ligne: any): boolean {
   if (m?.articleId !== ligne?.articleId) return false;
+  // Les étagères et la réserve sont deux stocks : un retour aux étagères ne solde pas une ligne
+  // vendue depuis la réserve, ni l'inverse (src/lib/etageres.ts).
+  if (Boolean(m?.etagere) !== Boolean(ligne?.etagere)) return false;
   if (norm(m?.color) !== norm(ligne?.color)) return false;
   if (norm(m?.size) !== norm(ligne?.size)) return false;
   if (norm(m?.quality) && norm(ligne?.quality) && norm(m.quality) !== norm(ligne.quality)) return false;

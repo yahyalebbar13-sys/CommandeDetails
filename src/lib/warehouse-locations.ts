@@ -328,6 +328,8 @@ export function computeLocationOccupancy(movements: any[]): Record<string, Locat
   for (const m of movements || []) {
     const code = m?.locationCode;
     if (!code) continue;
+    // Les étagères de CHRIFA n'ont pas d'emplacement (src/lib/etageres.ts).
+    if (m?.etagere) continue;
     const qty = Number(m.quantity) || 0;
     if (!acc[code]) acc[code] = { quantity: 0, refs: new Set() };
     // ADJUSTMENT suit la même convention que le reste du calcul de stock : la quantité est
@@ -375,6 +377,7 @@ export function computeArticleLocationStock(
 
   for (const m of movements || []) {
     if (!m?.locationCode) continue;
+    if (m.etagere) continue; // les étagères n'ont pas de rack (src/lib/etageres.ts)
     if (m.articleId !== articleId) continue;
     // Un transfert entrant est crédité sur toStoreId, tous les autres sur storeId.
     const place = m.type === 'IN' && m.reason === 'TRANSFERT' ? (m.toStoreId || m.storeId) : m.storeId;
@@ -471,6 +474,9 @@ export function splitOutboundLines<T extends Record<string, any>>(
 ): (T & { quantity: number; locationCode?: string; locationId?: string })[] {
   const qty = Number(quantity) || 0;
   if (qty <= 0) return [];
+  // Une sortie des ÉTAGÈRES de CHRIFA (src/lib/etageres.ts) n'a pas d'emplacement : la FIFO irait
+  // sinon puiser dans les racks de la réserve du même article et y écrirait un rack faux.
+  if ((base as any)?.etagere === true) return [{ ...base, quantity: qty }];
 
   const { allocations, unallocated } = allocateOutbound({ movements, storeId, articleId, quantity: qty, variant, lieux });
   const lines = allocations.map(a => ({
@@ -582,15 +588,22 @@ export type LocationContentLine = {
  */
 export function computeLocationContents(
   movements: any[], locationCode: string, storeId?: string,
-  dimensionOf?: (articleId: string) => VariantDimension | null | undefined
+  dimensionOf?: (articleId: string) => VariantDimension | null | undefined,
+  /**
+   * Les lieux connus : un entrepôt, c'est le magasin principal. La marchandise entre sous le nom
+   * de l'entrepôt mais en sort (caisse, mise en rayon) sous celui de CHRIFA ; comparés tels
+   * quels, le rack affichait encore ce qui en était sorti. Sans eux, comparaison stricte.
+   */
+  lieux: LieuConnu[] = [],
 ): LocationContentLine[] {
   const acc: Record<string, LocationContentLine> = {};
   const clean = (v: unknown) => (v && !isVarious(v) ? String(v) : undefined);
   for (const m of movements || []) {
     if (!m || m.locationCode !== locationCode) continue;
+    if (m.etagere) continue; // les étagères n'ont pas d'emplacement (src/lib/etageres.ts)
     if (storeId) {
       const place = m.type === 'IN' && m.reason === 'TRANSFERT' ? (m.toStoreId || m.storeId) : m.storeId;
-      if (place !== storeId) continue;
+      if (lieuDeMouvement(place, lieux) !== lieuDeMouvement(storeId, lieux)) continue;
     }
     const articleId = String(m.articleId || '');
     const dimension = dimensionOf?.(articleId);
@@ -659,6 +672,9 @@ export function lignesEntreeManquantes(articles: any[], mouvements: any[]): numb
   const parArticle = new Map<string, any[]>();
   for (const m of mouvements || []) {
     if (m?.type !== 'IN') continue;
+    // Une entrée sur les étagères (mise en rayon, comptage, retour) n'est pas l'entrée d'un
+    // arrivage : elle ne doit pas faire passer un dossier incomplet pour entré.
+    if (m?.etagere || m?.reason === 'MISE_EN_RAYON') continue;
     const cle = String(m?.articleId || '');
     const liste = parArticle.get(cle);
     if (liste) liste.push(m); else parArticle.set(cle, [m]);

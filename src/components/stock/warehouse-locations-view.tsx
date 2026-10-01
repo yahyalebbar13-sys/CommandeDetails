@@ -139,7 +139,7 @@ function computePlaceLocations(
     }
     balanceByCode[loc.code] = { net: round3(net), elsewhere: round3(elsewhere) };
     const groups = groupContentsByArticle(
-      computeLocationContents(movs, loc.code, storeId || undefined, dimensionOf), articleNameOf);
+      computeLocationContents(movs, loc.code, storeId || undefined, dimensionOf, lieux), articleNameOf);
     if (groups.length > 0) contentsByCode[loc.code] = groups;
   }
   return { contentsByCode, balanceByCode };

@@ -27,7 +27,11 @@ import {
   encoursClient, controleCreditAuBon, nouvelIdentifiantLigne, natureBon, estNumeroProvisoire, contenanceDepuisStock,
 } from '@/lib/bon-sans-prix';
 import { construireBonHtml } from '@/lib/bon-imprime';
-import { disponibleDepuis, lieuDeMouvement } from '@/lib/stock-disponible';
+import { disponibleDepuis, disponibleSurEtageres, lieuDeMouvement } from '@/lib/stock-disponible';
+import {
+  produitsDesEtageres, ligneEtagereDuProduit, venteAuxEtageres, magasinDesEtageres, estLigneEtagere,
+  MESSAGE_SANS_UNITE_VENTE, LIBELLE_RESERVE, LIBELLE_ETAGERES,
+} from '@/lib/etageres';
 import { useOnlineStatus } from '@/hooks/use-online-status';
 import {
   SectionFormulaire, Champ, Encadre, LigneResume, Recapitulatif, BoutonValider, CLASSE_CHAMP,
@@ -155,7 +159,11 @@ export function ChampQuantite({ valeur, unite, onQuantite, nu, videSiZero, garde
   );
 }
 
-interface CartLine { item: StockItem; qty: number; unitPrice: number; sourceStore?: string; }
+/**
+ * Une ligne du panier. `source: 'ETAGERE'` : vendue depuis les étagères de CHRIFA (sans couleur,
+ * à l'unité de vente, src/lib/etageres.ts) ; sinon depuis la réserve, comme toujours.
+ */
+interface CartLine { item: StockItem; qty: number; unitPrice: number; sourceStore?: string; source?: 'ETAGERE'; }
 
 interface CheckoutPaymentLine {
   id: string;
@@ -171,6 +179,12 @@ interface CheckoutPaymentLine {
 
 interface StockSaleFlowProps {
   stockItems: StockItem[];
+  /**
+   * Les lignes « Étagères » du magasin principal (une par produit, sans couleur, à l'unité de
+   * vente). Fournies seulement quand la caisse est celle du magasin principal : ailleurs, rien ne
+   * change.
+   */
+  etageres?: StockItem[];
   categories: any[];
   generalCategories: any[];
   clients: Client[];
@@ -207,7 +221,7 @@ const STEPS = [
 ];
 
 export default function StockSaleFlow({
-  stockItems, categories, generalCategories, clients, invoices, userRole = 'ADMIN', lectureSeule = false,
+  stockItems, etageres = [], categories, generalCategories, clients, invoices, userRole = 'ADMIN', lectureSeule = false,
   stores = [], selectedStoreId = 'CHRIFA', onStoreChange,
   onCreateOrder, onCreateInvoice, onCreateClient, onNavigate,
   onCreerBon, onSaisirPrix, orders = [],
@@ -373,7 +387,19 @@ export default function StockSaleFlow({
     [categories, selGenCat]
   );
 
-  const [variantModal, setVariantModal] = useState<{ open: boolean; productName: string; variants: StockItem[]; categoryId: string }>({ open: false, productName: '', variants: [], categoryId: '' });
+  const [variantModal, setVariantModal] = useState<{
+    open: boolean; productName: string; variants: StockItem[]; categoryId: string; etageres?: StockItem[];
+    /** Les lignes de réserve à 0 du produit (magasin principal) : elles disent quels produits d'étagère existent. */
+    reserveAZero?: StockItem[];
+  }>({ open: false, productName: '', variants: [], categoryId: '' });
+  /**
+   * « D'où ça sort ? » — la question posée en tête de la fenêtre produit, au magasin principal
+   * seulement : la RÉSERVE (par couleur, comme toujours) ou les ÉTAGÈRES (sans couleur, la
+   * quantité se tape directement en pièces ou en mètres). Un même panier peut mélanger les deux.
+   */
+  // Au magasin principal, rien n'est coché d'avance (null) : une réponse déjà cochée n'est pas une
+  // question, et taper « 30 » côté réserve en pensant à des pièces sortait 30 sacs.
+  const [sourceProduit, setSourceProduit] = useState<'RESERVE' | 'ETAGERE' | null>('RESERVE');
   // Variante choisie dans la fenêtre produit : sa dimension compte autant que sa valeur. Un
   // groupe dont les variantes portent une qualité se présélectionnait sur cette qualité mais se
   // filtrait sur la taille — le tableau s'ouvrait vide et le produit ne pouvait plus être vendu.
@@ -408,22 +434,76 @@ export default function StockSaleFlow({
       .sort((a, b) => (a.color || a.productName).localeCompare(b.color || b.productName, 'fr'));
   }, [variantModal.variants, activeOption, rechercheCouleur]);
 
-  // Grouped list of products for the main grid
-  const groupedProducts = useMemo(() => {
-    let items = stockItems.filter(i => i.currentQty > 0);
-    if (selCat) {
-      items = items.filter(i => i.categoryId === selCat);
-    } else if (selGenCat) {
+  // Les étagères du magasin principal, rangées par nom de produit (comme la réserve), filtrées
+  // comme elle par famille et par recherche.
+  const magasinEtageres = magasinDesEtageres(stores || []);
+  const caisseDuMagasinPrincipal = selectedStoreId === magasinEtageres;
+  const etageresParNom = useMemo(() => {
+    const parNom = new Map<string, StockItem[]>();
+    if (!caisseDuMagasinPrincipal) return parNom;
+    let lignes = etageres;
+    if (selCat) lignes = lignes.filter(i => i.categoryId === selCat);
+    else if (selGenCat) {
       const catNames = filteredCats.map((c: any) => c.name);
-      items = items.filter(i => catNames.includes(i.categoryId));
+      lignes = lignes.filter(i => catNames.includes(i.categoryId));
     }
     if (prodSearch) {
       const q = prodSearch.toLowerCase();
-      items = items.filter(i =>
+      lignes = lignes.filter(i => i.productName.toLowerCase().includes(q) || i.size?.toLowerCase().includes(q));
+    }
+    for (const l of lignes) {
+      const liste = parNom.get(l.productName);
+      if (liste) liste.push(l); else parNom.set(l.productName, [l]);
+    }
+    return parNom;
+  }, [etageres, caisseDuMagasinPrincipal, selCat, selGenCat, filteredCats, prodSearch]);
+
+  /**
+   * Les produits d'étagère du produit ouvert : un par qualité et par taille, sans couleur. Un
+   * produit jamais compté ni mis en rayon y figure aussi (à zéro) : le stock des étagères n'est
+   * pas encore installé partout, et la vente doit pouvoir passer — en signalant le dépassement.
+   */
+  const etageresDuProduit = useMemo(() => {
+    if (!variantModal.open || !caisseDuMagasinPrincipal) return [];
+    // La réserve du produit, Y COMPRIS ses lignes à 0 : une fermeture de 60 cm épuisée en réserve
+    // mais posée sur l'étagère doit rester vendable depuis les étagères.
+    const reserveDuProduit = [
+      ...variantModal.variants.flatMap(v => ((v as any).originalItems as StockItem[]) || [v]),
+      ...(variantModal.reserveAZero || []),
+    ];
+    return produitsDesEtageres([...(variantModal.etageres || []), ...reserveDuProduit], categories, generalCategories)
+      .map(produit => ({ produit, item: ligneEtagereDuProduit(produit, variantModal.etageres || [], magasinEtageres) as StockItem }));
+  }, [variantModal, caisseDuMagasinPrincipal, categories, generalCategories, magasinEtageres]);
+  const modeEtageres = caisseDuMagasinPrincipal && sourceProduit === 'ETAGERE';
+
+  // Grouped list of products for the main grid
+  const groupedProducts = useMemo(() => {
+    let tous = stockItems;
+    if (selCat) {
+      tous = tous.filter(i => i.categoryId === selCat);
+    } else if (selGenCat) {
+      const catNames = filteredCats.map((c: any) => c.name);
+      tous = tous.filter(i => catNames.includes(i.categoryId));
+    }
+    if (prodSearch) {
+      const q = prodSearch.toLowerCase();
+      tous = tous.filter(i =>
         i.productName.toLowerCase().includes(q) ||
         i.color?.toLowerCase().includes(q) ||
         i.size?.toLowerCase().includes(q)
       );
+    }
+    const items = tous.filter(i => i.currentQty > 0);
+    // Au magasin principal, les lignes de réserve à 0 restent connues : un produit épuisé en
+    // réserve peut encore être sur les étagères (stock trop bas : on vend et on signale, on ne
+    // bloque pas — décision du patron).
+    const reserveAZeroParNom = new Map<string, StockItem[]>();
+    if (caisseDuMagasinPrincipal) {
+      for (const i of tous) {
+        if (i.currentQty > 0) continue;
+        const liste = reserveAZeroParNom.get(i.productName);
+        if (liste) liste.push(i); else reserveAZeroParNom.set(i.productName, [i]);
+      }
     }
     
     const map = new Map<string, StockItem[]>();
@@ -433,7 +513,7 @@ export default function StockSaleFlow({
       map.get(key)!.push(item);
     });
     
-    return Array.from(map.entries()).map(([name, rawVariants]) => {
+    const groupes = Array.from(map.entries()).map(([name, rawVariants]) => {
       // Deux lignes de stock ne se fusionnent que si elles désignent la MÊME marchandise : la
       // qualité fait partie de l'identité au même titre que la couleur et la taille. Sans elle,
       // deux qualités du même coloris n'apparaissaient qu'une fois, avec la somme des deux, et la
@@ -461,9 +541,30 @@ export default function StockSaleFlow({
         }),
         totalQty: variants.reduce((s, v) => s + v.currentQty, 0),
         categoryId: variants[0]?.categoryId || '',
+        // Les étagères du produit (magasin principal) : à part, jamais fondues dans les couleurs.
+        etageres: etageresParNom.get(name) || [],
+        reserveAZero: reserveAZeroParNom.get(name) || [],
       };
-    }).sort((a, b) => a.name.localeCompare(b.name));
-  }, [stockItems, selCat, selGenCat, filteredCats, prodSearch]);
+    });
+    // Un produit dont la réserve est vide reste vendable depuis les étagères — même quand le
+    // logiciel y compte 0 ou moins (comptage de départ trop bas) : la vente passe et signale le
+    // dépassement. Il lui faut une ligne Étagères, c'est-à-dire avoir été compté ou mis en rayon :
+    // un produit épuisé qui n'est jamais passé sur les étagères n'a rien à y vendre, et l'afficher
+    // remplirait la caisse de produits à 0.
+    const noms = new Set<string>([...etageresParNom.keys(), ...reserveAZeroParNom.keys()]);
+    for (const name of noms) {
+      if (map.has(name)) continue;
+      const lignes = etageresParNom.get(name) || [];
+      const reserveAZero = reserveAZeroParNom.get(name) || [];
+      if (lignes.length === 0) continue;
+      groupes.push({
+        name, variants: [], totalQty: 0,
+        categoryId: lignes[0]?.categoryId || reserveAZero[0]?.categoryId || '',
+        etageres: lignes, reserveAZero,
+      });
+    }
+    return groupes.sort((a, b) => a.name.localeCompare(b.name));
+  }, [stockItems, selCat, selGenCat, filteredCats, prodSearch, etageresParNom, caisseDuMagasinPrincipal, categories, generalCategories]);
 
   const filteredClients = useMemo(() =>
     clients.filter(c => c.name.toLowerCase().includes(clientSearch.toLowerCase()) ||
@@ -486,7 +587,10 @@ export default function StockSaleFlow({
   // qu'ici, et l'écran des transferts, qui l'ignorait, affichait « Rien au départ » sur un stock
   // pourtant bien présent en entrepôt.
   const availableQtyAtStore = useCallback(
-    (item: StockItem, storeId: string): number => disponibleDepuis(item, storeId, stores || []),
+    (item: StockItem, storeId: string): number => (estLigneEtagere(item)
+      // Une ligne des étagères : ce que le logiciel y compte (unité de vente), au magasin principal.
+      ? disponibleSurEtageres(item, storeId)
+      : disponibleDepuis(item, storeId, stores || [])),
     [stores],
   );
 
@@ -558,10 +662,12 @@ export default function StockSaleFlow({
    * imprimé à 18 dans le même panier. Mais quand les couleurs valent bien le même prix — le cas
    * le plus fréquent — le retaper douze fois est une corvée. D'où ce geste explicite.
    */
-  const appliquerPrixAuProduit = (productName: string, prix: number) => {
+  const appliquerPrixAuProduit = (productName: string, prix: number, unite?: string) => {
     let touchees = 0;
     setCart(prev => prev.map(l => {
       if (l.item.productName !== productName || l.unitPrice === prix) return l;
+      // Un prix au sac ne se recopie jamais sur des pièces vendues aux étagères (ni l'inverse).
+      if (unite !== undefined && (l.item.unitOfMeasure || '') !== unite) return l;
       touchees += 1;
       return { ...l, unitPrice: prix };
     }));
@@ -581,6 +687,13 @@ export default function StockSaleFlow({
         // volontairement, il y a le bouton « Appliquer aux N couleurs ».
         return prev.map(l => (l.item.articleId === articleId ? { ...l, unitPrice: val } : l));
       }
+      if (key === 'qty' && target && target.source === 'ETAGERE') {
+        // Les étagères ne bloquent pas : le stock affiché peut être trop bas (pas encore compté).
+        // La vente passe et le dépassement est signalé.
+        const plancher = pasDeSaisie(target.item.unitOfMeasure);
+        const q = arrondiQte(Math.max(plancher, uniteDecimale(target.item.unitOfMeasure) ? val : Math.round(val)));
+        return prev.map(l => l.item.articleId === articleId ? { ...l, qty: q } : l);
+      }
       if (key === 'qty' && target) {
         const storeStock = target.sourceStore
           ? availableQtyAtStore(target.item, target.sourceStore)
@@ -592,6 +705,26 @@ export default function StockSaleFlow({
         return prev.map(l => l.item.articleId === articleId ? { ...l, qty: boundedQty } : l);
       }
       return prev.map(l => l.item.articleId === articleId ? { ...l, [key]: val } : l);
+    });
+  };
+
+  /**
+   * La quantité d'un produit vendu aux ÉTAGÈRES : tapée directement en pièces ou en mètres
+   * (décimales pour le mètre seulement), sans plafond — un dépassement est signalé, pas bloqué.
+   */
+  const setEtagereQtyInCart = (item: StockItem, qty: number) => {
+    // Le prix d'une autre ligne du même produit n'est repris que dans la même unité (à la pièce,
+    // au mètre) : jamais le prix d'un sac de la réserve.
+    const existingSameProd = cart.find(l => l.item.productName === item.productName && l.unitPrice > 0
+      && (l.item.unitOfMeasure || '') === (item.unitOfMeasure || ''));
+    const price = existingSameProd?.unitPrice ?? (item.sellingPrice || 0);
+    const brut = Math.max(0, Number(qty) || 0);
+    const validQty = arrondiQte(uniteDecimale(item.unitOfMeasure) ? brut : Math.round(brut));
+    setCart(prev => {
+      const ex = prev.find(l => l.item.articleId === item.articleId);
+      if (validQty === 0) return prev.filter(l => l.item.articleId !== item.articleId);
+      if (ex) return prev.map(l => (l.item.articleId === item.articleId ? { ...l, qty: validQty } : l));
+      return [...prev, { item, qty: validQty, unitPrice: price, sourceStore: magasinEtageres, source: 'ETAGERE' as const }];
     });
   };
 
@@ -640,7 +773,8 @@ export default function StockSaleFlow({
 
   const setVariantQtyInCart = (item: StockItem, qty: number, customPrice?: number) => {
     const sourceStore = resolveSourceStore(item, selectedStoreId);
-    const existingSameProd = cart.find(l => l.item.productName === item.productName && l.unitPrice > 0);
+    // Jamais le prix d'une ligne vendue aux étagères (à la pièce ou au mètre) sur la réserve.
+    const existingSameProd = cart.find(l => l.source !== 'ETAGERE' && l.item.productName === item.productName && l.unitPrice > 0);
     const price = customPrice !== undefined 
       ? customPrice 
       : (existingSameProd?.unitPrice ?? (item.sellingPrice || 0));
@@ -680,6 +814,18 @@ export default function StockSaleFlow({
     const movements: any[] = [];
 
     for (const l of cart) {
+      // Vendu aux ÉTAGÈRES : une ligne et une sortie, sans couleur ni emplacement, à l'unité de
+      // vente, au magasin principal. Au-delà de ce que le logiciel y compte, la vente passe et la
+      // sortie porte la marque « Dépassement stock ».
+      if (l.source === 'ETAGERE') {
+        const { ligne, mouvement } = venteAuxEtageres({
+          item: l.item, qty: l.qty, unitPrice: l.unitPrice, magasin: magasinEtageres, date: today,
+          notes: noteMouvement, disponible: availableQtyAtStore(l.item, magasinEtageres),
+        });
+        items.push(ligne as OrderItem);
+        movements.push(mouvement);
+        continue;
+      }
       const resolvedStore = l.sourceStore || resolveSourceStore(l.item, selectedStoreId);
       let remainingQty = l.qty;
       const premiereLigne = items.length;
@@ -1131,7 +1277,7 @@ export default function StockSaleFlow({
           validLines.map(l => `${fmt$(parseFloat(l.amount))} MAD en ${libelleMode(l.method)}${l.checkNumber ? ` n° ${l.checkNumber}` : ''}${l.dueDate ? `, échéance ${l.dueDate}` : ''}`).join(' + '),
           balanceRemaining > 0.01 ? `reste dû ${fmt$(balanceRemaining)} MAD` : '',
         ].filter(Boolean).join(' · ');
-      const items = cart.map(({ item, qty, unitPrice, sourceStore }) => ({
+      const items = cart.map(({ item, qty, unitPrice, sourceStore, source }) => ({
         productName: item.nameFR || item.productName,
         quality: item.quality,
         color: item.color,
@@ -1141,6 +1287,8 @@ export default function StockSaleFlow({
         unitPrice,
         totalPrice: Math.round(qty * unitPrice * 100) / 100,
         storeId: sourceStore,
+        // Le papier n'additionne les étagères avec la réserve que dans la même unité.
+        ...(source === 'ETAGERE' ? { etagere: true } : {}),
       }));
       const html = construireBonHtml({
         numero: referenceRecu || 'Vente directe',
@@ -1529,7 +1677,10 @@ export default function StockSaleFlow({
                 ) : (
                   <div className="divide-y divide-stone-50 max-h-[500px] overflow-y-auto">
                     {groupedProducts.map(group => {
-                      const cartQtyTotal = cart.filter(l => l.item.productName === group.name).reduce((s, l) => s + l.qty, 0);
+                      const cartQtyTotal = cart.filter(l => l.source !== 'ETAGERE' && l.item.productName === group.name).reduce((s, l) => s + l.qty, 0);
+                      // Les étagères se comptent à l'unité de vente : jamais additionnées aux sacs de la réserve.
+                      const lignesEtageresAuPanier = cart.filter(l => l.source === 'ETAGERE' && group.etageres.concat(group.variants).some(v => v.productName === l.item.productName));
+                      const totalEtageres = group.etageres.reduce((s, e) => s + (Number(e.currentQty) || 0), 0);
                       return (
                         <button type="button" key={group.name}
                           onClick={() => {
@@ -1539,18 +1690,28 @@ export default function StockSaleFlow({
                             setActiveOption(options.length > 0 ? { dimension, value: options[0] } : null);
                             setActiveVariant(null);
                             setRechercheCouleur('');
-                            setVariantModal({ open: true, productName: group.name, variants: group.variants, categoryId: group.categoryId });
+                            setVariantModal({ open: true, productName: group.name, variants: group.variants, categoryId: group.categoryId, etageres: group.etageres, reserveAZero: group.reserveAZero });
+                            // Au magasin principal, la question « d'où ça sort ? » est vraiment posée :
+                            // rien n'est coché d'avance — sauf si le produit n'est plus que sur les
+                            // étagères. Ailleurs, il n'y a que la réserve.
+                            setSourceProduit(!caisseDuMagasinPrincipal ? 'RESERVE' : group.variants.length === 0 ? 'ETAGERE' : null);
                           }}
                           className="w-full text-left px-5 py-4 hover:bg-violet-50/50 transition-colors flex items-center gap-4 group">
                           <div className="flex-1 min-w-0">
                             <p className="text-sm font-black text-stone-900 uppercase tracking-tight truncate">{group.name}</p>
                             <p className="text-[11px] font-medium text-stone-500 mt-0.5">
                               {group.categoryId} · {group.variants.length} variante{group.variants.length > 1 ? 's' : ''} (couleur, qualité, taille) · {qteAvecUnite(group.totalQty, group.variants[0]?.unitOfMeasure)} en stock
+                              {group.etageres.length > 0 && ` · étagères : ${qteAvecUnite(arrondiQte(totalEtageres), group.etageres[0]?.unitOfMeasure)}`}
                             </p>
                           </div>
                           {cartQtyTotal > 0 && (
                             <span className="shrink-0 text-[10px] font-black bg-emerald-100 text-emerald-700 px-2.5 py-1 rounded-lg">
                               {qteAvecUnite(cartQtyTotal, group.variants[0]?.unitOfMeasure)} au panier
+                            </span>
+                          )}
+                          {lignesEtageresAuPanier.length > 0 && (
+                            <span className="shrink-0 text-[10px] font-black bg-teal-100 text-teal-800 px-2.5 py-1 rounded-lg">
+                              {qteAvecUnite(arrondiQte(lignesEtageresAuPanier.reduce((s, l) => s + l.qty, 0)), lignesEtageresAuPanier[0].item.unitOfMeasure)} étagères
                             </span>
                           )}
                           <ChevronRight className="w-4 h-4 text-stone-300 group-hover:text-violet-500 shrink-0 transition-colors" />
@@ -1674,8 +1835,12 @@ export default function StockSaleFlow({
 
           {/* Articles */}
           <div className="space-y-3">
-            {cart.map(({ item, qty, unitPrice, sourceStore }, idx) => {
+            {cart.map(({ item, qty, unitPrice, sourceStore, source }, idx) => {
               const availableStock = sourceStore ? availableQtyAtStore(item, sourceStore) : item.currentQty;
+              // Vendu aux étagères : pas de plafond (le stock des étagères peut être trop bas), un
+              // dépassement simplement signalé.
+              const auxEtageres = source === 'ETAGERE';
+              const depasseEtageres = auxEtageres && qty > availableStock + 0.0005 ? arrondiQte(qty - Math.max(0, availableStock)) : 0;
               return (
               <div key={item.articleId} className="bg-white rounded-2xl border border-stone-200 overflow-hidden">
                 <div className="p-4 flex items-start gap-4">
@@ -1688,6 +1853,11 @@ export default function StockSaleFlow({
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-black text-stone-900 uppercase tracking-tight truncate">{item.productName}</p>
                     <div className="flex items-center gap-2 mt-1.5 flex-wrap">
+                      {auxEtageres && (
+                        <span className="text-[10px] font-black bg-teal-50 text-teal-800 px-2 py-1 rounded-lg border border-teal-200 uppercase">
+                          Étagères · sans couleur
+                        </span>
+                      )}
                       {item.quality && (
                         <span className="text-[10px] font-black bg-violet-50 text-violet-700 px-2 py-1 rounded-lg border border-violet-200">
                           {item.quality}
@@ -1721,6 +1891,13 @@ export default function StockSaleFlow({
 
                 {/* Lieu de vente + Quantité + Prix */}
                 <div className="px-4 pb-4 grid grid-cols-1 sm:grid-cols-3 gap-4 border-t border-stone-100 pt-4">
+                  {auxEtageres ? (
+                    <Champ label="Lieu de vente" aide="Vendu au détail, depuis les étagères du magasin : pas de couleur, pas d'emplacement.">
+                      <p className={`${CLASSE_CHAMP} w-full border bg-teal-50 border-teal-200 px-3 flex items-center text-teal-900`}>
+                        {LIBELLE_ETAGERES}
+                      </p>
+                    </Champ>
+                  ) : (
                   <Champ
                     label="Lieu de vente"
                     obligatoire
@@ -1752,13 +1929,23 @@ export default function StockSaleFlow({
                       })()}
                     </select>
                   </Champ>
+                  )}
 
                   <Champ
                     label="Quantité vendue"
                     obligatoire
                     htmlFor={`quantite-${item.articleId}`}
-                    indice={`${qteAvecUnite(availableStock, item.unitOfMeasure)} disponibles ici`}
-                    aide={uniteDecimale(item.unitOfMeasure)
+                    indice={auxEtageres
+                      ? `${qteAvecUnite(availableStock, item.unitOfMeasure)} sur les étagères`
+                      : `${qteAvecUnite(availableStock, item.unitOfMeasure)} disponibles ici`}
+                    erreur={depasseEtageres > 0
+                      ? `Le logiciel n'en compte que ${qteAvecUnite(availableStock, item.unitOfMeasure)} sur les étagères : la vente passe, l'écart (+${depasseEtageres}) sera signalé au journal.`
+                      : null}
+                    aide={auxEtageres
+                      ? (uniteDecimale(item.unitOfMeasure)
+                        ? 'Tapez la longueur vendue (2,5 par exemple). Pas de plafond : un dépassement est signalé, pas bloqué.'
+                        : 'Tapez le nombre de pièces. Pas de plafond : un dépassement est signalé, pas bloqué.')
+                      : uniteDecimale(item.unitOfMeasure)
                       ? "Se vend au centième près : tapez la longueur (2,5 par exemple). La saisie s'arrête au stock du lieu choisi."
                       : "Le bouton + s'arrête au stock du lieu choisi. Pour aller plus loin, transférez d'abord la marchandise."}
                   >
@@ -1775,7 +1962,7 @@ export default function StockSaleFlow({
                         valeur={qty}
                         unite={item.unitOfMeasure}
                         min={pasDeSaisie(item.unitOfMeasure)}
-                        max={availableStock}
+                        max={auxEtageres ? undefined : availableStock}
                         onQuantite={q => { if (q > 0) updateCart(item.articleId, 'qty', q); }}
                         className="w-16 h-8 text-center text-sm font-black text-stone-900 tabular-nums bg-transparent rounded-lg outline-none focus:bg-white focus:ring-1 focus:ring-violet-400 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
                       />
@@ -1783,10 +1970,10 @@ export default function StockSaleFlow({
                         <span className="text-[11px] font-bold text-stone-500 pr-1">{uniteCourte(item.unitOfMeasure)}</span>
                       )}
                       <button
-                        disabled={qty >= availableStock}
-                        onClick={() => qty < availableStock && updateCart(item.articleId, 'qty', qty + 1)}
-                        className={`w-8 h-8 rounded-lg bg-white border border-stone-200 text-stone-600 flex items-center justify-center transition-colors shadow-sm ${qty >= availableStock ? 'opacity-40 cursor-not-allowed' : 'hover:bg-stone-100'}`}
-                        title={qty >= availableStock
+                        disabled={!auxEtageres && qty >= availableStock}
+                        onClick={() => (auxEtageres || qty < availableStock) && updateCart(item.articleId, 'qty', qty + 1)}
+                        className={`w-8 h-8 rounded-lg bg-white border border-stone-200 text-stone-600 flex items-center justify-center transition-colors shadow-sm ${!auxEtageres && qty >= availableStock ? 'opacity-40 cursor-not-allowed' : 'hover:bg-stone-100'}`}
+                        title={!auxEtageres && qty >= availableStock
                           ? `Tout le stock de ce lieu est déjà au panier : ${qteAvecUnite(availableStock, item.unitOfMeasure)}`
                           : (uniteDecimale(item.unitOfMeasure) ? `Ajouter 1 ${item.unitOfMeasure}` : 'Ajouter une unité')}
                       >
@@ -1819,13 +2006,13 @@ export default function StockSaleFlow({
                         valent pas toujours pareil. Mais quand elles valent pareil, le recopier à
                         la main sur douze couleurs est une corvée : ce bouton le fait, sur demande. */}
                     {(() => {
-                      const memeProduit = cart.filter(l => l.item.productName === item.productName);
+                      const memeProduit = cart.filter(l => l.item.productName === item.productName && (l.item.unitOfMeasure || '') === (item.unitOfMeasure || ''));
                       const aRecopier = memeProduit.filter(l => l.item.articleId !== item.articleId && l.unitPrice !== unitPrice).length;
                       if (memeProduit.length < 2 || unitPrice <= 0 || aRecopier === 0) return null;
                       return (
                         <button
                           type="button"
-                          onClick={() => appliquerPrixAuProduit(item.productName, unitPrice)}
+                          onClick={() => appliquerPrixAuProduit(item.productName, unitPrice, item.unitOfMeasure || '')}
                           className="mt-2 w-full h-9 rounded-xl border border-violet-200 bg-violet-50 text-violet-800 text-[11px] font-black tracking-wide hover:bg-violet-100 transition-colors"
                         >
                           Appliquer {fmt$(unitPrice)} aux {memeProduit.length} couleurs
@@ -2567,11 +2754,127 @@ export default function StockSaleFlow({
               <DialogTitle className="text-xl font-black uppercase tracking-tight text-stone-900">{variantModal.productName}</DialogTitle>
               <p className="text-[11px] font-medium text-stone-500 mt-1">{variantModal.categoryId}</p>
             </div>
-            <div className="bg-stone-100 text-stone-600 px-3 py-1.5 rounded-xl text-xs font-bold shrink-0">
-              {qteAvecUnite(variantModal.variants.reduce((s, v) => s + v.currentQty, 0), variantModal.variants[0]?.unitOfMeasure)} en stock
+            <div className="flex flex-col items-end gap-1 shrink-0">
+              {/* Au magasin principal, deux stocks, chacun dans son unité : jamais additionnés. */}
+              {(!caisseDuMagasinPrincipal || variantModal.variants.length > 0) && (
+                <div className="bg-stone-100 text-stone-600 px-3 py-1.5 rounded-xl text-xs font-bold">
+                  {caisseDuMagasinPrincipal ? 'Réserve : ' : ''}{qteAvecUnite(arrondiQte(variantModal.variants.reduce((s, v) => s + v.currentQty, 0)), variantModal.variants[0]?.unitOfMeasure)}{caisseDuMagasinPrincipal ? '' : ' en stock'}
+                </div>
+              )}
+              {caisseDuMagasinPrincipal && etageresDuProduit.some(e => e.produit.comptable) && (
+                <div className="bg-teal-50 text-teal-800 px-3 py-1.5 rounded-xl text-xs font-bold">
+                  Étagères : {(() => {
+                    const comptables = etageresDuProduit.filter(e => e.produit.comptable);
+                    const unites = Array.from(new Set(comptables.map(e => e.item.unitOfMeasure)));
+                    if (unites.length !== 1) return comptables.length + ' produit(s)';
+                    const total = comptables.reduce((s, e) => s + availableQtyAtStore(e.item, magasinEtageres), 0);
+                    return qteAvecUnite(arrondiQte(total), unites[0]);
+                  })()}
+                </div>
+              )}
             </div>
           </div>
 
+          {/* ── D'où ça sort ? (magasin principal seulement) ── */}
+          {caisseDuMagasinPrincipal && (() => {
+            // Un client prend souvent des DEUX (cartons en réserve + pièces aux étagères) : chaque
+            // bouton dit ce qui est déjà au panier de son côté, et passer de l'un à l'autre n'efface rien.
+            const duProduit = (l: CartLine) => l.item.productName === variantModal.productName;
+            const resume = (lignes: CartLine[]) => {
+              if (lignes.length === 0) return '';
+              const unite = lignes[0].item.unitOfMeasure;
+              const memeUnite = lignes.every(l => l.item.unitOfMeasure === unite);
+              return memeUnite
+                ? `Au panier : ${qteAvecUnite(arrondiQte(lignes.reduce((s, l) => s + l.qty, 0)), unite)}`
+                : `Au panier : ${lignes.length} ligne${lignes.length > 1 ? 's' : ''}`;
+            };
+            const auPanierReserve = resume(cart.filter(l => l.source !== 'ETAGERE' && duProduit(l)));
+            const auPanierEtageres = resume(cart.filter(l => l.source === 'ETAGERE' && duProduit(l)));
+            return (
+            <div className="bg-white px-5 pt-4">
+              <p className="text-[13px] font-bold text-stone-800 leading-tight">D'où ça sort ?</p>
+              <p className="text-[11px] font-medium text-stone-500">
+                Le client prend des deux ? Remplissez l'un, puis passez à l'autre : rien ne s'efface.
+              </p>
+              <div className="mt-2 grid grid-cols-2 gap-2">
+                {([
+                  { cle: 'RESERVE' as const, titre: LIBELLE_RESERVE, aide: 'Par couleur, comme toujours', vide: variantModal.variants.length === 0, auPanier: auPanierReserve },
+                  { cle: 'ETAGERE' as const, titre: LIBELLE_ETAGERES, aide: 'Sans couleur, en pièces ou en mètres', vide: false, auPanier: auPanierEtageres },
+                ]).map(o => (
+                  <button key={o.cle} type="button" disabled={o.vide}
+                    onClick={() => { setSourceProduit(o.cle); setActiveVariant(null); }}
+                    className={`text-left rounded-2xl border-2 px-4 py-3 transition-all ${
+                      sourceProduit === o.cle
+                        ? (o.cle === 'ETAGERE' ? 'border-teal-700 bg-teal-50' : 'border-stone-900 bg-stone-50')
+                        : 'border-stone-200 bg-white hover:border-stone-400'
+                    } ${o.vide ? 'opacity-40 cursor-not-allowed' : ''}`}>
+                    <span className="block text-[12px] font-black uppercase text-stone-900">{o.titre}</span>
+                    <span className="block text-[11px] font-medium text-stone-500">{o.vide ? 'Rien en réserve' : o.aide}</span>
+                    {o.auPanier && <span className="mt-1 block text-[11px] font-black text-emerald-700">{o.auPanier}</span>}
+                  </button>
+                ))}
+              </div>
+            </div>
+            );
+          })()}
+
+          {caisseDuMagasinPrincipal && sourceProduit === null ? (
+            <div className="p-8 text-center">
+              <p className="text-[13px] font-bold text-stone-700">Choisissez d'abord d'où sort la marchandise.</p>
+              <p className="text-[11px] font-medium text-stone-500 mt-1">
+                Réserve : par couleur, dans l'unité de la réserve (sacs, rouleaux…). Étagères : sans couleur, en pièces ou en mètres.
+              </p>
+            </div>
+          ) : modeEtageres ? (
+            <div className="p-5 max-h-[55vh] overflow-y-auto space-y-3">
+              <Encadre ton="info" titre="Sur les étagères, pas de couleur">
+                Tapez directement la quantité vendue{etageresDuProduit.some(e => uniteDecimale(e.item.unitOfMeasure)) ? ' (au centième près pour le mètre)' : ''}.
+                Si le logiciel en compte moins que ce que vous vendez, la vente passe quand même : l'écart est signalé.
+              </Encadre>
+              {etageresDuProduit.length === 0 && (
+                <p className="text-[12px] font-bold text-stone-500 text-center py-6">Aucun produit d'étagère pour cette ligne.</p>
+              )}
+              {etageresDuProduit.map(({ produit, item }) => {
+                const auPanier = cart.find(l => l.item.articleId === item.articleId)?.qty || 0;
+                const surEtageres = availableQtyAtStore(item, magasinEtageres);
+                const depasse = auPanier > surEtageres + 0.0005 ? arrondiQte(auPanier - Math.max(0, surEtageres)) : 0;
+                const libelle = [produit.quality, produit.size ? `T. ${produit.size}` : ''].filter(Boolean).join(' · ') || produit.nameFR || produit.productName;
+                return (
+                  <div key={produit.cle} className={`rounded-2xl border px-4 py-3 ${auPanier > 0 ? 'border-teal-300 bg-teal-50/40' : 'border-stone-200 bg-white'}`}>
+                    <div className="flex items-baseline justify-between gap-3 flex-wrap">
+                      <p className="text-[13px] font-black uppercase text-stone-900">{libelle}</p>
+                      <p className="text-[11px] font-bold text-stone-500">
+                        Sur les étagères : <span className="text-stone-900">{produit.comptable ? qteAvecUnite(arrondiQte(surEtageres), item.unitOfMeasure) : '—'}</span>
+                      </p>
+                    </div>
+                    {!produit.comptable ? (
+                      <p className="mt-1 text-[11px] font-bold text-amber-800">{MESSAGE_SANS_UNITE_VENTE}</p>
+                    ) : (
+                      <div className="mt-2 flex items-center gap-3 flex-wrap">
+                        <ChampQuantite
+                          videSiZero
+                          id={`etagere-${produit.cle}`}
+                          min="0"
+                          valeur={auPanier}
+                          unite={item.unitOfMeasure}
+                          placeholder="0"
+                          onQuantite={q => setEtagereQtyInCart(item, q)}
+                          aria-label={`Quantité vendue aux étagères — ${libelle}`}
+                          className="w-32 h-11 text-center text-lg font-black rounded-xl"
+                        />
+                        <span className="text-[12px] font-bold text-stone-600">{uniteCourte(item.unitOfMeasure) || 'unité(s)'}</span>
+                        {depasse > 0 && (
+                          <span className="text-[11px] font-bold text-amber-800">
+                            Le logiciel n'en compte que {qteAvecUnite(arrondiQte(Math.max(0, surEtageres)), item.unitOfMeasure)} : vente permise, écart (+{depasse}) signalé.
+                          </span>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          ) : (<>
           <div className="px-5 pt-4 bg-white">
             <Encadre ton="info" titre="Le stock est tenu variante par variante">
               Choisir la couleur — et la qualité ou la taille quand le produit en a — est obligatoire : c'est elle qui
@@ -2781,12 +3084,23 @@ export default function StockSaleFlow({
             </div>
           )}
           
+          </>)}
+
           <div className="p-4 bg-stone-50 border-t border-stone-100 flex items-center justify-between gap-3">
             <p className="text-xs font-bold text-stone-500">
               {(() => {
-                const qte = cart.filter(l => variantModal.variants.some(v => v.articleId === l.item.articleId)).reduce((s, l) => s + l.qty, 0);
+                // La réserve et les étagères se comptent chacune dans leur unité : deux chiffres,
+                // jamais additionnés (des sacs et des pièces ne s'ajoutent pas).
+                const qte = arrondiQte(cart.filter(l => l.source !== 'ETAGERE' && variantModal.variants.some(v => v.articleId === l.item.articleId)).reduce((s, l) => s + l.qty, 0));
                 const unite = variantModal.variants[0]?.unitOfMeasure;
-                return uniteDecimale(unite) ? `${qteAvecUnite(qte, unite)} de ce produit au panier` : `${qte} article(s) de ce produit au panier`;
+                const reserve = uniteDecimale(unite) ? `${qteAvecUnite(qte, unite)} de ce produit au panier` : `${qte} article(s) de ce produit au panier`;
+                const idsEtageres = new Set(etageresDuProduit.map(e => e.item.articleId));
+                const lignesEtageres = cart.filter(l => l.source === 'ETAGERE' && idsEtageres.has(l.item.articleId));
+                if (lignesEtageres.length === 0) return reserve;
+                const parUnite = new Map<string, number>();
+                for (const l of lignesEtageres) parUnite.set(l.item.unitOfMeasure, arrondiQte((parUnite.get(l.item.unitOfMeasure) || 0) + l.qty));
+                const etageresTexte = Array.from(parUnite.entries()).map(([u, q]) => qteAvecUnite(q, u)).join(' + ');
+                return `${qte > 0 ? `${reserve} (réserve) · ` : ''}${etageresTexte} des étagères au panier`;
               })()}
             </p>
             <Button onClick={() => setVariantModal({ open: false, productName: '', variants: [], categoryId: '' })}

@@ -12,7 +12,7 @@ import {
   ancienneteMinutes, libelleAnciennete, SEUIL_URGENCE_MINUTES, trierBons, bonCorrespond,
   grouperLignesBon, appliquerSaisieBon, comparerTotalPapier, instantCreation,
   encoursClient, controleCreditAuBon, controleCreditAvantSortie, controleCreditFinalisation, emplacementsDesLignes, estNumeroProvisoire,
-  varianteDeLigne, prixParUnitePrix, factureDuBon, factureNonReglee, bonSansClient,
+  varianteDeLigne, prixParUnitePrix, factureDuBon, factureNonReglee, bonSansClient, estLigneDeBonEtagere,
   type SaisieBon, type ResultatSaisie, type CodeStatutBon,
 } from '@/lib/bon-sans-prix';
 import { construireBonHtml, libellePrixParUnite, libelleContenance } from '@/lib/bon-imprime';
@@ -165,6 +165,10 @@ export default function StockOrders({
     if (estSortiAuBon(bon)) return emplacementsDesLignes(bon.items || [], movements, bon.id);
     const res: Record<number, string[]> = {};
     (bon.items || []).forEach((l: any, i: number) => {
+      // Une ligne vendue aux ÉTAGÈRES ne se prend dans aucun rack : elle est sur les étagères du
+      // magasin (src/lib/etageres.ts). Sans variante, la FIFO prendrait les racks de réserve de
+      // l'article, toutes couleurs, et y lirait des pièces comme des sacs.
+      if (estLigneDeBonEtagere(l)) return;
       // Les racks de LA variante de la ligne (couleur, qualité ou taille, selon la ventilation de
       // l'article) — jamais « la qualité d'abord », qui enverrait chercher le Bleu dans le rack du Rouge.
       const variante = varianteDeLigne(l, articles);
@@ -200,7 +204,9 @@ export default function StockOrders({
       const dispo = disponibleLigne(ligne, lieuDeLigne(bon, ligne));
       if (dispo != null && q > dispo + 0.0005) {
         const quoi = `${ligne.productName || ''}${ligne.color ? ` ${ligne.color}` : ''}${ligne.size ? ` ${ligne.size}` : ''}`;
-        phrases.push(`${quoi} : ${fmtQte(q)} ${ligne.unitOfMeasure || ''} à sortir, il n'en reste que ${fmtQte(Math.max(0, dispo))} en stock`);
+        // disponibleLigne compte les étagères pour une ligne vendue aux étagères : on le dit.
+        const ou = estLigneDeBonEtagere(ligne) ? 'sur les étagères' : 'en stock';
+        phrases.push(`${quoi} : ${fmtQte(q)} ${ligne.unitOfMeasure || ''} à sortir, il n'en reste que ${fmtQte(Math.max(0, dispo))} ${ou}`);
       }
     }
     return phrases;
@@ -785,7 +791,11 @@ export default function StockOrders({
                               const prix = Number(ligne?.unitPrice) || 0;
                               return (
                                 <tr key={l.index} className={retiree ? 'bg-stone-50 text-stone-400 line-through' : undefined}>
-                                  <td className="px-3 py-2 text-[12px] font-black text-stone-800">{l.couleur || '—'}</td>
+                                  <td className="px-3 py-2 text-[12px] font-black text-stone-800">
+                                    {l.etagere
+                                      ? <span className="text-teal-700">Étagères · sans couleur</span>
+                                      : (l.couleur || '—')}
+                                  </td>
                                   {g.avecTailles && <td className="px-3 py-2 text-[12px] font-bold text-stone-600">{l.taille || '—'}</td>}
                                   <td className="px-3 py-2">
                                     {modifiable ? (
@@ -826,7 +836,9 @@ export default function StockOrders({
                                     {prix > 0 && !retiree ? fmt$(ligne.totalPrice) : <span className="text-amber-700">—</span>}
                                   </td>
                                   <td className="px-3 py-2 text-[11px] font-bold text-stone-500">
-                                    {[l.lieu && l.lieu !== selected.storeId ? nomLieu(l.lieu) : '', (emplacementsOuverts[l.index] || []).join(', ')].filter(Boolean).join(' · ') || '—'}
+                                    {l.etagere
+                                      ? <span className="text-teal-700">Étagères du magasin</span>
+                                      : ([l.lieu && l.lieu !== selected.storeId ? nomLieu(l.lieu) : '', (emplacementsOuverts[l.index] || []).join(', ')].filter(Boolean).join(' · ') || '—')}
                                   </td>
                                 </tr>
                               );

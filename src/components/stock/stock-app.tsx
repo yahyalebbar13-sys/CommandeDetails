@@ -57,7 +57,7 @@ import {
   prefixeMagasin, prochainNumero, numeroProvisoire, estSortiAuBon, rappelComptoir, titreOnglet,
   mouvementsAnnulation, mouvementsCorrection, mouvementsDuBon, mouvementsDeLaLigne, mouvementDepuisLigne,
   bonEnCours, varianteDeLigne, nouvelIdentifiantLigne, PREFIXE_TITRE_ONGLET, bonSansClient,
-  type ResultatSaisie,
+  estLigneDeBonEtagere, type ResultatSaisie,
 } from '@/lib/bon-sans-prix';
 import { depassementRetour } from '@/lib/retours-facture';
 import { disponibleDepuis } from '@/lib/stock-disponible';
@@ -75,6 +75,14 @@ import {
   breakdownRowQuantity, libelleFixe, variantKey, movementMatchesVariant,
 } from '@/lib/warehouse-locations';
 import { uniteImposee, uniteDeStock, poleDeLArticle } from '@/lib/unites-pole';
+import {
+  estMouvementEtagere, magasinDesEtageres, lignesDeReserve, lignesDesEtageres, MESSAGE_SANS_UNITE_VENTE,
+  produitDuMouvementEtagere, quantiteSurEtagere, retourSurEtageres,
+} from '@/lib/etageres';
+import {
+  mouvementsMiseEnRayon, type ProduitMisEnRayon, type CouleurMiseEnRayon,
+} from '@/lib/mise-en-rayon';
+import MiseEnRayonModal from './mise-en-rayon-modal';
 import { messageSiVersionPerimee } from '@/lib/version-perimee';
 import TreasuryDashboard from './treasury-dashboard';
 import BankReconciliationView from './bank-reconciliation-view';
@@ -211,6 +219,16 @@ export function computeStockItems(
     }
   }
 
+  // ── Étagères de CHRIFA (src/lib/etageres.ts) ──────────────────────────────
+  // Leurs mouvements ne sont PAS de la réserve : ils sont écartés ICI, avant tout le reste. Plus
+  // bas, un mouvement sans couleur sur un article ventilé par couleur est réparti au prorata sur
+  // toutes les couleurs (partOrphelins) : un comptage d'étagère de 300 pièces, sans couleur par
+  // nature, viendrait sinon gonfler chaque couleur de la réserve. Ils forment, en fin de calcul,
+  // des lignes « Étagères » à part (une par famille + qualité + taille, sans couleur).
+  const mouvementsEtageres = movements.filter(estMouvementEtagere);
+  movements = movements.filter(m => !estMouvementEtagere(m));
+  const magasinEtageres = magasinDesEtageres(stores);
+
   const isArticleFromOldArrival = (art: any) => {
     if (!art) return false;
     if (art.stockEntryDate) return false;
@@ -286,10 +304,9 @@ export function computeStockItems(
     return validMovs.length > 0 || (a.initialQtyByStore && Object.values(a.initialQtyByStore).some((v: any) => Number(v) > 0));
   });
 
-  const results: StockItem[] = [];
-
-  for (const a of stockArticles) {
-    const isOldArrival = isArticleFromOldArrival(a);
+  // Le nom, la famille, le pôle et l'unité de stock d'un article : les mêmes pour ses lignes de
+  // réserve et pour ses lignes Étagères.
+  const decrireArticle = (a: any) => {
     // ── Lookup catégorie et nom du produit ─────────────────────────────────────
     const cat = categories.find(c => c.id === a.categoryId || c.name === a.categoryId);
     const catNameFR = cat?.nameFR;
@@ -331,6 +348,28 @@ export function computeStockItems(
     }
     const fullEnglishName = parts.length > 0 ? `${baseCategoryName} ${parts.join(' ')}`.trim() : (baseCategoryName || a.name || a.specs || 'Produit');
     const productName = itemFR || fullEnglishName;
+    return { cat, catNameFR, genCat, poleNameFR, uniteStock, baseCategoryName, itemFR, productName };
+  };
+
+  // Le nom d'une ligne de qualité (ventilation par qualité) : celui de la qualité au catalogue.
+  const nomDeLaQualite = (a: any, qualityLabel: string, row: any) => {
+    const { cat, itemFR, baseCategoryName, productName } = decrireArticle(a);
+    const matchedRowQ = cat?.fabricQualities?.find((q: any) => q.label?.toLowerCase() === qualityLabel.toLowerCase())
+      || cat?.zipperQualities?.find((q: any) => q.label?.toLowerCase() === qualityLabel.toLowerCase())
+      || cat?.threadQualities?.find((q: any) => q.label?.toLowerCase() === qualityLabel.toLowerCase())
+      || cat?.sliderQualities?.find((q: any) => q.label?.toLowerCase() === qualityLabel.toLowerCase());
+    const rowNameFR = row?.nameFR || matchedRowQ?.nameFR || itemFR;
+    const rowProductName = rowNameFR || (qualityLabel ? `${baseCategoryName} ${qualityLabel}`.trim() : productName);
+    return { rowNameFR, rowProductName };
+  };
+
+  const results: StockItem[] = [];
+
+  for (const a of stockArticles) {
+    const isOldArrival = isArticleFromOldArrival(a);
+    const {
+      cat, catNameFR, poleNameFR, uniteStock, baseCategoryName, itemFR, productName,
+    } = decrireArticle(a);
 
     const hasTTCCost = Number(a.purchasePriceMAD) > 0;
     const price      = Number(a.purchasePriceMAD) || Number(a.purchasePricePerUnit) || 0;
@@ -413,13 +452,7 @@ export function computeStockItems(
       const cartesQualite = repartirStockInitial(qualityRows, partsQualite);
       const orphelinsQualite = mouvementsOrphelins('quality', qualityRows);
       for (const [indexLigne, { row, label: qualityLabel }] of qualityRows.entries()) {
-        const matchedRowQ = cat?.fabricQualities?.find((q: any) => q.label?.toLowerCase() === qualityLabel.toLowerCase())
-          || cat?.zipperQualities?.find((q: any) => q.label?.toLowerCase() === qualityLabel.toLowerCase())
-          || cat?.threadQualities?.find((q: any) => q.label?.toLowerCase() === qualityLabel.toLowerCase())
-          || cat?.sliderQualities?.find((q: any) => q.label?.toLowerCase() === qualityLabel.toLowerCase());
-        
-        const rowNameFR = row.nameFR || matchedRowQ?.nameFR || itemFR;
-        const rowProductName = rowNameFR || (qualityLabel ? `${baseCategoryName} ${qualityLabel}`.trim() : productName);
+        const { rowNameFR, rowProductName } = nomDeLaQualite(a, qualityLabel, row);
 
         // Prix : le même que pour les couleurs et les tailles. `priceOverride` est un prix d'achat
         // en DOLLARS (libellé « PA ($) » à la saisie de la commande) : l'écrire ici valorisait le
@@ -836,12 +869,87 @@ export function computeStockItems(
     } as any);
   }
 
+  // ── Lignes « Étagères » (magasin principal seulement) ────────────────────
+  // Une ligne par produit : famille + qualité + taille, SANS couleur, en unité de vente. Plusieurs
+  // articles du même produit (commandes successives) font une seule ligne, comme la réserve, mais
+  // sous une clé propre (cleEtagere, préfixée « etagere ») : jamais fusionnée avec la réserve.
+  // Elles n'existent que dans une vue qui contient le magasin principal (CHRIFA, ou le magasin
+  // du compte s'il est le principal) : la vue globale ne compte que les entrepôts.
+  const lignesEtageres: StockItem[] = [];
+  if (mouvementsEtageres.length > 0 && isVisibleForUser(magasinEtageres)) {
+    const articleParId = new Map<string, any>();
+    for (const art of articles) if (art?.id) articleParId.set(String(art.id), art);
+    const groupes = new Map<string, { movs: StockMovement[]; ids: Set<string>; quality: string | null; size: string | null; categoryId: string }>();
+    for (const m of mouvementsEtageres) {
+      if (!isVisibleForUser(m.storeId)) continue;
+      const art = articleParId.get(String(m.articleId));
+      // La qualité et la taille du mouvement ; à défaut celles de l'article quand il n'est pas
+      // ventilé sur cette dimension (mêmes valeurs que ses lignes de réserve). Règle partagée avec
+      // la caisse et les bons (quantiteSurEtagere).
+      const { cle, quality, size, categoryId } = produitDuMouvementEtagere(m, art);
+      let g = groupes.get(cle);
+      if (!g) { g = { movs: [], ids: new Set(), quality, size, categoryId }; groupes.set(cle, g); }
+      g.movs.push(m);
+      if (m.articleId) g.ids.add(String(m.articleId));
+    }
+    for (const g of groupes.values()) {
+      const ids = [...g.ids].sort();
+      const canonId = ids.find(id => articleParId.has(id)) || ids[0] || '';
+      const art = articleParId.get(canonId) || {};
+      const description = decrireArticle({ ...art, categoryId: art.categoryId ?? g.categoryId });
+      const ligneQualite = g.quality && Array.isArray(art.qualityBreakdown)
+        ? art.qualityBreakdown.find((r: any) => normalizeVariantValue(r?.quality) === normalizeVariantValue(g.quality))
+        : undefined;
+      const noms = ligneQualite ? nomDeLaQualite(art, String(g.quality), ligneQualite) : null;
+      const uniteVente = uniteImposee(poleDeLArticle({ ...art, categoryId: art.categoryId ?? g.categoryId }, categories, generalCategories), 'vente');
+      let mouvIN = 0, mouvOUT = 0, mouvADJ = 0;
+      for (const m of g.movs) {
+        const q = Number(m.quantity) || 0;
+        if (m.type === 'IN') mouvIN += q;
+        if (m.type === 'OUT') mouvOUT += q;
+        if (m.type === 'ADJUSTMENT') mouvADJ += q;
+      }
+      const currentQty = Math.round((mouvIN - mouvOUT + mouvADJ) * 1000) / 1000;
+      const dernier = [...g.movs].sort((x, y) => (y.date || '').localeCompare(x.date || ''))[0];
+      lignesEtageres.push({
+        articleId:           `${canonId}__etagere__${normalizeVariantValue(g.quality)}|${normalizeVariantValue(g.size)}`,
+        categoryId:          art.categoryId ?? g.categoryId,
+        categoryNameFR:      description.catNameFR,
+        poleNameFR:          description.poleNameFR,
+        productName:         noms?.rowProductName || description.productName,
+        nameFR:              noms?.rowNameFR || description.itemFR,
+        size:                g.size ?? undefined,
+        quality:             g.quality ?? undefined,
+        gsm:                 ligneQualite?.gsm ?? art.gsm,
+        fabricWidth:         ligneQualite?.fabricWidth ?? art.fabricWidth,
+        zipperType:          ligneQualite?.zipperType ?? art.zipperType,
+        slider:              ligneQualite?.slider ?? art.slider,
+        sliderType:          ligneQualite?.sliderType ?? art.sliderType,
+        // L'unité de vente du pôle ; sans elle, celle que les mouvements portent réellement.
+        unitOfMeasure:       uniteVente || dernier?.uniteReelle || dernier?.unitOfMeasure || 'unité',
+        // Prix de revient et de vente en unité de RÉSERVE : ils n'ont pas de sens ici.
+        purchasePricePerUnit: 0,
+        initialQty:          0,
+        mouvementsIn:        mouvIN,
+        mouvementsOut:       mouvOUT,
+        currentQty,
+        qtyByStore:          { [magasinEtageres]: currentQty },
+        totalValue:          0,
+        lastMovementDate:    dernier?.date,
+        _realArticleId:      canonId,
+        _mergedArticleIds:   ids,
+        _etagere:            true,
+        ...(uniteVente ? {} : { _sansUniteVente: true }),
+      });
+    }
+  }
+
   const isWarehouseView = stores.find(s => s.id === activeStore)?.type === 'WAREHOUSE';
   if (isWarehouseView && !includeAll) {
     return consolidated.filter(r => r.currentQty > 0);
   }
 
-  return consolidated;
+  return [...consolidated, ...lignesEtageres];
 }
 
 
@@ -1100,25 +1208,52 @@ export default function StockApp() {
     }
   }, [userRole, userStoreId]);
 
-  const stockItems = useMemo(() =>
+  // Les lignes de stock AVEC les étagères de CHRIFA (src/lib/etageres.ts) : seuls les écrans qui
+  // savent les montrer à part les reçoivent (fiches, recherche, comptage des étagères).
+  const stockItemsAvecEtageres = useMemo(() =>
     computeStockItems(articles, movements, categories, activeStore, false, userRole, stores, userStoreId ?? undefined, generalCategories, factures),
     [articles, movements, categories, activeStore, userRole, stores, userStoreId, generalCategories, factures]
   );
 
-  const allStockItems = useMemo(() =>
+  const allStockItemsAvecEtageres = useMemo(() =>
     computeStockItems(articles, movements, categories, activeStore, true, userRole, stores, userStoreId ?? undefined, generalCategories, factures),
     [articles, movements, categories, activeStore, userRole, stores, userStoreId, generalCategories, factures]
   );
 
+  // La RÉSERVE seule : tout le reste du logiciel (caisse, transferts, emplacements, alertes,
+  // tableau de bord, rapport cartons/rouleaux, mouvements saisis à la main) ne voit jamais une
+  // ligne Étagères — elle est sans couleur, en unité de vente, et ne se transfère pas.
+  const stockItems = useMemo(() => lignesDeReserve(stockItemsAvecEtageres), [stockItemsAvecEtageres]);
+  const allStockItems = useMemo(() => lignesDeReserve(allStockItemsAvecEtageres), [allStockItemsAvecEtageres]);
+
+  // Vue globale = les entrepôts : elle n'a jamais de ligne Étagères. Filtrée quand même, par
+  // sécurité : transferts et emplacements la lisent.
   const allStockItemsGlobal = useMemo(() =>
-    computeStockItems(articles, movements, categories, 'ALL', true, userRole, stores, userStoreId ?? undefined, generalCategories, factures),
+    lignesDeReserve(computeStockItems(articles, movements, categories, 'ALL', true, userRole, stores, userStoreId ?? undefined, generalCategories, factures)),
     [articles, movements, categories, userRole, stores, userStoreId, generalCategories, factures]
   );
 
+  // Les étagères de CHRIFA pour l'écran Alertes : une réserve vide dont le produit est encore en
+  // rayon n'est pas une rupture. En vue globale (entrepôts), elles ne sont pas dans la liste :
+  // on les calcule au magasin principal, seulement quand l'écran est ouvert.
+  const etageresPourAlertes = useMemo(() => {
+    const ici = lignesDesEtageres(stockItemsAvecEtageres);
+    if (ici.length > 0 || activeView !== 'alerts' || activeStore !== 'ALL') return ici;
+    return lignesDesEtageres(computeStockItems(articles, movements, categories, magasinDesEtageres(stores) as any, false, userRole, stores, userStoreId ?? undefined, generalCategories, factures));
+  }, [stockItemsAvecEtageres, activeView, activeStore, articles, movements, categories, stores, userRole, userStoreId, generalCategories, factures]);
+
   const effectiveSaleStoreId = userRole === 'COMMERCIAL' ? (userStoreId || 'CHRIFA') : saleStoreId;
-  const saleStockItems = useMemo(() =>
+  // La caisse : la RÉSERVE (par couleur) d'un côté, les ÉTAGÈRES de CHRIFA (sans couleur, à
+  // l'unité de vente) de l'autre. Les étagères ne sont proposées que quand la caisse est celle du
+  // magasin principal — computeStockItems ne fabrique ces lignes que dans sa vue.
+  const saleStockItemsAvecEtageres = useMemo(() =>
     computeStockItems(articles, movements, categories, effectiveSaleStoreId, false, userRole, stores, userStoreId ?? undefined, generalCategories, factures),
     [articles, movements, categories, effectiveSaleStoreId, userRole, stores, userStoreId, generalCategories, factures]
+  );
+  const saleStockItems = useMemo(() => lignesDeReserve(saleStockItemsAvecEtageres), [saleStockItemsAvecEtageres]);
+  const saleEtageres = useMemo(
+    () => (effectiveSaleStoreId === magasinDesEtageres(stores) ? lignesDesEtageres(saleStockItemsAvecEtageres) : []),
+    [saleStockItemsAvecEtageres, effectiveSaleStoreId, stores],
   );
 
   const isChrifaOrWarehouse = (id: string | undefined) => {
@@ -1527,6 +1662,8 @@ export default function StockApp() {
       String(m.color || '').trim().toLowerCase(),
       String(m.size || '').trim().toLowerCase(),
       m.storeId || 'CHRIFA',
+      // Les étagères de CHRIFA sont un stock à part (src/lib/etageres.ts) : jamais mêlées à la réserve.
+      m.etagere ? 'etagere' : '',
     ].join('|');
 
     const soldes = new Map<string, { modele: any; delta: number }>();
@@ -1565,6 +1702,9 @@ export default function StockApp() {
         // Marque volontairement différente de celle du stock de test : sinon l'écran croirait
         // qu'un essai est encore en place, et un second effacement les reprendrait.
         notes:         `RÉGULARISATION STOCK DE TEST · effet de l'essai annulé`,
+        // Une ligne des étagères se régularise sur les étagères, dans son unité exacte.
+        ...(modele.etagere ? { etagere: true, color: null } : {}),
+        ...(modele.uniteReelle ? { uniteReelle: modele.uniteReelle } : {}),
       }));
   };
 
@@ -1628,17 +1768,33 @@ export default function StockApp() {
     }
   };
 
-  const handleAddMovement = useCallback(async (movement: Omit<StockMovement, 'id' | 'createdAt'>) => {
-    if (!user || !firestore) return;
+  /**
+   * Écrit un mouvement saisi à la main. Rend true s'il est enregistré, false sinon (l'erreur est
+   * déjà affichée) : un comptage ne doit pas se noter « fait » quand rien n'a été écrit.
+   */
+  const handleAddMovement = useCallback(async (movement: Omit<StockMovement, 'id' | 'createdAt'>): Promise<boolean> => {
+    if (!user || !firestore) {
+      toast({ variant: 'destructive', title: 'Erreur', description: "Non connecté : le mouvement n'est pas enregistré." });
+      return false;
+    }
     try {
       const effectiveUid = adminUid || user.uid;
       // Filet de sécurité : un pôle à unité fixée (TAFFETA FABRIC : m) impose la sienne à tout
       // mouvement, quel que soit l'écran qui l'a saisi.
       const articleDuMouvement = articles.find((a: any) => a.id === movement.articleId);
-      const uniteDuPole = uniteDeStock(poleDeLArticle(
+      const poleDuMouvement = poleDeLArticle(
         articleDuMouvement || { categoryId: movement.categoryId }, categories, generalCategories,
-      ));
-      if (uniteDuPole) movement = { ...movement, unitOfMeasure: uniteDuPole };
+      );
+      if (movement.etagere) {
+        // Les étagères se comptent dans l'UNITÉ DE VENTE du pôle, jamais dans celle de la réserve.
+        // Sans unité de vente, rien ne s'écrit : on ne devine pas un chiffre.
+        const uniteVente = uniteImposee(poleDuMouvement, 'vente');
+        if (!uniteVente) throw new Error(MESSAGE_SANS_UNITE_VENTE);
+        movement = { ...movement, unitOfMeasure: uniteVente, uniteReelle: uniteVente, color: undefined };
+      } else {
+        const uniteDuPole = uniteDeStock(poleDuMouvement);
+        if (uniteDuPole) movement = { ...movement, unitOfMeasure: uniteDuPole };
+      }
       await addStockMovement(firestore, effectiveUid, movement);
       const auditAction = movement.type === 'IN' ? 'STOCK_IN' : movement.type === 'OUT' ? 'STOCK_OUT' : 'STOCK_ADJUSTMENT';
       logAudit(firestore, effectiveUid, {
@@ -1654,6 +1810,7 @@ export default function StockApp() {
         title: movement.type === 'IN' ? 'Entrée enregistrée' : movement.type === 'OUT' ? 'Sortie enregistrée' : 'Ajustement enregistré',
         description: `${movement.quantity} ${movement.unitOfMeasure} · ${movement.productName}`,
       });
+      return true;
     } catch (e: any) {
       console.error('[stock] addStockMovement:', e);
       toast({
@@ -1661,6 +1818,7 @@ export default function StockApp() {
         title: 'Erreur',
         description: e?.message || "Impossible d'enregistrer le mouvement.",
       });
+      return false;
     }
   }, [user, firestore, toast, adminUid, articles, categories, generalCategories]);
 
@@ -1836,11 +1994,100 @@ export default function StockApp() {
     }
   }, [loadingMov, rawMovements]);
 
+  // ── Mise en rayon : Réserve → Étagères de CHRIFA (src/lib/mise-en-rayon.ts) ──
+  // Réservée au compte du magasin principal et à l'administrateur (un compte en lecture seule ne
+  // l'a pas). Les étagères n'existent qu'au magasin principal.
+  const magasinEtageres = magasinDesEtageres(stores);
+  const peutMettreEnRayon = !isReadOnly && (userRole === 'ADMIN' || userStoreId === magasinEtageres);
+  const [miseEnRayon, setMiseEnRayon] = useState<{ open: boolean; recherche?: string }>({ open: false });
+  const ouvrirMiseEnRayon = useCallback((recherche?: string) => setMiseEnRayon({ open: true, recherche }), []);
+  // Le stock vu du magasin principal (réserve = magasin + entrepôts, et ses étagères), calculé
+  // seulement fenêtre ouverte : c'est un second calcul complet du stock.
+  const stockMagasinPrincipal = useMemo(() => (miseEnRayon.open
+    ? computeStockItems(articles, movements, categories, magasinEtageres as any, true, userRole, stores, userStoreId ?? undefined, generalCategories, factures)
+    : []),
+  [miseEnRayon.open, articles, movements, categories, magasinEtageres, userRole, stores, userStoreId, generalCategories, factures]);
+
+  /**
+   * Écrit une mise en rayon : les sorties de réserve (par couleur, dans l'unité de la réserve,
+   * FIFO par emplacement) et l'entrée sur les étagères (unité de vente), dans UN SEUL lot, reliées
+   * par le même miseEnRayonId. Les règles refusent le lot entier si un seul document est refusé :
+   * rien ne part à moitié.
+   */
+  const handleMiseEnRayon = useCallback(async (plan: {
+    produit: ProduitMisEnRayon;
+    couleurs: CouleurMiseEnRayon[];
+  }): Promise<void> => {
+    if (!user || !firestore) throw new Error('Non connecté.');
+    if (!peutMettreEnRayon) throw new Error('La mise en rayon est réservée au magasin principal et à l\'administrateur.');
+    // Sans réseau, le lot attendrait en mémoire (pas de cache persistant) : la fenêtre restait
+    // bloquée et un rechargement de la page perdait la mise en rayon sans un mot. On refuse net.
+    if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+      throw new Error("Pas de connexion : la mise en rayon n'est pas enregistrée. Réessayez quand le réseau revient.");
+    }
+    exigerMouvementsCharges();
+    verifierLieuxDuCompte([magasinEtageres]);
+    const effectiveUid = adminUid || user.uid;
+    const entreeRef = doc(collection(firestore, 'users', effectiveUid, 'stockMovements'));
+    const resultat = mouvementsMiseEnRayon({
+      produit: plan.produit,
+      couleurs: plan.couleurs,
+      magasin: magasinEtageres,
+      date: getLocalDateString(),
+      miseEnRayonId: entreeRef.id,
+      mouvements: allMovements,
+      lieux: stores,
+    });
+    if (resultat.erreurs.length > 0) throw new Error(resultat.erreurs.join(' · '));
+    if (!resultat.entree || resultat.sorties.length === 0) throw new Error('Rien à mettre en rayon : indiquez au moins un carton, un rouleau ou un reste.');
+
+    const batch = writeBatch(firestore);
+    for (const s of resultat.sorties) {
+      batch.set(doc(collection(firestore, 'users', effectiveUid, 'stockMovements')), cleanUndefined({ ...s, createdAt: serverTimestamp() }));
+    }
+    batch.set(entreeRef, cleanUndefined({ ...resultat.entree, createdAt: serverTimestamp() }));
+    // Une limite de temps, comme pour les bons : la fenêtre se libère et dit quoi vérifier. Le lot
+    // peut encore partir au retour du réseau : l'erreur est marquée « incertaine », et la fenêtre
+    // vide alors la saisie et bloque un second envoi (sinon : réserve sortie deux fois).
+    await Promise.race([
+      batch.commit(),
+      new Promise<never>((_, refus) => setTimeout(() => refus(Object.assign(new Error(
+        'Le serveur ne répond pas. La mise en rayon est peut-être passée : regardez le journal des mouvements avant de recommencer.',
+      ), { incertain: true })), 15000)),
+    ]);
+
+    const nom = plan.produit.nameFR || plan.produit.productName;
+    const total = `${resultat.totalVente.toLocaleString('fr-FR', { maximumFractionDigits: 3 })} ${resultat.entree.unitOfMeasure}`;
+    logAudit(firestore, effectiveUid, {
+      action: 'STOCK_MISE_EN_RAYON',
+      userId: user.uid,
+      userEmail: user.email || '',
+      entityType: 'stockMovement',
+      entityId: entreeRef.id,
+      description: `Mise en rayon · ${nom}${plan.produit.quality ? ` ${plan.produit.quality}` : ''}${plan.produit.size ? ` ${plan.produit.size}` : ''} · ${total} sur les étagères`
+        + (resultat.depassements.length > 0 ? ` · dépassement de la réserve signalé (${resultat.depassements.map(d => d.couleur).join(', ')})` : ''),
+      metadata: {
+        miseEnRayonId: entreeRef.id, storeId: magasinEtageres, totalVente: resultat.totalVente,
+        unite: resultat.entree.unitOfMeasure, sorties: resultat.sorties.length, depassements: resultat.depassements,
+      },
+    } as any);
+    toast({
+      title: 'Mise en rayon enregistrée',
+      description: `${total} de ${nom} sur les étagères.`
+        + (resultat.depassements.length > 0 ? ' La réserve affichait moins que ce qui est sorti : l\'écart est signalé au journal.' : ''),
+    });
+  }, [user, firestore, adminUid, peutMettreEnRayon, magasinEtageres, allMovements, stores, toast, exigerMouvementsCharges, verifierLieuxDuCompte]);
+
   /**
    * Ce qui reste en stock d'une ligne de bon (sa variante exacte) dans un lieu, ou null quand la
    * ligne de stock n'est pas retrouvée. Sert à signaler une sortie qui dépasse le stock.
    */
   const disponibleLigne = useCallback((ligne: any, lieu: string): number | null => {
+    // Une ligne vendue aux étagères se compare au stock des étagères (unité de vente), jamais à
+    // celui de la réserve. Les étagères n'existent qu'au magasin principal.
+    if (estLigneDeBonEtagere(ligne)) {
+      return lieu === magasinDesEtageres(stores) ? quantiteSurEtagere(allMovements, articles, ligne) : 0;
+    }
     const cle = variantKey(varianteDeLigne(ligne, articles));
     const candidats = (allStockItemsGlobal as any[]).filter(s => {
       const ids: string[] = s._mergedArticleIds || [s._realArticleId || s.articleId];
@@ -1848,7 +2095,7 @@ export default function StockApp() {
     });
     if (candidats.length === 0) return null;
     return Math.round(candidats.reduce((t, s) => t + disponibleDepuis(s, lieu, stores), 0) * 1000) / 1000;
-  }, [articles, allStockItemsGlobal, stores]);
+  }, [articles, allStockItemsGlobal, stores, allMovements]);
 
   /**
    * Les sorties d'une ligne de bon, adressées comme à la caisse : FIFO dans les racks de SA
@@ -1860,13 +2107,20 @@ export default function StockApp() {
     contexte: { date: string; notes: string; bonId: string; bonNumero?: string },
   ) => {
     const variante = varianteDeLigne(ligne, articles);
-    // Ce que ce même lot a déjà sorti de cette variante (deux lignes du même tissu) : le stock
-    // calculé ne le voit pas encore. `enCours` commence toujours par une copie de allMovements.
-    const dejaPris = enCours.slice(allMovements.length)
-      .filter(m => m?.articleId === ligne.articleId && m?.storeId === lieu && movementMatchesVariant(m, variante))
-      .reduce((t, m) => t + (m.type === 'OUT' ? 1 : m.type === 'IN' ? -1 : 0) * (Number(m.quantity) || 0), 0);
-    const dispoBrut = disponibleLigne(ligne, lieu);
-    const dispo = dispoBrut == null ? null : dispoBrut - dejaPris;
+    let dispo: number | null;
+    if (estLigneDeBonEtagere(ligne)) {
+      // Les étagères : compté sur les mouvements d'étagère, lot en cours compris (`enCours`).
+      // Pas de rack : la sortie part sans emplacement (splitOutboundLines le sait).
+      dispo = lieu === magasinDesEtageres(stores) ? quantiteSurEtagere(enCours, articles, ligne) : 0;
+    } else {
+      // Ce que ce même lot a déjà sorti de cette variante (deux lignes du même tissu) : le stock
+      // calculé ne le voit pas encore. `enCours` commence toujours par une copie de allMovements.
+      const dejaPris = enCours.slice(allMovements.length)
+        .filter(m => !m?.etagere && m?.articleId === ligne.articleId && m?.storeId === lieu && movementMatchesVariant(m, variante))
+        .reduce((t, m) => t + (m.type === 'OUT' ? 1 : m.type === 'IN' ? -1 : 0) * (Number(m.quantity) || 0), 0);
+      const dispoBrut = disponibleLigne(ligne, lieu);
+      dispo = dispoBrut == null ? null : dispoBrut - dejaPris;
+    }
     const depasse = dispo != null && quantite > dispo + 0.0005
       ? Math.round((quantite - Math.max(0, dispo)) * 1000) / 1000 : 0;
     const base = cleanUndefined({
@@ -2496,7 +2750,7 @@ export default function StockApp() {
   // ── Retours clients (SAV) ────────────────────────────────────────────────
   const handleProcessReturn = useCallback(async (
     invoice: Invoice,
-    returnLines: { articleId: string; categoryId: string; productName: string; nameFR?: string; color?: string; size?: string; quality?: string; unitOfMeasure: string; qty: number; unitPrice: number }[]
+    returnLines: { articleId: string; categoryId: string; productName: string; nameFR?: string; color?: string; size?: string; quality?: string; unitOfMeasure: string; qty: number; unitPrice: number; etagere?: boolean }[]
   ) => {
     if (!user || !firestore) return;
     const effectiveUid = adminUid || user.uid;
@@ -2539,6 +2793,21 @@ export default function StockApp() {
 
       for (const line of validLines) {
         const mRef = doc(collection(firestore, 'users', effectiveUid, 'stockMovements'));
+        // Un achat fait aux étagères revient sur les étagères (src/lib/etageres.ts) : magasin
+        // principal, sans couleur ni emplacement, dans l'unité de vente où il a été vendu.
+        if (line.etagere) {
+          batch.set(mRef, cleanUndefined({
+            ...retourSurEtageres({
+              ligne: line,
+              magasin: magasinDesEtageres(stores),
+              date: today,
+              factureId: invoice.id,
+              notes: `Retour client sur facture ${invoice.invoiceNumber || invoice.id}${invoice.clientName ? ` (${invoice.clientName})` : ''} — remis sur les étagères`,
+            }),
+            createdAt: serverTimestamp(),
+          }));
+          continue;
+        }
         const returnStore = invoice.storeId || 'CHRIFA';
         // Un retour repart là où le produit est déjà rangé — sans rien demander au vendeur.
         // S'il est éclaté sur plusieurs racks, on ne devine pas et le retour reste non adressé.
@@ -2611,7 +2880,7 @@ export default function StockApp() {
       toast({ variant: 'destructive', title: 'Erreur', description: err?.message || "Impossible d'enregistrer le retour." });
       throw err;
     }
-  }, [user, firestore, adminUid, toast, allMovements, articles]);
+  }, [user, firestore, adminUid, toast, allMovements, articles, stores]);
 
   // ── Inventaire physique ───────────────────────────────────────────────────
   const handleFinalizeInventorySession = useCallback(async (storeId: string, itemCount: number, varianceCount: number) => {
@@ -3612,6 +3881,7 @@ export default function StockApp() {
 
             {activeView === 'dashboard' && (
               <StockDashboard
+                etageres={lignesDesEtageres(stockItemsAvecEtageres)}
                 userRole={userRole}
                 activeStore={activeStore}
                 stores={stores}
@@ -3637,6 +3907,7 @@ export default function StockApp() {
                 onCreerBon={handleCreerBon}
                 onSaisirPrix={(id) => { setBonAOuvrir(id); setActiveView('orders'); }}
                 stockItems={saleStockItems}
+                etageres={saleEtageres}
                 categories={categories}
                 generalCategories={generalCategories}
                 clients={filteredClients}
@@ -3737,8 +4008,8 @@ export default function StockApp() {
             {activeView === 'stock' && (
               <StockFiches
                 stores={stores}
-                stockItems={stockItems}
-                allStockItems={allStockItems}
+                stockItems={stockItemsAvecEtageres}
+                allStockItems={allStockItemsAvecEtageres}
                 movements={movements}
                 categories={categories}
                 generalCategories={generalCategories}
@@ -3747,6 +4018,7 @@ export default function StockApp() {
                 activeStore={activeStore}
                 adminUid={adminUid}
                 onAddMovement={handleAddMovement}
+                onMettreEnRayon={peutMettreEnRayon ? ouvrirMiseEnRayon : undefined}
               />
             )}
             {activeView === 'treasury' && (
@@ -3765,11 +4037,12 @@ export default function StockApp() {
               <BankReconciliationView payments={payments} clients={clients} />
             )}
             {activeView === 'movements' && (
-              <StockMovements activeStore={activeStore} movements={filteredMovements} stockItems={stockItems} categories={categories} generalCategories={generalCategories} articles={articles} stores={stores} locations={storageLocations} onAddMovement={handleAddMovement} readOnly={userRole === 'ADMIN'} />
+              <StockMovements activeStore={activeStore} movements={filteredMovements} stockItems={stockItems} categories={categories} generalCategories={generalCategories} articles={articles} stores={stores} locations={storageLocations} onAddMovement={handleAddMovement} readOnly={userRole === 'ADMIN'}
+                onMettreEnRayon={peutMettreEnRayon ? () => ouvrirMiseEnRayon() : undefined} />
             )}
             {activeView === 'inventory' && (
               <BlindInventory
-                stockItems={stockItems}
+                stockItems={stockItemsAvecEtageres}
                 categories={categories}
                 generalCategories={generalCategories}
                 activeStore={activeStore}
@@ -3782,7 +4055,7 @@ export default function StockApp() {
               />
             )}
             {activeView === 'alerts' && (
-              <StockAlerts stockItems={stockItems} articles={articles} categories={categories} movements={filteredMovements} stores={stores} locations={storageLocations} activeStore={activeStore} onNavigate={setActiveView} adminUid={adminUid} onAddMovement={handleAddMovement} readOnly={userRole === 'ADMIN'} />
+              <StockAlerts stockItems={stockItems} articles={articles} categories={categories} movements={filteredMovements} stores={stores} locations={storageLocations} activeStore={activeStore} onNavigate={setActiveView} adminUid={adminUid} onAddMovement={handleAddMovement} readOnly={userRole === 'ADMIN'} etageres={etageresPourAlertes} />
             )}
             {activeView === 'cartons-rouleaux' && userRole === 'ADMIN' && (
               <RapportCartonsRouleaux
@@ -4929,10 +5202,25 @@ export default function StockApp() {
           </div>
         </DialogContent>
       </Dialog>
+      {/* La mise en rayon (Réserve → Étagères), ouverte depuis le journal ou depuis une fiche. */}
+      {peutMettreEnRayon && miseEnRayon.open && (
+        <MiseEnRayonModal
+          open={miseEnRayon.open}
+          onOpenChange={o => { if (!o) setMiseEnRayon({ open: false }); }}
+          rechercheInitiale={miseEnRayon.recherche}
+          stockItems={stockMagasinPrincipal}
+          articles={articles}
+          categories={categories}
+          generalCategories={generalCategories}
+          stores={stores}
+          magasin={magasinEtageres}
+          onValider={handleMiseEnRayon}
+        />
+      )}
       <GlobalSearch
         open={searchOpen}
         onOpenChange={setSearchOpen}
-        stockItems={stockItems}
+        stockItems={stockItemsAvecEtageres}
         clients={clients}
         invoices={invoices}
         onNavigate={(v) => setActiveView(v as StockView)}

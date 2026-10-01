@@ -342,10 +342,16 @@ const GRILLE_SANS_ENTREE =
 const RANG = 'px-4 sm:px-6';
 
 export default function ArrivalDossierModal({
-  open, onOpenChange, facture, articles, movements = [], stores = [],
+  open, onOpenChange, facture, articles, movements: tousLesMouvements = [], stores = [],
   categories = [], generalCategories = [], isEnteredInStock, stockEntryDate,
 }: ArrivalDossierModalProps) {
   const { toast } = useToast();
+  // Ce qui touche les étagères de CHRIFA (mise en rayon, comptage des étagères, retours aux
+  // étagères — src/lib/etageres.ts) n'est pas une entrée d'arrivage : écarté de tout ce dossier.
+  const movements = useMemo(
+    () => (tousLesMouvements || []).filter(m => !m?.etagere && m?.reason !== 'MISE_EN_RAYON'),
+    [tousLesMouvements],
+  );
   const [search, setSearch] = useState('');
   const [exporting, setExporting] = useState(false);
   // Le détail des variantes est affiché d'office : c'est ce qu'on vient vérifier sur un dossier.

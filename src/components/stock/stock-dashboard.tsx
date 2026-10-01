@@ -47,6 +47,12 @@ type StockView = 'dashboard' | 'pos' | 'stock' | 'sales' | 'movements' | 'alerts
 interface StockDashboardProps {
   stockItems: StockItem[];
   allStockItems?: StockItem[];
+  /**
+   * Les lignes « Étagères » de CHRIFA (src/lib/etageres.ts) : à part, jamais additionnées à la
+   * réserve (unité de vente d'un côté, unité de réserve de l'autre). Elles servent à dire que les
+   * quantités en stock sont celles de la réserve, et ce qui est en rayon à côté.
+   */
+  etageres?: StockItem[];
   articles?: any[];
   movements: StockMovement[];
   categories: any[];
@@ -97,6 +103,7 @@ export default function StockDashboard({
   activeStore,
   stores,
   onNavigate,
+  etageres = [],
 }: StockDashboardProps) {
   const [activeTab, setActiveTab] = useState<'overview' | 'sales'>('overview');
   const [selectedSale, setSelectedSale] = useState<any | null>(null);
@@ -169,7 +176,24 @@ export default function StockDashboard({
     return { map, list };
   }, [allStockItems, stockItems]);
 
-  const resolveItemCostPrice = React.useCallback((it: any): number => {
+  /**
+   * Ce que vaut 1 unité de réserve en unité de vente, par article, d'après la dernière mise en
+   * rayon (elle garde `facteur` : 1 sac = 20 pièces). Le prix de revient est connu PAR UNITÉ DE
+   * RÉSERVE ; une vente aux étagères se compte en pièces ou en mètres.
+   */
+  const facteurEtageresParArticle = useMemo(() => {
+    const map = new Map<string, { facteur: number; date: string }>();
+    for (const m of movements || []) {
+      if ((m as any).reason !== 'MISE_EN_RAYON' || (m as any).etagere) continue;
+      const f = Number((m as any).facteur);
+      if (!(f > 0) || !m.articleId) continue;
+      const deja = map.get(m.articleId);
+      if (!deja || String(m.date || '') >= deja.date) map.set(m.articleId, { facteur: f, date: String(m.date || '') });
+    }
+    return map;
+  }, [movements]);
+
+  const coutEnUniteDeReserve = React.useCallback((it: any): number => {
     if (it.costPrice != null && Number(it.costPrice) > 0) return Number(it.costPrice);
     if (it.purchasePricePerUnit != null && Number(it.purchasePricePerUnit) > 0) return Number(it.purchasePricePerUnit);
 
@@ -217,6 +241,21 @@ export default function StockDashboard({
     return 0;
   }, [stockItemsLookup, articlesMap, articles]);
 
+  const resolveItemCostPrice = React.useCallback((it: any): number => {
+    // Une ligne vendue AUX ÉTAGÈRES : sa quantité est en unité de vente (pièces, mètres), le prix
+    // de revient en unité de réserve (sac, rouleau). Multipliés tels quels, chaque vente au détail
+    // passait « à perte ». On ramène le coût à l'unité de vente par le facteur de la mise en
+    // rayon ; sans facteur connu, le coût est inconnu (0) : on ne signale rien plutôt qu'à tort.
+    if (it?.etagere === true || it?.source === 'ETAGERE') {
+      if (it.costPrice != null && Number(it.costPrice) > 0) return Number(it.costPrice);
+      const facteur = facteurEtageresParArticle.get(String(it.articleId || ''))?.facteur;
+      if (!facteur) return 0;
+      const coutReserve = coutEnUniteDeReserve({ ...it, costPrice: undefined, purchasePricePerUnit: undefined });
+      return coutReserve > 0 ? coutReserve / facteur : 0;
+    }
+    return coutEnUniteDeReserve(it);
+  }, [coutEnUniteDeReserve, facteurEtageresParArticle]);
+
   // ── 2. MOTEUR DE NORMALISATION UNIFIÉ (FACTURES & VENTES) ─────────────────
   const normalizedSales = useMemo(() => {
     const list: any[] = [];
@@ -256,6 +295,8 @@ export default function StockDashboard({
           color: it.color,
           size: it.size,
           unitOfMeasure: it.unitOfMeasure,
+          // Vendue aux étagères (unité de vente) : comptée à part dans les quantités vendues.
+          etagere: it.etagere === true || it.source === 'ETAGERE',
           qty,
           unitPrice,
           totalPrice,
@@ -358,6 +399,8 @@ export default function StockDashboard({
           color: it.color,
           size: it.size,
           unitOfMeasure: it.unitOfMeasure,
+          // Vendue aux étagères (unité de vente) : comptée à part dans les quantités vendues.
+          etagere: it.etagere === true || it.source === 'ETAGERE',
           qty,
           unitPrice,
           totalPrice,
@@ -491,6 +534,14 @@ export default function StockDashboard({
 
   const totalRefs = inStockItems.length;
 
+  // Les étagères de CHRIFA, quand la vue la contient : la marchandise mise en rayon quitte la
+  // réserve ; sans ce rappel, elle semblait disparaître des chiffres.
+  const etageresVisibles = useMemo(() => (
+    effectiveStoreId === 'ALL' || effectiveStoreId === 'ALL_MAIN' || effectiveStoreId === 'CHRIFA'
+      ? (etageres || []).filter(e => (Number(e.currentQty) || 0) > 0)
+      : []
+  ), [etageres, effectiveStoreId]);
+
   const alertCount = useMemo(() =>
     displayStockItems.filter(i => i.minThreshold != null && (Number(i.currentQty) || 0) <= i.minThreshold).length,
     [displayStockItems]
@@ -570,7 +621,10 @@ export default function StockDashboard({
 
   // Ventes de la période sélectionnée
   const periodCA = filteredSales.reduce((s, v) => s + v.totalAmount, 0);
-  const periodUnitsSold = filteredSales.reduce((acc, s) => acc + s.items.reduce((sum: number, it: any) => sum + it.qty, 0), 0);
+  // Les quantités vendues de la RÉSERVE : la rotation et l'autonomie les comparent au stock de la
+  // réserve (même unité). Une vente aux étagères se compte en pièces ou en mètres : mêlée aux
+  // sacs, elle faisait passer la rotation de 0,5 à 8.
+  const periodUnitsSold = filteredSales.reduce((acc, s) => acc + s.items.reduce((sum: number, it: any) => sum + (it.etagere ? 0 : it.qty), 0), 0);
   const avgTicket = filteredSales.length > 0 ? periodCA / filteredSales.length : 0;
 
   // Trésorerie sur la période
@@ -654,9 +708,10 @@ export default function StockDashboard({
     const map: Record<string, { name: string; qty: number; ca: number }> = {};
     filteredSales.forEach(s => {
       s.items.forEach((item: any) => {
-        const key = item.articleId || item.productName;
+        // Réserve et étagères à part : 5 sacs et 400 pièces du même article ne font pas « 405 ».
+        const key = `${item.articleId || item.productName}${item.etagere ? '|etageres' : ''}`;
         if (!map[key]) {
-          map[key] = { name: item.productName, qty: 0, ca: 0 };
+          map[key] = { name: item.etagere ? `${item.productName} (étagères)` : item.productName, qty: 0, ca: 0 };
         }
         map[key].qty += item.qty;
         map[key].ca += item.totalPrice;
@@ -1036,6 +1091,11 @@ export default function StockDashboard({
                       ? `${negativeStockItems.length} article(s) en stock négatif à régulariser`
                       : 'Quantités issues des entrées validées'}
                   </p>
+                  {etageresVisibles.length > 0 && (
+                    <p className="text-[10px] font-bold text-teal-700 mt-1">
+                      Réserve seule : en plus, {etageresVisibles.length} produit(s) sur les étagères de CHRIFA (en pièces ou en mètres, voir les fiches).
+                    </p>
+                  )}
                 </CardContent>
               </Card>
             ) : (
@@ -1066,6 +1126,7 @@ export default function StockDashboard({
                   <p className="text-[11px] font-black text-stone-400 uppercase tracking-widest mt-1.5">Valeur Vente Estimée</p>
                   <p className="text-[10px] font-bold text-teal-700 mt-1">
                     Au prix de vente en vigueur · {totalRefs} référence{totalRefs > 1 ? 's' : ''}
+                    {etageresVisibles.length > 0 ? ' · réserve seule, hors étagères' : ''}
                   </p>
                 </CardContent>
               </Card>
@@ -1406,7 +1467,9 @@ export default function StockDashboard({
                     const isIN = m.type === 'IN';
                     const isOUT = m.type === 'OUT';
                     const isTRANSFER = m.reason === 'TRANSFERT';
-                    const storeName = stores.find(s => s.id === m.storeId)?.name || m.storeId || 'Principal';
+                    const nomMagasin = stores.find(s => s.id === m.storeId)?.name || m.storeId || 'Principal';
+                    // Les étagères de CHRIFA sont un stock à part (src/lib/etageres.ts) : on le dit.
+                    const storeName = m.etagere ? `${nomMagasin} · Étagères` : nomMagasin;
 
                     return (
                       <div key={m.id} className="flex items-center gap-3 p-3 bg-stone-50/70 rounded-2xl hover:bg-stone-100/70 transition-colors">
@@ -1433,7 +1496,7 @@ export default function StockDashboard({
                           <p className="text-[10px] font-bold text-stone-400 flex items-center gap-1.5">
                             <span>{m.date}</span>
                             <span>·</span>
-                            <span className="text-stone-600 font-black">{m.reason}</span>
+                            <span className="text-stone-600 font-black">{m.reason === 'MISE_EN_RAYON' ? 'Mise en rayon' : m.reason}</span>
                             <span>·</span>
                             <span>{storeName}</span>
                           </p>
