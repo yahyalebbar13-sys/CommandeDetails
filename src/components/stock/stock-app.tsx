@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import {
   Loader2, LogOut, LayoutDashboard, List, ArrowLeftRight, Bell, Package,
   Boxes, ShoppingCart, TrendingUp, Users, ClipboardList, FileText, Anchor, Archive, CheckCircle2, Download, Truck, Store as StoreIcon,
@@ -9,7 +9,7 @@ import {
 } from 'lucide-react';
 import { useUser, useFirebase, useCollection, useMemoFirebase } from '@/firebase';
 import { signOut } from 'firebase/auth';
-import { collection, doc, addDoc, updateDoc, setDoc, getDoc, deleteDoc, serverTimestamp, writeBatch } from 'firebase/firestore';
+import { collection, doc, addDoc, updateDoc, setDoc, getDoc, deleteDoc, serverTimestamp, writeBatch, runTransaction } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import type {
   StockMovement, StockItem, Sale, StoreLocation,
@@ -53,6 +53,15 @@ import {
   QUANTITE_PAR_LIGNE, DUREE_ESSAI_JOURS, MAX_LIGNES,
 } from '@/lib/stock-simulation';
 import { exportDevoirFormationPDF } from '@/lib/pdf-devoir-formation';
+import {
+  prefixeMagasin, prochainNumero, numeroProvisoire, estSortiAuBon, rappelComptoir, titreOnglet,
+  mouvementsAnnulation, mouvementsCorrection, mouvementsDuBon, mouvementsDeLaLigne, mouvementDepuisLigne,
+  bonEnCours, varianteDeLigne, nouvelIdentifiantLigne, PREFIXE_TITRE_ONGLET, bonSansClient,
+  type ResultatSaisie,
+} from '@/lib/bon-sans-prix';
+import { depassementRetour } from '@/lib/retours-facture';
+import { disponibleDepuis } from '@/lib/stock-disponible';
+import BandeauBonsComptoir from './rappel-bons-comptoir';
 import { Encadre, BoutonValider } from './ui-formulaire';
 import {
   centimes, effetEnAttente, imputationsDuPaiement, agregerParFacture, statutFacture,
@@ -62,7 +71,7 @@ import StoreImportRequestsView from './store-import-requests-view';
 import {
   type StorageLocation, type StockVariant, type VariantDimension, suggestInboundLocation, splitOutboundLines,
   stockItemVariant, articleVariantDimension, lignesEntreeManquantes, normalizeVariantValue,
-  breakdownRowQuantity, libelleFixe,
+  breakdownRowQuantity, libelleFixe, variantKey, movementMatchesVariant,
 } from '@/lib/warehouse-locations';
 import { uniteImposee, uniteDeStock, poleDeLArticle } from '@/lib/unites-pole';
 import { messageSiVersionPerimee } from '@/lib/version-perimee';
@@ -1175,8 +1184,35 @@ export default function StockApp() {
 
   const alertCount = stockItems.filter(i => i.minThreshold != null && i.currentQty <= i.minThreshold).length;
   const openInvoices = invoices.filter(i => i.status === 'UNPAID' || i.status === 'PARTIAL').length;
-  // Commandes préparées qui attendent le client : ni facturées, ni annulées.
-  const commandesEnAttente = orders.filter(o => o.status === 'DRAFT' || o.status === 'CONFIRMED').length;
+  // Bons encore à traiter (à chiffrer ou à encaisser) : ni facturés, ni annulés. Ceux du magasin
+  // affiché seulement — un compte magasin ne traite pas les bons des autres.
+  const commandesEnAttente = filteredOrders.filter(o => o.status === 'DRAFT' || o.status === 'CONFIRMED').length;
+
+  // ── Le rappel des bons comptoir ──
+  // Une vente comptoir est partie sans prix : il faut la chiffrer TOUT DE SUITE, sinon on oublie
+  // à quel prix le commercial l'a faite. Tant qu'un bon comptoir attend, un bandeau rouge reste
+  // en haut de tous les écrans, l'entrée de menu clignote et l'onglet du navigateur le dit.
+  const [maintenant, setMaintenant] = useState(() => Date.now());
+  useEffect(() => {
+    const minuterie = setInterval(() => setMaintenant(Date.now()), 30000);
+    return () => clearInterval(minuterie);
+  }, []);
+  // Les factures comptent : un bon comptoir facturé dont l'encaissement a été fermé sans rien
+  // enregistrer n'est pas terminé — le rappel reste allumé tant que l'argent n'est pas là.
+  const rappel = useMemo(() => rappelComptoir(filteredOrders, maintenant, invoices), [filteredOrders, maintenant, invoices]);
+  /** Le bon à ouvrir en arrivant sur « Bons à chiffrer » (bandeau, caisse). */
+  const [bonAOuvrir, setBonAOuvrir] = useState<string | null>(null);
+
+  const titreDeBase = useRef<string | null>(null);
+  useEffect(() => {
+    if (typeof document === 'undefined') return;
+    if (titreDeBase.current === null) titreDeBase.current = document.title.replace(PREFIXE_TITRE_ONGLET, '') || 'LEBTEX';
+    document.title = titreOnglet(rappel.nombreAChiffrer, titreDeBase.current, rappel.nombreAEncaisser);
+  }, [rappel.nombreAChiffrer, rappel.nombreAEncaisser]);
+  useEffect(() => () => {
+    if (typeof document !== 'undefined' && titreDeBase.current) document.title = titreDeBase.current;
+  }, []);
+
 
   // Filtres & statistiques des arrivages
   const [arrivalFilter, setArrivalFilter] = useState<'ENTERED_10D' | 'PENDING' | 'ALL'>('ENTERED_10D');
@@ -1760,20 +1796,515 @@ export default function StockApp() {
     } as any);
   }, [user, firestore, adminUid]);
 
-  const handleConvertToInvoice = useCallback(async (order: SaleOrder) => {
-    if (!user || !firestore) return;
+  // ── Outils communs aux bons ───────────────────────────────────────────────
+
+  /** Un refus de Firestore, dit en français : le gestionnaire ne lit pas « permission-denied ». */
+  const messageRefus = (e: any): string => {
+    const code = String(e?.code || '');
+    if (code === 'permission-denied' || /insufficient permissions/i.test(String(e?.message || ''))) {
+      return "Ce compte n'a pas le droit de faire cette écriture (magasin différent, ou compte en lecture seule). "
+        + "Si la marchandise est dans un autre magasin, faites d'abord un transfert vers votre magasin.";
+    }
+    return e?.message || String(e);
+  };
+
+  /**
+   * Un compte magasin n'écrit des mouvements QUE pour son magasin (règles Firestore). Une ligne
+   * qui sortirait d'un autre lieu est refusée ici, avec une phrase claire, plutôt que par le
+   * serveur avec un message en anglais. La marchandise d'un autre magasin se transfère d'abord.
+   */
+  const verifierLieuxDuCompte = useCallback((lieux: (string | undefined)[]) => {
+    if (userRole !== 'COMMERCIAL' || !userStoreId) return;
+    const autre = lieux.find(l => l && l !== userStoreId);
+    if (autre) {
+      const nom = stores.find((s: any) => s.id === autre)?.name || autre;
+      throw new Error(`Cette marchandise est à ${nom} : elle doit d'abord être transférée vers votre magasin.`);
+    }
+  }, [userRole, userStoreId, stores]);
+
+  /** Les mouvements de stock sont-ils là ? Sans eux, une correction ne retrouve pas d'où rendre. */
+  const exigerMouvementsCharges = useCallback(() => {
+    if (loadingMov || !rawMovements) {
+      throw new Error('Les mouvements de stock sont encore en cours de chargement : attendez quelques secondes, puis recommencez.');
+    }
+  }, [loadingMov, rawMovements]);
+
+  /**
+   * Ce qui reste en stock d'une ligne de bon (sa variante exacte) dans un lieu, ou null quand la
+   * ligne de stock n'est pas retrouvée. Sert à signaler une sortie qui dépasse le stock.
+   */
+  const disponibleLigne = useCallback((ligne: any, lieu: string): number | null => {
+    const cle = variantKey(varianteDeLigne(ligne, articles));
+    const candidats = (allStockItemsGlobal as any[]).filter(s => {
+      const ids: string[] = s._mergedArticleIds || [s._realArticleId || s.articleId];
+      return ids.includes(ligne?.articleId) && variantKey(stockItemVariant(s)) === cle;
+    });
+    if (candidats.length === 0) return null;
+    return Math.round(candidats.reduce((t, s) => t + disponibleDepuis(s, lieu, stores), 0) * 1000) / 1000;
+  }, [articles, allStockItemsGlobal, stores]);
+
+  /**
+   * Les sorties d'une ligne de bon, adressées comme à la caisse : FIFO dans les racks de SA
+   * variante, lien vers le bon et la ligne, et — si on sort plus que le stock — la même marque
+   * « Dépassement stock » qu'à la caisse, pour que l'écart se voie au journal.
+   */
+  const sortiesDeLigne = useCallback((
+    enCours: any[], ligne: any, lieu: string, quantite: number,
+    contexte: { date: string; notes: string; bonId: string; bonNumero?: string },
+  ) => {
+    const variante = varianteDeLigne(ligne, articles);
+    // Ce que ce même lot a déjà sorti de cette variante (deux lignes du même tissu) : le stock
+    // calculé ne le voit pas encore. `enCours` commence toujours par une copie de allMovements.
+    const dejaPris = enCours.slice(allMovements.length)
+      .filter(m => m?.articleId === ligne.articleId && m?.storeId === lieu && movementMatchesVariant(m, variante))
+      .reduce((t, m) => t + (m.type === 'OUT' ? 1 : m.type === 'IN' ? -1 : 0) * (Number(m.quantity) || 0), 0);
+    const dispoBrut = disponibleLigne(ligne, lieu);
+    const dispo = dispoBrut == null ? null : dispoBrut - dejaPris;
+    const depasse = dispo != null && quantite > dispo + 0.0005
+      ? Math.round((quantite - Math.max(0, dispo)) * 1000) / 1000 : 0;
+    const base = cleanUndefined({
+      ...mouvementDepuisLigne(ligne, lieu),
+      storeId: lieu, type: 'OUT' as const, reason: 'VENTE' as const, date: contexte.date,
+      notes: contexte.notes + (depasse > 0 ? ` ⚠️ [Dépassement stock: +${depasse}]` : ''),
+      bonId: contexte.bonId, bonNumero: contexte.bonNumero,
+      createdAt: serverTimestamp(),
+    });
+    return splitOutboundLines(enCours, lieu, ligne.articleId, quantite, base, variante, stores);
+  }, [disponibleLigne, articles, stores, allMovements]);
+
+  /**
+   * Écrire sur un bon en vérifiant d'abord, côté serveur, qu'il n'a pas bougé : la vérification
+   * et les écritures passent dans UNE transaction qui relit le bon. Deux postes poussés vers le
+   * même bon comptoir par le bandeau rouge ne peuvent donc plus l'annuler deux fois (marchandise
+   * rendue deux fois), ni l'annuler pendant que l'autre le facture.
+   *
+   * La transaction demande le réseau : sans lui, on refuse clairement plutôt que d'écrire à
+   * l'aveugle des retours de stock.
+   */
+  const ecrireSurBon = useCallback(async (
+    bonId: string,
+    verifier: (bonFrais: any | null) => void,
+    ecrire: (w: { set: (ref: any, data: any) => void; update: (ref: any, data: any) => void }) => void,
+  ) => {
+    if (!user || !firestore) throw new Error('Non connecté.');
+    if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+      throw new Error('Pas de connexion : cette opération vérifie le bon sur le serveur. Réessayez quand le réseau revient.');
+    }
+    const effectiveUid = adminUid || user.uid;
+    const orderRef = doc(firestore, 'users', effectiveUid, 'saleOrders', bonId);
+    try {
+      await Promise.race([
+        runTransaction(firestore, async tx => {
+          const snap = await tx.get(orderRef);
+          verifier(snap.exists() ? { id: snap.id, ...snap.data() } : null);
+          ecrire({ set: (r, d) => { tx.set(r, d); }, update: (r, d) => { tx.update(r, d); } });
+        }),
+        new Promise<never>((_, refus) => setTimeout(() => refus(new Error(
+          "Le serveur ne répond pas. L'opération est peut-être passée : vérifiez le bon avant de recommencer.",
+        )), 15000)),
+      ]);
+    } catch (e: any) {
+      throw new Error(messageRefus(e));
+    }
+  }, [user, firestore, adminUid]);
+
+  /** Les quantités d'un bon, ligne par ligne : si elles ont changé ailleurs, on ne corrige pas à l'aveugle. */
+  const signatureLignes = (items: any[] | undefined) =>
+    (items || []).map((l: any) => `${l?.ligneId || ''}:${Number(l?.qty) || 0}`).join('|');
+
+  /**
+   * Le bon de vente : enregistré, numéroté, et — sauf commande à préparer — la marchandise sort
+   * du stock TOUT DE SUITE, puisque le client part avec. La facture viendra quand le commercial
+   * aura rendu les prix ; elle ne ressortira rien (marqueur `sortieAuBon`).
+   *
+   * Le numéro (CH-0001…) vient du compteur posé sur la fiche du magasin, lu et incrémenté dans
+   * une transaction : deux caisses ne peuvent pas obtenir le même. Sans connexion, la transaction
+   * est impossible : on ne bloque pas la vente, le bon reçoit un numéro provisoire clairement
+   * marqué (CH-PROV-…), et l'écriture part au retour du réseau.
+   *
+   * @param sorties les sorties préparées par la caisse (avec `_variant` et `ligneBonId`), vides
+   *                pour une commande à préparer.
+   */
+  const handleCreerBon = useCallback(async (
+    bon: Omit<SaleOrder, 'id' | 'createdAt'>,
+    sorties: any[],
+  ): Promise<{ id: string; numero: string; provisoire: boolean; raisonProvisoire?: 'HORS_LIGNE' | 'MAGASIN_INCONNU'; enAttenteReseau: boolean; mouvements: any[] }> => {
+    if (!user || !firestore) throw new Error('Not authenticated');
     const effectiveUid = adminUid || user.uid;
     const mainStoreId = stores.find(s => s.isMain)?.id || 'CHRIFA';
-    const batch = writeBatch(firestore);
+    const storeId = (bon as any).storeId || (userRole === 'ADMIN' ? saleStoreId : ((activeStore === 'ALL' || activeStore === 'ALL_MAIN') ? mainStoreId : activeStore));
+    // Un compte magasin ne sort que de son magasin : refusé ici, en français, avant toute écriture.
+    verifierLieuxDuCompte([storeId, ...(sorties || []).map((m: any) => m.storeId)]);
+    const fiche: any = stores.find(s => s.id === storeId);
+    const prefixesPris = stores.filter((s: any) => s.id !== storeId).map((s: any) => s.prefixeBons).filter(Boolean);
+    const prefixeCalcule = prefixeMagasin(storeId, fiche?.name, prefixesPris);
+    // Le préfixe déjà figé sur la fiche l'emporte, en ligne comme hors ligne : un magasin renommé
+    // garde la même numérotation, numéros provisoires compris.
+    const prefixeFige = String(fiche?.prefixeBons || '').trim().toUpperCase() || prefixeCalcule;
+    const orderRef = doc(collection(firestore, 'users', effectiveUid, 'saleOrders'));
+    const storeRef = doc(firestore, 'users', effectiveUid, 'stores', storeId);
+    const creeLe = new Date();
+
+    // Les sorties sont adressées une fois pour toutes (FIFO par emplacement, comme à la caisse),
+    // avec des références de documents fixées d'avance : la transaction et le secours hors
+    // connexion écrivent les MÊMES documents. Si les deux finissaient par passer, le second
+    // réécrirait le premier au lieu de sortir la marchandise deux fois.
+    const enCours: any[] = [...allMovements];
+    const sortiesAdressees: { ref: any; data: any }[] = [];
+    for (const m of sorties || []) {
+      const lieu = m.storeId || storeId;
+      const { quantity, _variant, ...reste } = m;
+      const base = { ...cleanUndefined(reste), storeId: lieu, bonId: orderRef.id };
+      const lignes = splitOutboundLines(enCours, lieu, m.articleId, quantity, base, _variant, stores);
+      for (const l of lignes) {
+        sortiesAdressees.push({ ref: doc(collection(firestore, 'users', effectiveUid, 'stockMovements')), data: l });
+      }
+      enCours.push(...lignes);
+    }
+
+    const documents = (numero: string, provisoire: boolean) => ({
+      commande: cleanUndefined({
+        ...bon, storeId, orderNumber: numero, orderNumberProvisoire: provisoire || undefined,
+        creeLe: creeLe.toISOString(), createdAt: serverTimestamp(),
+      }),
+      mouvements: sortiesAdressees.map(({ ref, data }) => ({
+        ref,
+        data: cleanUndefined({
+          ...data,
+          bonNumero: numero,
+          notes: `Bon ${numero}${data.notes ? ` · ${data.notes}` : ''}`,
+          createdAt: serverTimestamp(),
+        }),
+      })),
+    });
+
+    let numero = '';
+    let provisoire = false;
+    let raisonProvisoire: 'HORS_LIGNE' | 'MAGASIN_INCONNU' | undefined;
+    let enAttenteReseau = false;
+    let ecrits: any[] = [];
+    const enLigne = typeof navigator === 'undefined' || navigator.onLine !== false;
+    try {
+      if (!enLigne) throw new Error('HORS_LIGNE');
+      const parTransaction = runTransaction(firestore, async tx => {
+        const ficheMagasin = await tx.get(storeRef);
+        // Le magasin doit exister : écrire un compteur sur un identifiant inconnu créerait un
+        // magasin fantôme dans la liste des lieux.
+        if (!ficheMagasin.exists()) throw new Error('MAGASIN_INCONNU');
+        // Le secours hors connexion est déjà passé pour ce bon : on n'écrit pas par-dessus.
+        if ((await tx.get(orderRef)).exists()) throw new Error('DEJA_ECRIT');
+        const suivant = prochainNumero(ficheMagasin.data(), prefixeCalcule);
+        const { commande, mouvements } = documents(suivant.numero, false);
+        tx.update(storeRef, { compteurBons: suivant.compteur, prefixeBons: suivant.prefixe });
+        tx.set(orderRef, commande);
+        for (const m of mouvements) tx.set(m.ref, m.data);
+        return { numero: suivant.numero, mouvements: mouvements.map(m => m.data) };
+      });
+      const resultat = await Promise.race([
+        parTransaction,
+        new Promise<never>((_, refus) => setTimeout(() => refus(new Error('DELAI')), 10000)),
+      ]);
+      numero = resultat.numero;
+      ecrits = resultat.mouvements;
+    } catch (e: any) {
+      // Le numéro provisoire n'est qu'un secours RÉSEAU (pas de connexion, serveur muet) — ou une
+      // fiche magasin introuvable, qu'on signale. Un refus de droits, lui, ne passe pas mieux en
+      // lot : le bon s'imprimerait, le client partirait, puis l'écriture serait annulée et le bon
+      // disparaîtrait. On s'arrête donc ici, sans rien écrire.
+      const message = String(e?.message || '');
+      const code = String(e?.code || '');
+      const reseau = message === 'HORS_LIGNE' || message === 'DELAI' || code === 'unavailable' || code === 'deadline-exceeded';
+      if (message === 'MAGASIN_INCONNU') raisonProvisoire = 'MAGASIN_INCONNU';
+      else if (reseau) raisonProvisoire = 'HORS_LIGNE';
+      else throw new Error(messageRefus(e));
+      console.warn('[bon] numérotation impossible, numéro provisoire :', message || e);
+      provisoire = true;
+      numero = numeroProvisoire(prefixeFige, creeLe);
+      const { commande, mouvements } = documents(numero, true);
+      const batch = writeBatch(firestore);
+      batch.set(orderRef, commande);
+      for (const m of mouvements) batch.set(m.ref, m.data);
+      ecrits = mouvements.map(m => m.data);
+      const envoi = batch.commit();
+      // Hors connexion, la promesse ne se résout qu'au retour du réseau : on n'attend pas plus
+      // de deux secondes et demie. Le bon est déjà dans l'écran (cache local) ; il partira seul.
+      const issue = await Promise.race([
+        envoi.then(() => 'envoye' as const),
+        new Promise<'attente'>(r => setTimeout(() => r('attente'), 2500)),
+      ]);
+      if (issue === 'attente') {
+        enAttenteReseau = true;
+        envoi.catch(err => toast({
+          variant: 'destructive',
+          title: `Bon ${numero} non enregistré`,
+          description: `L'écriture a été refusée au retour du réseau : ${err?.message || err}. Ressaisissez le bon.`,
+        }));
+      }
+    }
+
+    logAudit(firestore, effectiveUid, {
+      action: 'ORDER_CREATED',
+      userId: user.uid,
+      userEmail: user.email || '',
+      entityType: 'saleOrder',
+      entityId: orderRef.id,
+      description: `Bon ${numero} enregistré${bon.clientName ? ` · ${bon.clientName}` : ''} · ${(bon.items || []).length} ligne(s)`
+        + ((bon as any).sortieAuBon ? ' · marchandise sortie du stock' : ' · commande à préparer')
+        + (raisonProvisoire === 'MAGASIN_INCONNU' ? ' · fiche magasin introuvable, numéro provisoire' : ''),
+      metadata: { storeId, orderNumber: numero, provisoire, raisonProvisoire: raisonProvisoire || null, sortieAuBon: !!(bon as any).sortieAuBon, mouvements: ecrits.length },
+    } as any);
+    return { id: orderRef.id, numero, provisoire, raisonProvisoire, enAttenteReseau, mouvements: ecrits };
+  }, [user, firestore, toast, activeStore, adminUid, stores, userRole, saleStoreId, allMovements, verifierLieuxDuCompte]);
+
+  /**
+   * Les prix rendus par le commercial, la remise, les quantités corrigées et le total écrit sur
+   * le papier. Sur un bon déjà sorti, une quantité qui baisse (ou une ligne retirée) rentre en
+   * stock là d'où elle était sortie ; une quantité qui monte sort en plus — le tout lié au bon.
+   */
+  const handleEnregistrerBon = useCallback(async (
+    bonId: string,
+    saisie: ResultatSaisie & { totalPapier?: number | null },
+  ) => {
+    if (!user || !firestore) return;
+    const effectiveUid = adminUid || user.uid;
+    const bon = orders.find(o => o.id === bonId);
+    if (!bon) throw new Error('Bon introuvable : il a peut-être été supprimé.');
+    if (!bonEnCours(bon)) throw new Error('Ce bon est déjà facturé ou annulé : il ne se modifie plus.');
+    const mainStoreId = stores.find(s => s.isMain)?.id || 'CHRIFA';
+    const numero = bon.orderNumber || bon.id;
+    const corrigeLeStock = estSortiAuBon(bon) && saisie.changements.length > 0;
+    // Sans les mouvements chargés, une baisse de quantité ne retrouverait pas le rack d'où la
+    // marchandise est sortie : elle rentrerait « sans emplacement », et une annulation plus tard
+    // rendrait trop.
+    if (corrigeLeStock) exigerMouvementsCharges();
+
+    const nouveaux: any[] = [];
+    if (corrigeLeStock) {
+      const contexte = { date: bon.date, notes: `Correction du bon ${numero}`, bonId, bonNumero: bon.orderNumber };
+      const enCours: any[] = [...allMovements];
+      for (const changement of saisie.changements) {
+        // La ligne est retrouvée par son identifiant (stable), à défaut par son rang.
+        const ligne: any = (bon.items || []).find((l: any) => changement.ligneId && l.ligneId === changement.ligneId)
+          || (bon.items || [])[changement.index];
+        if (!ligne) continue;
+        const lieu = ligne.storeId || bon.storeId || mainStoreId;
+        verifierLieuxDuCompte([lieu]);
+        const { retours, aSortir } = mouvementsCorrection({
+          ligne,
+          mouvementsDeLaLigne: mouvementsDeLaLigne(allMovements, bonId, ligne.ligneId),
+          avant: changement.avant,
+          apres: changement.apres,
+          storeId: lieu,
+          contexte,
+        });
+        for (const r of retours) {
+          nouveaux.push(cleanUndefined({ ...r, createdAt: serverTimestamp() }));
+          enCours.push(r);
+        }
+        if (aSortir > 0) {
+          // Même règle qu'à la caisse : les racks de LA variante de la ligne, en FIFO, et la marque
+          // « Dépassement stock » si l'on sort plus que ce qui reste.
+          const lignesSortie = sortiesDeLigne(enCours, ligne, lieu, aSortir, {
+            date: bon.date, notes: `Bon ${numero} · quantité corrigée (+${aSortir})`, bonId, bonNumero: bon.orderNumber,
+          });
+          nouveaux.push(...lignesSortie);
+          enCours.push(...lignesSortie);
+        }
+      }
+    }
+
+    const signature = signatureLignes(bon.items);
+    await ecrireSurBon(bonId, frais => {
+      if (!frais) throw new Error('Bon introuvable : il a peut-être été supprimé.');
+      if (!bonEnCours(frais)) throw new Error('Ce bon vient d\'être facturé ou annulé sur un autre poste : il ne se modifie plus.');
+      if (signatureLignes(frais.items) !== signature) {
+        throw new Error('Ce bon vient d\'être modifié sur un autre poste. Fermez-le, rouvrez-le, puis refaites la saisie.');
+      }
+    }, w => {
+      for (const data of nouveaux) w.set(doc(collection(firestore, 'users', effectiveUid, 'stockMovements')), data);
+      w.update(doc(firestore, 'users', effectiveUid, 'saleOrders', bonId), cleanUndefined({
+        items: saisie.items,
+        discount: saisie.discount,
+        totalAmount: saisie.totalAmount,
+        totalAfterDiscount: saisie.totalAfterDiscount,
+        totalPapier: saisie.totalPapier ?? undefined,
+        chiffreLe: new Date().toISOString(),
+      }));
+    });
+    logAudit(firestore, effectiveUid, {
+      action: 'ORDER_UPDATED',
+      userId: user.uid,
+      userEmail: user.email || '',
+      entityType: 'saleOrder',
+      entityId: bonId,
+      description: `Bon ${numero} chiffré · ${saisie.items.length} ligne(s) · ${saisie.totalAfterDiscount.toLocaleString('fr-MA', { minimumFractionDigits: 2 })} MAD`
+        + (saisie.changements.length > 0 ? ` · ${saisie.changements.length} quantité(s) corrigée(s)` : ''),
+      metadata: {
+        totalAmount: saisie.totalAmount, totalAfterDiscount: saisie.totalAfterDiscount, discount: saisie.discount,
+        totalPapier: saisie.totalPapier ?? null, lignesSansPrix: saisie.restantSansPrix, mouvementsEcrits: nouveaux.length,
+      },
+    } as any);
+  }, [user, firestore, adminUid, orders, stores, allMovements, exigerMouvementsCharges, verifierLieuxDuCompte, sortiesDeLigne, ecrireSurBon]);
+
+  /**
+   * Annuler un bon. S'il avait déjà sorti la marchandise, elle revient en stock : chacun de ses
+   * mouvements est inversé à l'identique (même magasin, même emplacement, même variante, même
+   * quantité nette), avec le motif « Annulation de bon ». Rien n'est effacé — un compte magasin
+   * ne le peut pas, et le journal garde la trace des deux sens.
+   *
+   * Le bon est relu sur le serveur dans la même transaction : déjà annulé ou facturé ailleurs,
+   * rien n'est écrit.
+   */
+  const handleAnnulerBon = useCallback(async (bon: SaleOrder, numeroAffiche?: string) => {
+    if (!user || !firestore) return;
+    const effectiveUid = adminUid || user.uid;
+    const numero = bon.orderNumber || numeroAffiche || bon.id;
+    let retours: any[] = [];
+    if (estSortiAuBon(bon)) {
+      exigerMouvementsCharges();
+      retours = mouvementsAnnulation(mouvementsDuBon(allMovements, bon.id), {
+        date: getLocalDateString(),
+        notes: `Annulation du bon ${numero}${bon.clientName ? ` · ${bon.clientName}` : ''}`,
+        bonId: bon.id,
+        bonNumero: bon.orderNumber,
+      });
+      verifierLieuxDuCompte(retours.map(r => r.storeId));
+    }
+    const signature = signatureLignes(bon.items);
+    await ecrireSurBon(bon.id, frais => {
+      if (!frais) throw new Error('Bon introuvable : il a peut-être été supprimé.');
+      if (!bonEnCours(frais)) {
+        throw new Error(`Ce bon est déjà ${frais.status === 'CANCELLED' ? 'annulé' : 'facturé'} (sur un autre poste) : rien n'a été fait.`);
+      }
+      if (signatureLignes(frais.items) !== signature) {
+        throw new Error('Ce bon vient d\'être modifié sur un autre poste : rouvrez-le avant de l\'annuler.');
+      }
+    }, w => {
+      for (const r of retours) {
+        w.set(doc(collection(firestore, 'users', effectiveUid, 'stockMovements')), cleanUndefined({ ...r, createdAt: serverTimestamp() }));
+      }
+      w.update(doc(firestore, 'users', effectiveUid, 'saleOrders', bon.id), { status: 'CANCELLED', annuleLe: new Date().toISOString() });
+    });
+    logAudit(firestore, effectiveUid, {
+      action: 'ORDER_CANCELLED',
+      userId: user.uid,
+      userEmail: user.email || '',
+      entityType: 'saleOrder',
+      entityId: bon.id,
+      description: `Bon ${numero} annulé${retours.length > 0 ? ` · ${retours.length} retour(s) en stock` : ''}`,
+      metadata: { orderNumber: bon.orderNumber || numero, retours: retours.length },
+    } as any);
+    toast({
+      title: `Bon ${numero} annulé`,
+      description: retours.length > 0
+        ? 'La marchandise est revenue en stock, aux emplacements d\'où elle était sortie.'
+        : 'Aucune marchandise n\'était sortie pour ce bon.',
+    });
+  }, [user, firestore, adminUid, allMovements, toast, exigerMouvementsCharges, verifierLieuxDuCompte, ecrireSurBon]);
+
+  /** Le jour où la marchandise d'un bon est sortie : celui de l'enlèvement, sinon celui du bon. */
+  const dateDeSortie = (order: SaleOrder): string | undefined => {
+    if (order.enleveLe) {
+      const t = new Date(order.enleveLe);
+      if (!Number.isNaN(t.getTime())) return getLocalDateString(t);
+    }
+    return order.date || undefined;
+  };
+
+  /**
+   * « Le client enlève la marchandise » : une commande à préparer devient un bon sorti. Les
+   * sorties s'écrivent comme au bon (FIFO dans les racks de la variante, liées au bon et à la
+   * ligne), aujourd'hui. Le bon suit ensuite le parcours normal : prix, rappel rouge s'il n'a pas
+   * de client, finalisation SANS nouvelle sortie.
+   */
+  const handleEnleverBon = useCallback(async (bon: SaleOrder) => {
+    if (!user || !firestore) return;
+    const effectiveUid = adminUid || user.uid;
+    if (!bonEnCours(bon)) throw new Error('Ce bon est déjà facturé ou annulé.');
+    if (estSortiAuBon(bon)) throw new Error('La marchandise de ce bon est déjà sortie du stock.');
+    exigerMouvementsCharges();
+    const mainStoreId = stores.find(s => s.isMain)?.id || 'CHRIFA';
+    const numero = bon.orderNumber || bon.id;
+    const lieuDuBon = bon.storeId || mainStoreId;
+    const aujourdhui = getLocalDateString();
+    const graine = Date.now();
+    // Une ancienne commande n'a pas d'identifiant de ligne : on lui en donne un maintenant. Sans
+    // lui, une correction ou une annulation ne retrouverait pas les sorties de la ligne.
+    const items = (bon.items || []).map((l: any, k: number) => (l.ligneId ? l : { ...l, ligneId: nouvelIdentifiantLigne(k, graine) }));
+    verifierLieuxDuCompte(items.map((l: any) => l.storeId || lieuDuBon));
+
+    const enCours: any[] = [...allMovements];
+    const sorties: any[] = [];
+    for (const ligne of items as any[]) {
+      const quantite = Number(ligne.qty) || 0;
+      if (!ligne.articleId || quantite <= 0) continue;
+      const lignes = sortiesDeLigne(enCours, ligne, ligne.storeId || lieuDuBon, quantite, {
+        date: aujourdhui,
+        notes: `Bon ${numero} · enlevé${bon.clientName ? ` par ${bon.clientName}` : ''}`,
+        bonId: bon.id,
+        bonNumero: bon.orderNumber,
+      });
+      sorties.push(...lignes);
+      enCours.push(...lignes);
+    }
+
+    const signature = signatureLignes(bon.items);
+    await ecrireSurBon(bon.id, frais => {
+      if (!frais) throw new Error('Bon introuvable : il a peut-être été supprimé.');
+      if (!bonEnCours(frais)) throw new Error('Ce bon vient d\'être facturé ou annulé sur un autre poste.');
+      if (estSortiAuBon(frais)) throw new Error('La marchandise de ce bon vient d\'être sortie sur un autre poste.');
+      if (signatureLignes(frais.items) !== signature) {
+        throw new Error('Ce bon vient d\'être modifié sur un autre poste : rouvrez-le avant de le faire enlever.');
+      }
+    }, w => {
+      for (const s of sorties) w.set(doc(collection(firestore, 'users', effectiveUid, 'stockMovements')), s);
+      w.update(doc(firestore, 'users', effectiveUid, 'saleOrders', bon.id), cleanUndefined({
+        items,
+        sortieAuBon: true,
+        aPreparer: false,
+        comptoir: bonSansClient(bon) ? true : undefined,
+        enleveLe: new Date().toISOString(),
+      }));
+    });
+    logAudit(firestore, effectiveUid, {
+      action: 'ORDER_PICKED_UP',
+      userId: user.uid,
+      userEmail: user.email || '',
+      entityType: 'saleOrder',
+      entityId: bon.id,
+      description: `Bon ${numero} enlevé${bon.clientName ? ` par ${bon.clientName}` : ''} · ${sorties.length} sortie(s) de stock`,
+      metadata: { orderNumber: bon.orderNumber || null, mouvements: sorties.length },
+    } as any);
+    toast({
+      title: `Bon ${numero} : marchandise sortie`,
+      description: 'Le client est parti avec la marchandise. Il reste à saisir les prix rendus par le commercial, puis à encaisser.',
+    });
+  }, [user, firestore, adminUid, stores, allMovements, toast, exigerMouvementsCharges, verifierLieuxDuCompte, sortiesDeLigne, ecrireSurBon]);
+
+  const handleConvertToInvoice = useCallback(async (order: SaleOrder): Promise<string | undefined> => {
+    if (!user || !firestore) return undefined;
+    const effectiveUid = adminUid || user.uid;
+    const mainStoreId = stores.find(s => s.isMain)?.id || 'CHRIFA';
+    // Un bon déjà sorti : la marchandise est partie avec le client le jour du bon (ou de son
+    // enlèvement). La facture prend cette date, et ne ressort RIEN du stock. Une commande à
+    // préparer (ou une ancienne commande) garde le comportement d'avant : elle sort aujourd'hui.
+    const dejaSorti = estSortiAuBon(order);
+    if (!dejaSorti) exigerMouvementsCharges();
+    const dateFacture = (dejaSorti && dateDeSortie(order)) || getLocalDateString();
     const invRef = doc(collection(firestore, 'users', effectiveUid, 'invoices'));
+    const lieuVente = order.storeId || ((activeStore === 'ALL' || activeStore === 'ALL_MAIN') ? mainStoreId : activeStore);
     // cleanUndefined, comme partout ailleurs : une commande comptoir n'a PAS de clientId, et
     // Firestore refuse une valeur indefinie en levant de facon SYNCHRONE — avant meme de partir
     // sur le reseau. Le bouton « Convertir en facture » tournait une demi-seconde et ne faisait
     // rien, sans message, pour toujours.
-    batch.set(invRef, cleanUndefined({
+    const facture = cleanUndefined({
       clientId: order.clientId,
       clientName: order.clientName,
       orderId: order.id,
+      orderNumber: order.orderNumber,
+      // Sans dossier client, rien ne peut rester dû : la facture le dit elle-même, pour que
+      // l'encaissement l'exige quel que soit l'écran d'où on l'ouvre.
+      comptoir: bonSansClient(order) ? true : undefined,
       items: order.items,
       totalAmount: order.totalAmount,
       discount: order.discount,
@@ -1784,68 +2315,104 @@ export default function StockApp() {
       // disparaître des écrans : une commande facturée sans prix est une vente perdue, et
       // personne ne s'en apercevrait. Rouge, elle se voit — et on vient demander pourquoi.
       status: 'UNPAID',
-      date: getLocalDateString(),
+      date: dateFacture,
       notes: order.notes,
-      storeId: order.storeId || ((activeStore === 'ALL' || activeStore === 'ALL_MAIN') ? mainStoreId : activeStore),
+      storeId: lieuVente,
       createdAt: serverTimestamp(),
-    }));
-    const orderRef = doc(firestore, 'users', effectiveUid, 'saleOrders', order.id);
-    batch.update(orderRef, { status: 'INVOICED' });
+    });
 
     // La marchandise sort MAINTENANT. Une commande préparée ne bouge pas le stock — c'est ce qui
     // permet de la monter avant l'arrivée du client — donc c'est sa facturation qui doit écrire
     // les sorties. Sans cela le client était facturé et la marchandise restait en rayon.
-    const lieuVente = order.storeId || ((activeStore === 'ALL' || activeStore === 'ALL_MAIN') ? mainStoreId : activeStore);
+    //
+    // Sauf pour un bon déjà sorti : sa marchandise est partie avec le client, la ressortir ici
+    // la compterait deux fois.
+    //
+    // Chaque ligne sort de SON lieu (une ligne peut venir d'un autre magasin que le bon), des
+    // racks de SA variante, et garde le lien vers sa ligne de bon.
     const enCours: any[] = [...allMovements];
-    for (const ligne of (order.items || []) as any[]) {
+    const sorties: any[] = [];
+    const lignesASortir = (dejaSorti ? [] : (order.items || [])) as any[];
+    verifierLieuxDuCompte(lignesASortir.map(l => l.storeId || lieuVente));
+    for (const ligne of lignesASortir) {
       const quantite = Number(ligne.qty) || 0;
       if (!ligne.articleId || quantite <= 0) continue;
-      const base = cleanUndefined({
-        articleId:     ligne.articleId,
-        categoryId:    ligne.categoryId || null,
-        productName:   ligne.nameFR || ligne.productName,
-        nameFR:        ligne.nameFR || null,
-        color:         ligne.color || null,
-        size:          ligne.size || null,
-        quality:       ligne.quality || null,
-        unitOfMeasure: ligne.unitOfMeasure || 'unité',
-        type:          'OUT' as const,
-        reason:        'VENTE' as const,
-        storeId:       lieuVente,
-        date:          getLocalDateString(),
-        notes:         `Commande ${order.id} facturée${order.clientName ? ` · ${order.clientName}` : ''}`,
-        createdAt:     serverTimestamp(),
+      const lignesSortie = sortiesDeLigne(enCours, ligne, ligne.storeId || lieuVente, quantite, {
+        date: getLocalDateString(),
+        notes: `Commande ${order.orderNumber || order.id} facturée${order.clientName ? ` · ${order.clientName}` : ''}`,
+        bonId: order.orderNumber ? order.id : (undefined as any),
+        bonNumero: order.orderNumber,
       });
-      // Même règle qu'à la caisse : les racks se vident en FIFO, et seulement ceux de la variante
-      // vendue. `_variant` n'est qu'une aide de calcul, splitOutboundLines ne l'écrit pas.
-      const variante = ligne.quality ? { dimension: 'quality' as const, value: ligne.quality }
-        : ligne.color ? { dimension: 'color' as const, value: ligne.color }
-        : ligne.size ? { dimension: 'size' as const, value: ligne.size }
-        : null;
-      const lignesSortie = splitOutboundLines(enCours, lieuVente, ligne.articleId, quantite, base, variante, stores);
-      for (const sortie of lignesSortie) {
-        batch.set(doc(collection(firestore, 'users', effectiveUid, 'stockMovements')), sortie);
-      }
+      sorties.push(...lignesSortie);
       enCours.push(...lignesSortie);
     }
 
-    await batch.commit();
+    // Relu sur le serveur : un bon annulé (ou déjà facturé) sur un autre poste entre-temps ne se
+    // facture pas une seconde fois.
+    await ecrireSurBon(order.id, frais => {
+      if (!frais) throw new Error('Bon introuvable : il a peut-être été supprimé.');
+      if (!bonEnCours(frais)) {
+        throw new Error(`Ce bon est déjà ${frais.status === 'CANCELLED' ? 'annulé' : 'facturé'} (sur un autre poste) : aucune facture n'a été créée.`);
+      }
+      if (estSortiAuBon(frais) !== dejaSorti) {
+        throw new Error('La marchandise de ce bon vient de sortir sur un autre poste : rouvrez-le, puis finalisez.');
+      }
+    }, w => {
+      w.set(invRef, facture);
+      w.update(doc(firestore, 'users', effectiveUid, 'saleOrders', order.id), { status: 'INVOICED', invoiceId: invRef.id });
+      for (const s of sorties) w.set(doc(collection(firestore, 'users', effectiveUid, 'stockMovements')), s);
+    });
+
     logAudit(firestore, effectiveUid, {
       action: 'INVOICE_CREATED',
       userId: user.uid,
       userEmail: user.email || '',
       entityType: 'invoice',
       entityId: invRef.id,
-      description: `Commande ${order.id} facturée${order.clientName ? ` à ${order.clientName}` : ''} · `
+      description: `Commande ${order.orderNumber || order.id} facturée${order.clientName ? ` à ${order.clientName}` : ''} · `
         + `${(order.items || []).length} ligne(s) · ${(Number(order.totalAfterDiscount) || 0).toLocaleString('fr-MA', { minimumFractionDigits: 2 })} MAD`,
-      metadata: { orderId: order.id, storeId: lieuVente },
+      metadata: { orderId: order.id, orderNumber: order.orderNumber, storeId: lieuVente, sortieAuBon: dejaSorti },
     });
     toast({
-      title: 'Commande facturée',
-      description: 'La facture est créée et la marchandise est sortie du stock.',
+      title: order.orderNumber ? `Bon ${order.orderNumber} facturé` : 'Commande facturée',
+      description: dejaSorti
+        ? 'La facture est créée. La marchandise était déjà sortie du stock avec le bon.'
+        : 'La facture est créée et la marchandise est sortie du stock.',
+    });
+    return invRef.id;
+  }, [user, firestore, toast, activeStore, adminUid, stores, allMovements, exigerMouvementsCharges, verifierLieuxDuCompte, sortiesDeLigne, ecrireSurBon]);
+
+  /**
+   * « Finaliser et encaisser » : la facture du bon, puis directement l'écran d'encaissement,
+   * réglé par défaut à la date du bon. Une vente comptoir se règle en totalité ; un client peut
+   * laisser à crédit, régler par chèque ou LC, comme aujourd'hui.
+   */
+  const [encaissementAOuvrir, setEncaissementAOuvrir] = useState<{ invoiceId: string; date: string; totalExige: boolean } | null>(null);
+  const handleFinaliserBon = useCallback(async (order: SaleOrder) => {
+    const invoiceId = await handleConvertToInvoice(order);
+    if (!invoiceId) return;
+    setEncaissementAOuvrir({
+      invoiceId,
+      date: (estSortiAuBon(order) && dateDeSortie(order)) || getLocalDateString(),
+      totalExige: bonSansClient(order),
     });
     setActiveView('invoices');
-  }, [user, firestore, toast, activeStore, adminUid, stores, allMovements]);
+  }, [handleConvertToInvoice]);
+
+  /** Un bon facturé dont l'argent n'est pas encore là : on rouvre son encaissement. */
+  const handleEncaisserBon = useCallback((order: SaleOrder) => {
+    const facture = invoices.find(i => i.id === order.invoiceId || (i.orderId && i.orderId === order.id));
+    if (!facture) {
+      toast({ variant: 'destructive', title: 'Facture introuvable', description: 'La facture de ce bon n\'est pas encore chargée. Réessayez dans un instant.' });
+      return;
+    }
+    setEncaissementAOuvrir({
+      invoiceId: facture.id,
+      date: (estSortiAuBon(order) && dateDeSortie(order)) || getLocalDateString(),
+      totalExige: bonSansClient(order),
+    });
+    setActiveView('invoices');
+  }, [invoices, toast]);
 
   // ── Factures ──────────────────────────────────────────────────────────────
   const handleCreateInvoice = useCallback(async (
@@ -1858,6 +2425,8 @@ export default function StockApp() {
       const effectiveUid = adminUid || user.uid;
       const mainStoreId = stores.find(s => s.isMain)?.id || 'CHRIFA';
       const storeId = (invoice as any).storeId || (userRole === 'ADMIN' ? saleStoreId : ((activeStore === 'ALL' || activeStore === 'ALL_MAIN') ? mainStoreId : activeStore));
+      // Un compte magasin ne vend que SON stock : refusé ici en français plutôt que par le serveur.
+      verifierLieuxDuCompte([storeId, ...(movementsOut || []).map((m: any) => m.storeId)]);
       const batch = writeBatch(firestore);
       const invRef = doc(collection(firestore, 'users', effectiveUid, 'invoices'));
       batch.set(invRef, {
@@ -1909,7 +2478,7 @@ export default function StockApp() {
       toast({ title: 'Erreur', description: `Impossible d'enregistrer la vente : ${err?.message || err}`, variant: 'destructive' });
       throw err;
     }
-  }, [user, firestore, toast, activeStore, adminUid, userRole, saleStoreId, stores, allMovements]);
+  }, [user, firestore, toast, activeStore, adminUid, userRole, saleStoreId, stores, allMovements, verifierLieuxDuCompte]);
 
   const handleUpdateInvoiceStatus = useCallback(async (id: string, status: InvoiceStatus) => {
     if (!user || !firestore) return;
@@ -1926,6 +2495,14 @@ export default function StockApp() {
     const effectiveUid = adminUid || user.uid;
     const validLines = returnLines.filter(l => l.qty > 0);
     if (validLines.length === 0) return;
+
+    // Jamais plus que ce qui a été vendu, retours déjà faits compris : deux retours de 10 m sur
+    // une facture de 10 m faisaient rentrer 20 m en stock (src/lib/retours-facture.ts).
+    const depasse = depassementRetour(invoice.items || [], allMovements, invoice.id, validLines);
+    if (depasse) {
+      toast({ variant: 'destructive', title: 'Retour refusé', description: depasse });
+      throw new Error(depasse);
+    }
 
     // Variante du produit retourné (couleur, qualité ou taille d'un article éclaté) : la ligne
     // porte l'articleId réel et les libellés vendus, la ventilation de l'article dit lequel
@@ -1946,7 +2523,8 @@ export default function StockApp() {
       return value ? { dimension, value } : undefined;
     };
 
-    const returnValue = validLines.reduce((s, l) => s + l.qty * l.unitPrice, 0);
+    // Arrondi au centime : un prix unitaire peut avoir trois décimales (mercerie), un montant non.
+    const returnValue = Math.round(validLines.reduce((s, l) => s + l.qty * l.unitPrice, 0) * 100) / 100;
     const today = getLocalDateString();
 
     try {
@@ -2079,7 +2657,11 @@ export default function StockApp() {
     const batch = writeBatch(firestore);
 
     for (const payment of paymentList) {
-      const cleaned = cleanUndefined(payment);
+      // Un compte magasin ne peut créer un règlement QUE s'il porte son magasin (règles
+      // Firestore) : sans storeId, l'encaissement était refusé en bloc. L'argent est reçu au
+      // magasin du compte — c'est donc lui qu'on inscrit, quel que soit l'écran d'origine.
+      const storeIdReglement = userRole === 'COMMERCIAL' && userStoreId ? userStoreId : payment.storeId;
+      const cleaned = cleanUndefined({ ...payment, storeId: storeIdReglement });
       const pRef = doc(collection(firestore, 'users', effectiveUid, 'clientPayments'));
       batch.set(pRef, {
         ...cleaned,
@@ -2142,7 +2724,7 @@ export default function StockApp() {
       title: 'Paiement(s) validé(s)',
       description: `${(Number(totalAmount) || 0).toLocaleString('fr-MA', { minimumFractionDigits: 2 })} MAD (${methods})`
     });
-  }, [user, firestore, adminUid, invoices, toast, effetEnCoursSurFacture]);
+  }, [user, firestore, adminUid, invoices, toast, effetEnCoursSurFacture, userRole, userStoreId]);
 
   const handleRecordPayment = useCallback(async (payment: Omit<ClientPayment, 'id' | 'createdAt'>) => {
     await handleRecordMultiplePayments([payment]);
@@ -2600,14 +3182,14 @@ export default function StockApp() {
   , [pendingRobeRemisePayments]);
 
   // ── Navigation et droits (doit être avant les early returns pour éviter React Error 310) ──
-  const navItemsRaw: Array<{ id: string; label: string; category: string; icon: any; adminOnly?: boolean; commercialOnly?: boolean; pointOfSaleOnly?: boolean; adminOrMainOnly?: boolean; badge?: number; color?: string }> = useMemo(() => [
+  const navItemsRaw: Array<{ id: string; label: string; category: string; icon: any; adminOnly?: boolean; commercialOnly?: boolean; pointOfSaleOnly?: boolean; adminOrMainOnly?: boolean; badge?: number; badgeUrgent?: boolean; color?: string }> = useMemo(() => [
     { id: 'dashboard', label: 'Dashboard',    category: 'dashboard', icon: LayoutDashboard, adminOnly: true },
     { id: 'alerts',    label: 'Alertes',       category: 'dashboard', icon: Bell,            badge: alertCount, adminOnly: true },
     { id: 'audit',    label: 'Journal',       category: 'dashboard', icon: List,            adminOnly: true },
 
     { id: 'sale',      label: 'Caisse',         category: 'commerce', icon: ShoppingCart,   color: 'violet', pointOfSaleOnly: true },
     { id: 'clients',   label: 'Clients',       category: 'commerce', icon: Users,           pointOfSaleOnly: true },
-    { id: 'orders',    label: 'Commandes préparées', category: 'commerce', icon: ClipboardList, badge: commandesEnAttente || undefined, pointOfSaleOnly: true },
+    { id: 'orders',    label: 'Bons à chiffrer', category: 'commerce', icon: ClipboardList, badge: commandesEnAttente || undefined, badgeUrgent: rappel.nombre > 0, pointOfSaleOnly: true },
     { id: 'invoices',  label: 'Factures',       category: 'commerce', icon: FileText,        badge: openInvoices, pointOfSaleOnly: true },
     { id: 'cheques-impayes', label: 'Chèques / Impayés', category: 'commerce', icon: CreditCard, badge: rejectedChequesCount > 0 ? rejectedChequesCount : undefined, color: 'rose', pointOfSaleOnly: true },
     { id: 'expenses',  label: 'Frais & Dépenses', category: 'commerce', icon: Receipt,        color: 'amber', pointOfSaleOnly: true },
@@ -2627,7 +3209,7 @@ export default function StockApp() {
     { id: 'reconciliation', label: 'Rappro. Bancaire', category: 'finance', icon: ArrowLeftRight, color: 'blue', adminOnly: true },
     
     { id: 'stores',     label: 'Paramètres',    category: 'settings', icon: Settings, adminOnly: true }
-  ], [pendingArrivals, openInvoices, alertCount, urgent7DaysEffects.length, rejectedChequesCount]);
+  ], [pendingArrivals, openInvoices, alertCount, urgent7DaysEffects.length, rejectedChequesCount, commandesEnAttente, rappel.nombre]);
 
   const currentStore = (activeStore !== 'ALL' && activeStore !== 'ALL_MAIN') ? stores.find(s => s.id === activeStore) : null;
   const isWarehouse = currentStore?.type === 'WAREHOUSE';
@@ -2674,6 +3256,20 @@ export default function StockApp() {
       }
     }
   }, [navItems, activeView, userRole, isWarehouse]);
+
+  // À l'ouverture de /stock, un bon comptoir qui attend fait arriver directement sur l'écran des
+  // bons à chiffrer — une fois, au chargement : ensuite on circule librement, le bandeau suffit.
+  // Placé APRÈS l'effet qui recale la vue sur le menu : les effets passent dans l'ordre, et le
+  // recalage (« dashboard » absent du menu d'un magasin → « stock ») l'écraserait sinon.
+  const ouvertureFaite = useRef(false);
+  useEffect(() => {
+    if (ouvertureFaite.current || loadingOrd || !rawOrders) return;
+    if (userRole !== 'ADMIN' && userRole !== 'COMMERCIAL') return;
+    if (userRole === 'COMMERCIAL' && !userStoreId) return;
+    ouvertureFaite.current = true;
+    // Un compte en lecture seule ne peut rien saisir : on ne l'envoie pas sur un écran d'action.
+    if (rappel.nombre > 0 && !isReadOnly) setActiveView('orders');
+  }, [loadingOrd, rawOrders, userRole, userStoreId, rappel.nombre, isReadOnly]);
 
   // ── Auth guard ────────────────────────────────────────────────────────────
   if (isUserLoading) return (
@@ -2836,7 +3432,7 @@ export default function StockApp() {
                 return (
                   <div key={catId} className="mb-1">
                     <p className="text-[10px] font-bold uppercase tracking-[0.09em] text-[#9C927C] opacity-60 px-3 mt-3.5 mb-1">{meta.label}</p>
-                    {catItems.map(({ id, label, icon: Icon, badge, color }) => (
+                    {catItems.map(({ id, label, icon: Icon, badge, badgeUrgent, color }) => (
                       <button key={id} onClick={() => setActiveView(id as StockView)}
                         className={`w-full flex items-center gap-2.5 h-[36px] px-3 rounded-xl text-[12.5px] font-semibold mb-0.5 transition-colors ${
                           activeView === id ? 'bg-[#2A251C] text-[#E9E2D3]' : 'text-[#9C927C] hover:text-[#E9E2D3]'
@@ -2845,6 +3441,7 @@ export default function StockApp() {
                         <span className="flex-1 text-left truncate">{label}</span>
                         {badge != null && badge > 0 && (
                           <span className={`min-w-[18px] h-[18px] px-1 rounded-full text-white text-[10px] font-black flex items-center justify-center shrink-0 ${
+                            badgeUrgent ? 'bg-red-600 animate-pulse ring-2 ring-red-400/60' :
                             id === 'alerts' || id === 'cheques-impayes' ? 'bg-red-500' : id === 'invoices' ? 'bg-orange-500' : id === 'treasury' ? 'bg-amber-500' : 'bg-emerald-500'
                           }`}>{badge > 99 ? '99+' : badge}</span>
                         )}
@@ -2904,6 +3501,16 @@ export default function StockApp() {
         {/* ── Content ── */}
         <div className="flex-1 min-w-0 flex flex-col">
       <main className="flex-grow max-w-[1600px] mx-auto px-4 sm:px-8 py-6 w-full">
+        {/* Le rappel des bons comptoir : sur TOUS les écrans, tant qu'un bon attend ses prix. */}
+        {rappel.nombre > 0 && (
+          <BandeauBonsComptoir
+            rappel={rappel}
+            lectureSeule={isReadOnly}
+            horsLigne={!isOnline}
+            surEcranDesBons={activeView === 'orders'}
+            onSaisir={() => { setBonAOuvrir(rappel.plusAncien?.id || null); setActiveView('orders'); }}
+          />
+        )}
         {isLoading ? (
           <div className="flex flex-col items-center justify-center py-40 space-y-6">
             <div className="relative">
@@ -2974,6 +3581,10 @@ export default function StockApp() {
             {activeView === 'sale' && (
               <StockSaleFlow
                 userRole={userRole}
+                lectureSeule={isReadOnly}
+                orders={filteredOrders}
+                onCreerBon={handleCreerBon}
+                onSaisirPrix={(id) => { setBonAOuvrir(id); setActiveView('orders'); }}
                 stockItems={saleStockItems}
                 categories={categories}
                 generalCategories={generalCategories}
@@ -2995,6 +3606,8 @@ export default function StockApp() {
                 invoices={invoices}
                 payments={payments}
                 userRole={userRole}
+                magasinDuCompte={userRole === 'COMMERCIAL' ? (userStoreId || undefined) : undefined}
+                stores={stores}
                 onCreateClient={async (c) => { await handleCreateClient(c); }}
                 onUpdateClient={handleUpdateClient}
                 onRecordPayment={handleRecordPayment}
@@ -3021,11 +3634,23 @@ export default function StockApp() {
             )}
             {activeView === 'orders' && (
               <StockOrders
-                orders={orders}
+                orders={filteredOrders}
+                tousLesBons={orders}
                 clients={clients}
-                onUpdateStatus={handleUpdateOrderStatus}
-                onConvertToInvoice={handleConvertToInvoice}
-                onUpdateOrderPrices={handleUpdateOrderPrices}
+                invoices={invoices}
+                movements={allMovements}
+                articles={articles}
+                stores={stores}
+                maintenant={maintenant}
+                lectureSeule={isReadOnly}
+                disponibleLigne={disponibleLigne}
+                bonAOuvrir={bonAOuvrir}
+                onBonOuvert={() => setBonAOuvrir(null)}
+                onAnnulerBon={handleAnnulerBon}
+                onEnregistrerBon={handleEnregistrerBon}
+                onFinaliserBon={handleFinaliserBon}
+                onEnleverBon={handleEnleverBon}
+                onEncaisserBon={handleEncaisserBon}
                 onNavigate={setActiveView}
               />
             )}
@@ -3038,6 +3663,9 @@ export default function StockApp() {
                 onRecordMultiplePayments={handleRecordMultiplePayments}
                 onUpdateStatus={handleUpdateInvoiceStatus}
                 onProcessReturn={handleProcessReturn}
+                movements={allMovements}
+                encaissementAOuvrir={encaissementAOuvrir}
+                onEncaissementOuvert={() => setEncaissementAOuvrir(null)}
                 onNavigate={setActiveView}
               />
             )}

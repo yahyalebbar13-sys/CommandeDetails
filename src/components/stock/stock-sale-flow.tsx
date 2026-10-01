@@ -18,12 +18,15 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import type { Client, SaleOrder, Invoice, OrderItem, StockItem, PaymentMethod, CashingCompany } from '@/lib/types';
 import { getLocalDateString } from '@/lib/constants';
 import { cleanUndefined } from '@/lib/utils';
-import { exportSaleOrderPDF } from '@/lib/pdf-export-reports';
 import { stockItemVariant } from '@/lib/warehouse-locations';
 import { uniteDecimale, pasDeSaisie, libelleUnite } from '@/lib/unites-pole';
 import { useToast } from '@/hooks/use-toast';
 import { useConfirm } from '@/hooks/use-confirm';
 import { sansPrix } from '@/lib/commande-sans-prix';
+import {
+  encoursClient, controleCreditAuBon, nouvelIdentifiantLigne, natureBon, estNumeroProvisoire, contenanceDepuisStock,
+} from '@/lib/bon-sans-prix';
+import { construireBonHtml } from '@/lib/bon-imprime';
 import { disponibleDepuis, lieuDeMouvement } from '@/lib/stock-disponible';
 import { useOnlineStatus } from '@/hooks/use-online-status';
 import {
@@ -154,27 +157,6 @@ export function ChampQuantite({ valeur, unite, onQuantite, nu, videSiZero, garde
 
 interface CartLine { item: StockItem; qty: number; unitPrice: number; sourceStore?: string; }
 
-/** Une ligne de panier transformée en ligne de bon de commande ou de facture. */
-function ligneDeCommande(sub: StockItem, ligne: CartLine, qty: number, storeId: string): OrderItem {
-  return {
-    articleId: sub._realArticleId || sub.articleId,
-    productName: sub.nameFR || sub.productName,
-    nameFR: sub.nameFR,
-    color: sub.color || '',
-    size: sub.size || '',
-    quality: sub.quality || ligne.item.quality || undefined,
-    categoryId: sub.categoryId || '',
-    unitOfMeasure: sub.unitOfMeasure || '',
-    qty,
-    unitPrice: ligne.unitPrice,
-    // Champs d'analyse, écrits comme avant et jamais montrés dans /stock.
-    purchasePricePerUnit: sub.purchasePricePerUnit || 0,
-    costPrice: sub.purchasePricePerUnit || 0,
-    totalPrice: qty * ligne.unitPrice,
-    storeId,
-  };
-}
-
 interface CheckoutPaymentLine {
   id: string;
   amount: string;
@@ -197,9 +179,23 @@ interface StockSaleFlowProps {
   selectedStoreId?: string;
   onStoreChange?: (storeId: string) => void;
   onCreateOrder: (order: Omit<SaleOrder, 'id' | 'createdAt'>) => Promise<string>;
+  /**
+   * Le bon de vente : numéroté par magasin, et la marchandise sort du stock dès son
+   * enregistrement (sauf commande à préparer, `sorties` vides). Voir handleCreerBon dans stock-app.
+   */
+  onCreerBon?: (
+    bon: Omit<SaleOrder, 'id' | 'createdAt'>,
+    sorties: any[],
+  ) => Promise<{ id: string; numero: string; provisoire: boolean; raisonProvisoire?: 'HORS_LIGNE' | 'MAGASIN_INCONNU'; enAttenteReseau: boolean; mouvements: any[] }>;
+  /** Ouvrir la saisie des prix d'un bon, sur l'écran « Bons à chiffrer ». */
+  onSaisirPrix?: (orderId: string) => void;
+  /** Les bons du magasin : ceux déjà partis comptent dans ce que doit un client. */
+  orders?: SaleOrder[];
   onCreateInvoice: (invoice: Omit<Invoice, 'id' | 'createdAt'>, movementsOut: any[], initialPayments?: any[]) => Promise<void>;
   onCreateClient: (c: Omit<Client, 'id' | 'createdAt'>) => Promise<Client>;
   userRole?: 'ADMIN' | 'COMMERCIAL';
+  /** Compte en lecture seule : il consulte la caisse, il n'enregistre rien. */
+  lectureSeule?: boolean;
   onNavigate: (v: any) => void;
 }
 
@@ -211,9 +207,10 @@ const STEPS = [
 ];
 
 export default function StockSaleFlow({
-  stockItems, categories, generalCategories, clients, invoices, userRole = 'ADMIN',
+  stockItems, categories, generalCategories, clients, invoices, userRole = 'ADMIN', lectureSeule = false,
   stores = [], selectedStoreId = 'CHRIFA', onStoreChange,
   onCreateOrder, onCreateInvoice, onCreateClient, onNavigate,
+  onCreerBon, onSaisirPrix, orders = [],
 }: StockSaleFlowProps) {
   const { toast } = useToast();
   const confirm = useConfirm();
@@ -225,6 +222,14 @@ export default function StockSaleFlow({
   // enregistrée, gardée le temps d'imprimer son bon.
   const [preparingOrder, setPreparingOrder] = useState(false);
   const [preparedOrder, setPreparedOrder] = useState<{ reference: string; data: any } | null>(null);
+  // Le bon tout juste enregistré (parcours normal : sans prix), gardé le temps de l'imprimer et
+  // d'aller saisir ses prix.
+  const [bonEnregistre, setBonEnregistre] = useState<{
+    id: string; numero: string; provisoire: boolean; raisonProvisoire?: 'HORS_LIGNE' | 'MAGASIN_INCONNU';
+    enAttenteReseau: boolean; mouvements: any[]; data: any;
+  } | null>(null);
+  /** La référence du reçu d'une vente directe, figée à la vente : deux impressions, un seul numéro. */
+  const [referenceRecu, setReferenceRecu] = useState<string | null>(null);
 
   // Étape 1 — Client
   const [selectedClient, setSelectedClient] = useState<Client | null>(null);
@@ -253,9 +258,15 @@ export default function StockSaleFlow({
   const [finalDate, setFinalDate] = useState(() => getLocalDateString());
 
   // ── Calculs ──
-  const subTotal = cart.reduce((s, l) => s + l.qty * l.unitPrice, 0);
-  const discountAmt = subTotal * (discount / 100);
-  const total = subTotal - discountAmt;
+  // Arrondis au centime : un prix unitaire peut avoir trois décimales (mercerie à 0,035 MAD),
+  // un montant non — sans quoi la facture portait 0,105 MAD et le règlement ne tombait jamais juste.
+  // Le sous-total est la somme des totaux de LIGNE, chacun arrondi au centime — exactement ce que
+  // la facture portera ligne par ligne. Arrondir la somme des produits exacts donnait 2,63 pour
+  // des lignes qui, affichées, faisaient 2,65.
+  const totalDeLigne = (l: { qty: number; unitPrice: number }) => Math.round(l.qty * l.unitPrice * 100) / 100;
+  const subTotal = Math.round(cart.reduce((s, l) => s + totalDeLigne(l), 0) * 100) / 100;
+  const discountAmt = Math.round(subTotal * (discount / 100) * 100) / 100;
+  const total = Math.round((subTotal - discountAmt) * 100) / 100;
   /** Les lignes dont le prix reste à fixer : elles ne bloquent rien, elles se rappellent. */
   const lignesSansPrix = cart.filter(l => sansPrix(l)).length;
   // Une coupe de 2,5 m est UN article : additionner les mètres aux pièces afficherait « 5,5 articles ».
@@ -496,8 +507,10 @@ export default function StockSaleFlow({
       );
       if (hasWarehouseStock) return 'CHRIFA';
     }
-    // 3. Trouver le magasin ou l'entrepôt physique qui dispose du stock le plus élevé
-    if (item.qtyByStore) {
+    // 3. Trouver le magasin ou l'entrepôt physique qui dispose du stock le plus élevé — pour
+    //    l'administrateur seulement. Un compte magasin ne vend que SON stock : la marchandise d'un
+    //    autre magasin se transfère d'abord (les règles refuseraient la sortie, de toute façon).
+    if (item.qtyByStore && userRole !== 'COMMERCIAL') {
       const sorted = Object.entries(item.qtyByStore)
         .filter(([_, q]) => (q as number) > 0)
         .sort((a, b) => (b[1] as number) - (a[1] as number));
@@ -507,7 +520,7 @@ export default function StockSaleFlow({
     }
     // 4. Fallback par défaut
     return normalizeSourceStore(preferredStore || selectedStoreId || (stores?.[0]?.id || 'CHRIFA'));
-  }, [selectedStoreId, stores, normalizeSourceStore]);
+  }, [selectedStoreId, stores, normalizeSourceStore, userRole]);
 
   // ── Actions ──
   const openAddModal = (item: StockItem) => {
@@ -656,6 +669,141 @@ export default function StockSaleFlow({
     } finally { setCreatingClient(false); }
   };
 
+  /**
+   * Les lignes du panier telles qu'elles seront écrites (facture ou bon), et les sorties de stock
+   * qui vont avec — une sortie par ligne, dans le même ordre : `movements[k]` est la sortie de
+   * `items[k]`. Une ligne du panier peut regrouper plusieurs lignes de stock de la même variante :
+   * elle se répartit sur les articles réels qui la composent.
+   */
+  const construireLignesEtSorties = (today: string, noteMouvement: string): { items: OrderItem[]; movements: any[] } => {
+    const items: OrderItem[] = [];
+    const movements: any[] = [];
+
+    for (const l of cart) {
+      const resolvedStore = l.sourceStore || resolveSourceStore(l.item, selectedStoreId);
+      let remainingQty = l.qty;
+      const premiereLigne = items.length;
+      // The item might be a merged "virtual variant" with originalItems
+      const subItems: StockItem[] = (l.item as any).originalItems || [l.item];
+
+      for (const sub of subItems) {
+        if (remainingQty <= 0) break;
+        // For a specific store if sourceStore is set, otherwise overall currentQty
+        const availableInSub = resolvedStore
+          ? availableQtyAtStore(sub, resolvedStore)
+          : sub.currentQty;
+          
+        if (availableInSub <= 0) continue;
+
+        const take = arrondiQte(Math.min(remainingQty, availableInSub));
+        const realArticleId = sub._realArticleId || sub.articleId;
+
+        items.push({
+          articleId: realArticleId,
+          productName: sub.nameFR || sub.productName,
+          nameFR: sub.nameFR,
+          color: sub.color || '',
+          size: sub.size || '',
+          quality: sub.quality || l.item.quality || undefined,
+          categoryId: sub.categoryId || '',
+          unitOfMeasure: sub.unitOfMeasure || '',
+          qty: take,
+          unitPrice: l.unitPrice,
+          purchasePricePerUnit: sub.purchasePricePerUnit || 0,
+          costPrice: sub.purchasePricePerUnit || 0,
+          totalPrice: Math.round(take * l.unitPrice * 100) / 100,
+          storeId: resolvedStore,
+          // La variante puisée (pour une sortie complémentaire ou l'enlèvement : mêmes racks) et ce
+          // que contient un rouleau ou un sac (pour un prix saisi au mètre ou à la pièce).
+          varianteStock: stockItemVariant(sub) || undefined,
+          contenance: contenanceDepuisStock(sub.unitOfMeasure, sub),
+        });
+
+        movements.push({
+          articleId: realArticleId,
+          categoryId: sub.categoryId || '',
+          productName: sub.nameFR || sub.productName,
+          nameFR: sub.nameFR,
+          color: sub.color || null,
+          size: sub.size || null,
+          quality: sub.quality || l.item.quality || null,
+          gsm: sub.gsm || null,
+          fabricWidth: sub.fabricWidth || null,
+          rollLength: sub.rollLength || null,
+          rollLengthUnit: sub.rollLengthUnit || null,
+          unitOfMeasure: sub.unitOfMeasure || '',
+          type: 'OUT',
+          reason: 'VENTE',
+          quantity: take,
+          date: today,
+          notes: noteMouvement,
+          storeId: resolvedStore,
+          // Champ d'aide, jamais écrit en base (retiré par handleCreateInvoice) : la couleur /
+          // qualité / taille vendue, pour ne puiser que dans SES racks — pas dans ceux du Rouge
+          // quand on vend du Bleu du même article.
+          _variant: stockItemVariant(sub),
+        });
+
+        // Arrondi : en mètres, un reste flottant de 1e-16 partait sinon en ligne « Dépassement stock ».
+        remainingQty = arrondiQte(remainingQty - take);
+      }
+
+      // If for some reason we still have remainingQty (e.g. data mismatch), add it to the last sub-item
+      if (remainingQty > 0 && subItems.length > 0) {
+        const lastSub = subItems[subItems.length - 1];
+        const lastRealArticleId = lastSub._realArticleId || lastSub.articleId;
+        items.push({
+          articleId: lastRealArticleId,
+          productName: lastSub.nameFR || lastSub.productName,
+          nameFR: lastSub.nameFR,
+          color: lastSub.color || '',
+          size: lastSub.size || '',
+          quality: lastSub.quality || l.item.quality || undefined,
+          categoryId: lastSub.categoryId || '',
+          unitOfMeasure: lastSub.unitOfMeasure || '',
+          qty: remainingQty,
+          unitPrice: l.unitPrice,
+          purchasePricePerUnit: lastSub.purchasePricePerUnit || 0,
+          costPrice: lastSub.purchasePricePerUnit || 0,
+          totalPrice: Math.round(remainingQty * l.unitPrice * 100) / 100,
+          storeId: resolvedStore,
+          varianteStock: stockItemVariant(lastSub) || undefined,
+          contenance: contenanceDepuisStock(lastSub.unitOfMeasure, lastSub),
+        });
+        movements.push({
+          articleId: lastRealArticleId,
+          categoryId: lastSub.categoryId || '',
+          productName: lastSub.nameFR || lastSub.productName,
+          nameFR: lastSub.nameFR,
+          color: lastSub.color || null,
+          size: lastSub.size || null,
+          quality: lastSub.quality || l.item.quality || null,
+          gsm: lastSub.gsm || null,
+          fabricWidth: lastSub.fabricWidth || null,
+          rollLength: lastSub.rollLength || null,
+          rollLengthUnit: lastSub.rollLengthUnit || null,
+          unitOfMeasure: lastSub.unitOfMeasure || '',
+          type: 'OUT',
+          reason: 'VENTE',
+          quantity: remainingQty,
+          date: today,
+          notes: noteMouvement + ` ⚠️ [Dépassement stock: +${remainingQty}]`,
+          storeId: resolvedStore,
+          _variant: stockItemVariant(lastSub),
+        });
+      }
+
+      // Une ligne du panier répartie sur plusieurs lignes de stock : la dernière porte l'arrondi,
+      // pour que ses lignes fassent EXACTEMENT le total affiché au panier (le sous-total).
+      if (items.length - premiereLigne > 1) {
+        const autres = items.slice(premiereLigne, -1).reduce((t, it) => t + (Number(it.totalPrice) || 0), 0);
+        items[items.length - 1].totalPrice = Math.round((totalDeLigne(l) - autres) * 100) / 100;
+      }
+    }
+
+    return { items, movements };
+  };
+
   const handleFinalize = async () => {
     if (cart.length === 0 || saving) return;
 
@@ -669,8 +817,8 @@ export default function StockSaleFlow({
         description: `${lignesSansPrix === 1 ? "Une ligne n'a pas de prix" : `${lignesSansPrix} lignes n'ont pas de prix`}.\n\n`
           + 'Elles seront facturées à zéro, et la marchandise sortira quand même du stock. '
           + 'Une vente enregistrée ne peut plus recevoir de prix.\n\n'
-          + 'Pour une commande dont le prix reste à fixer, utilisez « Préparer la commande » : '
-          + 'elle attendra son prix sans rien sortir du stock.',
+          + "Quand le prix n'est pas connu, revenez au panier et choisissez « Enregistrer et imprimer le bon » : "
+          + 'le commercial écrira les prix dessus, vous les saisirez ensuite.',
         confirmLabel: 'Vendre quand même',
         variant: 'destructive',
       });
@@ -740,116 +888,9 @@ export default function StockSaleFlow({
     setSaving(true);
     try {
       const today = finalDate;
-      const items: OrderItem[] = [];
-      const movements: any[] = [];
-
-      for (const l of cart) {
-        const resolvedStore = l.sourceStore || resolveSourceStore(l.item, selectedStoreId);
-        let remainingQty = l.qty;
-        // The item might be a merged "virtual variant" with originalItems
-        const subItems: StockItem[] = (l.item as any).originalItems || [l.item];
-
-        for (const sub of subItems) {
-          if (remainingQty <= 0) break;
-          // For a specific store if sourceStore is set, otherwise overall currentQty
-          const availableInSub = resolvedStore
-            ? availableQtyAtStore(sub, resolvedStore)
-            : sub.currentQty;
-            
-          if (availableInSub <= 0) continue;
-
-          const take = arrondiQte(Math.min(remainingQty, availableInSub));
-          const realArticleId = sub._realArticleId || sub.articleId;
-
-          items.push({
-            articleId: realArticleId,
-            productName: sub.nameFR || sub.productName,
-            nameFR: sub.nameFR,
-            color: sub.color || '',
-            size: sub.size || '',
-            quality: sub.quality || l.item.quality || undefined,
-            categoryId: sub.categoryId || '',
-            unitOfMeasure: sub.unitOfMeasure || '',
-            qty: take,
-            unitPrice: l.unitPrice,
-            purchasePricePerUnit: sub.purchasePricePerUnit || 0,
-            costPrice: sub.purchasePricePerUnit || 0,
-            totalPrice: take * l.unitPrice,
-            storeId: resolvedStore,
-          });
-
-          movements.push({
-            articleId: realArticleId,
-            categoryId: sub.categoryId || '',
-            productName: sub.nameFR || sub.productName,
-            nameFR: sub.nameFR,
-            color: sub.color || null,
-            size: sub.size || null,
-            quality: sub.quality || l.item.quality || null,
-            gsm: sub.gsm || null,
-            fabricWidth: sub.fabricWidth || null,
-            rollLength: sub.rollLength || null,
-            rollLengthUnit: sub.rollLengthUnit || null,
-            unitOfMeasure: sub.unitOfMeasure || '',
-            type: 'OUT',
-            reason: 'VENTE',
-            quantity: take,
-            date: today,
-            notes: selectedClient ? `Vente client : ${selectedClient.name}` : 'Vente Comptoir',
-            storeId: resolvedStore,
-            // Champ d'aide, jamais écrit en base (retiré par handleCreateInvoice) : la couleur /
-            // qualité / taille vendue, pour ne puiser que dans SES racks — pas dans ceux du Rouge
-            // quand on vend du Bleu du même article.
-            _variant: stockItemVariant(sub),
-          });
-
-          // Arrondi : en mètres, un reste flottant de 1e-16 partait sinon en ligne « Dépassement stock ».
-          remainingQty = arrondiQte(remainingQty - take);
-        }
-
-        // If for some reason we still have remainingQty (e.g. data mismatch), add it to the last sub-item
-        if (remainingQty > 0 && subItems.length > 0) {
-          const lastSub = subItems[subItems.length - 1];
-          const lastRealArticleId = lastSub._realArticleId || lastSub.articleId;
-          items.push({
-            articleId: lastRealArticleId,
-            productName: lastSub.nameFR || lastSub.productName,
-            nameFR: lastSub.nameFR,
-            color: lastSub.color || '',
-            size: lastSub.size || '',
-            quality: lastSub.quality || l.item.quality || undefined,
-            categoryId: lastSub.categoryId || '',
-            unitOfMeasure: lastSub.unitOfMeasure || '',
-            qty: remainingQty,
-            unitPrice: l.unitPrice,
-            purchasePricePerUnit: lastSub.purchasePricePerUnit || 0,
-            costPrice: lastSub.purchasePricePerUnit || 0,
-            totalPrice: remainingQty * l.unitPrice,
-            storeId: resolvedStore,
-          });
-          movements.push({
-            articleId: lastRealArticleId,
-            categoryId: lastSub.categoryId || '',
-            productName: lastSub.nameFR || lastSub.productName,
-            nameFR: lastSub.nameFR,
-            color: lastSub.color || null,
-            size: lastSub.size || null,
-            quality: lastSub.quality || l.item.quality || null,
-            gsm: lastSub.gsm || null,
-            fabricWidth: lastSub.fabricWidth || null,
-            rollLength: lastSub.rollLength || null,
-            rollLengthUnit: lastSub.rollLengthUnit || null,
-            unitOfMeasure: lastSub.unitOfMeasure || '',
-            type: 'OUT',
-            reason: 'VENTE',
-            quantity: remainingQty,
-            date: today,
-            notes: (selectedClient ? `Vente client : ${selectedClient.name}` : 'Vente Comptoir') + ` ⚠️ [Dépassement stock: +${remainingQty}]`,
-            storeId: resolvedStore,
-            _variant: stockItemVariant(lastSub),
-          });
-        }
-      }
+      const { items, movements } = construireLignesEtSorties(
+        today, selectedClient ? `Vente client : ${selectedClient.name}` : 'Vente Comptoir',
+      );
 
       const hasPaperEffects = validLines.some(l => 
         l.method === 'CHEQUE' || l.method === 'LC' || l.method === 'EFFET' || l.method === 'LCN'
@@ -908,6 +949,10 @@ export default function StockSaleFlow({
       if (selectedClient?.id) invoiceData.clientId = selectedClient.id;
 
       await onCreateInvoice(invoiceData, movements, initialPayments);
+      // La référence du reçu, figée maintenant : « VD » pour vente directe, le jour et l'heure.
+      const d2 = (n: number) => String(n).padStart(2, '0');
+      const t = new Date();
+      setReferenceRecu(`VD-${d2(t.getDate())}${d2(t.getMonth() + 1)}-${d2(t.getHours())}${d2(t.getMinutes())}${d2(t.getSeconds())}`);
       setDone(true);
     } catch (err: any) {
       console.error('Erreur lors de la validation de la vente:', err);
@@ -918,208 +963,278 @@ export default function StockSaleFlow({
   };
 
   /**
-   * Les lignes du panier telles qu'elles seront écrites sur la commande. Une ligne du panier peut
-   * regrouper plusieurs lignes de stock de la même variante : elle se répartit sur les articles
-   * réels qui la composent, comme à la validation d'une vente.
+   * LE PARCOURS NORMAL : enregistrer le bon (sans prix, le plus souvent) et l'imprimer.
+   *
+   * Le client part avec sa marchandise : elle sort du stock tout de suite, et le bon reçoit son
+   * numéro de magasin (CH-0001…). Le commercial écrit les prix sur le papier ; le gestionnaire
+   * les saisira dans « Bons à chiffrer ». Une vente comptoir doit l'être TOUT DE SUITE : un
+   * bandeau rouge le rappelle sur tous les écrans tant que ce n'est pas fait.
+   *
+   * @param aPreparer le client n'est pas encore venu (ou livraison) : la commande est mise de côté,
+   *                  rien ne sort du stock avant l'enlèvement.
    */
-  const lignesDuPanier = useCallback((): OrderItem[] => {
-    const lignes: OrderItem[] = [];
-    for (const l of cart) {
-      const lieu = l.sourceStore || resolveSourceStore(l.item, selectedStoreId);
-      const sousArticles: StockItem[] = (l.item as any).originalItems || [l.item];
-      let restant = l.qty;
-      for (const sub of sousArticles) {
-        if (restant <= 0) break;
-        const dispo = lieu ? availableQtyAtStore(sub, lieu) : sub.currentQty;
-        if (dispo <= 0) continue;
-        const pris = arrondiQte(Math.min(restant, dispo));
-        lignes.push(ligneDeCommande(sub, l, pris, lieu));
-        restant = arrondiQte(restant - pris);
-      }
-      if (restant > 0 && sousArticles.length > 0) {
-        lignes.push(ligneDeCommande(sousArticles[sousArticles.length - 1], l, restant, lieu));
+  const handleEnregistrerBon = async (aPreparer = false) => {
+    if (cart.length === 0 || saving || preparingOrder || lectureSeule) return;
+    if (!onCreerBon) {
+      toast({ variant: 'destructive', title: 'Indisponible', description: "L'enregistrement des bons n'est pas branché sur cet écran." });
+      return;
+    }
+    const comptoir = anonymous || !selectedClient;
+
+    // Crédit : un client bloqué, ou déjà au plafond, ne part pas avec de la marchandise. Le prix
+    // n'étant pas encore connu, on ne juge que ce qu'il doit déjà.
+    if (!aPreparer && !comptoir && selectedClient) {
+      const controle = controleCreditAuBon(selectedClient, encoursClient(selectedClient.id, invoices, orders));
+      if (controle.refuse) {
+        toast({ variant: 'destructive', title: 'Bon refusé : crédit', description: controle.raison });
+        return;
       }
     }
-    return lignes;
-  }, [cart, resolveSourceStore, selectedStoreId, availableQtyAtStore]);
 
-  /**
-   * Préparer la commande : le panier est mis de côté sous forme de bon de commande, avant que le
-   * client se présente. Rien ne sort du stock, rien n'est encaissé — la marchandise est seulement
-   * réservée sur le papier. La vente, elle, se fait à l'enlèvement.
-   */
-  const handlePrepareOrder = async () => {
-    if (cart.length === 0 || preparingOrder || saving) return;
-
-    setPreparingOrder(true);
+    if (aPreparer) setPreparingOrder(true); else setSaving(true);
     try {
-      const commande: any = cleanUndefined({
-        clientId: selectedClient?.id,
-        clientName: selectedClient?.name || (anonymous ? 'Anonyme' : ''),
-        items: lignesDuPanier(),
-        totalAmount: subTotal,
+      const graine = Date.now();
+      const { items: lignes, movements } = construireLignesEtSorties(
+        finalDate, comptoir ? 'Vente comptoir' : `Vente client : ${selectedClient?.name || ''}`,
+      );
+      // Chaque ligne reçoit un identifiant stable, recopié sur sa sortie de stock : c'est lui qui
+      // permettra de corriger une quantité ou d'annuler le bon à l'emplacement exact.
+      const items = lignes.map((l, k) => ({
+        ...l,
+        ligneId: nouvelIdentifiantLigne(k, graine),
+      }));
+      // Un compte magasin ne vend que la marchandise de SON magasin : le dire ici, en français,
+      // plutôt que de laisser le serveur refuser tout le bon avec un message en anglais.
+      if (userRole === 'COMMERCIAL') {
+        const ailleurs = items.find(l => l.storeId && l.storeId !== selectedStoreId);
+        if (ailleurs) {
+          const nom = (stores || []).find((s: any) => s.id === ailleurs.storeId)?.name || ailleurs.storeId;
+          throw new Error(`« ${ailleurs.productName}${ailleurs.color ? ` ${ailleurs.color}` : ''} » est à ${nom} : faites d'abord un transfert vers votre magasin.`);
+        }
+      }
+      const sorties = aPreparer ? [] : movements.map((m, k) => ({ ...m, ligneBonId: items[k].ligneId }));
+      const totalAmount = Math.round(items.reduce((s, l) => s + (Number(l.totalPrice) || 0), 0) * 100) / 100;
+      const totalAfterDiscount = Math.round(totalAmount * (1 - discount / 100) * 100) / 100;
+
+      const bon: any = cleanUndefined({
+        clientId: comptoir ? undefined : selectedClient?.id,
+        clientName: comptoir ? 'Client comptoir' : selectedClient?.name,
+        items,
+        totalAmount,
         discount,
-        totalAfterDiscount: total,
+        totalAfterDiscount,
         status: 'CONFIRMED',
         date: finalDate,
         storeId: selectedStoreId,
-        notes,
+        notes: notes || undefined,
+        sortieAuBon: aPreparer ? undefined : true,
+        comptoir: !aPreparer && comptoir ? true : undefined,
+        aPreparer: aPreparer ? true : undefined,
       });
-      const id = await onCreateOrder(commande);
-      setPreparedOrder({
-        reference: `BC-${String(id || '').slice(0, 6).toUpperCase() || 'SANS-REF'}`,
-        data: { ...commande, id },
-      });
+      const resultat = await onCreerBon(bon, sorties);
+      if (resultat.raisonProvisoire === 'MAGASIN_INCONNU') {
+        toast({
+          variant: 'destructive',
+          title: 'Fiche magasin introuvable',
+          description: `Le bon a reçu un numéro provisoire (${resultat.numero}) parce que la fiche du magasin « ${selectedStoreId} » est introuvable. Prévenez l'administrateur.`,
+        });
+      }
+      const enregistre = {
+        ...resultat,
+        data: { ...bon, id: resultat.id, orderNumber: resultat.numero, creeLe: new Date(graine).toISOString() },
+      };
+      setBonEnregistre(enregistre);
       setDone(true);
+      toast({
+        title: `Bon ${resultat.numero} enregistré`,
+        description: aPreparer
+          ? 'Commande mise de côté : rien n\'est sorti du stock.'
+          : 'La marchandise est sortie du stock. Le bon part à l\'impression.',
+      });
+      // Le bon s'imprime dans la foulée : c'est lui que le commercial va remplir.
+      imprimerBonEnregistre(enregistre);
     } catch (err: any) {
-      console.error('Erreur lors de la préparation de la commande:', err);
-      toast({ variant: 'destructive', title: 'Erreur', description: `Impossible d'enregistrer la commande : ${err?.message || err}` });
+      console.error('Erreur lors de l\'enregistrement du bon :', err);
+      toast({ variant: 'destructive', title: 'Erreur', description: `Impossible d'enregistrer le bon : ${err?.message || err}` });
     } finally {
-      setPreparingOrder(false);
+      if (aPreparer) setPreparingOrder(false); else setSaving(false);
     }
   };
 
-  const imprimerBonDeCommande = useCallback(() => {
-    if (!preparedOrder) return;
-    exportSaleOrderPDF(preparedOrder.data, categories, generalCategories, {
-      reference: preparedOrder.reference,
-      clientPhone: selectedClient?.phone,
-      storeName: stores?.find(s => s.id === selectedStoreId)?.name,
-    });
-  }, [preparedOrder, categories, generalCategories, selectedClient, stores, selectedStoreId]);
+  /** Le client n'est pas encore venu : la commande se met de côté, rien ne sort du stock. */
+  const handlePrepareOrder = () => handleEnregistrerBon(true);
+
+  const nomsLieux: Record<string, string> = Object.fromEntries((stores || []).map((s: any) => [s.id, s.name || s.id]));
+
+  /** Le bon imprimé, mise en page unique de /stock (src/lib/bon-imprime.ts). */
+  function imprimerBonEnregistre(b: typeof bonEnregistre) {
+    if (!b) return;
+    try {
+      // D'où prendre chaque ligne : les emplacements que sa sortie a réellement vidés.
+      const emplacements: Record<number, string[]> = {};
+      (b.data.items || []).forEach((it: any, i: number) => {
+        const codes = (b.mouvements || [])
+          .filter((m: any) => m.ligneBonId && m.ligneBonId === it.ligneId && m.locationCode)
+          .map((m: any) => String(m.locationCode));
+        if (codes.length > 0) emplacements[i] = Array.from(new Set(codes));
+      });
+      const html = construireBonHtml({
+        numero: b.numero,
+        nature: natureBon(b.data),
+        clientNom: b.data.clientName,
+        clientTelephone: b.data.clientId ? clients.find(c => c.id === b.data.clientId)?.phone : undefined,
+        magasin: nomsLieux[b.data.storeId] || b.data.storeId,
+        date: b.data.date,
+        heure: new Date(b.data.creeLe || Date.now()).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }),
+        items: b.data.items || [],
+        emplacements,
+        nomsLieux,
+        lieuDuBon: b.data.storeId,
+        discount: b.data.discount,
+        totalAmount: b.data.totalAmount,
+        totalAfterDiscount: b.data.totalAfterDiscount,
+        notes: b.data.notes,
+        logo: LOGO_B64,
+      });
+      imprimerHtml(html).catch(e => toast({ variant: 'destructive', title: 'Impression impossible', description: messageImpression(e) }));
+    } catch (e: any) {
+      console.error('[bon] impression impossible :', e);
+      toast({ variant: 'destructive', title: 'Impression impossible', description: messageImpression(e) });
+    }
+  }
 
   const reset = () => {
     setStep(0); setCart([]); setSelectedClient(null); setAnonymous(false);
-    setDiscount(0); setNotes(''); setDone(false); setPreparedOrder(null); setFinalDate(getLocalDateString());
+    setDiscount(0); setNotes(''); setDone(false); setPreparedOrder(null); setBonEnregistre(null); setReferenceRecu(null);
+    setFinalDate(getLocalDateString());
     setSelGenCat(null); setSelCat(null); setProdSearch('');
     setPaymentStatus('PAID');
     setPaymentMode('CASH');
     setPaymentLines([{ id: 'init-1', amount: '', method: 'CASH', notes: '', bankName: '', checkNumber: '', dueDate: '' }]);
   };
 
-  const printBonDeCommande = useCallback(() => {
+  /**
+   * Le reçu d'une vente directe (prix connus, déjà réglée) : la même mise en page de bon, prix
+   * remplis, avec le règlement reçu.
+   */
+  const printBonDeCommande = () => {
     try {
-      construireEtImprimerBonDeCommande();
+      const isFullCredit = paymentStatus === 'UNPAID';
+      const validLines = isFullCredit ? [] : paymentLines.filter(l => (parseFloat(l.amount) || 0) > 0);
+      const totalPaidCalculated = isFullCredit ? 0 : validLines.reduce((s, l) => s + (parseFloat(l.amount) || 0), 0);
+      const balanceRemaining = isFullCredit ? total : Math.max(0, total - totalPaidCalculated);
+      const libelleMode = (m: string) => m === 'CASH' ? 'espèces' : m === 'CHEQUE' ? 'chèque'
+        : (m === 'LC' || m === 'LCN' || m === 'EFFET') ? 'LC' : m === 'VIREMENT' ? 'virement' : m;
+      const reglement = isFullCredit
+        ? `À crédit (compte client) : ${fmt$(total)} MAD`
+        : [
+          validLines.map(l => `${fmt$(parseFloat(l.amount))} MAD en ${libelleMode(l.method)}${l.checkNumber ? ` n° ${l.checkNumber}` : ''}${l.dueDate ? `, échéance ${l.dueDate}` : ''}`).join(' + '),
+          balanceRemaining > 0.01 ? `reste dû ${fmt$(balanceRemaining)} MAD` : '',
+        ].filter(Boolean).join(' · ');
+      const items = cart.map(({ item, qty, unitPrice, sourceStore }) => ({
+        productName: item.nameFR || item.productName,
+        quality: item.quality,
+        color: item.color,
+        size: item.size,
+        unitOfMeasure: item.unitOfMeasure,
+        qty,
+        unitPrice,
+        totalPrice: Math.round(qty * unitPrice * 100) / 100,
+        storeId: sourceStore,
+      }));
+      const html = construireBonHtml({
+        numero: referenceRecu || 'Vente directe',
+        nature: anonymous || !selectedClient ? 'COMPTOIR' : 'CLIENT',
+        clientNom: selectedClient?.name,
+        clientTelephone: selectedClient?.phone,
+        magasin: nomsLieux[selectedStoreId] || selectedStoreId,
+        date: finalDate,
+        items,
+        nomsLieux,
+        lieuDuBon: selectedStoreId,
+        discount,
+        totalAmount: subTotal,
+        totalAfterDiscount: total,
+        notes,
+        reglement,
+        logo: LOGO_B64,
+      });
+      imprimerHtml(html).catch(e => toast({ variant: 'destructive', title: 'Impression impossible', description: messageImpression(e) }));
     } catch (e: any) {
-      console.error('[bon de commande] impression impossible :', e);
+      console.error('[reçu] impression impossible :', e);
       toast({ variant: 'destructive', title: 'Impression impossible', description: messageImpression(e) });
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [cart, selectedClient, paymentStatus, paymentLines, subTotal, discount, discountAmt, total, notes, preparedOrder]);
-
-  const construireEtImprimerBonDeCommande = () => {
-    // La référence du bon imprimé est celle de la commande enregistrée. Elle était régénérée à
-    // chaque clic : deux impressions du même bon portaient deux numéros, et aucun ne correspondait
-    // à ce qu'on retrouvait en base.
-    const bcNum = preparedOrder?.reference || `BC-${Date.now().toString(36).toUpperCase()}`;
-    // La DATE DE LA VENTE, pas celle du jour. Le champ « Date de la vente » existe precisement
-    // pour antidater une sortie faite un autre jour : la vente partait bien a cette date, mais le
-    // papier remis au client en annoncait une autre.
-    const dateStr = new Date(`${finalDate}T00:00:00`).toLocaleDateString('fr-FR', { day: '2-digit', month: 'long', year: 'numeric' });
-    const isFullCredit = paymentStatus === 'UNPAID';
-    const validLines = isFullCredit ? [] : paymentLines.filter(l => (parseFloat(l.amount) || 0) > 0);
-    const totalPaidCalculated = isFullCredit ? 0 : validLines.reduce((s, l) => s + (parseFloat(l.amount) || 0), 0);
-    const balanceRemaining = isFullCredit ? total : Math.max(0, total - totalPaidCalculated);
-
-    const paymentDetailsText = isFullCredit
-      ? 'À Crédit (Compte Client)'
-      : validLines.length === 0
-        ? 'Payé comptant'
-        : validLines.map(l => {
-            const mLabel = l.method === 'CASH' ? 'Espèces' :
-              l.method === 'CHEQUE' ? `Chèque ${l.checkNumber ? 'N° ' + escapeHtml(l.checkNumber) : ''}` :
-              (l.method === 'LC' || l.method === 'LCN' || l.method === 'EFFET') ? `LC ${l.checkNumber ? 'N° ' + escapeHtml(l.checkNumber) : ''}` :
-              l.method === 'VIREMENT' ? 'Virement' : l.method;
-            const extra = [escapeHtml(l.bankName), l.dueDate ? `Éch: ${escapeHtml(l.dueDate)}` : ''].filter(Boolean).join(' - ');
-            return `${fmt$(parseFloat(l.amount))} MAD (${mLabel}${extra ? ' - ' + extra : ''})`;
-          }).join(' + ');
-
-    const html = (`<!DOCTYPE html><html><head><meta charset="utf-8"><title>Bon de Commande ${escapeHtml(bcNum)}</title>
-    <style>
-      *{margin:0;padding:0;box-sizing:border-box}
-      body{font-family:'Segoe UI',system-ui,sans-serif;padding:40px;color:#1c1917}
-      .header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:32px;padding-bottom:20px;border-bottom:3px solid #1c1917}
-      .logo{font-size:24px;font-weight:900;text-transform:uppercase;letter-spacing:-1px}
-      .logo span{color:#7c3aed}
-      .doc-type{text-align:right}
-      .doc-type h2{font-size:20px;font-weight:900;text-transform:uppercase;letter-spacing:2px;color:#7c3aed}
-      .doc-type p{font-size:11px;color:#78716c;margin-top:4px}
-      .info-grid{display:grid;grid-template-columns:1fr 1fr;gap:24px;margin-bottom:28px}
-      .info-box{background:#fafaf9;border:1px solid #e7e5e4;border-radius:12px;padding:16px}
-      .info-box h4{font-size:9px;font-weight:900;text-transform:uppercase;letter-spacing:2px;color:#a8a29e;margin-bottom:8px}
-      .info-box p{font-size:13px;font-weight:700;color:#1c1917}
-      .sub{font-size:11px;color:#78716c;margin-top:2px}
-      table{width:100%;border-collapse:collapse;margin-bottom:24px}
-      thead th{background:#1c1917;color:white;font-size:9px;font-weight:900;text-transform:uppercase;letter-spacing:1.5px;padding:12px 16px;text-align:left}
-      thead th:nth-child(3),thead th:nth-child(4),thead th:last-child{text-align:right}
-      tbody td{padding:12px 16px;border-bottom:1px solid #f5f5f4;font-size:12px;font-weight:600}
-      tbody td:nth-child(3),tbody td:nth-child(4),tbody td:last-child{text-align:right}
-      .variant{font-size:10px;color:#78716c;font-weight:700}
-      .totals{margin-left:auto;width:320px}
-      .totals .row{display:flex;justify-content:space-between;padding:6px 0;font-size:12px;font-weight:600;color:#57534e}
-      .totals .total{border-top:3px solid #1c1917;padding-top:12px;margin-top:8px;font-size:18px;font-weight:900;color:#1c1917}
-      .no-price{color:#a8a29e;font-style:italic}
-      .footer{margin-top:40px;padding-top:20px;border-top:1px solid #e7e5e4;text-align:center;font-size:10px;color:#a8a29e}
-      @media print{body{padding:20px}}
-    </style></head><body>
-    <div class="header">
-      <div class="logo"><img src="${LOGO_B64}" alt="LEBTEX" style="height:80px;display:block" /></div>
-      <div class="doc-type"><h2>Bon de Commande</h2><p>${bcNum} &middot; ${dateStr}</p></div>
-    </div>
-    <div class="info-grid">
-      <div class="info-box"><h4>Client</h4><p>${escapeHtml(selectedClient?.name) || 'Comptoir (Anonyme)'}</p>${selectedClient?.phone ? `<p class="sub">${escapeHtml(selectedClient.phone)}</p>` : ''}</div>
-      <div class="info-box"><h4>Règlement</h4><p>${paymentDetailsText}</p><p class="sub">Date : ${dateStr}</p></div>
-    </div>
-    <table><thead><tr><th>Désignation</th><th>Variante</th><th>Qté</th><th>P.U. (MAD)</th><th>Total (MAD)</th></tr></thead>
-    <tbody>${cart.map(({ item, qty, unitPrice }) => `<tr><td>${escapeHtml(item.productName)}</td><td class="variant">${[escapeHtml(valeurImprimable(item.color)), valeurImprimable(item.size) ? 'T.' + escapeHtml(valeurImprimable(item.size)) : ''].filter(Boolean).join(' &middot; ') || '—'}</td><td style="text-align:right">${escapeHtml(qteAvecUnite(qty, item.unitOfMeasure))}</td><td style="text-align:right">${unitPrice > 0 ? fmt$(unitPrice) : '<span class="no-price">N/D</span>'}</td><td style="text-align:right;font-weight:900">${unitPrice > 0 ? fmt$(qty * unitPrice) : '<span class="no-price">—</span>'}</td></tr>`).join('')}</tbody></table>
-    <div class="totals">
-      <div class="row"><span>Sous-total</span><span>${fmt$(subTotal)}</span></div>
-      ${discount > 0 ? `<div class="row" style="color:#16a34a"><span>Remise ${discount}%</span><span>-${fmt$(discountAmt)}</span></div>` : ''}
-      <div class="row total"><span>TOTAL</span><span>${fmt$(total)}</span></div>
-      ${totalPaidCalculated > 0 ? `<div class="row" style="color:#16a34a;font-weight:700"><span>Montant Payé</span><span>${fmt$(totalPaidCalculated)}</span></div>` : ''}
-      ${balanceRemaining > 0.01 ? `<div class="row" style="color:#d97706;font-weight:700"><span>Reste dû</span><span>${fmt$(balanceRemaining)}</span></div>` : ''}
-    </div>
-    ${notes ? `<div style="margin-top:24px;background:#fafaf9;border:1px solid #e7e5e4;border-radius:12px;padding:16px"><h4 style="font-size:9px;font-weight:900;text-transform:uppercase;letter-spacing:2px;color:#a8a29e;margin-bottom:6px">Notes</h4><p style="font-size:12px;font-weight:600">${escapeHtml(notes)}</p></div>` : ''}
-    <div class="footer"><p>Ce document est un bon de commande et ne constitue pas une facture officielle.</p><p style="margin-top:4px">LEBTEX</p></div>
-    </body></html>`);
-    imprimerHtml(html).catch(e => toast({
-      variant: 'destructive',
-      title: "Impression impossible",
-      description: messageImpression(e),
-    }));
   };
 
-  // ── Succès : commande préparée (aucune sortie de stock, aucun encaissement) ──
-  if (done && preparedOrder) return (
-    <div className="flex flex-col items-center justify-center min-h-[60vh] space-y-6 animate-in fade-in">
-      <div className="w-24 h-24 rounded-3xl bg-violet-100 flex items-center justify-center shadow-2xl shadow-violet-500/20">
-        <ClipboardList className="w-12 h-12 text-violet-600" />
+  // ── Succès : bon enregistré (parcours normal) ou commande à préparer ──
+  if (done && bonEnregistre) {
+    const b = bonEnregistre;
+    const nature = natureBon(b.data);
+    const comptoir = nature === 'COMPTOIR';
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[60vh] space-y-6 animate-in fade-in px-4">
+        <div className="text-center space-y-2">
+          <p className="text-[12px] font-black uppercase tracking-[0.3em] text-stone-400">
+            {nature === 'A_PREPARER' ? 'Commande à préparer' : comptoir ? 'Vente comptoir' : 'Vente client'} · bon N°
+          </p>
+          <h2 className="text-6xl font-black tracking-tight text-stone-900">{b.numero}</h2>
+          <p className="text-stone-500 font-bold text-sm">
+            {b.data.clientName || 'Client comptoir'} · {(b.data.items || []).length} ligne{(b.data.items || []).length > 1 ? 's' : ''}
+          </p>
+          {estNumeroProvisoire(b.numero) && (
+            <p className="text-[12px] font-black text-red-700">
+              {b.raisonProvisoire === 'MAGASIN_INCONNU'
+                ? "Numéro provisoire : la fiche de ce magasin est introuvable. Prévenez l'administrateur."
+                : 'Numéro provisoire : pas de connexion au moment du bon.'}
+            </p>
+          )}
+          {b.enAttenteReseau && (
+            <p className="text-[12px] font-black text-amber-700">
+              Bon gardé sur ce poste : il partira tout seul au retour du réseau. Ne fermez pas cette page d'ici là.
+            </p>
+          )}
+        </div>
+        <div className="max-w-xl w-full">
+          {nature === 'A_PREPARER' ? (
+            <Encadre ton="info" titre="La marchandise n'est pas sortie du stock">
+              Rien n'a été encaissé et aucun article n'a été retiré : la commande est mise de côté sur le papier.
+              Quand le client vient la chercher, ouvrez « Bons à chiffrer » et touchez « Le client enlève la
+              marchandise » : elle sort du stock à ce moment-là, même si les prix ne sont pas encore connus.
+              Attention, une commande à préparer ne réserve rien.
+            </Encadre>
+          ) : (
+            <Encadre ton={comptoir ? 'attention' : 'info'} titre="La marchandise est sortie du stock">
+              Donnez le bon imprimé au commercial : il y écrit le prix unitaire de chaque produit, la remise et le
+              total, puis vous le rend.
+              {comptoir ? ' Une vente comptoir se chiffre TOUT DE SUITE : le bandeau rouge restera affiché tant que ce n\'est pas fait.' : ''}
+            </Encadre>
+          )}
+        </div>
+        {comptoir && onSaisirPrix && (
+          <button
+            type="button"
+            onClick={() => onSaisirPrix(b.id)}
+            className="w-full max-w-xl h-16 rounded-2xl bg-red-600 hover:bg-red-700 text-white text-lg font-black uppercase tracking-wide shadow-xl shadow-red-600/30 flex items-center justify-center gap-3"
+          >
+            <Tag className="w-6 h-6" /> Saisir les prix maintenant
+          </button>
+        )}
+        <div className="flex gap-3 flex-wrap justify-center">
+          <Button onClick={() => imprimerBonEnregistre(b)} className="bg-stone-900 hover:bg-stone-800 text-white font-black uppercase text-xs px-8 h-12 rounded-2xl gap-2">
+            <Printer className="w-4 h-4" /> Imprimer le bon
+          </Button>
+          {!comptoir && onSaisirPrix && (
+            <Button variant="outline" onClick={() => onSaisirPrix(b.id)} className="font-black uppercase text-xs px-6 h-12 rounded-2xl gap-2">
+              <Tag className="w-4 h-4" /> Saisir les prix
+            </Button>
+          )}
+          <Button onClick={reset} className="bg-violet-600 hover:bg-violet-700 text-white font-black uppercase text-xs px-8 h-12 rounded-2xl">
+            Nouvelle vente
+          </Button>
+        </div>
       </div>
-      <div className="text-center space-y-1">
-        <h2 className="text-2xl font-black uppercase tracking-tighter text-stone-900">
-          Commande préparée
-        </h2>
-        <p className="text-stone-400 font-bold text-sm">
-          {preparedOrder.reference} · {preparedOrder.data?.clientName || 'Comptoir'}
-          {' '}· Total : <strong className="text-stone-700">{fmt$(total)} MAD</strong>
-        </p>
-      </div>
-      <div className="max-w-md w-full px-4">
-        <Encadre ton="info" titre="La marchandise n'est pas sortie du stock">
-          Rien n'a été encaissé et aucun article n'a été retiré : la commande est seulement mise de
-          côté sur le papier. La vente se fait quand le client vient chercher sa marchandise.
-        </Encadre>
-      </div>
-      <div className="flex gap-3 flex-wrap justify-center">
-        <Button onClick={imprimerBonDeCommande} className="bg-stone-900 hover:bg-stone-800 text-white font-black uppercase text-xs px-8 h-11 rounded-2xl gap-2">
-          <FileText className="w-4 h-4" /> Bon de commande
-        </Button>
-        <Button onClick={reset} className="bg-violet-600 hover:bg-violet-700 text-white font-black uppercase text-xs px-8 h-11 rounded-2xl">
-          Nouvelle vente
-        </Button>
-      </div>
-    </div>
-  );
+    );
+  }
 
   // ── Succès ──
   if (done) return (
@@ -1619,8 +1734,11 @@ export default function StockSaleFlow({
                       className={`${CLASSE_CHAMP} w-full border bg-white px-3 outline-none focus:border-violet-500 cursor-pointer`}
                     >
                       {(() => {
+                        // Un compte magasin ne vend que depuis son magasin : la marchandise d'un
+                        // autre magasin se transfère d'abord (c'est le magasin qui transfère).
                         const lieux = (stores || [])
                           .filter(s => s.type !== 'WAREHOUSE')
+                          .filter(s => userRole !== 'COMMERCIAL' || s.id === selectedStoreId)
                           .map(s => ({ s, q: availableQtyAtStore(item, s.id) }))
                           .filter(({ s, q }) => q > 0 || s.id === sourceStore);
                         if (lieux.length === 0) {
@@ -1678,14 +1796,15 @@ export default function StockSaleFlow({
                   </Champ>
 
                   <Champ
-                    label={libellePrixDeVente(item.unitOfMeasure)}
-                    obligatoire
+                    label={`${libellePrixDeVente(item.unitOfMeasure)} (facultatif)`}
                     htmlFor={`prix-${item.articleId}`}
                     indice={unitPrice > 0 ? `${fmt$(qty * unitPrice)} MAD la ligne` : undefined}
                     aide={
-                      cart.filter(l => l.item.productName === item.productName).length > 1
-                        ? "Ce prix ne vaut que pour cette couleur. Les autres couleurs du même produit gardent le leur."
-                        : "Prix hors remise. La remise s'applique plus bas, sur le total de la vente."
+                      unitPrice > 0
+                        ? (cart.filter(l => l.item.productName === item.productName).length > 1
+                          ? "Ce prix ne vaut que pour cette couleur. Les autres couleurs du même produit gardent le leur."
+                          : "Prix hors remise. La remise s'applique plus bas, sur le total de la vente.")
+                        : "Laissez vide : le commercial écrira le prix sur le bon imprimé, vous le saisirez ensuite."
                     }
                   >
                     <div className="relative">
@@ -1759,14 +1878,77 @@ export default function StockSaleFlow({
             </Recapitulatif>
           </div>
 
+          {/* ── Enregistrer : le bon sans prix est le parcours normal ── */}
+          <div className="bg-white rounded-2xl border-2 border-stone-900 p-5 space-y-4">
+            <div>
+              <p className="text-[11px] font-black text-stone-400 uppercase tracking-[0.3em]">Étape suivante</p>
+              <p className="text-[13px] font-medium text-stone-600 leading-snug mt-1 max-w-2xl">
+                Le bon s'imprime pour le commercial, qui y écrira les prix. La marchandise sort du stock
+                maintenant : le client part avec.
+                {anonymous || !selectedClient
+                  ? ' Vente comptoir : saisissez les prix dès que le commercial rend le bon.'
+                  : ''}
+              </p>
+            </div>
+            <Champ
+              label="Date du bon"
+              htmlFor="bon-date"
+              aide="À changer seulement si la marchandise est sortie un autre jour que celui-ci."
+            >
+              <Input id="bon-date" type="date" value={finalDate} onChange={e => setFinalDate(e.target.value)}
+                className={`${CLASSE_CHAMP} max-w-xs`} />
+            </Champ>
+            <BoutonValider
+              onClick={() => handleEnregistrerBon(false)}
+              enCours={saving}
+              libelleEnCours="Enregistrement du bon…"
+              raisonDesactive={lectureSeule ? 'Compte en lecture seule : il ne peut pas enregistrer de bon.' : cart.length === 0 ? 'Le panier est vide.' : null}
+              className="bg-stone-900 hover:bg-stone-800 shadow-stone-900/30"
+            >
+              <Printer className="w-4 h-4 inline -mt-0.5 mr-2" />Enregistrer et imprimer le bon
+            </BoutonValider>
+            {!isOnline && (
+              <p className="text-[11px] font-bold text-amber-700 leading-snug">
+                Pas de connexion : le bon s'enregistre quand même, avec un numéro provisoire, et partira au retour du réseau.
+                Ne fermez pas la page d'ici là.
+              </p>
+            )}
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-3 border-t border-stone-100">
+              <div className="space-y-1.5">
+                <Button
+                  type="button" variant="outline"
+                  onClick={handlePrepareOrder}
+                  disabled={lectureSeule || !isOnline || preparingOrder || saving || cart.length === 0}
+                  className="w-full h-11 rounded-2xl border-2 border-violet-300 bg-white text-violet-800 hover:bg-violet-50 text-[12px] font-black gap-2 disabled:opacity-40"
+                >
+                  <ClipboardList className="w-4 h-4" />
+                  {preparingOrder ? 'Enregistrement…' : 'Client pas encore venu : commande à préparer'}
+                </Button>
+                <p className="text-[11px] font-medium text-stone-500 leading-snug">
+                  Rien ne sort du stock avant l'enlèvement. Ce jour-là, dans « Bons à chiffrer », touchez « Le client enlève la marchandise ».
+                </p>
+              </div>
+              <div className="space-y-1.5">
+                <Button
+                  type="button" variant="outline"
+                  onClick={goToValidation}
+                  disabled={lectureSeule || saving || preparingOrder || cart.length === 0}
+                  className="w-full h-11 rounded-2xl border-2 border-stone-200 text-stone-700 hover:bg-stone-50 text-[12px] font-black gap-2 disabled:opacity-40"
+                >
+                  Prix déjà connus : encaisser tout de suite <ChevronRight className="w-4 h-4" />
+                </Button>
+                <p className="text-[11px] font-medium text-stone-500 leading-snug">
+                  Vente directe : tous les prix sont saisis ci-dessus, le client règle maintenant.
+                </p>
+              </div>
+            </div>
+          </div>
+
           {/* Navigation */}
           <div className="flex justify-between">
             <Button variant="outline" onClick={() => setStep(1)} className="gap-2 font-black uppercase text-xs h-11 rounded-2xl">
               <ChevronLeft className="w-4 h-4" /> Ajouter des produits
-            </Button>
-            <Button onClick={goToValidation}
-              className="bg-stone-900 hover:bg-stone-800 text-white font-black uppercase text-xs h-11 px-8 rounded-2xl gap-2">
-              Passer au règlement <ChevronRight className="w-4 h-4" />
             </Button>
           </div>
         </div>
@@ -2187,7 +2369,7 @@ export default function StockSaleFlow({
             <SectionFormulaire
               numero={3}
               titre="Relire, puis valider"
-              aide="Dernière vérification : à la validation, la marchandise sort du stock et la vente est enregistrée. Si le client n'est pas encore là, préparez plutôt sa commande, juste en dessous."
+              aide="Dernière vérification : à la validation, la marchandise sort du stock et la vente est enregistrée, déjà réglée ou portée au compte du client."
             >
               <Champ
                 label="Date de la vente"
@@ -2268,48 +2450,14 @@ export default function StockSaleFlow({
                 Valider la vente — {fmt$(total)} MAD
               </BoutonValider>
 
-              {/* ── Le client n'est pas encore là : on prépare sa commande ── */}
-              <div className="pt-2 border-t border-stone-100 space-y-2.5">
-                <Encadre ton="astuce" titre="Le client n'est pas encore venu ?">
-                  « Préparer la commande » met ce panier de côté sous forme de bon de commande :
-                  la marchandise reste en stock, rien n'est encaissé. Le bon s'imprime juste après.
-                  À l'enlèvement, retrouvez la commande dans <span className="font-black">Commandes
-                  préparées</span> et facturez-la : c'est à ce moment-là que la marchandise sort.
-                  Attention, une commande préparée ne réserve rien — une vente passée entre-temps
-                  peut prendre les mêmes pièces.
+              {/* Le bon sans prix et la commande à préparer se font à l'étape précédente. */}
+              {lignesSansPrix > 0 && (
+                <Encadre ton="attention" titre="Des prix manquent">
+                  {lignesSansPrix === 1 ? "Une ligne n'a pas de prix" : `${lignesSansPrix} lignes n'ont pas de prix`} : elles
+                  seraient facturées à zéro. Revenez au panier et choisissez « Enregistrer et imprimer le bon » :
+                  le commercial écrira les prix dessus.
                 </Encadre>
-
-                {/* Une commande peut partir sans prix : c'est fait pour. On le dit, et on
-                    rappelle où le prix se saisira, pour que personne ne facture un bon à zéro. */}
-                {lignesSansPrix > 0 && (
-                  <Encadre ton="attention" titre="Prix de vente à saisir">
-                    {lignesSansPrix === 1 ? 'Une ligne n\'a pas de prix' : `${lignesSansPrix} lignes n'ont pas de prix`} :
-                    la commande sera enregistrée telle quelle, sans montant. Vous saisirez les prix
-                    dans <span className="font-black">Commandes préparées</span>, avant de la facturer —
-                    elle y reste signalée tant qu'ils manquent.
-                  </Encadre>
-                )}
-
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={handlePrepareOrder}
-                  disabled={!isOnline || preparingOrder || saving || cart.length === 0}
-                  className="w-full h-12 rounded-2xl border-2 border-violet-300 bg-white text-violet-800 hover:bg-violet-50 text-[13px] font-black tracking-wide gap-2 disabled:opacity-40"
-                >
-                  <ClipboardList className="w-4 h-4" />
-                  {preparingOrder
-                    ? 'Enregistrement de la commande…'
-                    : lignesSansPrix > 0
-                      ? 'Préparer la commande — prix à saisir'
-                      : `Préparer la commande — ${fmt$(total)} MAD`}
-                </Button>
-                {!isOnline && (
-                  <p className="text-[11px] font-bold text-stone-500 text-center leading-snug">
-                    Sans connexion réseau, la commande ne peut pas être enregistrée.
-                  </p>
-                )}
-              </div>
+              )}
             </SectionFormulaire>
           </div>
 

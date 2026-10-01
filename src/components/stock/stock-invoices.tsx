@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { LOGO_B64 } from '@/lib/logo-b64';
 import { imprimerHtml, messageImpression, echapperHtml } from '@/lib/impression';
 import { valeurImprimable } from '@/lib/specification-produit';
@@ -18,6 +18,7 @@ import { cleanUndefined } from '@/lib/utils';
 import { getLocalDateString } from '@/lib/constants';
 import { useToast } from '@/hooks/use-toast';
 import { ScanPiece } from './scan-piece';
+import { encoreRetournable, dejaRenduParLigne } from '@/lib/retours-facture';
 
 interface PaymentLineState {
   id: string;
@@ -44,10 +45,20 @@ interface StockInvoicesProps {
     invoice: Invoice,
     returnLines: { articleId: string; categoryId: string; productName: string; nameFR?: string; color?: string; size?: string; quality?: string; unitOfMeasure: string; qty: number; unitPrice: number }[]
   ) => Promise<void>;
+  /**
+   * L'encaissement à ouvrir tout de suite : celui d'un bon qu'on vient de finaliser depuis
+   * « Bons à chiffrer ». Réglé par défaut à la date du bon ; une vente comptoir se règle en totalité.
+   */
+  encaissementAOuvrir?: { invoiceId: string; date: string; totalExige: boolean } | null;
+  onEncaissementOuvert?: () => void;
+  /** Les mouvements de stock : les retours déjà faits sur une facture s'y lisent. */
+  movements?: any[];
   onNavigate: (v: any) => void;
 }
 
 const fmt$ = (n: number) => n.toLocaleString('fr-MA', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+/** Un prix unitaire peut avoir trois décimales (mercerie à 0,035 MAD pièce) : on ne l'arrondit pas à l'affichage. */
+const fmtPU = (n: number) => (Number(n) || 0).toLocaleString('fr-MA', { minimumFractionDigits: 2, maximumFractionDigits: 3 });
 
 const STATUS_BADGE: Record<InvoiceStatus, { label: string; cls: string }> = {
   UNPAID:    { label: 'Non payé',   cls: 'bg-red-100 text-red-700 border-red-200' },
@@ -57,7 +68,7 @@ const STATUS_BADGE: Record<InvoiceStatus, { label: string; cls: string }> = {
   CANCELLED: { label: 'Annulé',     cls: 'bg-stone-100 text-stone-500 border-stone-200' },
 };
 
-export default function StockInvoices({ invoices, clients, payments, onRecordPayment, onRecordMultiplePayments, onUpdateStatus, onProcessReturn, onNavigate }: StockInvoicesProps) {
+export default function StockInvoices({ invoices, clients, payments, onRecordPayment, onRecordMultiplePayments, onUpdateStatus, onProcessReturn, encaissementAOuvrir, onEncaissementOuvert, movements = [], onNavigate }: StockInvoicesProps) {
   const { toast } = useToast();
   const [filterStatus, setFilterStatus] = useState<string>('all');
   const [filterMonth,  setFilterMonth]  = useState<string>('all');
@@ -71,6 +82,8 @@ export default function StockInvoices({ invoices, clients, payments, onRecordPay
     { id: '1', amount: '', method: 'CASH', notes: '', bankName: '', checkNumber: '', dueDate: '', scannedImageUrl: '' }
   ]);
   const [saving, setSaving] = useState(false);
+  /** Vente comptoir : pas de dossier client, donc rien ne peut rester dû — le règlement est total. */
+  const [reglementTotalExige, setReglementTotalExige] = useState(false);
 
   const [returnInvoice, setReturnInvoice] = useState<Invoice | null>(null);
   const [returnQtys, setReturnQtys] = useState<Record<number, string>>({});
@@ -81,13 +94,24 @@ export default function StockInvoices({ invoices, clients, payments, onRecordPay
     setReturnQtys({});
   };
 
+  // Ce qu'on peut encore rendre sur chaque ligne : vendu moins déjà rendu. Sans cette déduction,
+  // deux retours de 10 m sur une facture de 10 m faisaient rentrer 20 m en stock.
+  const retournable = useMemo(
+    () => (returnInvoice ? encoreRetournable(returnInvoice.items || [], movements, returnInvoice.id) : []),
+    [returnInvoice, movements],
+  );
+  const dejaRendu = useMemo(
+    () => (returnInvoice ? dejaRenduParLigne(returnInvoice.items || [], movements, returnInvoice.id) : []),
+    [returnInvoice, movements],
+  );
+
   const returnTotal = useMemo(() => {
     if (!returnInvoice) return 0;
     return returnInvoice.items.reduce((sum, item, idx) => {
-      const qty = Math.min(Number(returnQtys[idx]) || 0, item.qty);
+      const qty = Math.min(Number(returnQtys[idx]) || 0, retournable[idx] ?? item.qty);
       return sum + qty * item.unitPrice;
     }, 0);
-  }, [returnInvoice, returnQtys]);
+  }, [returnInvoice, returnQtys, retournable]);
 
   const handleSubmitReturn = async () => {
     if (!returnInvoice || !onProcessReturn) return;
@@ -101,7 +125,7 @@ export default function StockInvoices({ invoices, clients, payments, onRecordPay
         size: item.size,
         quality: item.quality,
         unitOfMeasure: item.unitOfMeasure,
-        qty: Math.min(Math.max(0, Number(returnQtys[idx]) || 0), item.qty),
+        qty: Math.min(Math.max(0, Number(returnQtys[idx]) || 0), retournable[idx] ?? item.qty),
         unitPrice: item.unitPrice,
       }))
       .filter(l => l.qty > 0);
@@ -116,10 +140,15 @@ export default function StockInvoices({ invoices, clients, payments, onRecordPay
       await onProcessReturn(returnInvoice, lines);
       setReturnInvoice(null);
       setReturnQtys({});
+    } catch (_) {
+      // Le refus est déjà affiché par /stock : la fenêtre reste ouverte pour corriger les quantités.
     } finally {
       setReturningInvoice(false);
     }
   };
+
+  const invoiceNumber = (inv: Invoice) =>
+    inv.invoiceNumber || `FAC-${String(invoices.findIndex(i => i.id === inv.id) + 1).padStart(4, '0')}`;
 
   const months = useMemo(() => {
     const s = new Set<string>();
@@ -131,19 +160,20 @@ export default function StockInvoices({ invoices, clients, payments, onRecordPay
     let r = [...invoices].sort((a, b) => b.date.localeCompare(a.date));
     if (filterStatus !== 'all') r = r.filter(i => i.status === filterStatus);
     if (filterMonth  !== 'all') r = r.filter(i => i.date.startsWith(filterMonth));
-    if (search) {
-      const q = search.toLowerCase();
-      r = r.filter(i => i.clientName?.toLowerCase().includes(q) || i.invoiceNumber?.toLowerCase().includes(q));
+    if (search.trim()) {
+      // Le numéro du bon (CH-0012) retrouve sa facture : c'est lui qui est écrit sur le papier.
+      const sansAccents = (v: unknown) => String(v ?? '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+      const q = sansAccents(search.trim());
+      r = r.filter(i => [i.clientName, i.invoiceNumber, i.orderNumber, invoiceNumber(i)].some(v => sansAccents(v).includes(q)));
     }
     return r;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [invoices, filterStatus, filterMonth, search]);
 
   const totalCA   = filtered.reduce((s, i) => s + i.totalAfterDiscount, 0);
   const totalPaid = filtered.reduce((s, i) => s + i.paidAmount, 0);
   const totalDue  = filtered.reduce((s, i) => s + i.remainingBalance, 0);
 
-  const invoiceNumber = (inv: Invoice) =>
-    inv.invoiceNumber || `FAC-${String(invoices.findIndex(i => i.id === inv.id) + 1).padStart(4, '0')}`;
 
   const invPayments = (invId: string) => payments.filter(p => p.invoiceId === invId);
 
@@ -208,9 +238,12 @@ export default function StockInvoices({ invoices, clients, payments, onRecordPay
     }
   };
 
-  const openPayInvoice = (inv: Invoice) => {
+  const openPayInvoice = (inv: Invoice, options: { date?: string; totalExige?: boolean } = {}) => {
     setPayInvoice(inv);
-    setPayDate(new Date().toISOString().split('T')[0]);
+    // Une facture sans dossier client (vente comptoir) se règle en totalité, quel que soit
+    // l'écran d'où l'on ouvre l'encaissement : la règle se lit sur la facture elle-même.
+    setReglementTotalExige(!!options.totalExige || inv.comptoir === true || !inv.clientId);
+    setPayDate(options.date || new Date().toISOString().split('T')[0]);
     const rem = typeof inv.remainingBalance === 'number'
       ? inv.remainingBalance
       : Math.max(0, (inv.totalAfterDiscount || 0) - (inv.paidAmount || 0));
@@ -227,6 +260,16 @@ export default function StockInvoices({ invoices, clients, payments, onRecordPay
       }
     ]);
   };
+
+  // Un bon tout juste finalisé : son encaissement s'ouvre de lui-même, dès que la facture est là.
+  useEffect(() => {
+    if (!encaissementAOuvrir) return;
+    const inv = invoices.find(i => i.id === encaissementAOuvrir.invoiceId);
+    if (!inv) return;
+    openPayInvoice(inv, { date: encaissementAOuvrir.date, totalExige: encaissementAOuvrir.totalExige });
+    onEncaissementOuvert?.();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [encaissementAOuvrir, invoices]);
 
   const addPayLine = (defaultMethod: PaymentMethod = 'CHEQUE') => {
     if (!payInvoice) return;
@@ -284,6 +327,15 @@ export default function StockInvoices({ invoices, clients, payments, onRecordPay
       return;
     }
 
+    if (reglementTotalExige && diffInvoiceBalance > 0.005) {
+      toast({
+        variant: 'destructive',
+        title: 'Règlement incomplet',
+        description: `Une vente comptoir se règle en totalité : il manque ${fmt$(diffInvoiceBalance)} MAD. Rien ne peut rester dû sans dossier client.`,
+      });
+      return;
+    }
+
     setSaving(true);
     try {
       const paymentsToRecord: Omit<ClientPayment, 'id' | 'createdAt'>[] = validLines.map(line => {
@@ -303,6 +355,9 @@ export default function StockInvoices({ invoices, clients, payments, onRecordPay
         if (line.method === 'CHEQUE' || line.method === 'EFFET' || line.method === 'LC' || line.method === 'LCN') {
           p.status = 'PENDING';
         }
+        // Le magasin de la facture : sans lui, l'encaissement d'un compte magasin est refusé par
+        // les règles (et /stock remplace de toute façon par le magasin du compte).
+        if (payInvoice.storeId) p.storeId = payInvoice.storeId;
         return cleanUndefined(p);
       });
 
@@ -384,7 +439,7 @@ export default function StockInvoices({ invoices, clients, payments, onRecordPay
     <tbody>${(inv.items || []).map(item => `<tr>
       <td><strong>${echapperHtml(item.productName)}</strong></td><td>${echapperHtml(valeurImprimable(item.color, '—'))}</td><td>${echapperHtml(valeurImprimable(item.size, '—'))}</td>
       <td>${echapperHtml(item.qty)} ${echapperHtml(item.unitOfMeasure)}</td>
-      <td>${sansPrix(item) ? '<em style="color:#a16207">non chiffré</em>' : fmt$(item.unitPrice)}</td>
+      <td>${sansPrix(item) ? '<em style="color:#a16207">non chiffré</em>' : fmtPU(item.unitPrice)}</td>
       <td><strong>${sansPrix(item) ? '<em style="color:#a16207">&mdash;</em>' : fmt$(item.totalPrice)}</strong></td>
     </tr>`).join('')}</tbody></table>
     <div style="text-align:right;border-top:1px solid #e7e5e4;padding-top:12px">
@@ -500,7 +555,14 @@ export default function StockInvoices({ invoices, clients, payments, onRecordPay
                   const isOverdue = inv.dueDate && inv.dueDate < new Date().toISOString().split('T')[0] && inv.status !== 'PAID' && inv.status !== 'CANCELLED';
                   return (
                     <tr key={inv.id} className="hover:bg-stone-50/50 transition-colors group">
-                      <td className="px-4 py-3 text-[10px] font-black text-violet-700">{invoiceNumber(inv)}</td>
+                      <td className="px-4 py-3 text-[10px] font-black text-violet-700">
+                        {inv.orderNumber ? (
+                          <>
+                            <span className="text-[12px]">{inv.orderNumber}</span>
+                            <span className="block text-[9px] font-bold text-stone-400">{invoiceNumber(inv)}</span>
+                          </>
+                        ) : invoiceNumber(inv)}
+                      </td>
                       <td className="px-4 py-3 text-[10px] font-bold text-stone-500">{inv.date}</td>
                       <td className="px-4 py-3">
                         {inv.dueDate ? (
@@ -517,7 +579,8 @@ export default function StockInvoices({ invoices, clients, payments, onRecordPay
                         <span className={`text-[11px] font-black uppercase px-2 py-0.5 rounded-lg border ${badge.cls}`}>{badge.label}</span>
                       </td>
                       <td className="px-4 py-3">
-                        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                        {/* Toujours visibles : sur l'écran tactile du magasin, il n'y a pas de survol. */}
+                        <div className="flex items-center gap-1">
                           <button onClick={() => setViewInvoice(inv)} title="Voir"
                             className="w-7 h-7 rounded-lg bg-stone-100 hover:bg-stone-200 text-stone-600 flex items-center justify-center">
                             <Eye className="w-3 h-3" />
@@ -595,14 +658,20 @@ export default function StockInvoices({ invoices, clients, payments, onRecordPay
                       <td className="px-4 py-2.5 text-xs font-bold text-stone-700">
                         {item.nameFR || item.productName} {[item.color, item.size].filter(Boolean).join(' · ')}
                       </td>
-                      <td className="px-4 py-2.5 text-xs font-black text-stone-500 text-right">{item.qty}</td>
+                      <td className="px-4 py-2.5 text-xs font-black text-stone-500 text-right">
+                        {item.qty}
+                        {(dejaRendu[idx] || 0) > 0 && (
+                          <span className="block text-[10px] font-bold text-amber-700">déjà rendu : {dejaRendu[idx]}</span>
+                        )}
+                      </td>
                       <td className="px-4 py-2.5">
                         <Input
-                          type="number" min={0} max={item.qty} step="any"
+                          type="number" min={0} max={retournable[idx] ?? item.qty} step="any"
+                          disabled={(retournable[idx] ?? item.qty) <= 0}
                           value={returnQtys[idx] ?? ''}
                           onChange={e => setReturnQtys(prev => ({ ...prev, [idx]: e.target.value }))}
                           className="h-8 text-xs font-bold text-center border-amber-200 focus-visible:ring-amber-500"
-                          placeholder="0"
+                          placeholder={(retournable[idx] ?? item.qty) <= 0 ? 'tout rendu' : `max ${retournable[idx] ?? item.qty}`}
                         />
                       </td>
                     </tr>
@@ -637,7 +706,7 @@ export default function StockInvoices({ invoices, clients, payments, onRecordPay
               <div>
                 <DialogTitle className="text-lg font-black uppercase tracking-tight">Enregistrer un paiement</DialogTitle>
                 <p className="text-xs font-bold text-emerald-200 mt-1">
-                  {payInvoice && invoiceNumber(payInvoice)} · <span className="text-white uppercase font-black">{payInvoice?.clientName || 'Anonyme'}</span>
+                  {payInvoice && (payInvoice.orderNumber ? `Bon ${payInvoice.orderNumber} · ${invoiceNumber(payInvoice)}` : invoiceNumber(payInvoice))} · <span className="text-white uppercase font-black">{payInvoice?.clientName || 'Anonyme'}</span>
                 </p>
               </div>
               <div className="text-right">
@@ -672,6 +741,12 @@ export default function StockInvoices({ invoices, clients, payments, onRecordPay
           </div>
 
           <div className="p-5 space-y-4 bg-white max-h-[72vh] overflow-y-auto">
+            {reglementTotalExige && (
+              <p className="p-3 rounded-xl bg-amber-50 border border-amber-200 text-[12px] font-bold text-amber-900 leading-snug">
+                Vente comptoir : le client n'a pas de dossier, rien ne peut rester dû. Encaissez la totalité,
+                en un ou plusieurs moyens de paiement.
+              </p>
+            )}
             <div className="flex items-center gap-3">
               <Label className="text-[10px] font-black text-stone-500 uppercase tracking-widest shrink-0">Date de transaction :</Label>
               <Input
@@ -904,6 +979,7 @@ export default function StockInvoices({ invoices, clients, payments, onRecordPay
               onClick={handlePayment}
               disabled={
                 totalInvoicePaymentEntered <= 0 || diffInvoiceBalance < 0 ||
+                (reglementTotalExige && diffInvoiceBalance > 0.005) ||
                 saving || 
                 payLines.some(l => (parseFloat(l.amount) || 0) > 0 && (l.method === 'CHEQUE' || l.method === 'LC' || l.method === 'EFFET' || l.method === 'LCN') && !l.scannedImageUrl?.trim())
               }
@@ -937,7 +1013,7 @@ export default function StockInvoices({ invoices, clients, payments, onRecordPay
                     <td className="px-4 py-3 text-[10px] font-bold text-stone-500">{item.color || '—'}</td>
                     <td className="px-4 py-3 text-[10px] font-bold text-stone-500">{item.size || '—'}</td>
                     <td className="px-4 py-3 text-[10px] font-black text-stone-900">{item.qty} {item.unitOfMeasure}</td>
-                    <td className="px-4 py-3 text-[10px] font-bold text-stone-600">{fmt$(item.unitPrice)}</td>
+                    <td className="px-4 py-3 text-[10px] font-bold text-stone-600">{fmtPU(item.unitPrice)}</td>
                     <td className="px-4 py-3 text-[10px] font-black text-stone-900">{fmt$(item.totalPrice)}</td>
                   </tr>
                 ))}

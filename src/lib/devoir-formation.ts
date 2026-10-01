@@ -347,9 +347,9 @@ function construireVentes(cibles: CiblesDevoir): Vente[] {
       ...simple('c', cibles.c, 20, PRIX.cBC),
     ],
     reglements: [],
-    consigne: `Monte le panier, puis « Préparer la commande » au lieu de « Encaisser ». Imprime le `
-      + `bon. Va ensuite dans Commandes préparées, facture-la, puis encaisse la facture en espèces `
-      + `depuis l'écran Factures.`,
+    consigne: `Monte le panier, puis « Client pas encore venu : commande à préparer » au lieu d'enregistrer `
+      + `le bon. Imprime le bon. Va ensuite dans Bons à chiffrer, ouvre-le, puis « Finaliser et encaisser » : `
+      + `encaisse en espèces.`,
   }, especes);
 
   return ventes;
@@ -758,7 +758,7 @@ ${q(`Les autres couleurs de ce produit sont-elles concernées ?`, 24)}`)}
 <p>Un client appelle et passe prendre sa marchandise dans l'après-midi : on prépare son bon
 <b>à l'avance</b>. Une commande préparée ne sort rien du stock et n'encaisse rien — c'est un
 papier. C'est sa <b>facturation</b> qui fait sortir la marchandise.</p>
-${blocVente(9, `${q(`Après « Préparer la commande » : le stock a-t-il bougé ?`, 24)}
+${blocVente(9, `${q(`Après « commande à préparer » : le stock a-t-il bougé ?`, 24)}
 ${q(`Où retrouves-tu cette commande, et dans quel état est-elle ?`, 40)}
 ${q(`Après l'avoir facturée : le stock a-t-il bougé cette fois ? Et le statut de la facture ?`, 45)}
 ${q(`Une commande préparée réserve-t-elle la marchandise ? Que se passerait-il si tu vendais ces mêmes pièces entre-temps ?`, 55)}`)}
@@ -972,10 +972,9 @@ vérifier en priorité en corrigeant.</li>
 
 <h3>8. La commande préparée</h3>
 <ul>
-<li>« Préparer la commande » <b>ne bouge pas le stock</b> et n'encaisse rien. La commande se
-retrouve dans <b>Commandes préparées</b>, à l'état <b>Confirmé</b>.</li>
-<li>C'est la <b>facturation</b> qui écrit les sorties. La facture sort <b>impayée</b> : il faut
-l'encaisser depuis l'écran Factures.</li>
+<li>« Commande à préparer » <b>ne bouge pas le stock</b> et n'encaisse rien. La commande se
+retrouve dans <b>Bons à chiffrer</b>, avec le type <b>À préparer</b>.</li>
+<li>C'est <b>« Finaliser et encaisser »</b> qui écrit les sorties, puis ouvre l'encaissement.</li>
 <li>Une commande préparée <b>ne réserve rien</b> : une vente passée entre-temps peut prendre les
 mêmes pièces, et la facturation ne trouverait plus le stock. C'est la limite à connaître.</li>
 </ul>

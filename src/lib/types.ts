@@ -283,7 +283,11 @@ export type SupplierPayment = {
 export type ViewType = 'dashboard' | 'to-order' | 'pending' | 'transit' | 'factures' | 'general-categories' | 'categories' | 'suppliers' | 'data' | 'timeline' | 'cost-analysis' | 'cost-sale' | 'dp' | 'reconciliation' | 'devis-pi' | 'client-profitability' | 'ai' | 'products' | 'history-revient' | 'qualities' | 'simulateur';
 
 export type StockMovementType = 'IN' | 'OUT' | 'ADJUSTMENT';
-export type StockMovementReason = 'ARRIVAGE' | 'VENTE' | 'PERTE' | 'RETOUR' | 'INVENTAIRE' | 'TRANSFERT';
+// ANNULATION_BON / CORRECTION_BON : le retour en stock d'un bon déjà sorti, annulé ou corrigé
+// (src/lib/bon-sans-prix.ts). Un compte magasin ne peut pas effacer un mouvement : il écrit
+// l'inverse, lié au bon, et le journal le dit en toutes lettres.
+export type StockMovementReason = 'ARRIVAGE' | 'VENTE' | 'PERTE' | 'RETOUR' | 'INVENTAIRE' | 'TRANSFERT'
+  | 'ANNULATION_BON' | 'CORRECTION_BON';
 
 export type StockMovement = {
   id: string;
@@ -331,6 +335,11 @@ export type StockMovement = {
   notes?: string;
   factureId?: string;    // référence si mouvement IN lié à un arrivage
   factureRef?: string;   // référence fournisseur de la facture liée
+  // Bon de vente qui a écrit ce mouvement (sortie au bon, correction, annulation) et la ligne
+  // du bon concernée : c'est par eux qu'une annulation retrouve EXACTEMENT ce qui est sorti.
+  bonId?: string;
+  bonNumero?: string;
+  ligneBonId?: string;
   createdAt?: any;
 };
 
@@ -499,6 +508,21 @@ export type OrderItem = {
   storeId?: string;
   purchasePricePerUnit?: number;
   costPrice?: number;
+  /** Identifiant stable de la ligne d'un bon : il la relie à ses mouvements de stock. */
+  ligneId?: string;
+  /**
+   * La variante de stock vendue (couleur, qualité ou taille d'un article ventilé), telle que la
+   * caisse l'a prise : une sortie complémentaire ou la sortie à l'enlèvement puise dans SES racks,
+   * jamais dans ceux d'une autre couleur.
+   */
+  varianteStock?: { dimension: 'quality' | 'color' | 'size'; value: string };
+  /**
+   * Ce que contient une unité de la ligne quand elle se compte en conditionnement : 1 rouleau =
+   * 50 m, 1 sac = 500 pièces. Le prix se saisit alors au mètre ou à la pièce (src/lib/bon-sans-prix.ts).
+   */
+  contenance?: { facteur: number; uniteBase: string };
+  /** Le prix au mètre ou à la pièce saisi pour une ligne en conditionnement ; unitPrice en découle. */
+  prixBase?: number;
 };
 
 export type SaleOrderStatus = 'DRAFT' | 'CONFIRMED' | 'INVOICED' | 'CANCELLED';
@@ -516,6 +540,26 @@ export type SaleOrder = {
   storeId?: StoreLocation;
   notes?: string;
   createdAt?: any;
+  // ── Bon sans prix (src/lib/bon-sans-prix.ts) ──
+  /** Numéro du bon par magasin (CH-0001) ; absent sur les anciennes commandes (BC-… calculé à l'écran). */
+  orderNumber?: string;
+  /** Numéro donné hors connexion (CH-PROV-…), le compteur du magasin n'ayant pas pu être lu. */
+  orderNumberProvisoire?: boolean;
+  /** La marchandise est sortie du stock à l'enregistrement du bon : la facture ne la ressort pas. */
+  sortieAuBon?: boolean;
+  /** Vente comptoir (client de passage) : le prix doit être saisi tout de suite. */
+  comptoir?: boolean;
+  /** Commande à préparer : le client n'est pas encore venu, rien n'est sorti. */
+  aPreparer?: boolean;
+  /** Instant d'enregistrement écrit par le poste (ISO), lisible même hors connexion. */
+  creeLe?: string;
+  /** Le total écrit à la main sur le bon par le commercial. */
+  totalPapier?: number;
+  invoiceId?: string;
+  chiffreLe?: string;
+  annuleLe?: string;
+  /** Commande à préparer enlevée par le client : l'instant de l'enlèvement (ISO). */
+  enleveLe?: string;
 };
 
 export type InvoiceStatus = 'UNPAID' | 'PARTIAL' | 'PAID' | 'PENDING' | 'CANCELLED';
@@ -529,6 +573,10 @@ export type Invoice = {
   clientId?: string;
   clientName?: string;
   orderId?: string;
+  /** Le numéro du bon d'origine (CH-0001), pour retrouver la facture depuis le papier. */
+  orderNumber?: string;
+  /** Facture d'une vente comptoir : sans dossier client, elle se règle en totalité. */
+  comptoir?: boolean;
   items: OrderItem[];
   totalAmount: number;         // Montant total, avant remise
   discount?: number;
@@ -646,6 +694,8 @@ export type AuditAction =
   // Un bon de commande peut se prendre sans prix et en recevoir un plus tard : ce passage-la
   // se journalise, c'est lui qui fixe ce que le client devra.
   | 'ORDER_UPDATED'
+  // Le bon de vente : enregistré (et sorti du stock), enlevé, annulé — chacun lisible au journal.
+  | 'ORDER_CREATED' | 'ORDER_PICKED_UP' | 'ORDER_CANCELLED'
   | 'SETTINGS_UPDATED';
 
 export type AuditLogEntry = {

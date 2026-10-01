@@ -50,6 +50,8 @@ const cleDuMouvement = (m: StockMovement): string =>
 const REASON_LABELS: Record<string, string> = {
   ARRIVAGE: 'Arrivage', VENTE: 'Vente', PERTE: 'Perte',
   RETOUR: 'Retour', INVENTAIRE: 'Inventaire', TRANSFERT: 'Transfert',
+  // Retours en stock d'un bon déjà sorti (src/lib/bon-sans-prix.ts).
+  ANNULATION_BON: 'Annulation de bon', CORRECTION_BON: 'Correction de bon',
 };
 
 /** 2026-09-23 → 23/09/2026, sans passer par Date (aucun décalage de fuseau possible). */

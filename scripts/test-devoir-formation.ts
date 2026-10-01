@@ -121,7 +121,7 @@ check('le devoir nomme toutes les couleurs vendues',
   cibles.m!.variantes.every(v => devoir.includes(v.label)));
 check('le devoir compte neuf ventes', /Vente 9 —/.test(devoir) && /Vente 6 —/.test(devoir));
 check('le devoir a une partie « vendre par couleur »', devoir.includes('Vendre par couleur'));
-check('le devoir fait préparer une commande', devoir.includes('Préparer la commande'));
+check('le devoir fait préparer une commande', devoir.includes('commande à préparer'));
 check('le devoir fait poser un seuil puis y revenir',
   devoir.includes("Poser un seuil d'alerte") && devoir.includes('La boucle est bouclée'));
 check('le devoir fait passer par l’achat au marché', devoir.includes('Achat Marchandise (Marché)'));

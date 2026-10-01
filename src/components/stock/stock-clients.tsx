@@ -23,6 +23,13 @@ interface StockClientsProps {
   invoices: Invoice[];
   payments: ClientPayment[];
   userRole?: 'ADMIN' | 'COMMERCIAL';
+  /**
+   * Le magasin du compte, pour un compte magasin : il ne peut toucher QUE les factures de son
+   * magasin (règles Firestore). Un règlement n'est donc imputé que sur celles-là ; ce qui est dû
+   * ailleurs se règle là-bas.
+   */
+  magasinDuCompte?: string;
+  stores?: any[];
   onCreateClient: (c: Omit<Client, 'id' | 'createdAt'>) => Promise<void>;
   onUpdateClient: (id: string, c: Partial<Client>) => Promise<void>;
   onRecordPayment?: (payment: Omit<ClientPayment, 'id' | 'createdAt'>) => Promise<void>;
@@ -71,7 +78,7 @@ interface PaymentLineState {
   scannedImageUrl: string;
 }
 
-export default function StockClients({ clients, orders, invoices, payments, userRole = 'ADMIN', onCreateClient, onUpdateClient, onRecordPayment, onRecordMultiplePayments, onNavigate }: StockClientsProps) {
+export default function StockClients({ clients, orders, invoices, payments, userRole = 'ADMIN', magasinDuCompte, stores = [], onCreateClient, onUpdateClient, onRecordPayment, onRecordMultiplePayments, onNavigate }: StockClientsProps) {
   const { toast } = useToast();
   const [search, setSearch] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('ALL');
@@ -178,6 +185,34 @@ export default function StockClients({ clients, orders, invoices, payments, user
   const selPendingChecks = selected ? (clientPendingChecks.get(selected.id) || 0) : 0;
   const selPaid     = selPayments.reduce((s, p) => s + p.amount, 0);
 
+  // ── Ce qu'un compte magasin peut régler ici ──
+  // Une facture d'un autre magasin ne peut pas être mise à jour par ce compte : l'y imputer
+  // faisait refuser TOUT le règlement. Et le rattachement par simple nom attrapait les factures
+  // d'un homonyme. On n'impute donc que les factures du client (par son identifiant) et de ce
+  // magasin ; le reste est montré à part.
+  const resteDeFacture = (i: Invoice) => (typeof i.remainingBalance === 'number'
+    ? i.remainingBalance
+    : Math.max(0, (i.totalAfterDiscount || 0) - (i.paidAmount || 0)));
+  const factureImputable = (i: Invoice) => !magasinDuCompte
+    || (i.clientId === selected?.id && (!i.storeId || i.storeId === magasinDuCompte));
+  const soldeARegler = magasinDuCompte
+    ? centimes(selInvoices.filter(i => i.status !== 'CANCELLED' && factureImputable(i)).reduce((t, i) => t + resteDeFacture(i), 0))
+    : selBalance;
+  const duAilleurs: { lieu: string; montant: number }[] = (() => {
+    if (!magasinDuCompte) return [];
+    const parLieu = new Map<string, number>();
+    for (const i of selInvoices) {
+      if (i.status === 'CANCELLED' || factureImputable(i) || i.clientId !== selected?.id) continue;
+      const reste = resteDeFacture(i);
+      if (reste <= 0) continue;
+      const lieu = i.storeId || '';
+      parLieu.set(lieu, centimes((parLieu.get(lieu) || 0) + reste));
+    }
+    return Array.from(parLieu.entries()).map(([lieu, montant]) => ({
+      lieu: stores.find((st: any) => st.id === lieu)?.name || lieu || 'un autre magasin', montant,
+    }));
+  })();
+
   const selUnpaidInvoices = useMemo(() => {
     return selInvoices.filter(i => 
       i.status !== 'CANCELLED' && (
@@ -212,7 +247,7 @@ export default function StockClients({ clients, orders, invoices, payments, user
     setPaymentLines([
       {
         id: String(Date.now()),
-        amount: selBalance > 0 ? String(selBalance) : '',
+        amount: soldeARegler > 0 ? String(soldeARegler) : '',
         method: 'CASH',
         notes: 'Règlement de solde',
         bankName: '',
@@ -226,7 +261,7 @@ export default function StockClients({ clients, orders, invoices, payments, user
 
   const addPaymentLine = (defaultMethod: PaymentMethod = 'CHEQUE') => {
     const totalCurrent = paymentLines.reduce((sum, l) => sum + (parseFloat(l.amount) || 0), 0);
-    const rem = Math.max(0, selBalance - totalCurrent);
+    const rem = Math.max(0, soldeARegler - totalCurrent);
     setPaymentLines(prev => [
       ...prev,
       {
@@ -278,6 +313,7 @@ export default function StockClients({ clients, orders, invoices, payments, user
       // Factures impayées triées de la plus ancienne à la plus récente
       const unpaidInvoices = selInvoices
         .filter(i => i.status !== 'CANCELLED')
+        .filter(factureImputable)
         .map(i => ({
           ...i,
           remBalance: typeof i.remainingBalance === 'number'
@@ -353,6 +389,11 @@ export default function StockClients({ clients, orders, invoices, payments, user
           p.depositBank = 'Attijariwafa Bank';
           if ((line as any).cashingCompany) p.cashingCompany = (line as any).cashingCompany;
         }
+        // Le magasin du règlement : celui de la facture soldée, à défaut celui du client. Sans
+        // lui, un compte magasin voyait son encaissement refusé par les règles Firestore (et
+        // /stock inscrit de toute façon le magasin du compte qui encaisse).
+        const magasin = unpaidInvoices.find(f => f.id === p.invoiceId)?.storeId || selected.storeId;
+        if (magasin) p.storeId = magasin;
         return cleanUndefined(p);
       });
 
@@ -375,7 +416,7 @@ export default function StockClients({ clients, orders, invoices, payments, user
   };
 
   const totalPaymentEntered = paymentLines.reduce((sum, l) => sum + (parseFloat(l.amount) || 0), 0);
-  const diffBalance = selBalance - totalPaymentEntered;
+  const diffBalance = soldeARegler - totalPaymentEntered;
 
   const estPapier = (m: PaymentMethod) => m === 'CHEQUE' || m === 'LC' || m === 'EFFET' || m === 'LCN';
 
@@ -987,8 +1028,8 @@ export default function StockClients({ clients, orders, invoices, payments, user
             {/* Suivi récapitulatif en temps réel */}
             <div className="grid grid-cols-3 gap-3 mt-4 pt-4 border-t border-white/10 text-center">
               <div className="bg-white/10 rounded-xl p-2.5">
-                <span className="text-[11px] font-black uppercase tracking-widest text-[#E0A24C]">Total à régler</span>
-                <p className="text-sm font-black text-white mt-0.5">{fmt$(selBalance)} MAD</p>
+                <span className="text-[11px] font-black uppercase tracking-widest text-[#E0A24C]">Total à régler{magasinDuCompte ? ' ici' : ''}</span>
+                <p className="text-sm font-black text-white mt-0.5">{fmt$(soldeARegler)} MAD</p>
               </div>
               <div className="bg-white/10 rounded-xl p-2.5">
                 <span className="text-[11px] font-black uppercase tracking-widest text-[#E0A24C]">Total Saisi</span>
@@ -1012,6 +1053,12 @@ export default function StockClients({ clients, orders, invoices, payments, user
           </div>
 
           <div className="p-5 space-y-7 bg-white max-h-[72vh] overflow-y-auto">
+            {duAilleurs.length > 0 && (
+              <div className="p-3 rounded-xl border border-amber-300 bg-amber-50 text-[12px] font-bold text-amber-900 leading-snug">
+                {duAilleurs.map(d => `${fmt$(d.montant)} MAD dus au magasin ${d.lieu}`).join(' · ')} : ils se règlent là-bas.
+                Le règlement saisi ici ne solde que les factures de votre magasin.
+              </div>
+            )}
             <SectionFormulaire
               numero={1}
               titre="Combien reçoit-on ?"
