@@ -12,6 +12,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { commandeCorrespond } from '@/lib/recherche-commandes';
 import { repartition } from '@/lib/repartition';
+import { grammagesCurseur } from '@/lib/grammage-curseur';
 import ExpedierModal from './expedier-modal';
 import { ArrowRight, Box, Building2, Clock, PackagePlus, Scale, Search, UserCircle2, X } from 'lucide-react';
 
@@ -21,6 +22,8 @@ interface AjouterArticlesDossierModalProps {
   dossier: any;
   articles: any[];
   factures: any[];
+  /** Les familles : le grammage d'un curseur se lit dans leurs qualités. */
+  categories?: any[];
   generalCategories?: any[];
 }
 
@@ -34,7 +37,7 @@ const NOMS_REPARTITION: Record<string, [string, string]> = {
   sizeBreakdown: ['taille', 'tailles'],
 };
 
-export default function AjouterArticlesDossierModal({ open, onOpenChange, dossier, articles, factures, generalCategories = [] }: AjouterArticlesDossierModalProps) {
+export default function AjouterArticlesDossierModal({ open, onOpenChange, dossier, articles, factures, categories = [], generalCategories = [] }: AjouterArticlesDossierModalProps) {
   const [recherche, setRecherche] = useState('');
   const [tousFournisseurs, setTousFournisseurs] = useState(false);
   const [aExpedier, setAExpedier] = useState<any>(null);
@@ -131,6 +134,7 @@ export default function AjouterArticlesDossierModal({ open, onOpenChange, dossie
             {trouves.map(o => {
               const rep = repartition(o);
               const noms = rep ? NOMS_REPARTITION[rep.champ] : null;
+              const grammages = grammagesCurseur(o, categories, generalCategories);
               return (
                 <div key={o.id} className="px-4 py-3 flex items-center gap-3 hover:bg-stone-50">
                   <div className="min-w-0 flex-1">
@@ -148,6 +152,11 @@ export default function AjouterArticlesDossierModal({ open, onOpenChange, dossie
                       )}
                       {rep && noms && rep.lignes.length > 1 && (
                         <span className="text-[8px] font-bold text-violet-600 bg-violet-50 border border-violet-100 px-1.5 py-0.5 rounded uppercase">{rep.lignes.length} {noms[1]}</span>
+                      )}
+                      {grammages.length > 0 && (
+                        <span className="text-[8px] font-black text-orange-700 bg-orange-50 border border-orange-100 px-1.5 py-0.5 rounded">
+                          {grammages.slice(0, 4).join(' · ')}{grammages.length > 4 ? '…' : ''} g/pc
+                        </span>
                       )}
                       {o.color && o.color !== 'various' && <span className="text-[8px] font-bold text-stone-500 bg-stone-50 border border-stone-100 px-1.5 py-0.5 rounded uppercase">{o.color}</span>}
                       {o.size && o.size !== 'various' && <span className="text-[8px] font-bold text-stone-500 bg-stone-50 border border-stone-100 px-1.5 py-0.5 rounded uppercase">{o.size}</span>}
@@ -191,6 +200,8 @@ export default function AjouterArticlesDossierModal({ open, onOpenChange, dossie
         factures={factures}
         articles={articles}
         dossier={dossier}
+        categories={categories}
+        generalCategories={generalCategories}
       />
     </>
   );

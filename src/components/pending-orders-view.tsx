@@ -16,15 +16,18 @@ import { doc } from 'firebase/firestore';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { useToast } from '@/hooks/use-toast';
 import { commandeCorrespond } from '@/lib/recherche-commandes';
+import { grammagesCurseur } from '@/lib/grammage-curseur';
 
 interface PendingOrdersViewProps {
   articles: any[];
   factures: any[];
   generalCategories: any[];
+  /** Les familles : le grammage d'un curseur se lit dans leurs qualités. */
+  subCategories?: any[];
   onEdit: (article: any) => void;
 }
 
-export default function PendingOrdersView({ articles, factures, generalCategories, onEdit }: PendingOrdersViewProps) {
+export default function PendingOrdersView({ articles, factures, generalCategories, subCategories = [], onEdit }: PendingOrdersViewProps) {
   const { user } = useUser();
   const firestore = useFirestore();
   const { toast } = useToast();
@@ -206,6 +209,10 @@ export default function PendingOrdersView({ articles, factures, generalCategorie
               )}
               {o.quality && <span className="text-[8px] font-black text-violet-700 bg-violet-50 border border-violet-100 px-1.5 py-0.5 rounded uppercase">{o.quality}</span>}
               {o.qualityBreakdown?.length > 0 && <span className="text-[8px] font-bold text-fuchsia-600 bg-fuchsia-50 border border-fuchsia-100 px-1.5 py-0.5 rounded uppercase">{o.qualityBreakdown.length} qualités</span>}
+              {(() => {
+                const g = grammagesCurseur(o, subCategories, generalCategories);
+                return g.length > 0 && <span className="text-[8px] font-black text-orange-700 bg-orange-50 border border-orange-100 px-1.5 py-0.5 rounded">{g.slice(0, 4).join(' · ')}{g.length > 4 ? '…' : ''} g/pc</span>;
+              })()}
               {o.size && o.size !== 'various' && <span className="text-[8px] font-bold text-stone-400 bg-stone-50 border border-stone-100 px-1.5 py-0.5 rounded uppercase">{o.size}</span>}
               {o.sizeBreakdown?.length > 0 && <span className="text-[8px] font-bold text-teal-600 bg-teal-50 border border-teal-100 px-1.5 py-0.5 rounded uppercase">{o.sizeBreakdown.length} tailles</span>}
               {o.color && o.color !== 'various' && <span className="text-[8px] font-bold text-stone-400 bg-stone-50 border border-stone-100 px-1.5 py-0.5 rounded uppercase">{o.color}</span>}
@@ -522,6 +529,8 @@ export default function PendingOrdersView({ articles, factures, generalCategorie
         order={selectedOrder}
         factures={factures}
         articles={articles}
+        categories={subCategories}
+        generalCategories={generalCategories}
       />
       <AlertDialog open={deleteConfirm.open} onOpenChange={(o) => !o && setDeleteConfirm({open: false})}>
         <AlertDialogContent>

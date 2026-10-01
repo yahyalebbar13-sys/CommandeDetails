@@ -23,6 +23,7 @@ import { sendStatusNotification } from '@/lib/send-status-notification';
 import { computeEffectiveStatus } from '@/lib/status-utils';
 import { planExpedition, type ModeExpedition } from '@/lib/expedition';
 import { libelleLigne, repartition } from '@/lib/repartition';
+import { grammageCurseur, grammagesCurseur } from '@/lib/grammage-curseur';
 import { Ship, CalendarDays, CheckCircle2, Loader2, Scissors, Package, ClipboardPaste, Scale, Box, AlertTriangle, Eraser, Undo2 } from 'lucide-react';
 
 interface ExpedierModalProps {
@@ -34,6 +35,9 @@ interface ExpedierModalProps {
   articles: any[];
   /** Le dossier est déjà choisi (fiche du dossier) : pas de choix de facture. */
   dossier?: any | null;
+  /** Familles et pôles : le grammage d'un curseur se lit dans leurs qualités. */
+  categories?: any[];
+  generalCategories?: any[];
 }
 
 /** « 1 234,5 » ou « 1234.5 » → 1234.5 ; vide → null. */
@@ -57,7 +61,7 @@ function sansIndefinis(v: any): any {
 
 const fmt = (n: number, d = 3) => n.toLocaleString('fr-FR', { maximumFractionDigits: d });
 
-export default function ExpedierModal({ open, onOpenChange, order, factures, articles, dossier }: ExpedierModalProps) {
+export default function ExpedierModal({ open, onOpenChange, order, factures, articles, dossier, categories = [], generalCategories = [] }: ExpedierModalProps) {
   const { user } = useUser();
   const firestore = useFirestore();
   const { toast } = useToast();
@@ -77,6 +81,9 @@ export default function ExpedierModal({ open, onOpenChange, order, factures, art
   const [confirmerEcraser, setConfirmerEcraser] = useState(false);
 
   const rep = useMemo(() => (order ? repartition(order) : null), [order]);
+  const grammages = useMemo(() => (order ? grammagesCurseur(order, categories, generalCategories) : []), [order, categories, generalCategories]);
+  // Le grammage de chaque ligne (qualité ou design) d'un curseur ventilé.
+  const grammageLigne = (l: any) => (rep && grammages.length ? grammageCurseur(order, categories, generalCategories, l) : null);
   const parLignes = Boolean(rep && rep.lignes.length > 1);
   const qteArticle = Number(order?.quantity) || 0;
   const unite = order?.unitOfMeasure || '';
@@ -245,6 +252,9 @@ export default function ExpedierModal({ open, onOpenChange, order, factures, art
           <div className="text-sm text-stone-600">
             {fmt(qteArticle)} {unite}{order.supplierId ? ` · ${order.supplierId}` : ''}{order.orderDate ? ` · commandé le ${order.orderDate}` : ''}
           </div>
+          {grammages.length > 0 && (
+            <div className="text-[11px] font-black text-orange-700">Curseur : {grammages.join(' · ')} g/pc</div>
+          )}
           <div className="text-[11px] text-stone-500">
             Estimation fiche : {Number(order.netWeight) > 0 ? `${fmt(Number(order.netWeight), 2)} kg` : 'poids —'} · {Number(order.cubicMeasurement) > 0 ? `${fmt(Number(order.cubicMeasurement))} m³` : 'volume —'}
           </div>
@@ -327,7 +337,10 @@ export default function ExpedierModal({ open, onOpenChange, order, factures, art
                     const enPlus = (lireSaisie(v) || 0) - max;
                     return (
                       <div key={i} className={`flex items-center gap-2 px-3 py-1 rounded-xl border ${enPlus > 1e-9 ? 'bg-amber-100 border-amber-400' : lireSaisie(v) ? 'bg-orange-100 border-orange-400' : 'bg-white border-stone-200'}`}>
-                        <span className="text-[10px] font-black uppercase w-28 truncate" title={libelleLigne(rep, l)}>{libelleLigne(rep, l) || `Ligne ${i + 1}`}</span>
+                        <span className="w-28 min-w-0" title={libelleLigne(rep, l)}>
+                          <span className="block text-[10px] font-black uppercase truncate">{libelleLigne(rep, l) || `Ligne ${i + 1}`}</span>
+                          {grammageLigne(l) && <span className="block text-[9px] font-bold text-orange-700">{grammageLigne(l)} g/pc</span>}
+                        </span>
                         <Input
                           inputMode="decimal"
                           value={v}

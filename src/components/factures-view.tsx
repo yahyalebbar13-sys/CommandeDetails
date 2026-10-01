@@ -100,6 +100,7 @@ import { getStatusInfo } from '@/lib/status-utils';
 import { LIBELLE_STATUT, dossierAOuvrir, dossierVerrouille, type SuiviConteneur } from '@/lib/suivi-conteneur';
 import { authedFetch } from '@/lib/authed-fetch';
 import { articleSelonCatalogue } from '@/lib/specification-produit';
+import { grammagesCurseur } from '@/lib/grammage-curseur';
 
 interface FacturesViewProps {
   articles: any[];
@@ -651,6 +652,11 @@ export default function FacturesView({
                             {o.rollLength && <span className="px-1.5 py-0.5 rounded bg-stone-100 text-stone-600 text-[8px] font-black">{o.rollLength}{o.rollLengthUnit || 'm'}</span>}
                             {o.packagingPerBag && <span className="px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 text-[8px] font-black">{o.packagingPerBag}rlx/sac</span>}
                           </div>
+                        ) : grammagesCurseur(o, subCategories, generalCategories).length ? (
+                          <div className="flex flex-wrap items-center gap-1">
+                            <span className="px-1.5 py-0.5 rounded bg-orange-100 text-orange-700 text-[8px] font-black">{grammagesCurseur(o, subCategories, generalCategories).join(' · ')} g/pc</span>
+                            {o.specs && <span className="text-stone-500 uppercase text-[9px]">{o.specs}</span>}
+                          </div>
                         ) : (
                           <span className="text-stone-500 uppercase text-[9px]">{o.specs || '-'}</span>
                         )}
@@ -752,6 +758,7 @@ export default function FacturesView({
           dossier={selectedFacture}
           articles={articles}
           factures={factures}
+          categories={subCategories}
           generalCategories={generalCategories}
         />
 
