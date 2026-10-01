@@ -439,7 +439,9 @@ export type Sale = {
 };
 
 // ── Bons de Transfert ──────────────────────────────────────────────────────────
-export type TransferOrderStatus = 'PENDING' | 'VALIDATED' | 'CANCELLED';
+// EN_ROUTE (depuis le 01/10/2026) : envoyé par un magasin, sortie déjà faite au départ, en attente
+// de réception (src/lib/transferts.ts). PENDING : un bon de l'ancien parcours jamais réceptionné.
+export type TransferOrderStatus = 'PENDING' | 'EN_ROUTE' | 'VALIDATED' | 'CANCELLED';
 
 export type TransferOrderItem = {
   articleId: string;
@@ -691,6 +693,8 @@ export type AuditAction =
   | 'PAYMENT_RECORDED' | 'PAYMENT_REJECTED' | 'PAYMENT_CLEARED'
   | 'CLIENT_CREATED' | 'CLIENT_UPDATED'
   | 'TRANSFER_CREATED' | 'TRANSFER_VALIDATED'
+  // Un envoi annulé avant réception : la marchandise revient au magasin de départ.
+  | 'TRANSFER_CANCELLED'
   | 'INVENTORY_RECONCILED'
   | 'RETURN_PROCESSED'
   // Un bon de commande peut se prendre sans prix et en recevoir un plus tard : ce passage-la

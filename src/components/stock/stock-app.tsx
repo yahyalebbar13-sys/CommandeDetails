@@ -61,6 +61,7 @@ import {
 } from '@/lib/bon-sans-prix';
 import { depassementRetour } from '@/lib/retours-facture';
 import { disponibleDepuis } from '@/lib/stock-disponible';
+import { transfertsAReceptionner } from '@/lib/transferts';
 import BandeauBonsComptoir from './rappel-bons-comptoir';
 import { Encadre, BoutonValider } from './ui-formulaire';
 import {
@@ -944,6 +945,11 @@ export default function StockApp() {
     if (!user?.email || !firestore) return;
     
     if (user.email.toLowerCase() === ADMIN_EMAIL.toLowerCase()) {
+      // StockApp reste monté pendant une déconnexion : sans cette remise à zéro, le patron qui se
+      // connecte après un compte magasin en lecture seule, sur le même poste, héritait de sa
+      // lecture seule (transferts bloqués « Compte en lecture seule »).
+      setIsReadOnly(false);
+      setUserStoreId(null);
       setUserRole('ADMIN');
       setActiveStore('ALL');
       setAdminUid(user.uid);
@@ -3182,6 +3188,19 @@ export default function StockApp() {
     pendingRobeRemisePayments.reduce((s, p) => s + (Number(p.amount) || 0), 0)
   , [pendingRobeRemisePayments]);
 
+  // Les transferts « À réceptionner » par ce compte : partis d'un autre magasin, destinés au sien,
+  // pas encore comptés. Pour l'admin : ceux du magasin choisi en haut, ou tous en vue globale.
+  // Ils font le badge du menu « Transferts » et, pour un magasin, le bandeau en haut de chaque écran.
+  // Les anciens bons PENDING (avant le 01/10/2026) ne comptent que pour l'admin : souvent réglés
+  // autrement depuis longtemps, ils feraient clignoter le badge d'un magasin sans fin.
+  const magasinQuiReceptionne = userRole === 'COMMERCIAL'
+    ? (userStoreId || '__aucun__')
+    : (activeStore === 'ALL' || activeStore === 'ALL_MAIN' ? null : activeStore);
+  const transfertsARecevoir = useMemo(
+    () => transfertsAReceptionner(transferOrders, magasinQuiReceptionne, { avecAnciens: userRole === 'ADMIN' }),
+    [transferOrders, magasinQuiReceptionne, userRole]
+  );
+
   // ── Navigation et droits (doit être avant les early returns pour éviter React Error 310) ──
   const navItemsRaw: Array<{ id: string; label: string; category: string; icon: any; adminOnly?: boolean; commercialOnly?: boolean; pointOfSaleOnly?: boolean; adminOrMainOnly?: boolean; badge?: number; badgeUrgent?: boolean; color?: string }> = useMemo(() => [
     { id: 'dashboard', label: 'Dashboard',    category: 'dashboard', icon: LayoutDashboard, adminOnly: true },
@@ -3203,7 +3222,7 @@ export default function StockApp() {
     { id: 'import-requests', label: "Demandes d'import", category: 'logistique', icon: Send, color: 'amber', commercialOnly: true },
     { id: 'arrivals',  label: 'Arrivages',     category: 'logistique', icon: Anchor,          badge: pendingArrivals, color: 'amber' },
     { id: 'movements', label: 'Mouvements',    category: 'logistique', icon: ArrowLeftRight },
-    { id: 'transfers', label: 'Transferts',    category: 'logistique', icon: Truck,           color: 'blue' },
+    { id: 'transfers', label: 'Transferts',    category: 'logistique', icon: Truck,           color: 'blue', badge: transfertsARecevoir.length || undefined, badgeUrgent: userRole === 'COMMERCIAL' && !isReadOnly && transfertsARecevoir.length > 0 },
     { id: 'inventory', label: 'Inventaire',    category: 'logistique', icon: ClipboardList,   color: 'amber' },
     // Vérification avant le passage au carton/rouleau compté en unité de vente : lecture seule.
     { id: 'cartons-rouleaux', label: 'Cartons et rouleaux', category: 'logistique', icon: Boxes, adminOnly: true },
@@ -3212,7 +3231,7 @@ export default function StockApp() {
     { id: 'reconciliation', label: 'Rappro. Bancaire', category: 'finance', icon: ArrowLeftRight, color: 'blue', adminOnly: true },
     
     { id: 'stores',     label: 'Paramètres',    category: 'settings', icon: Settings, adminOnly: true }
-  ], [pendingArrivals, openInvoices, alertCount, urgent7DaysEffects.length, rejectedChequesCount, commandesEnAttente, rappel.nombre]);
+  ], [pendingArrivals, openInvoices, alertCount, urgent7DaysEffects.length, rejectedChequesCount, commandesEnAttente, rappel.nombre, transfertsARecevoir.length, userRole, isReadOnly]);
 
   const currentStore = (activeStore !== 'ALL' && activeStore !== 'ALL_MAIN') ? stores.find(s => s.id === activeStore) : null;
   const isWarehouse = currentStore?.type === 'WAREHOUSE';
@@ -3229,11 +3248,10 @@ export default function StockApp() {
     return navItemsRaw.filter(item => {
       // Pour ADMIN : supprimer totalement Caisse et Frais & Dépenses
       if (userRole === 'ADMIN' && (item.id === 'sale' || item.id === 'expenses')) return false;
-      // Transferts : l'onglet était masqué à l'ADMIN — c'est-à-dire au SEUL profil que les règles
-      // Firestore autorisent à écrire les deux mouvements d'un transfert. Un compte magasin peut
-      // écrire la sortie de chez lui mais pas l'entrée chez l'autre, et le lot étant atomique, sa
-      // tentative n'écrivait rien du tout : la marchandise partait avec son bon, les deux stocks
-      // restaient inchangés. Tant que les règles ne sont pas élargies, c'est l'admin qui valide.
+      // Transferts : ouverts à tous. Depuis le 01/10/2026, ce sont les magasins qui envoient :
+      // chacun écrit SA sortie à l'envoi, et le magasin d'arrivée SON entrée à la réception —
+      // chaque écriture sous le nom de celui qui la fait, comme les règles Firestore l'exigent
+      // (src/lib/transferts.ts).
       // (Arrivages reste visible pour l'admin, avec un contenu différent : la réconciliation.)
       if (item.adminOnly && userRole !== 'ADMIN') return false;
       if (item.commercialOnly && userRole === 'ADMIN') return false;
@@ -3514,6 +3532,36 @@ export default function StockApp() {
             onSaisir={() => { setBonAOuvrir(rappel.plusAncien?.id || null); setActiveView('orders'); }}
           />
         )}
+        {/* Un magasin qui attend de la marchandise : sur tous les écrans, tant qu'elle n'est pas réceptionnée. */}
+        {userRole === 'COMMERCIAL' && transfertsARecevoir.length > 0 && activeView !== 'transfers' && (
+          <div className="mb-4 flex flex-col sm:flex-row sm:items-center gap-3 rounded-3xl border-2 border-amber-300 bg-amber-50 p-4">
+            <div className="flex items-start gap-3 flex-1 min-w-0">
+              <div className="p-2 rounded-2xl bg-amber-500 text-white shrink-0"><Truck className="w-5 h-5" /></div>
+              <div className="min-w-0">
+                <p className="text-sm font-black text-amber-900">
+                  {transfertsARecevoir.length} transfert{transfertsARecevoir.length > 1 ? 's' : ''} à réceptionner
+                </p>
+                <p className="text-[11px] font-medium text-amber-800 leading-snug">
+                  {isReadOnly
+                    ? 'De la marchandise est en route vers votre magasin. La réception se fait depuis le compte du magasin : votre compte est en lecture seule.'
+                    : 'De la marchandise est en route vers votre magasin. Elle n\'entre dans votre stock qu\'une fois réceptionnée : comptez-la à l\'arrivée, puis validez — avant tout inventaire, sinon elle serait comptée deux fois.'}
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                // Depuis un entrepôt, l'écran Transferts n'existe pas (seuls Stock et Mouvements) :
+                // on revient d'abord au magasin du compte, sinon le clic serait aussitôt annulé.
+                if (isWarehouse && userStoreId) setActiveStore(userStoreId as any);
+                setActiveView('transfers');
+              }}
+              className="shrink-0 h-10 px-4 rounded-2xl bg-amber-600 hover:bg-amber-700 text-white text-xs font-black"
+            >
+              {isReadOnly ? 'Voir les transferts' : 'Voir et réceptionner'}
+            </button>
+          </div>
+        )}
         {isLoading ? (
           <div className="flex flex-col items-center justify-center py-40 space-y-6">
             <div className="relative">
@@ -3730,6 +3778,7 @@ export default function StockApp() {
                 adminUid={adminUid}
                 onAddMovement={handleAddMovement}
                 onFinalizeSession={handleFinalizeInventorySession}
+                transferOrders={transferOrders}
               />
             )}
             {activeView === 'alerts' && (
@@ -3758,6 +3807,10 @@ export default function StockApp() {
                 userRole={userRole}
                 activeStore={activeStore}
                 adminUid={adminUid}
+                userStoreId={userStoreId}
+                lectureSeule={isReadOnly}
+                mouvementsCharges={!loadingMov && Boolean(rawMovements)}
+                horsLigne={!isOnline}
               />
             )}
             {activeView === 'warehouses' && isChrifaOrAdmin && (

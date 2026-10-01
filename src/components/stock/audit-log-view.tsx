@@ -23,6 +23,7 @@ const ACTION_STYLE: Record<string, { label: string; cls: string }> = {
   CLIENT_UPDATED:       { label: 'Client Modifié',    cls: 'bg-amber-100 text-amber-700' },
   TRANSFER_CREATED:     { label: 'Transfert Créé',    cls: 'bg-indigo-100 text-indigo-700' },
   TRANSFER_VALIDATED:   { label: 'Transfert Validé',  cls: 'bg-emerald-100 text-emerald-700' },
+  TRANSFER_CANCELLED:   { label: 'Transfert Annulé',  cls: 'bg-red-100 text-red-700' },
   INVENTORY_RECONCILED: { label: 'Inventaire',        cls: 'bg-amber-100 text-amber-700' },
   RETURN_PROCESSED:     { label: 'Retour Client',     cls: 'bg-orange-100 text-orange-700' },
   ORDER_UPDATED:        { label: 'Bon chiffré',       cls: 'bg-amber-100 text-amber-700' },

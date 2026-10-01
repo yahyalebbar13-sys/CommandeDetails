@@ -7,9 +7,10 @@ import { ProductPicker } from './stock-movement-modal';
 import {
   SectionFormulaire, Champ, Encadre, LigneResume, Recapitulatif, BoutonValider, CLASSE_CHAMP,
 } from './ui-formulaire';
-import type { StockItem, StockMovement, Store } from '@/lib/types';
+import type { StockItem, StockMovement, Store, TransferOrder } from '@/lib/types';
 import { MAGASIN_PRINCIPAL } from '@/lib/stock-disponible';
 import { suggestInboundLocation, stockItemVariant } from '@/lib/warehouse-locations';
+import { transfertsAReceptionner, numeroBonTransfert } from '@/lib/transferts';
 
 interface CountedLine {
   articleId: string;
@@ -35,11 +36,16 @@ interface BlindInventoryProps {
   onAddMovement: (m: Omit<StockMovement, 'id' | 'createdAt'>) => Promise<void>;
   onFinalizeSession?: (storeId: string, itemCount: number, varianceCount: number) => Promise<void>;
   adminUid: string | null;
+  /**
+   * Les bons de transfert : de la marchandise « en route » vers ce lieu n'est pas encore dans son
+   * stock. Comptée avant la réception, l'inventaire écrirait +N, puis la réception +N encore.
+   */
+  transferOrders?: TransferOrder[];
 }
 
 export default function BlindInventory({
   stockItems, categories, generalCategories, activeStore, stores, movements = [],
-  onAddMovement, onFinalizeSession,
+  onAddMovement, onFinalizeSession, transferOrders = [],
 }: BlindInventoryProps) {
   const [picking, setPicking] = useState(false);
   const [selected, setSelected] = useState<StockItem | null>(null);
@@ -50,6 +56,34 @@ export default function BlindInventory({
 
   const currentStore = stores.find(s => s.id === activeStore);
   const isRealStore = activeStore !== 'ALL' && activeStore !== 'ALL_MAIN';
+  /** La case « je ne l'ai pas comptée » pour le produit choisi, quand il est dans un transfert en route. */
+  const [horsTransfertConfirme, setHorsTransfertConfirme] = useState(false);
+
+  /**
+   * Les transferts en route vers CE lieu, pas encore réceptionnés. Leur marchandise peut déjà être
+   * physiquement là : comptée maintenant, elle entrerait deux fois — par l'inventaire, puis par la
+   * réception. Les ANCIENS bons en attente (d'avant le 15/09) sont écartés, comme du badge : leur
+   * marchandise est arrivée et a été recomptée depuis longtemps ; pousser à les réceptionner ici la
+   * ferait entrer une seconde fois. L'administrateur les clôt depuis l'écran Transferts.
+   */
+  const transfertsEnAttente = useMemo(
+    () => isRealStore ? transfertsAReceptionner(transferOrders, activeStore, { avecAnciens: false }) : [],
+    [transferOrders, activeStore, isRealStore]
+  );
+  /** Les bons en route qui contiennent la variante choisie. */
+  const bonsDuProduit = (item: StockItem | null) => {
+    if (!item) return [];
+    const realId = (item as any)._realArticleId || item.articleId;
+    const norm = (v: any) => String(v ?? '').trim().toLowerCase();
+    return transfertsEnAttente.filter(b => (b.items || []).some(l =>
+      (l.articleId === item.articleId)
+      || ((l.realArticleId || l.articleId) === realId
+        && norm(l.color) === norm(item.color) && norm(l.size) === norm(item.size) && norm(l.quality) === norm(item.quality))));
+  };
+  const bonsSelection = bonsDuProduit(selected);
+  const raisonTransfertEnRoute = bonsSelection.length > 0 && !horsTransfertConfirme
+    ? 'Ce produit est dans un transfert en route vers ce lieu : réceptionnez d\'abord le transfert, ou cochez la case ci-dessus si sa marchandise n\'a pas été comptée.'
+    : null;
 
   /**
    * Le stock que le logiciel croit avoir dans CE lieu.
@@ -81,6 +115,7 @@ export default function BlindInventory({
     const item = stockDuPerimetre.find(i => i.articleId === articleId);
     if (!item) return;
     setSelected(item);
+    setHorsTransfertConfirme(false);
     setCountedValue('');
     setPicking(false);
   };
@@ -92,6 +127,8 @@ export default function BlindInventory({
 
   const handleConfirmCount = async () => {
     if (!selected || countedValue === '' || saving) return;
+    // La touche Entrée passe à côté du bouton grisé : même garde ici.
+    if (raisonTransfertEnRoute) return;
     const theoretical = theoreticalQty(selected);
     const counted = Number(countedValue) || 0;
     const diff = counted - theoretical;
@@ -195,6 +232,15 @@ export default function BlindInventory({
           </div>
         </div>
       </div>
+
+      {transfertsEnAttente.length > 0 && (
+        <Encadre ton="attention" titre={`${transfertsEnAttente.length} transfert${transfertsEnAttente.length > 1 ? 's' : ''} en route vers ${nomDuLieu}, pas encore réceptionné${transfertsEnAttente.length > 1 ? 's' : ''}`}>
+          Leur marchandise n'est pas encore dans le stock de ce lieu. Si elle est déjà arrivée, réceptionnez
+          d'abord {transfertsEnAttente.length > 1 ? 'ces transferts' : 'ce transfert'} (écran Transferts) avant de compter :
+          sinon elle entrerait deux fois, par l'inventaire puis par la réception. Bons concernés :{' '}
+          <span className="font-black">{transfertsEnAttente.map(b => numeroBonTransfert(b.id)).join(', ')}</span>.
+        </Encadre>
+      )}
 
       {!isRealStore && (
         <Encadre ton="attention" titre="Choisissez d'abord un lieu précis">
@@ -349,6 +395,23 @@ export default function BlindInventory({
                   )}
                 </SectionFormulaire>
 
+                {bonsSelection.length > 0 && (
+                  <Encadre ton="attention" titre="Ce produit est dans un transfert en route">
+                    {bonsSelection.map(b => numeroBonTransfert(b.id)).join(', ')} en apporte vers {nomDuLieu}, sans être
+                    encore réceptionné. S'il est arrivé, réceptionnez d'abord le transfert, puis comptez. S'il n'est pas
+                    encore là, comptez sans lui et cochez la case.
+                    <label className="mt-2 flex items-start gap-2 font-bold cursor-pointer">
+                      <input
+                        type="checkbox"
+                        className="mt-0.5"
+                        checked={horsTransfertConfirme}
+                        onChange={e => setHorsTransfertConfirme(e.target.checked)}
+                      />
+                      La marchandise de ce transfert n'est pas dans mon comptage.
+                    </label>
+                  </Encadre>
+                )}
+
                 <SectionFormulaire
                   numero={3}
                   titre="Relisez, puis enregistrez"
@@ -400,7 +463,7 @@ export default function BlindInventory({
                     raisonDesactive={
                       countedValue === ''
                         ? 'Saisissez la quantité comptée à l\'étape 2 pour pouvoir valider.'
-                        : null
+                        : raisonTransfertEnRoute
                     }
                     className="!bg-emerald-600 hover:!bg-emerald-700"
                   >

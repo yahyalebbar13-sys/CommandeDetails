@@ -1538,7 +1538,12 @@ function ProduitsView() {
         
         let mouvIN = 0, mouvOUT = 0, mouvADJ = 0;
         for (const m of filteredMov) {
-          if (m.reason === 'TRANSFERT') continue; // Transfers cancel out in ALL mode
+          // Les transferts comptent comme les autres mouvements, tous magasins confondus : un
+          // transfert reçu en entier s'annule (sortie au départ = entrée à l'arrivée), mais depuis
+          // le 01/10/2026 la marchandise EN ROUTE est déjà sortie du départ sans être entrée à
+          // l'arrivée, et un manquant à la réception (perte au transport) n'a pas d'autre trace
+          // que cet écart. Les ignorer gardait en stock une marchandise perdue. Un transfert
+          // ancien sans type (IN/OUT) reste neutre, comme dans /stock.
           if (m.type === 'IN') mouvIN += m.quantity;
           if (m.type === 'OUT') mouvOUT += m.quantity;
           if (m.type === 'ADJUSTMENT') mouvADJ += m.quantity;
@@ -1572,7 +1577,7 @@ function ProduitsView() {
             const colorMov = filteredMov.filter((m: any) => m.color?.toLowerCase() === colorLabel.toLowerCase());
             let cIn = 0, cOut = 0, cAdj = 0;
             for (const m of colorMov) {
-              if (m.reason === 'TRANSFERT') continue;
+              // Transferts comptés comme ci-dessus (en route, perte au transport).
               if (m.type === 'IN') cIn += m.quantity;
               if (m.type === 'OUT') cOut += m.quantity;
               if (m.type === 'ADJUSTMENT') cAdj += m.quantity;
@@ -1598,7 +1603,7 @@ function ProduitsView() {
             const sizeMov = filteredMov.filter((m: any) => m.size?.toLowerCase() === sizeLabel.toLowerCase());
             let sIn = 0, sOut = 0, sAdj = 0;
             for (const m of sizeMov) {
-              if (m.reason === 'TRANSFERT') continue;
+              // Transferts comptés comme ci-dessus (en route, perte au transport).
               if (m.type === 'IN') sIn += m.quantity;
               if (m.type === 'OUT') sOut += m.quantity;
               if (m.type === 'ADJUSTMENT') sAdj += m.quantity;

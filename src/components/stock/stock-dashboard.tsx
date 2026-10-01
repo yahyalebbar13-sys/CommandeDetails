@@ -40,6 +40,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
 import type { StockMovement, StockItem, Sale, StoreLocation, Store, ClientPayment, Invoice, TransferOrder } from '@/lib/types';
 import { getLocalDateString } from '@/lib/constants';
+import { estEnRoute } from '@/lib/transferts';
 
 type StockView = 'dashboard' | 'pos' | 'stock' | 'sales' | 'movements' | 'alerts';
 
@@ -523,7 +524,8 @@ export default function StockDashboard({
     const dueAmount = duePayments.reduce((s, p) => s + (Number(p.amount) || 0), 0);
 
     const pendingTransfers = transferOrders.filter(t => {
-      if (t.status !== 'PENDING') return false;
+      // En route : EN_ROUTE (envoyé par un magasin depuis le 01/10/2026) ou PENDING (ancien bon).
+      if (!estEnRoute(t)) return false;
       if (effectiveStoreId === 'ALL' || effectiveStoreId === 'ALL_MAIN') return true;
       return t.toStore === effectiveStoreId || t.fromStore === effectiveStoreId;
     });

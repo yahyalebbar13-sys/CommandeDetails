@@ -40,11 +40,14 @@ const STYLE_MOUVEMENT: Record<string, { label: string; icon: any; bg: string; te
   ADJUSTMENT:    { label: 'Ajustement',          icon: SlidersHorizontal, bg: 'bg-blue-100',    text: 'text-blue-700',    border: 'border-blue-200',    qty: 'text-blue-600' },
   TRANSFERT_OUT: { label: 'Transfert · départ',  icon: ArrowLeftRight,    bg: 'bg-amber-100',   text: 'text-amber-800',   border: 'border-amber-200',   qty: 'text-amber-600' },
   TRANSFERT_IN:  { label: 'Transfert · arrivée', icon: ArrowLeftRight,    bg: 'bg-amber-100',   text: 'text-amber-800',   border: 'border-amber-200',   qty: 'text-amber-600' },
+  // Un envoi annulé avant réception : la marchandise revient dans le stock du départ — ce n'est
+  // pas une arrivée venue d'ailleurs.
+  TRANSFERT_ANNULE: { label: 'Transfert · annulé (retour au stock)', icon: ArrowLeftRight, bg: 'bg-stone-100', text: 'text-stone-700', border: 'border-stone-200', qty: 'text-stone-600' },
 };
 
 const cleDuMouvement = (m: StockMovement): string =>
   m?.reason === 'TRANSFERT'
-    ? (m.type === 'IN' ? 'TRANSFERT_IN' : 'TRANSFERT_OUT')
+    ? (m.type === 'IN' ? ((m as any).annulationTransfert === true ? 'TRANSFERT_ANNULE' : 'TRANSFERT_IN') : 'TRANSFERT_OUT')
     : (m?.type && STYLE_MOUVEMENT[m.type] ? m.type : 'ADJUSTMENT');
 
 const REASON_LABELS: Record<string, string> = {
