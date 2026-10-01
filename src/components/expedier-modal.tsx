@@ -77,26 +77,36 @@ export default function ExpedierModal({ open, onOpenChange, order, factures, art
   const qteArticle = Number(order?.quantity) || 0;
   const unite = order?.unitOfMeasure || '';
 
+  // « Toute la commande » remplit les quantités commandées (modifiables : le
+  // packing list peut dire plus) ; « Fractionner » les vide.
+  const choisirMode = (m: ModeExpedition) => {
+    setMode(m);
+    setParLigne(rep ? rep.lignes.map(l => (m === 'tout' ? String(Number(l[rep.qte]) || 0) : '')) : []);
+    setQuantite(m === 'tout' ? String(qteArticle) : '');
+  };
+
   useEffect(() => {
     if (!open) return;
-    setMode('tout');
-    setParLigne(rep ? rep.lignes.map(() => '') : []);
-    setQuantite('');
+    choisirMode('tout');
     setPoids('');
     setVolume('');
     setFactureId(dossier?.id || '');
     setArrivalDate(dossier?.arrivalDate || '');
     setCollage(null);
     setResultatCollage(null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, dossier, rep]);
 
   // Ce qui part, ce qui reste, à mesure de la saisie.
-  const qteEnvoyee = mode === 'tout'
-    ? qteArticle
-    : parLignes
-      ? parLigne.reduce((s, v) => s + (lireSaisie(v) || 0), 0)
-      : lireSaisie(quantite) || 0;
-  const qteRestante = Math.max(0, (parLignes && rep ? rep.lignes.reduce((s, l) => s + (Number(l[rep.qte]) || 0), 0) : qteArticle) - qteEnvoyee);
+  const commandees = parLignes && rep ? rep.lignes.map(l => Number(l[rep.qte]) || 0) : [];
+  const saisies = parLigne.map(v => lireSaisie(v) || 0);
+  const qteEnvoyee = parLignes ? saisies.reduce((s, q) => s + q, 0) : lireSaisie(quantite) || 0;
+  const qteRestante = parLignes
+    ? commandees.reduce((s, q, i) => s + Math.max(0, q - (saisies[i] || 0)), 0)
+    : Math.max(0, qteArticle - qteEnvoyee);
+  const surplus = parLignes
+    ? commandees.reduce((s, q, i) => s + Math.max(0, (saisies[i] || 0) - q), 0)
+    : Math.max(0, qteEnvoyee - qteArticle);
   const estimation = (v: unknown, d: number) => {
     const n = Number(v);
     return n > 0 && qteArticle > 0 ? Math.round((n * qteEnvoyee) / qteArticle * 10 ** d) / 10 ** d : null;
@@ -118,7 +128,7 @@ export default function ExpedierModal({ open, onOpenChange, order, factures, art
       const i = index.get(cleLibelle(m[1]));
       const q = lireSaisie(m[2]);
       if (i == null || q == null) { inconnus.push(m[1]); continue; }
-      valeurs[i] = String(Math.min(q, Number(rep.lignes[i][rep.qte]) || 0));
+      valeurs[i] = String(q);
       trouves++;
     }
     setParLigne(valeurs);
@@ -137,9 +147,7 @@ export default function ExpedierModal({ open, onOpenChange, order, factures, art
     const plan = planExpedition({
       article: order,
       dossier: { id: factureId.trim(), arrivalDate },
-      mode,
-      parLigne: parLigne.map(v => lireSaisie(v) || 0),
-      quantite: lireSaisie(quantite) || 0,
+      ...(parLignes ? { parLigne: saisies } : { quantite: lireSaisie(quantite) || 0 }),
       poidsNet: lireSaisie(poids),
       volume: lireSaisie(volume),
       articles,
@@ -166,7 +174,7 @@ export default function ExpedierModal({ open, onOpenChange, order, factures, art
     }
     toast({
       title: 'Expédié',
-      description: `${order.name} : ${fmt(plan.envoye.quantite)} ${unite} dans le dossier ${factureId.trim()}${plan.fusionneAvec ? ' (ajouté à la part déjà expédiée)' : ''}.`,
+      description: `${order.name} : ${fmt(plan.envoye.quantite)} ${unite}${plan.surplus > 0 ? ` (dont +${fmt(plan.surplus)} de surplus)` : ''} dans le dossier ${factureId.trim()}${plan.fusionneAvec ? ' (ajouté à la part déjà expédiée)' : ''}.`,
     });
 
     // Le client de la commande est prévenu, comme avant.
@@ -250,7 +258,7 @@ export default function ExpedierModal({ open, onOpenChange, order, factures, art
             <button
               key={m}
               type="button"
-              onClick={() => setMode(m)}
+              onClick={() => choisirMode(m)}
               className={`flex-1 p-3 rounded-xl border flex flex-col items-center gap-1 transition-all ${
                 mode === m
                   ? m === 'tout' ? 'bg-blue-50 border-blue-400 text-blue-800 shadow-sm' : 'bg-orange-50 border-orange-400 text-orange-800 shadow-sm'
@@ -264,11 +272,13 @@ export default function ExpedierModal({ open, onOpenChange, order, factures, art
           ))}
         </div>
 
-        {mode === 'partiel' && (
-          <div className="bg-orange-50 p-3 rounded-xl border-2 border-dashed border-orange-300 space-y-2">
+        {/* Les quantités qui partent : celles de la commande, ou plus si le packing list le dit */}
+        <div className={`p-3 rounded-xl border-2 border-dashed space-y-2 ${mode === 'tout' ? 'bg-blue-50/60 border-blue-200' : 'bg-orange-50 border-orange-300'}`}>
             {parLignes && rep ? (
               <>
-                <p className="text-[9px] font-black text-orange-700 uppercase tracking-widest">Quantité expédiée par ligne</p>
+                <p className="text-[9px] font-black text-orange-700 uppercase tracking-widest">
+                  Quantité expédiée par ligne{mode === 'tout' ? ' — modifiable, même au-delà de la commande' : ''}
+                </p>
                 <div className="bg-white rounded-xl border border-orange-200 overflow-hidden">
                   <button
                     type="button"
@@ -308,8 +318,9 @@ export default function ExpedierModal({ open, onOpenChange, order, factures, art
                   {rep.lignes.map((l, i) => {
                     const max = Number(l[rep.qte]) || 0;
                     const v = parLigne[i] || '';
+                    const enPlus = (lireSaisie(v) || 0) - max;
                     return (
-                      <div key={i} className={`flex items-center gap-2 px-3 py-1 rounded-xl border ${lireSaisie(v) ? 'bg-orange-100 border-orange-400' : 'bg-white border-stone-200'}`}>
+                      <div key={i} className={`flex items-center gap-2 px-3 py-1 rounded-xl border ${enPlus > 1e-9 ? 'bg-amber-100 border-amber-400' : lireSaisie(v) ? 'bg-orange-100 border-orange-400' : 'bg-white border-stone-200'}`}>
                         <span className="text-[10px] font-black uppercase w-28 truncate" title={libelleLigne(rep, l)}>{libelleLigne(rep, l) || `Ligne ${i + 1}`}</span>
                         <Input
                           inputMode="decimal"
@@ -318,8 +329,8 @@ export default function ExpedierModal({ open, onOpenChange, order, factures, art
                           placeholder="0"
                           className="h-8 border-orange-200 bg-white font-bold rounded-lg flex-1 text-right"
                         />
-                        <button type="button" onClick={() => setParLigne(p => p.map((x, j) => (j === i ? String(max) : x)))} className="text-[9px] text-stone-400 hover:text-orange-700 font-bold w-16 text-right" title="Toute la ligne">
-                          / {fmt(max)}
+                        <button type="button" onClick={() => setParLigne(p => p.map((x, j) => (j === i ? String(max) : x)))} className="text-[9px] text-stone-400 hover:text-orange-700 font-bold w-20 text-right" title="La quantité commandée">
+                          {enPlus > 1e-9 ? <span className="text-amber-700">+{fmt(enPlus)}</span> : `/ ${fmt(max)}`}
                         </button>
                       </div>
                     );
@@ -328,7 +339,9 @@ export default function ExpedierModal({ open, onOpenChange, order, factures, art
               </>
             ) : (
               <>
-                <p className="text-[9px] font-black text-orange-700 uppercase tracking-widest">Quantité expédiée (sur {fmt(qteArticle)} {unite})</p>
+                <p className="text-[9px] font-black text-orange-700 uppercase tracking-widest">
+                  Quantité expédiée (commande : {fmt(qteArticle)} {unite}){mode === 'tout' ? ' — modifiable, même au-delà' : ''}
+                </p>
                 <div className="flex items-center gap-2">
                   <Input inputMode="decimal" value={quantite} onChange={e => setQuantite(e.target.value)} placeholder="Ex : 500" className="h-10 border-orange-200 bg-white font-bold rounded-xl flex-1" />
                   <span className="text-[10px] font-bold text-orange-700">{unite}</span>
@@ -336,13 +349,13 @@ export default function ExpedierModal({ open, onOpenChange, order, factures, art
               </>
             )}
             {qteEnvoyee > 0 && (
-              <div className="flex gap-4 pt-2 border-t border-orange-200 text-[10px]">
+              <div className="flex flex-wrap gap-x-4 gap-y-1 pt-2 border-t border-orange-200 text-[10px]">
                 <span><b className="text-blue-700 uppercase">Transit :</b> {fmt(qteEnvoyee)} {unite}</span>
-                <span><b className="text-amber-700 uppercase">Reste en production :</b> {fmt(qteRestante)} {unite}</span>
+                <span><b className="text-stone-600 uppercase">Reste en production :</b> {qteRestante > 0 ? `${fmt(qteRestante)} ${unite}` : 'rien'}</span>
+                {surplus > 0 && <span><b className="text-amber-700 uppercase">Surplus :</b> +{fmt(surplus)} {unite} (part avec la commande)</span>}
               </div>
             )}
-          </div>
-        )}
+        </div>
 
         {/* Poids net et volume du packing list */}
         <div className="grid grid-cols-2 gap-3">
@@ -355,7 +368,7 @@ export default function ExpedierModal({ open, onOpenChange, order, factures, art
             <Input inputMode="decimal" value={volume} onChange={e => setVolume(e.target.value)} placeholder={volumeEstime != null ? `Estimé ${fmt(volumeEstime)}` : 'Ex : 2,5'} className="font-bold" />
           </div>
           <p className="col-span-2 text-[10px] text-stone-400 -mt-1">
-            Totaux de la part expédiée, lus sur le packing list. Vide : l'estimation de la fiche est gardée{mode === 'partiel' ? ' au prorata' : ''}.
+            Totaux de la part expédiée, lus sur le packing list. Vide : l'estimation de la fiche, au prorata de la quantité expédiée.
           </p>
         </div>
 

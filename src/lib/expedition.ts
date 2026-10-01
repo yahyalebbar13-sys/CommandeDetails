@@ -1,7 +1,8 @@
 /**
  * « Expédier » un article en production (PI) dans un dossier d'arrivage : toute
  * la commande, ou une partie (fractionner) — par ligne de répartition (couleurs,
- * designs, qualités, tailles) ou par quantité.
+ * designs, qualités, tailles) ou par quantité. Le packing list peut dire plus
+ * que la commande : le surplus part avec elle.
  *
  * Passer en transit = `status: 'SHIPPED'` + `factureId` du dossier ; le statut
  * affiché (TRANSIT / DOUANE / STOCK) se déduit ensuite des dates du dossier.
@@ -13,17 +14,19 @@
  * Tout est pur : le composant applique les écritures dans un seul lot Firestore.
  */
 
-import { libelleLigne, repartition } from './repartition';
+import { repartition } from './repartition';
 
 export type ModeExpedition = 'tout' | 'partiel';
 
 export type DemandeExpedition = {
   article: any;
   dossier: { id: string; arrivalDate: string };
-  mode: ModeExpedition;
-  /** Fractionner une répartition : quantité envoyée par ligne, même ordre que la fiche. */
+  /**
+   * Quantité expédiée par ligne de répartition, même ordre que la fiche ; ou,
+   * sans répartition, `quantite`. Absentes : toute la commande. Plus que la
+   * commande est permis (surplus) ; moins laisse le reste en production.
+   */
   parLigne?: number[];
-  /** Fractionner sans répartition : la quantité envoyée. */
   quantite?: number;
   /** Poids net total de la part expédiée (kg) ; null = estimation de la fiche. */
   poidsNet: number | null;
@@ -43,6 +46,8 @@ export type ResultatExpedition = {
   envoye: { quantite: number; couleur: string };
   /** L'article du dossier qui reçoit la part (même commande, même prix), s'il y en a un. */
   fusionneAvec: string | null;
+  /** Ce qui part au-delà de la commande (packing list plus généreux), dans l'unité de l'article. */
+  surplus: number;
 };
 
 const CHAMPS_CALCULES = ['effectiveStatus', 'rawStatus', 'statutEnBase'];
@@ -127,51 +132,66 @@ export function planExpedition(d: DemandeExpedition): ResultatExpedition | { err
     cubicMeasurement: d.volume != null ? arrondi(d.volume, 3) : part(a.cubicMeasurement, qte, qteArticle, 3),
   });
 
-  // ── Toute la commande ──────────────────────────────────────────────────────
-  if (d.mode === 'tout') {
-    const data: Record<string, any> = { ...transit, ...couleurNormalisee(a) };
-    if (d.poidsNet != null) data.netWeight = arrondi(d.poidsNet, 2);
-    if (d.volume != null) data.cubicMeasurement = arrondi(d.volume, 3);
-    return {
-      ecritures: [{ op: 'update', id: a.id, data }],
-      envoye: { quantite: qteArticle, couleur: couleurFiche },
-      fusionneAvec: null,
-    };
-  }
-
-  // ── Fractionner : ce qui part, ce qui reste ────────────────────────────────
+  // ── Ce qui part : les quantités saisies, toute la commande par défaut ─────
+  // Le packing list peut dire plus que la commande : le surplus part aussi.
   let envoyees: any[] | null = null;
   let restantes: any[] | null = null;
   let qteEnvoyee: number;
   let qteRestante: number;
+  let qteCommandee: number;
+  let modifiee: boolean;
+  let surplus = 0;
   if (rep && rep.lignes.length > 1) {
-    const parLigne = rep.lignes.map((_, i) => Math.max(0, nombre(d.parLigne?.[i])));
-    const trop = rep.lignes.findIndex((l, i) => parLigne[i] > nombre(l[rep.qte]) + 1e-9);
-    if (trop >= 0) return { erreur: `${libelleLigne(rep, rep.lignes[trop]) || `Ligne ${trop + 1}`} : plus que la commande (${nombre(rep.lignes[trop][rep.qte])}).` };
+    const commandees = rep.lignes.map(l => nombre(l[rep.qte]));
+    const parLigne = d.parLigne ? commandees.map((_, i) => Math.max(0, nombre(d.parLigne![i]))) : commandees;
     if (!parLigne.some(q => q > 0)) return { erreur: 'Saisis la quantité expédiée sur au moins une ligne.' };
-    if (rep.lignes.every((l, i) => parLigne[i] >= nombre(l[rep.qte]) - 1e-9)) {
-      return { erreur: 'Tout part : choisis « Toute la commande » plutôt que fractionner.' };
-    }
     envoyees = rep.lignes.flatMap((l, i) => (parLigne[i] > 0 ? [{ ...l, [rep.qte]: arrondi(parLigne[i], 3) }] : []));
     restantes = rep.lignes.flatMap((l, i) => {
-      const reste = arrondi(nombre(l[rep.qte]) - parLigne[i], 3);
+      const reste = arrondi(commandees[i] - parLigne[i], 3);
       return reste > 0 ? [{ ...l, [rep.qte]: reste }] : [];
     });
-    qteEnvoyee = arrondi(envoyees.reduce((s, l) => s + nombre(l[rep.qte]), 0), 3);
+    qteEnvoyee = arrondi(parLigne.reduce((s, q) => s + q, 0), 3);
     qteRestante = arrondi(restantes.reduce((s, l) => s + nombre(l[rep.qte]), 0), 3);
+    qteCommandee = commandees.reduce((s, q) => s + q, 0);
+    modifiee = parLigne.some((q, i) => Math.abs(q - commandees[i]) > 1e-9);
+    surplus = arrondi(parLigne.reduce((s, q, i) => s + Math.max(0, q - commandees[i]), 0), 3);
   } else {
-    const q = nombre(d.quantite);
-    if (!(q > 0) || q >= qteArticle) {
-      return { erreur: `Quantité à expédier : plus de 0 et moins de ${qteArticle} ${a.unitOfMeasure || ''} (sinon, « Toute la commande »).` };
-    }
+    const q = d.quantite != null ? nombre(d.quantite) : qteArticle;
+    if (!(q > 0)) return { erreur: 'Saisis la quantité expédiée.' };
     qteEnvoyee = arrondi(q, 3);
-    qteRestante = arrondi(qteArticle - q, 3);
+    qteRestante = Math.max(0, arrondi(qteArticle - q, 3));
+    qteCommandee = qteArticle;
+    modifiee = Math.abs(q - qteArticle) > 1e-9;
+    surplus = Math.max(0, arrondi(q - qteArticle, 3));
     if (rep) {
       envoyees = [{ ...rep.lignes[0], [rep.qte]: qteEnvoyee }];
-      restantes = [{ ...rep.lignes[0], [rep.qte]: qteRestante }];
+      restantes = qteRestante > 0 ? [{ ...rep.lignes[0], [rep.qte]: qteRestante }] : [];
     }
   }
 
+  // ── Rien ne reste en production : l'article passe en entier, surplus compris ──
+  if (qteRestante <= 0) {
+    const data: Record<string, any> = { ...transit, ...couleurNormalisee(a) };
+    if (modifiee) {
+      data.quantity = qteEnvoyee;
+      if (rep && envoyees) Object.assign(data, champsRepartition(rep.champ, rep.cle, envoyees));
+    }
+    const poidsTout = d.poidsNet != null ? arrondi(d.poidsNet, 2) : modifiee ? part(a.netWeight, qteEnvoyee, qteCommandee, 2) : undefined;
+    const volumeTout = d.volume != null ? arrondi(d.volume, 3) : modifiee ? part(a.cubicMeasurement, qteEnvoyee, qteCommandee, 3) : undefined;
+    if (poidsTout != null) data.netWeight = poidsTout;
+    if (volumeTout != null) data.cubicMeasurement = volumeTout;
+    const couleur = modifiee && envoyees && rep?.champ === 'colorBreakdown'
+      ? (envoyees.length === 1 ? envoyees[0][rep.cle] : 'various')
+      : couleurFiche;
+    return {
+      ecritures: [{ op: 'update', id: a.id, data }],
+      envoye: { quantite: modifiee ? qteEnvoyee : qteArticle, couleur },
+      fusionneAvec: null,
+      surplus,
+    };
+  }
+
+  // ── Une partie seulement : la part part, le reste reste en production ─────
   const origine = a.originalOrderId || a.id;
   const poids = poidsSaisis(qteEnvoyee);
   const ecritures: Ecriture[] = [];
@@ -226,5 +246,5 @@ export function planExpedition(d: DemandeExpedition): ResultatExpedition | { err
   if (a.factureId === d.dossier.id) reste.factureId = '';
   ecritures.push({ op: 'update', id: a.id, data: reste });
 
-  return { ecritures, envoye: { quantite: qteEnvoyee, couleur: couleurEnvoyee }, fusionneAvec: cible?.id ?? null };
+  return { ecritures, envoye: { quantite: qteEnvoyee, couleur: couleurEnvoyee }, fusionneAvec: cible?.id ?? null, surplus };
 }
