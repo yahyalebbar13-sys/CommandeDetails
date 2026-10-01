@@ -90,6 +90,11 @@ export default function GeneralCategoriesView({ articles = [], generalCategories
   // Dialogue « Spécifications de la ligne », et ligne en cours d'enregistrement.
   const [ligneEnEdition, setLigneEnEdition] = useState<{ nom: string; spec: SpecType } | null>(null);
   const [ligneEnCours, setLigneEnCours] = useState<string | null>(null);
+  // Nouvelle ligne logistique, sans pôle : un nom et ses spécifications qualités.
+  const [isLigneModalOpen, setIsLigneModalOpen] = useState(false);
+  const [newLigneNom, setNewLigneNom] = useState('');
+  const [newLigneSpec, setNewLigneSpec] = useState<SpecType | null>(null);
+  const [creatingLigne, setCreatingLigne] = useState(false);
 
   const now = new Date();
 
@@ -336,6 +341,34 @@ export default function GeneralCategoriesView({ articles = [], generalCategories
     return { ligne, specType: specPourLigne(ligne) };
   };
 
+  /** Crée une ligne logistique seule : elle attend ses pôles, qui recevront ses spécifications. */
+  const handleAddLigne = async () => {
+    const nom = newLigneNom.trim();
+    if (!nom || !newLigneSpec || creatingLigne) return;
+    const existante = trouverLigne(nom);
+    if (existante) {
+      toast({ variant: 'destructive', title: 'Cette ligne existe déjà', description: `« ${existante.nom} » : change ses spécifications avec « Spécifications de la ligne ».` });
+      return;
+    }
+    setCreatingLigne(true);
+    try {
+      await definirLigne(nom, newLigneSpec);
+      toast({ title: `Ligne ${nom.toUpperCase()} créée`, description: `Spécifications qualités : ${LIBELLE_SPEC[newLigneSpec].emoji} ${LIBELLE_SPEC[newLigneSpec].label}. Ajoute-lui ses pôles.` });
+      setNewLigneNom(''); setNewLigneSpec(null); setIsLigneModalOpen(false);
+    } catch (err: any) {
+      toast({ variant: 'destructive', title: 'Ligne non créée', description: err?.message });
+    } finally {
+      setCreatingLigne(false);
+    }
+  };
+
+  // Lignes créées sans pôle encore : elles n'apparaissent dans aucun groupe de pôles.
+  const lignesSansPole = useMemo(
+    () => lignes.filter(l => l.source === 'enregistree' && l.poles.length === 0
+      && (!searchTerm.trim() || cleLigne(l.nom).includes(searchTerm.trim().toLowerCase()))),
+    [lignes, searchTerm],
+  );
+
   const handleAddGeneralCategory = async () => {
     if (!user || !firestore || !newCatName.trim() || !newCatLine.trim() || creatingPole) return;
     setCreatingPole(true);
@@ -491,13 +524,52 @@ export default function GeneralCategoriesView({ articles = [], generalCategories
             className="pl-9 h-10 text-[10px] font-bold border-stone-200 bg-white rounded-xl focus:ring-stone-900 transition-all"
           />
         </div>
-        <Button
-          onClick={() => setIsModalOpen(true)}
-          className="bg-amber-500 hover:bg-amber-600 text-white px-5 h-10 rounded-xl shadow-lg shadow-amber-500/20 flex items-center gap-2 text-[10px] uppercase font-black tracking-widest transition-all hover:scale-105 active:scale-95"
-        >
-          <Plus className="w-3.5 h-3.5" /> Nouveau Pôle
-        </Button>
+        <div className="flex gap-2">
+          <Button
+            variant="outline"
+            onClick={() => setIsLigneModalOpen(true)}
+            className="px-5 h-10 rounded-xl border-stone-300 bg-white flex items-center gap-2 text-[10px] uppercase font-black tracking-widest text-stone-800 hover:bg-stone-50"
+          >
+            <Layers className="w-3.5 h-3.5" /> Nouvelle ligne
+          </Button>
+          <Button
+            onClick={() => setIsModalOpen(true)}
+            className="bg-amber-500 hover:bg-amber-600 text-white px-5 h-10 rounded-xl shadow-lg shadow-amber-500/20 flex items-center gap-2 text-[10px] uppercase font-black tracking-widest transition-all hover:scale-105 active:scale-95"
+          >
+            <Plus className="w-3.5 h-3.5" /> Nouveau Pôle
+          </Button>
+        </div>
       </div>
+
+      {/* ── Lignes créées, encore sans pôle ── */}
+      {lignesSansPole.length > 0 && (
+        <div className="p-4 rounded-2xl border-2 border-dashed border-stone-200 bg-white/60 space-y-2">
+          <p className="text-[9px] font-black uppercase tracking-widest text-stone-500">Lignes sans pôle</p>
+          {lignesSansPole.map(l => (
+            <div key={l.nom} className="flex flex-wrap items-center gap-2">
+              <span className="inline-flex items-center gap-1.5 text-[11px] font-black uppercase tracking-tight text-stone-900">
+                <PastilleLigne nom={l.nom} /> {l.nom}
+              </span>
+              <BadgeSpec specType={l.specType} />
+              <button
+                type="button"
+                disabled={ligneEnCours === l.nom}
+                onClick={() => setLigneEnEdition({ nom: l.nom, spec: l.specType })}
+                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full border border-stone-200 bg-white text-[9px] font-black uppercase tracking-widest text-stone-600 hover:border-stone-400 hover:text-stone-900 disabled:opacity-40"
+              >
+                <SlidersHorizontal className="w-2.5 h-2.5" /> Spécifications de la ligne
+              </button>
+              <button
+                type="button"
+                onClick={() => { setNewCatLine(l.nom); setNewCatLineSpec(null); setIsModalOpen(true); }}
+                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full border border-amber-300 bg-amber-50 text-[9px] font-black uppercase tracking-widest text-amber-800 hover:border-amber-500"
+              >
+                <Plus className="w-2.5 h-2.5" /> Pôle dans cette ligne
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* ── Content ── */}
       <div className="space-y-12">
@@ -760,6 +832,48 @@ export default function GeneralCategoriesView({ articles = [], generalCategories
           })
         )}
       </div>
+
+      {/* ── Modal: Nouvelle Ligne ── */}
+      <Dialog open={isLigneModalOpen} onOpenChange={o => { if (!creatingLigne) setIsLigneModalOpen(o); }}>
+        <DialogContent className="max-w-lg max-h-[85vh] sm:max-h-[90vh] flex flex-col gap-0 rounded-[1.5rem] p-0 border-none overflow-hidden shadow-2xl">
+          <div className="bg-stone-900 p-5 sm:p-6 text-white shrink-0">
+            <DialogTitle className="text-lg font-black uppercase tracking-tight">Nouvelle ligne logistique</DialogTitle>
+            <p className="text-stone-400 text-[9px] font-bold uppercase tracking-widest mt-1">Ses spécifications qualités vaudront pour tous ses pôles</p>
+          </div>
+          <div className="p-5 sm:p-6 space-y-4 flex-1 min-h-0 overflow-y-auto overscroll-contain">
+            <div className="space-y-1.5">
+              <label className="text-[9px] font-black text-stone-400 uppercase tracking-widest">Nom de la ligne <span className="text-red-600">*</span></label>
+              <Input
+                value={newLigneNom}
+                onChange={e => setNewLigneNom(e.target.value)}
+                placeholder="EX: ÉLASTIQUES, ÉTIQUETTES…"
+                className="h-12 uppercase font-black border-stone-200 rounded-xl text-base"
+                autoFocus
+                onKeyDown={e => e.key === 'Enter' && handleAddLigne()}
+              />
+              {trouverLigne(newLigneNom) && (
+                <p className="text-[10px] font-bold text-amber-700 flex items-center gap-1">
+                  <AlertTriangle className="w-3 h-3" /> La ligne « {trouverLigne(newLigneNom)!.nom} » existe déjà.
+                </p>
+              )}
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-[9px] font-black text-stone-400 uppercase tracking-widest">Spécifications qualités <span className="text-red-600">*</span></label>
+              <ChoixSpec valeur={newLigneSpec} onChange={setNewLigneSpec} />
+            </div>
+          </div>
+          <DialogFooter className="p-4 sm:p-6 bg-stone-50 gap-2 sm:gap-3 shrink-0 border-t border-stone-100 flex-row">
+            <Button variant="ghost" disabled={creatingLigne} onClick={() => setIsLigneModalOpen(false)} className="h-10 font-black uppercase text-[9px] tracking-widest flex-1">Annuler</Button>
+            <Button
+              onClick={handleAddLigne}
+              disabled={!newLigneNom.trim() || !newLigneSpec || Boolean(trouverLigne(newLigneNom)) || creatingLigne}
+              className="h-10 bg-stone-900 text-white font-black uppercase text-[9px] tracking-widest rounded-xl flex-[1.5] disabled:opacity-40"
+            >
+              Créer la ligne
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* ── Modal: Nouveau Pôle ── */}
       <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
