@@ -43,7 +43,7 @@ const FAQS = [
     questions: [
       { q: "Vos produits sont-ils de qualité professionnelle ?", a: "Oui : nos produits viennent de fournisseurs sélectionnés et sont contrôlés à l'arrivée. Nous proposons des produits pour professionnels et particuliers." },
       { q: "Proposez-vous des prix de gros ?", a: "Nos prix affichés sont des prix de gros (lots, rouleaux). Pour une grosse quantité, demandez un prix sur WhatsApp." },
-      { q: "Pourquoi certains articles affichent « Prix sur demande » ?", a: "Leur prix n'est pas encore en ligne : ils ne se commandent pas sur le site. Touchez « Demander le prix sur WhatsApp » sur la fiche, nous vous répondons pendant nos horaires (lundi au samedi, 8h30–18h30)." },
+      { q: "Pourquoi certains articles affichent « Prix sur demande » ?", a: "Leur prix n'est pas encore en ligne : ils ne se commandent pas sur le site. Touchez « Demander le prix sur WhatsApp » sur la fiche, nous vous répondons pendant nos horaires (lundi au samedi, 8h30–12h30 et 14h–18h)." },
       { q: "Les couleurs correspondent-elles aux photos ?", a: "Nous faisons notre maximum pour que les photos soient fidèles. De légères variations sont possibles selon les écrans, et entre deux bains de teinture. En cas de doute, contactez-nous avant de commander." },
       { q: "Puis-je commander des échantillons ?", a: "Oui, contactez-nous sur WhatsApp pour commander des échantillons avant de passer une grande commande." },
     ]
@@ -145,7 +145,7 @@ export default function FAQPage() {
         {/* Contact CTA */}
         <div className="mt-12 bg-[#0F0F0F] rounded-2xl p-8 text-center text-white">
           <h3 className="text-2xl font-bold mb-2" style={{ fontFamily: 'Outfit, sans-serif' }}>Vous n'avez pas trouvé votre réponse ?</h3>
-          <p className="text-gray-300 mb-6">Notre équipe vous répond du lundi au samedi, de 8h30 à 18h30.</p>
+          <p className="text-gray-300 mb-6">Notre équipe vous répond du lundi au samedi, de 8h30 à 12h30 et de 14h à 18h.</p>
           <div className="flex flex-col sm:flex-row gap-3 justify-center">
             <a href="https://wa.me/212760998347" target="_blank" rel="noopener noreferrer"
               className="flex items-center justify-center gap-2 bg-[#25D366] hover:bg-[#1da851] text-white px-6 py-3 rounded-xl font-semibold transition-colors">

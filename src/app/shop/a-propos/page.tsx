@@ -18,17 +18,19 @@ import {
 
 // ─── Data ──────────────────────────────────────────────────────────────────────
 
+// Des faits vérifiables seulement (02/10/2026 : « 500+ produits », « 2000+ clients »,
+// « +15 ans » et les avis sans source ont été retirés, à la demande du patron).
 const STATS = [
-  { number: "500+", label: "Produits disponibles" },
-  { number: "2000+", label: "Clients satisfaits" },
-  { number: "+15", label: "Ans d'expérience" },
-  { number: "48h", label: "Délai Casablanca max" },
+  { number: "2", label: "Magasins à Casablanca" },
+  { number: "24-48h", label: "Livraison à Casablanca" },
+  { number: "35 DH", label: "Livraison ailleurs au Maroc" },
+  { number: "0 DH", label: "Retrait en magasin" },
 ];
 
 // Des faits vérifiables, pas de promesse qu'on ne tient pas (7j/7, jour même, « certifiés », « meilleurs prix »)
 const TEAM_VALUES = [
   { icon: <Shield className="w-6 h-6" />, title: "Qualité avant tout", desc: "Nos produits viennent de fournisseurs sélectionnés et sont contrôlés à l'arrivée." },
-  { icon: <Zap className="w-6 h-6" />, title: "Réactivité", desc: "Réponse sur WhatsApp du lundi au samedi, 8h30–18h30, pour toutes vos questions." },
+  { icon: <Zap className="w-6 h-6" />, title: "Réactivité", desc: "Réponse sur WhatsApp du lundi au samedi, 8h30–12h30 et 14h–18h, pour toutes vos questions." },
   // Même discours que la FAQ et l'accueil (02/10/2026) : lots et rouleaux à prix de gros, grosses quantités sur WhatsApp
   { icon: <TrendingUp className="w-6 h-6" />, title: "Prix de gros", desc: "Importation directe. Lots et rouleaux à prix de gros ; pour une grosse quantité, demandez un prix sur WhatsApp." },
   { icon: <Handshake className="w-6 h-6" />, title: "Partenariat durable", desc: "Nous construisons des relations durables avec nos clients. Votre satisfaction est notre priorité absolue." },
@@ -43,7 +45,7 @@ const STORES = [
     address: "Boulevard Haïfa, Casablanca",
     city: "Casablanca",
     phone: "+212 760 998 347",
-    hours: "Lun–Sam : 8h30 – 18h30",
+    hours: "Lun–Sam : 8h30 – 12h30 et 14h – 18h",
     specialty: "Tous les produits · Spécialiste fermetures & mercerie",
     description:
       "Notre magasin historique et principal. Vous y trouverez l'intégralité de notre gamme : fermetures éclair nylon, métal et plastique, élastiques, rubans, boutons, accessoires couture et bien plus. Un stock massif sur place, disponible immédiatement.",
@@ -56,9 +58,9 @@ const STORES = [
       "/boutiques/haifa-3.jpg",
     ],
     stats: [
-      { label: "Références en stock", value: "5 000+" },
-      { label: "Années d'expérience", value: "15+" },
-      { label: "Clients professionnels", value: "2 000+" },
+      { label: "Rouleaux et gros volumes", value: "✓" },
+      { label: "Retrait des rouleaux", value: "✓" },
+      { label: "Commandes en gros", value: "✓" },
     ],
   },
   {
@@ -69,7 +71,7 @@ const STORES = [
     address: "Derb Omar, Casablanca",
     city: "Casablanca — H9RR+MRR",
     phone: "+212 760 998 347",
-    hours: "Lun–Sam : 8h30 – 18h30",
+    hours: "Lun–Sam : 8h30 – 12h30 et 14h – 18h",
     specialty: "Détail & Semi-gros · Fils, rubans, accessoires couture",
     description:
       "Notre magasin Derb Omar est spécialisé dans la vente au détail avec une large gamme de fils, rubans, élastiques et accessoires couture. Nous acceptons également les commandes en gros pour les professionnels et ateliers de confection. Derb Omar est le quartier historique du textile à Casablanca — venez directement sur place pour choisir parmi un stock varié et coloré.",
@@ -84,7 +86,7 @@ const STORES = [
     stats: [
       { label: "Vente au détail", value: "✓" },
       { label: "Commandes en gros", value: "✓" },
-      { label: "Fils & rubans", value: "1 000+" },
+      { label: "Fils & rubans", value: "✓" },
     ],
   },
 ];
@@ -377,13 +379,13 @@ export default function AProposPage() {
             </div>
             <div className="bg-[#D4A843] rounded-2xl p-6 text-white">
               <TrendingUp className="w-8 h-8 mb-3 opacity-80" />
-              <p className="font-bold text-lg mb-1" style={{ fontFamily: "Outfit, sans-serif" }}>+15 ans</p>
-              <p className="text-yellow-200 text-sm">D'expérience dans le secteur</p>
+              <p className="font-bold text-lg mb-1" style={{ fontFamily: "Outfit, sans-serif" }}>Partout au Maroc</p>
+              <p className="text-yellow-200 text-sm">Livraison à domicile, paiement à la réception</p>
             </div>
             <div className="bg-[#0F0F0F] rounded-2xl p-6 text-white">
               <Users className="w-8 h-8 mb-3 opacity-80" />
-              <p className="font-bold text-lg mb-1" style={{ fontFamily: "Outfit, sans-serif" }}>2000+</p>
-              <p className="text-gray-400 text-sm">Clients fidèles</p>
+              <p className="font-bold text-lg mb-1" style={{ fontFamily: "Outfit, sans-serif" }}>Ateliers & pros</p>
+              <p className="text-gray-400 text-sm">Prix de gros, conseil sur WhatsApp</p>
             </div>
             <div className="bg-[#10B981] rounded-2xl p-6 text-white">
               <Award className="w-8 h-8 mb-3 opacity-80" />
@@ -462,41 +464,12 @@ export default function AProposPage() {
           </div>
         </div>
 
-        {/* ── Témoignages ───────────────────────────────────────────────────────── */}
-        <div>
-          <div className="text-center mb-10">
-            <p className="text-[#C8102E] text-xs font-bold uppercase tracking-widest mb-3">Avis clients</p>
-            <h2 className="text-3xl font-black text-[#1A1A1A]" style={{ fontFamily: "Outfit, sans-serif" }}>Ce que disent nos clients</h2>
-          </div>
-          <div className="grid md:grid-cols-3 gap-5">
-            {[
-              { name: "Fatima Z.", city: "Casablanca", rating: 5, text: "Excellente qualité de fermetures, livraison rapide. Je commande régulièrement pour mon atelier de couture." },
-              { name: "Ahmed B.", city: "Marrakech", rating: 5, text: "Prix imbattables pour les élastiques et biais. Service client très réactif sur WhatsApp. Je recommande !" },
-              { name: "Samira R.", city: "Rabat", rating: 4, text: "Large gamme de produits, tout ce qu'il faut pour la mercerie. Paiement à la livraison très pratique." },
-            ].map(({ name, city, rating, text }) => (
-              <div key={name} className="bg-white border border-[#E8E4DF] rounded-2xl p-6 hover:shadow-lg transition-shadow">
-                <div className="flex text-[#D4A843] mb-3 text-lg">{"★".repeat(rating)}{"☆".repeat(5 - rating)}</div>
-                <p className="text-[#6B6B6B] text-sm leading-relaxed mb-4 italic">"{text}"</p>
-                <div className="flex items-center gap-3">
-                  <div className="w-9 h-9 rounded-full bg-[#C8102E] text-white flex items-center justify-center font-bold text-sm">
-                    {name[0]}
-                  </div>
-                  <div>
-                    <p className="font-semibold text-[#1A1A1A] text-sm">{name}</p>
-                    <p className="text-xs text-[#6B6B6B]">{city}</p>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-
         {/* ── CTA Final ─────────────────────────────────────────────────────────── */}
         <div className="bg-white border border-[#E8E4DF] rounded-2xl p-10 text-center">
           <Heart className="w-10 h-10 text-[#C8102E] mx-auto mb-4" />
           <h3 className="text-3xl font-black text-[#1A1A1A] mb-3" style={{ fontFamily: "Outfit, sans-serif" }}>Rejoignez la famille LEBTEX</h3>
           <p className="text-gray-400 mb-8 max-w-md mx-auto text-[15px]">
-            Commandez dès maintenant et découvrez pourquoi des milliers de couturiers nous font confiance.
+            Commandez en ligne, sur WhatsApp, ou passez nous voir à Derb Omar.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <Link

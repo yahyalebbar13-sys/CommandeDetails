@@ -75,8 +75,8 @@ const GUARANTEES: {
     icon: MessageCircle,
     title: { fr: "Support WhatsApp", ar: "الدعم عبر واتساب" },
     desc: {
-      fr: "Lundi–samedi, 8h30–18h30",
-      ar: <>من الإثنين إلى السبت، <bdi dir="ltr">8:30 – 18:30</bdi></>,
+      fr: "Lundi–samedi, 8h30–12h30 et 14h–18h",
+      ar: <>من الإثنين إلى السبت، <bdi dir="ltr">8:30–12:30 · 14:00–18:00</bdi></>,
     },
     color: "#25D366",
   },

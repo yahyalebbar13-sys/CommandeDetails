@@ -287,7 +287,7 @@ export default function PrecommandePage() {
                   <Clock className="w-5 h-5 text-[#C8102E] mt-0.5 flex-shrink-0" />
                   <div>
                     <p className="font-semibold text-gray-900 text-sm">Horaires d'ouverture</p>
-                    <p className="text-gray-500 text-sm">Lundi à Samedi : 09h00 – 18h00</p>
+                    <p className="text-gray-500 text-sm">Lundi à samedi : 8h30 – 12h30 et 14h – 18h</p>
                   </div>
                 </div>
                 <div className="flex items-start gap-3">

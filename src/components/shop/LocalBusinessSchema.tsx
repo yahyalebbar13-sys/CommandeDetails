@@ -128,12 +128,19 @@ export default function LocalBusinessSchema() {
           ],
         },
         // sameAs : ajouter ici les pages Google Business, Facebook, Instagram une fois vérifiées
+        // Horaires donnés par le patron le 02/10/2026 : 8h30–12h30 et 14h–18h, du lundi au samedi.
         openingHoursSpecification: [
           {
             '@type': 'OpeningHoursSpecification',
             dayOfWeek: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'],
             opens: '08:30',
-            closes: '18:30',
+            closes: '12:30',
+          },
+          {
+            '@type': 'OpeningHoursSpecification',
+            dayOfWeek: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'],
+            opens: '14:00',
+            closes: '18:00',
           },
         ],
         keywords: 'fermeture éclair, élastique, bouton, ruban, tissu, mercerie, Maroc, سحاب, مطاط, أزرار, قماش',

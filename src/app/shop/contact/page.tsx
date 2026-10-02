@@ -13,7 +13,7 @@ import {
 } from '@/lib/identite-lebtex';
 
 // Horaires réels de l'équipe (les mêmes que le pied de page et les magasins)
-const HORAIRES = { fr: 'du lundi au samedi, 8h30–18h30', ar: 'من الإثنين إلى السبت، 8:30 – 18:30' };
+const HORAIRES = { fr: 'du lundi au samedi, 8h30–12h30 et 14h–18h', ar: 'من الإثنين إلى السبت، 8:30–12:30 · 14:00–18:00' };
 
 // Sujets du formulaire, dans la langue du site (le message WhatsApp reprend le texte choisi)
 const SUJETS = [
@@ -111,7 +111,7 @@ export default function ContactPage() {
               </div>
               <div className="space-y-2 text-sm">
                 {[
-                  { day: ar ? 'من الإثنين إلى السبت' : 'Lundi - Samedi', hours: '8h30 - 18h30' },
+                  { day: ar ? 'من الإثنين إلى السبت' : 'Lundi - Samedi', hours: '8h30 - 12h30 / 14h - 18h' },
                   { day: ar ? 'الأحد' : 'Dimanche', hours: ar ? 'مغلق' : 'Fermé' },
                 ].map(({ day, hours }) => (
                   <div key={day} className="flex justify-between items-center py-2 border-b border-[#F3EFE8] last:border-0">
@@ -135,8 +135,8 @@ export default function ContactPage() {
               </h2>
               <p className="text-[#6B6B6B] text-sm mb-6">
                 {ar
-                  ? 'نجيبك على واتساب اليوم خلال أوقات العمل (من الإثنين إلى السبت، 8:30 – 18:30)، وإلا في يوم العمل الموالي.'
-                  : 'Nous vous répondons sur WhatsApp aujourd’hui pendant nos horaires (lundi au samedi, 8h30–18h30), sinon le jour ouvré suivant.'}
+                  ? 'نجيبك على واتساب اليوم خلال أوقات العمل (من الإثنين إلى السبت، 8:30–12:30 · 14:00–18:00)، وإلا في يوم العمل الموالي.'
+                  : 'Nous vous répondons sur WhatsApp aujourd’hui pendant nos horaires (lundi au samedi, 8h30–12h30 et 14h–18h), sinon le jour ouvré suivant.'}
               </p>
 
               {/* Rien n'est parti tant que le client n'a pas appuyé sur Envoyer dans WhatsApp */}

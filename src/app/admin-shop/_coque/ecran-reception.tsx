@@ -333,7 +333,7 @@ export function EcranReception({ db, zoneSendit }: {
                 </Champ>
               </div>
               <div className="sm:col-span-2">
-                <Champ libelle="Horaires" aide="Ex. Lundi au samedi, 8h30 – 18h30.">
+                <Champ libelle="Horaires" aide="Ex. Lundi au samedi, 8h30 – 12h30 et 14h – 18h.">
                   {(id, d) => <input id={id} aria-describedby={d} value={l.horaires} maxLength={120} onChange={e => majLieu(cle, 'horaires', e.target.value)} className={CHAMP} />}
                 </Champ>
               </div>

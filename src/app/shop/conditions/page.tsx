@@ -86,13 +86,13 @@ export default function ConditionsPage() {
                 <span key={tel}>{i > 0 && ' ou '}<a href={lienTel(tel)} className={`${lien} whitespace-nowrap`}>{tel}</a></span>
               ))}. WhatsApp : <a href={lienTel(WHATSAPP_BOUTIQUE)} className={`${lien} whitespace-nowrap`}>{WHATSAPP_BOUTIQUE}</a>.
               E-mail : <a href={`mailto:${EMAIL_LEBTEX}`} className={lien}>{EMAIL_LEBTEX}</a>.
-              Horaires : du lundi au samedi, de 8h30 à 18h30.
+              Horaires : du lundi au samedi, de 8h30 à 12h30 et de 14h à 18h.
             </p>
           </Section>
 
           <Section n={2} titre="Commande et confirmation">
             <Liste items={[
-              'Votre commande est enregistrée sur le site, puis confirmée par téléphone : nous vous appelons le jour même pendant nos horaires (lundi au samedi, 8h30–18h30), sinon le jour ouvré suivant.',
+              'Votre commande est enregistrée sur le site, puis confirmée par téléphone : nous vous appelons le jour même pendant nos horaires (lundi au samedi, 8h30–12h30 et 14h–18h), sinon le jour ouvré suivant.',
               'Si un article n’est plus disponible, nous vous le disons à l’appel et vous proposons une autre couleur (avec photo), d’attendre le prochain arrivage, un envoi partiel ou l’annulation. Vous ne payez que ce que vous recevez.',
               'Une commande qui contient un article volumineux (rouleau entier) devient ferme quand vous acceptez le prix du transport annoncé au téléphone. Avant cela, vous pouvez l’annuler sans frais.',
               'Toute autre commande peut être annulée sans frais avant son expédition ou sa remise.',

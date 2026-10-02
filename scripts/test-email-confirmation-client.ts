@@ -305,7 +305,7 @@ console.log('\n── Selon le mode de réception et le paiement (29/09/2026) �
   const reglages: ReglagesReception = {
     ...REGLAGES_RECEPTION_DEFAUT,
     lieux: {
-      derb_omar: { ...REGLAGES_RECEPTION_DEFAUT.lieux.derb_omar, nom: 'LEBTEX <i>Derb Omar</i>', adresse: 'Derb Omar, Casablanca', horaires: 'Lundi au samedi, 8h30 – 18h30' },
+      derb_omar: { ...REGLAGES_RECEPTION_DEFAUT.lieux.derb_omar, nom: 'LEBTEX <i>Derb Omar</i>', adresse: 'Derb Omar, Casablanca', horaires: 'Lundi au samedi, 8h30 – 12h30 et 14h – 18h' },
       chrifa: { ...REGLAGES_RECEPTION_DEFAUT.lieux.chrifa, nom: 'LEBTEX CHRIFA', adresse: '31 Rue 65, Aïn Chock', lienMaps: 'javascript:alert(1)' },
     },
     // Un RIB réglé : il ne doit jamais partir dans un e-mail automatique.
@@ -318,7 +318,7 @@ console.log('\n── Selon le mode de réception et le paiement (29/09/2026) �
   check('retrait reçu : où, et « nous vous confirmons le jour par WhatsApp »',
     rRecue.texte.includes('préparée à LEBTEX <i>Derb Omar</i> (Derb Omar, Casablanca)') && rRecue.texte.includes('nous vous confirmons le jour de retrait par WhatsApp'), rRecue.texte);
   check('retrait : horaires, paiement sur place, frais « gratuit », total au retrait',
-    rRecue.texte.includes('Horaires : Lundi au samedi, 8h30 – 18h30.') && rRecue.texte.includes('Le paiement se fait sur place')
+    rRecue.texte.includes('Horaires : Lundi au samedi, 8h30 – 12h30 et 14h – 18h.') && rRecue.texte.includes('Le paiement se fait sur place')
     && rRecue.texte.includes('Retrait : gratuit') && rRecue.texte.includes('TOTAL À PAYER AU RETRAIT'));
   check('retrait : ni livreur ni colis', !rRecue.texte.includes('société de livraison') && !rRecue.texte.includes('Le colis ne s’ouvre pas'));
   check('retrait : bloc « Lieu de retrait », magasin échappé dans le HTML',

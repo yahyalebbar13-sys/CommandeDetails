@@ -61,7 +61,7 @@ export const REGLAGES_RECEPTION_DEFAUT: ReglagesReception = {
       adresse: 'Derb Omar, Casablanca',
       lienMaps: 'https://www.google.com/maps?q=33.591740,-7.607993',
       telephone: '+212 760 998 347',
-      horaires: 'Lundi au samedi, 8h30 – 18h30',
+      horaires: 'Lundi au samedi, 8h30 – 12h30 et 14h – 18h',
       actif: true,
     },
     chrifa: {
@@ -69,7 +69,7 @@ export const REGLAGES_RECEPTION_DEFAUT: ReglagesReception = {
       adresse: ADRESSE_CHRIFA,
       lienMaps: MAPS_CHRIFA,
       telephone: '+212 760 998 347',
-      horaires: 'Lundi au samedi, 8h30 – 18h30',
+      horaires: 'Lundi au samedi, 8h30 – 12h30 et 14h – 18h',
       actif: true,
     },
   },

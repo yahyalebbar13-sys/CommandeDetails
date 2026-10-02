@@ -319,7 +319,7 @@ export function emailNouvelleCommande(
         <a href="${echapperHtml(lienAdmin)}" style="display:block;background:${COULEUR.rouge};color:#ffffff;text-align:center;padding:16px;border-radius:12px;font-size:16px;font-weight:900;text-decoration:none">Ouvrir la commande</a>
       </td></tr>
       <tr><td style="background:#f9fafb;border-top:1px solid ${COULEUR.trait};padding:14px 24px;border-radius:0 0 18px 18px">
-        <p style="margin:0;font-size:12px;color:${COULEUR.texte};font-weight:800">Promis au client : un appel aujourd'hui pendant les horaires (lundi au samedi, 8h30–18h30), sinon le jour ouvré suivant.</p>
+        <p style="margin:0;font-size:12px;color:${COULEUR.texte};font-weight:800">Promis au client : un appel aujourd'hui pendant les horaires (lundi au samedi, 8h30–12h30 et 14h–18h), sinon le jour ouvré suivant.</p>
         <p style="margin:4px 0 0;font-size:10px;color:#9CA3AF;font-weight:700">Message automatique de lebtex.ma${emailClient ? ' — répondre à cet e-mail écrit directement au client.' : '.'}</p>
       </td></tr>
     </table>
@@ -369,7 +369,7 @@ export function emailNouvelleCommande(
     '',
     `Ouvrir la commande : ${lienAdmin}`,
     '',
-    'Promis au client : un appel aujourd’hui pendant les horaires (lundi au samedi, 8h30–18h30), sinon le jour ouvré suivant.',
+    'Promis au client : un appel aujourd’hui pendant les horaires (lundi au samedi, 8h30–12h30 et 14h–18h), sinon le jour ouvré suivant.',
   ].join('\n');
 
   return { sujet, html, texte };

@@ -5,7 +5,7 @@ import { etiquettesPage } from '@/lib/catalogue-serveur';
 export const metadata: Metadata = etiquettesPage({
   titre: 'Contact',
   description:
-    'Une question, une commande en gros ? Écrivez à LEBTEX sur WhatsApp au +212 760 998 347, du lundi au samedi de 8h30 à 18h30.',
+    'Une question, une commande en gros ? Écrivez à LEBTEX sur WhatsApp au +212 760 998 347, du lundi au samedi de 8h30 à 12h30 et de 14h à 18h.',
   chemin: '/shop/contact',
 });
 

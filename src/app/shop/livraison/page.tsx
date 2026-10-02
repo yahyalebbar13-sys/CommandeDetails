@@ -76,7 +76,7 @@ const ETAPES = [
   { step: '01', title: 'Commande passée', desc: 'Vous commandez sur le site. Notre équipe la reçoit tout de suite.', icon: Package },
   {
     step: '02', title: 'Appel de confirmation', icon: Phone,
-    desc: 'Nous vous appelons aujourd’hui pendant nos horaires (lundi au samedi, 8h30–18h30), sinon le jour ouvré suivant : articles, adresse, frais.',
+    desc: 'Nous vous appelons aujourd’hui pendant nos horaires (lundi au samedi, 8h30–12h30 et 14h–18h), sinon le jour ouvré suivant : articles, adresse, frais.',
   },
   {
     step: '03', title: 'Préparation et expédition', icon: Truck,
@@ -349,7 +349,7 @@ export default function LivraisonPage() {
         {/* CTA */}
         <div className="bg-[#0F0F0F] rounded-2xl p-6 sm:p-8 text-center text-white">
           <h3 className="text-2xl font-bold mb-2" style={{ fontFamily: 'Outfit, sans-serif' }}>Une question sur votre livraison ?</h3>
-          <p className="text-gray-300 mb-6">Écrivez-nous sur WhatsApp, du lundi au samedi, de 8h30 à 18h30.</p>
+          <p className="text-gray-300 mb-6">Écrivez-nous sur WhatsApp, du lundi au samedi, de 8h30 à 12h30 et de 14h à 18h.</p>
           <a href="https://wa.me/212760998347" target="_blank" rel="noopener noreferrer"
             className="inline-flex items-center justify-center gap-2 min-h-[48px] bg-[#25D366] hover:bg-[#1da851] text-white px-8 py-3 rounded-xl font-bold transition-colors">
             <MessageCircle className="w-5 h-5" /> Contacter sur WhatsApp

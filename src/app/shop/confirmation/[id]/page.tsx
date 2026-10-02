@@ -33,8 +33,8 @@ type Etape = { icon: React.ComponentType<{ className?: string }>; title: string;
  * le soir et le dimanche). Les horaires des réglages sont en français seulement : écrits ici.
  */
 const QUAND_ON_APPELLE = {
-  fr: "aujourd'hui pendant nos horaires (lundi au samedi, 8h30–18h30), sinon le jour ouvré suivant",
-  ar: 'اليوم خلال أوقات عملنا (من الاثنين إلى السبت، 8:30–18:30)، وإلا ففي يوم العمل الموالي',
+  fr: "aujourd'hui pendant nos horaires (lundi au samedi, 8h30–12h30 et 14h–18h), sinon le jour ouvré suivant",
+  ar: 'اليوم خلال أوقات عملنا (من الاثنين إلى السبت، 8:30–12:30 و 14:00–18:00)، وإلا ففي يوم العمل الموالي',
 };
 
 /** Un montant pour le client : jamais « 0 MAD » (un prix encore à confirmer). */
@@ -700,7 +700,7 @@ export default function ConfirmationPage({ params }: { params: Promise<{ id: str
         {/* WhatsApp CTA — le message envoyé reste en français : il est lu par l'équipe. */}
         <div className="bg-[#0F0F0F] rounded-2xl p-6 mb-5 text-white text-center">
           <h3 className="font-black text-lg mb-1" style={{ fontFamily: 'Outfit, sans-serif' }}>{ar ? 'هل لديك سؤال حول طلبك؟' : 'Une question sur votre commande ?'}</h3>
-          <p className="text-gray-400 text-sm mb-4">{ar ? <>راسلنا على واتساب: نرد عليك من الإثنين إلى السبت، <bdi dir="ltr">8:30 – 18:30</bdi></> : 'Contactez-nous sur WhatsApp : réponse du lundi au samedi, 8h30–18h30'}</p>
+          <p className="text-gray-400 text-sm mb-4">{ar ? <>راسلنا على واتساب: نرد عليك من الإثنين إلى السبت، <bdi dir="ltr">8:30–12:30 · 14:00–18:00</bdi></> : 'Contactez-nous sur WhatsApp : réponse du lundi au samedi, 8h30–12h30 et 14h–18h'}</p>
           <a href={whatsappLink} target="_blank" rel="noopener noreferrer"
             className="inline-flex items-center gap-2 bg-[#25D366] hover:bg-[#1da851] text-white px-6 py-3 rounded-xl font-bold transition-colors">
             <MessageCircle className="w-5 h-5" /> {ar ? 'تواصل مع LEBTEX' : 'Contacter LEBTEX'}
