@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useMemo, useRef } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import {
@@ -14,8 +14,11 @@ import {
   MessageCircle,
   Layers,
   Zap,
+  Scissors,
+  LayoutGrid,
+  Percent,
 } from 'lucide-react';
-import { formatPrice } from '@/lib/shop-utils';
+import { formatPrice, getProductPromo } from '@/lib/shop-utils';
 import { FRAIS_ZONE } from '@/lib/livraison-boutique';
 import type { ShopCategory, ShopProduct } from '@/lib/shop-types';
 import { texte } from '@/lib/shop-textes';
@@ -25,12 +28,19 @@ import { melangerProduits, useGraineMelange } from '@/lib/melange-produits';
 import { useLanguage } from '@/contexts/language-context';
 import { useShopProducts } from '@/contexts/shop-products-context';
 
-// Accueil grossiste (02/10/2026) : court sur téléphone (environ 5 écrans avec le pied de
-// page). Haut de page validé par le patron, rayons, deux vitrines (fermetures d'abord),
-// commande en gros, réassurance. Plus de bloc « Offres du moment » ni de prix barrés.
+// Accueil grossiste (02/10/2026). Haut de page validé par le patron, rayons, PROMOTIONS
+// (produits dont l'admin a saisi un « Prix barré »), une vitrine par grande famille
+// (fermetures d'abord), commande en gros, puis TOUS les produits en grille (« Voir plus ») :
+// l'accueil doit montrer beaucoup de produits (demande du 02/10/2026 au soir).
 
 /** Produits par vitrine (une ligne qui défile). */
 const MAX_VITRINE = 10;
+/** La vitrine Promotions montre toutes les promotions, jusqu'à ce nombre. */
+const MAX_PROMOS = 16;
+/** Une vitrine de famille n'apparaît qu'à partir de ce nombre de produits. */
+const MIN_VITRINE = 3;
+/** Grille « Tous nos produits » : produits montrés d'abord, puis à chaque « Voir plus ». */
+const PAS_GRILLE = 20;
 const WHATSAPP = 'https://wa.me/212760998347';
 
 // « Voir tout » des fermetures : une recherche, dans la langue du site (la boutique ne filtre
@@ -45,6 +55,53 @@ function estRayonFermeture(rayon: ShopCategory, rayons: ShopCategory[]): boolean
   if (/fermeture/i.test(rayon.name)) return true;
   const parent = rayon.parentSlug ? rayons.find(c => c.slug === rayon.parentSlug) : undefined;
   return !!parent && /fermeture/i.test(parent.name);
+}
+
+// Familles des vitrines, reconnues au nom du produit ou de son rayon (sans accents).
+// Chaque produit n'apparaît que dans une vitrine ; l'ordre compte (fils avant accessoires,
+// et « coupe-fils » exclu des fils pour rester un accessoire).
+type Famille = {
+  cle: string;
+  titre: { fr: string; ar: string };
+  sousTitre: { fr: string; ar: string };
+  recherche: { fr: string; ar: string };
+  motif: RegExp;
+  exclure?: RegExp;
+};
+const FAMILLES: Famille[] = [
+  {
+    cle: 'fils',
+    titre: { fr: 'Fils à coudre', ar: 'خيوط الخياطة' },
+    sousTitre: { fr: 'Bobines, cônes et cannettes', ar: 'بكرات وكونات وكانيت' },
+    recherche: { fr: 'fil', ar: 'خيط' },
+    motif: /(^|[^a-z])(fil|fils|bobine|bobines|cannete|cannette|canette|monofilament)([^a-z]|$)/,
+    exclure: /coupe-?fils?/,
+  },
+  {
+    cle: 'tissus',
+    titre: { fr: 'Doublures, entoilages et tissus', ar: 'البطانة والحشوات والأقمشة' },
+    sousTitre: { fr: 'Au rouleau, pour ateliers et tailleurs', ar: 'باللفافة، للمعامل والخياطين' },
+    recherche: { fr: 'doublure', ar: 'بطانة' },
+    motif: /doublure|entoilage|viseline|thermocoll|popeline|feutrine|tissu|taffeta|crin/,
+  },
+  {
+    cle: 'elastiques',
+    titre: { fr: 'Élastiques, rubans et sangles', ar: 'المطاط والأشرطة والسانغل' },
+    sousTitre: { fr: 'Élastiques, biais, scratch, sangles de tapissier', ar: 'مطاط، بياي، سكراتش، سانغل الطابسري' },
+    recherche: { fr: 'élastique', ar: 'مطاط' },
+    motif: /elastique|ruban|biais|passepoil|sangle|scratch|velcro|auto-?agrippant|moubra|velvet/,
+  },
+  {
+    cle: 'accessoires',
+    titre: { fr: 'Boutons et accessoires', ar: 'الأزرار والإكسسوارات' },
+    sousTitre: { fr: 'Boutons, pressions, agrafes, outils de l’atelier', ar: 'أزرار، كبسولات، مشابك، أدوات المعمل' },
+    recherche: { fr: 'bouton', ar: 'أزرار' },
+    motif: /bouton|pression|agrafe|epingle|aiguille|ciseaux|coupe-?fils?|roulette|pistolet|colle|anneau|attache|presse|huile|applicateur|spray|strass|moule/,
+  },
+];
+
+function sansAccents(v: string): string {
+  return v.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
 }
 
 // ─── Section header ───────────────────────────────────────────────────────────
@@ -147,12 +204,15 @@ export default function AccueilBoutique() {
     );
   }, [categories]);
 
-  // Deux vitrines, chaque produit une seule fois. Seulement des produits disponibles et
-  // chiffrés : jamais de « Prix sur demande » en vitrine.
+  // Vitrines : fermetures, puis une par famille, puis la sélection. Chaque produit une seule
+  // fois. Seulement des produits disponibles et chiffrés : jamais de « Prix sur demande » en
+  // vitrine (ils restent dans la grille « Tous nos produits »).
   const vitrines = useMemo(() => {
     const montres = new Set<string>();
-    const prendre = (liste: ShopProduct[]) => {
-      const choisis = liste.filter(p => !montres.has(p.id)).slice(0, MAX_VITRINE);
+    const prendre = (liste: ShopProduct[], min = 1) => {
+      const libres = liste.filter(p => !montres.has(p.id));
+      if (libres.length < min) return [];
+      const choisis = libres.slice(0, MAX_VITRINE);
       choisis.forEach(p => montres.add(p.id));
       return choisis;
     };
@@ -162,11 +222,46 @@ export default function AccueilBoutique() {
     const dansFermetures = (p: ShopProduct) =>
       rayonsFermeture.has(p.categorySlug) || !!p.additionalCategorySlugs?.some(s => rayonsFermeture.has(s));
     const vendables = products.filter(p => p.inStock !== false && !sansPrix(p));
+    const nomRayon = (p: ShopProduct) =>
+      categories.find(c => c.slug === p.categorySlug || c.id === p.categorySlug)?.name ?? '';
+
+    // Promotions d'abord : plus forte remise en premier
+    const enPromo = vendables
+      .filter(p => getProductPromo(p).active)
+      .sort((a, b) => getProductPromo(b).percent - getProductPromo(a).percent)
+      .slice(0, MAX_PROMOS);
+    enPromo.forEach(p => montres.add(p.id));
+    const remiseMax = enPromo.reduce((max, p) => Math.max(max, getProductPromo(p).percent), 0);
 
     const fermetures = prendre(melangerProduits(vendables.filter(dansFermetures), graine));
-    const selection = prendre(melangerProduits(vendables.filter(p => p.isFeatured), graine));
-    return { fermetures, selection };
+    const familles = FAMILLES.map(famille => ({
+      famille,
+      produits: prendre(
+        melangerProduits(
+          vendables.filter(p => {
+            const nom = sansAccents(p.name);
+            if (famille.exclure?.test(nom)) return false;
+            return famille.motif.test(nom) || famille.motif.test(sansAccents(nomRayon(p)));
+          }),
+          graine
+        ),
+        MIN_VITRINE
+      ),
+    })).filter(v => v.produits.length > 0);
+    const selection = prendre(melangerProduits(vendables.filter(p => p.isFeatured), graine), MIN_VITRINE);
+    return { promotions: enPromo, remiseMax, fermetures, familles, selection };
   }, [categories, products, graine]);
+
+  // Grille « Tous nos produits » : tout le catalogue visible, les produits chiffrés et
+  // disponibles d'abord (mélangés à chaque visite), puis les « Prix sur demande ».
+  const tousLesProduits = useMemo(() => {
+    const estVendable = (p: ShopProduct) => p.inStock !== false && !sansPrix(p);
+    return [
+      ...melangerProduits(products.filter(estVendable), graine),
+      ...melangerProduits(products.filter(p => !estVendable(p)), graine),
+    ];
+  }, [products, graine]);
+  const [nbGrille, setNbGrille] = useState(PAS_GRILLE);
 
   // Plus de livraison offerte (30/09/2026) : on annonce le vrai prix, bas et clair.
   const prixCasa = formatPrice(FRAIS_ZONE.casablanca);
@@ -295,6 +390,32 @@ export default function AccueilBoutique() {
         </div>
       </section>
 
+      {/* ═══ 3 bis. PROMOTIONS : prix barré saisi dans l'admin (vrai ancien prix) ═══ */}
+      {vitrines.promotions.length > 0 && (
+        <section className="pt-6 px-4 sm:px-6 lg:px-12">
+          <div className="container mx-auto rounded-2xl bg-white border-2 border-[#C8102E]/15 p-3 sm:p-4">
+            <SectionHeader
+              icon={
+                <span className="w-7 h-7 rounded-lg bg-[#C8102E] flex items-center justify-center">
+                  <Percent className="w-4 h-4 text-white" />
+                </span>
+              }
+              title={isAr ? 'العروض' : 'Promotions'}
+              subtitle={
+                vitrines.remiseMax > 0
+                  ? isAr
+                    ? `تخفيض يصل إلى ${vitrines.remiseMax}%`
+                    : `Jusqu'à -${vitrines.remiseMax} %`
+                  : undefined
+              }
+              href="/shop/promotions"
+              linkLabel={isAr ? 'كل العروض' : 'Toutes les promos'}
+            />
+            <ProductRail products={vitrines.promotions} />
+          </div>
+        </section>
+      )}
+
       {/* ═══ 4. VITRINE : FERMETURES ═══ */}
       {vitrines.fermetures.length > 0 && (
         <section className="pt-6 px-4 sm:px-6 lg:px-12">
@@ -311,7 +432,23 @@ export default function AccueilBoutique() {
         </section>
       )}
 
-      {/* ═══ 5. VITRINE : NOTRE SÉLECTION ═══ */}
+      {/* ═══ 5. VITRINES PAR FAMILLE ═══ */}
+      {vitrines.familles.map(({ famille, produits }) => (
+        <section key={famille.cle} className="pt-6 px-4 sm:px-6 lg:px-12">
+          <div className="container mx-auto">
+            <SectionHeader
+              icon={<Scissors className="w-5 h-5 text-[#C8102E]" />}
+              title={famille.titre[language]}
+              subtitle={famille.sousTitre[language]}
+              href={`/shop/boutique?q=${encodeURIComponent(famille.recherche[language])}`}
+              linkLabel={isAr ? 'عرض الكل' : 'Voir tout'}
+            />
+            <ProductRail products={produits} />
+          </div>
+        </section>
+      ))}
+
+      {/* ═══ 5 bis. VITRINE : NOTRE SÉLECTION (ce qui n'est pas déjà montré) ═══ */}
       {vitrines.selection.length > 0 && (
         <section className="pt-6 px-4 sm:px-6 lg:px-12">
           <div className="container mx-auto">
@@ -360,6 +497,39 @@ export default function AccueilBoutique() {
           </a>
         </div>
       </section>
+
+      {/* ═══ 6 bis. TOUS NOS PRODUITS : grille, « Voir plus » ═══ */}
+      {tousLesProduits.length > 0 && (
+        <section className="pt-8 px-4 sm:px-6 lg:px-12">
+          <div className="container mx-auto">
+            <SectionHeader
+              icon={<LayoutGrid className="w-5 h-5 text-[#C8102E]" />}
+              title={isAr ? 'كل منتجاتنا' : 'Tous nos produits'}
+              subtitle={isAr ? `${tousLesProduits.length} منتج` : `${tousLesProduits.length} produits`}
+              href="/shop/boutique"
+              linkLabel={isAr ? 'المتجر' : 'Boutique'}
+            />
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4">
+              {tousLesProduits.slice(0, nbGrille).map((product) => (
+                <ProductCard key={product.id} product={product} />
+              ))}
+            </div>
+            {nbGrille < tousLesProduits.length && (
+              <div className="mt-5 text-center">
+                <button
+                  type="button"
+                  onClick={() => setNbGrille(n => n + PAS_GRILLE)}
+                  className="inline-flex items-center gap-2 min-h-[44px] px-6 py-2.5 rounded-xl bg-[#0F0F0F] hover:bg-[#2a2a2a] text-white font-bold text-sm touch-manipulation"
+                >
+                  {isAr
+                    ? `عرض المزيد (${tousLesProduits.length - nbGrille})`
+                    : `Voir plus de produits (${tousLesProduits.length - nbGrille})`}
+                </button>
+              </div>
+            )}
+          </div>
+        </section>
+      )}
 
       {/* ═══ 7. RÉASSURANCE : paiement et retrait ═══ */}
       {/* Livraison et retour 14 jours sont déjà dans la bande du pied de page, juste en dessous

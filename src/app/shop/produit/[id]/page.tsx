@@ -11,7 +11,6 @@ import {
 } from 'lucide-react';
 import ChoixVariante from '@/components/shop/ChoixVariante';
 import GaleriePhotos from '@/components/shop/GaleriePhotos';
-import InfoLivraison from '@/components/shop/InfoLivraison';
 import MemeRayon, { produitsDuMemeRayon } from '@/components/shop/MemeRayon';
 import PartagerProduit from '@/components/shop/PartagerProduit';
 import { useShopProducts } from '@/contexts/shop-products-context';
@@ -362,11 +361,7 @@ export default function ProductPage({ params }: { params: Promise<{ id: string }
                 <PartagerProduit id={product.id} nom={nom} />
               </div>
 
-              {/* ── Livraison : toutes les villes, retrait gratuit, paiement à la livraison.
-                     Rouleau entier : la notice du transport organisé par téléphone ── */}
-              <div className="mt-4">
-                <InfoLivraison fiche volumineux={!!product.volumineux} />
-              </div>
+              {/* Plus de frais de livraison sur la fiche (02/10/2026) : ils s'affichent au panier et à la commande */}
 
               {/* ── Dynamic Technical Specifications (Changes live with model/size) ── */}
               {activeSpecs.length > 0 && (

@@ -6,7 +6,8 @@
 // Sans prix (le produit, ou la variante choisie) : « Prix sur demande », pas d'état de stock,
 // et le bouton rouge demande le prix sur WhatsApp au lieu d'ajouter au panier.
 // Sous le prix : ce qu'on achète (« Vendu par rouleau de 50 m ») et, quand c'est sûr, le prix
-// au mètre ou à la pièce (lib/unite-vente). Jamais de prix barré ni de pourcentage.
+// au mètre ou à la pièce (lib/unite-vente). Promotion : ancien prix barré et « -X % », seulement
+// si l'admin a saisi un « Prix barré » plus haut que le prix facturé.
 
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Check, Layers, ListPlus, MessageCircle, Minus, Plus, ShoppingCart } from 'lucide-react';
@@ -15,7 +16,7 @@ import { useShopCartActions, useShopCartState } from '@/contexts/shop-cart-conte
 import type { CartItem, ProductVariant, ShopProduct } from '@/lib/shop-types';
 import type { Language } from '@/lib/translations';
 import { translations } from '@/lib/translations';
-import { formatPrice, getWhatsAppContact } from '@/lib/shop-utils';
+import { formatPrice, getDiscountPercent, getWhatsAppContact, hasActivePromo } from '@/lib/shop-utils';
 import { prixUnitaire, textePrixUnitaire, texteUnite, uniteDeVente } from '@/lib/unite-vente';
 import {
   analyserVariantes,
@@ -247,6 +248,7 @@ export default function ChoixVariante({ product, onSelectionChange, onImagePrevi
     : aVariantes
       ? prixDesVariantes(product.price, compatibles)
       : { montant: product.price || 0, aPartirDe: false };
+  const promo = !prix.aPartirDe && hasActivePromo(product.comparePrice, prix.montant);
   // Aucun prix pour ce qui est choisi (ou pour tout le produit) : on demande le prix sur WhatsApp
   const demandePrix = prix.montant <= 0;
   // Ce qu'on achète pour ce prix (variante choisie, sinon ce que toutes les variantes partagent)
@@ -707,6 +709,14 @@ export default function ChoixVariante({ product, onSelectionChange, onImagePrevi
             {textePrix(prix.montant)}
           </bdi>
         </span>
+        {promo && !demandePrix && (
+          <span className="flex items-baseline gap-2">
+            <bdi dir="ltr" className="text-lg font-semibold text-neutral-400 line-through">{formatPrice(product.comparePrice as number)}</bdi>
+            <span dir="ltr" className="self-center bg-[#C8102E] text-white text-xs font-black px-2 py-0.5 rounded-full">
+              -{getDiscountPercent(prix.montant, product.comparePrice as number)}%
+            </span>
+          </span>
+        )}
         {/* Sans prix : pas d'état de stock, sauf la rupture (comme sur la carte) */}
         {(!demandePrix || enRupture) && (
           <span

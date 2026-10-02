@@ -10,6 +10,7 @@ import {
   estNouveau,
   formatPrice,
   formatProductPrice,
+  getProductPromo,
   getWhatsAppContact,
 } from '@/lib/shop-utils';
 import type { ShopProduct } from '@/lib/shop-types';
@@ -74,7 +75,9 @@ export default React.memo(function ProductCard({ product, showAddToCart = true }
   const [imgLoaded, setImgLoaded] = useState(false);
 
   const primaryImage = product.images?.[0] || `https://picsum.photos/seed/${product.id}/600/600`;
-  // Plus de prix barré ni de « -X % » (02/10/2026) ; « Nouveau » seulement 60 jours après l'ajout
+  // Promotion (prix barré saisi dans l'admin) calculée sur le prix affiché, comme sur la fiche ;
+  // « Nouveau » seulement 60 jours après l'ajout
+  const { active: isPromo, percent: discountPercent } = getProductPromo(product);
   const maintenant = useMaintenant();
   const nouveau = maintenant > 0 && estNouveau(product, maintenant);
   const hasWholesalePrice = Boolean(product.wholesalePrice && product.wholesalePrice > 0 && product.wholesalePrice < product.price && product.minOrderQty && product.minOrderQty > 1);
@@ -134,8 +137,14 @@ export default React.memo(function ProductCard({ product, showAddToCart = true }
           <div className="absolute inset-0 bg-gradient-to-r from-gray-100 via-gray-50 to-gray-100 animate-pulse pointer-events-none" />
         )}
 
-        {/* Badge nouveauté — coin haut */}
-        {nouveau && (
+        {/* Badge réduction — coin haut, très visible en défilant */}
+        {isPromo && discountPercent > 0 && (
+          <span className="absolute top-1.5 start-1.5 bg-[#C8102E] text-white text-[10px] font-black px-1.5 py-0.5 rounded shadow-sm">
+            <bdi dir="ltr">-{discountPercent}%</bdi>
+          </span>
+        )}
+        {/* Badge nouveauté — coin haut, seulement sans promo (évite la surcharge) */}
+        {!isPromo && nouveau && (
           <span className="absolute top-1.5 end-1.5 bg-emerald-600 text-white text-[9px] font-black px-1.5 py-0.5 rounded shadow-sm uppercase">
             {language === 'ar' ? 'جديد' : 'Nouveau'}
           </span>
@@ -165,9 +174,16 @@ export default React.memo(function ProductCard({ product, showAddToCart = true }
         {/* Price row + cart button */}
         <div className="flex flex-wrap items-end justify-between gap-x-2 gap-y-1 mt-1">
           <div className="flex flex-col">
-            <span className={`font-extrabold text-[#C8102E] leading-tight whitespace-nowrap ${surDemande ? 'text-[13px]' : 'text-[15px]'}`}>
-              {surDemande ? PRIX_SUR_DEMANDE[language] : formatProductPrice(product, language)}
-            </span>
+            <div className="flex flex-wrap items-baseline gap-x-1.5">
+              <span className={`font-extrabold text-[#C8102E] leading-tight whitespace-nowrap ${surDemande ? 'text-[13px]' : 'text-[15px]'}`}>
+                {surDemande ? PRIX_SUR_DEMANDE[language] : formatProductPrice(product, language)}
+              </span>
+              {isPromo && !surDemande && (
+                <span className="text-[11px] text-gray-400 line-through leading-tight whitespace-nowrap">
+                  {formatPrice(product.comparePrice as number)}
+                </span>
+              )}
+            </div>
             {hasWholesalePrice && (
               <span className="text-[10px] font-semibold text-emerald-600 mt-0.5">
                 {language === 'ar' ? `من ${product.minOrderQty}: ${formatPrice(product.wholesalePrice as number)}` : `À partir de ${product.minOrderQty} : ${formatPrice(product.wholesalePrice as number)}/pc`}

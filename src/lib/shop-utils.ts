@@ -33,20 +33,26 @@ export function getProductDisplayPrice(product: Pick<ShopProduct, 'price' | 'var
   return { amount: montant, isFrom: aPartirDe };
 }
 
-// ─── Plus aucun prix barré (décision du patron, 02/10/2026) ───────────────────
-// Ni ancien prix barré, ni « -X % », ni badge promo, nulle part sur la boutique.
-// L'ancien prix saisi dans l'admin (comparePrice) est ignoré à l'affichage ; le prix
-// facturé (price / variantes) ne change pas. Plus aucun écran n'appelle ces deux fonctions ;
-// elles restent, et répondent toujours « pas de promotion », pour un écran qui les importerait encore.
-
-export function getProductPromo(
-  _product: Pick<ShopProduct, 'price' | 'variants' | 'comparePrice'>,
-): { active: boolean; percent: number; saving: number } {
-  return { active: false, percent: 0, saving: 0 };
+// ─── Promotions (rétablies le 02/10/2026 au soir, à la demande de l'utilisateur) ─
+// Un produit est en promotion seulement si l'admin a saisi un « Prix barré » (comparePrice)
+// plus élevé que le prix facturé. Le prix barré doit être un vrai ancien prix (loi 31-08 :
+// pas de faux prix de référence). Calculée sur le prix affiché, et seulement quand ce prix
+// est exact (pas « À partir de »), comme sur la fiche produit.
+export function getProductPromo(product: Pick<ShopProduct, 'price' | 'variants' | 'comparePrice'>): { active: boolean; percent: number; saving: number } {
+  const { amount, isFrom } = getProductDisplayPrice(product);
+  const active = !isFrom && hasActivePromo(product.comparePrice, amount);
+  if (!active) return { active: false, percent: 0, saving: 0 };
+  const compare = product.comparePrice as number;
+  return { active: true, percent: getDiscountPercent(amount, compare), saving: compare - amount };
 }
 
-export function hasActivePromo(_comparePrice?: number, _price?: number): boolean {
-  return false;
+export function hasActivePromo(comparePrice?: number, price?: number): boolean {
+  return !!(comparePrice && price && comparePrice > price);
+}
+
+export function getDiscountPercent(price: number, comparePrice: number): number {
+  if (!comparePrice || !price || comparePrice <= price) return 0;
+  return Math.round(((comparePrice - price) / comparePrice) * 100);
 }
 
 // ─── Badge « Nouveau » (02/10/2026) ───────────────────────────────────────────

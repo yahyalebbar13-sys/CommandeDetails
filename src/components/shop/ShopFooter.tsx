@@ -41,6 +41,7 @@ const SERVICE_LINKS = [
   { fr: "Suivi de commande", ar: "تتبع الطلب", href: "/shop/suivi" },
   { fr: "À propos de LEBTEX", ar: "من نحن", href: "/shop/a-propos" },
   { fr: "Service Import", ar: "خدمة الاستيراد", href: "/shop/precommande" },
+  { fr: "Promotions en cours", ar: "العروض الحالية", href: "/shop/promotions" },
 ];
 
 const GUARANTEES: {

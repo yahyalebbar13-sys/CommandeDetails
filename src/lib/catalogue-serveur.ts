@@ -13,7 +13,7 @@ import shopStaticData from './shop-firebase-dump.json';
 import { SHOP_CATEGORIES, SHOP_PRODUCTS_DATA } from './shop-products-data';
 import type { ShopCategory, ShopProduct } from './shop-types';
 import { getProductDisplayPrice } from './shop-utils';
-import { prixDe, variantesAchetables } from './shop-variantes';
+import { prixDe, sansPrix, variantesAchetables } from './shop-variantes';
 
 // Une seule adresse : https://lebtex.ma répond 308 vers celle-ci
 export const SITE_URL = 'https://www.lebtex.ma';
@@ -39,7 +39,8 @@ export function catalogueFige(): { produits: ShopProduct[]; rayons: ShopCategory
       customCategories?: ShopCategory[];
       categoryOverrides?: Record<string, Partial<ShopCategory>>;
     };
-    const produits = fusionnerProduits(SHOP_PRODUCTS_DATA, dump.overrides || {}, dump.customProducts || []);
+    // Comme la boutique : un produit sans prix n'existe pas pour les visiteurs (02/10/2026)
+    const produits = fusionnerProduits(SHOP_PRODUCTS_DATA, dump.overrides || {}, dump.customProducts || []).filter(p => !sansPrix(p));
     const rayons = fusionnerRayons(SHOP_CATEGORIES, dump.customCategories || [], dump.categoryOverrides || {}, produits);
     catalogue = { produits, rayons };
   }
@@ -113,7 +114,10 @@ export const produitDeLaPage = cache(async (id: string): Promise<ProduitDeLaPage
   ]);
   if (fiche.etat !== 'present') return fiche;
   const ov = surcharge.etat === 'present' ? surcharge.donnees : {};
-  return { etat: 'firestore', produit: { id, ...fiche.donnees, ...ov } as unknown as ShopProduct, masque: ov.hidden === true };
+  const enLigne = { id, ...fiche.donnees, ...ov } as unknown as ShopProduct;
+  // Sans prix : la fiche n'est pas montrée (vraie 404), comme dans les listes
+  if (sansPrix(enLigne)) return { etat: 'absent' };
+  return { etat: 'firestore', produit: enLigne, masque: ov.hidden === true };
 });
 
 // ─── Textes courts pour Google ──────────────────────────────────────────────
