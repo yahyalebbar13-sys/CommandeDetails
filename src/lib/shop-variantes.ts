@@ -1,6 +1,6 @@
 // Choix des variantes de la boutique (modèle, taille, couleur).
 // Une seule logique pour la fiche produit, les cartes produit et la page promotions :
-// doublons écartés, libellés FR / AR, combinaisons possibles, prix et ligne de panier.
+// doublons écartés, libellés FR / AR, combinaisons possibles, prix (ou « Prix sur demande ») et ligne de panier.
 // Ce fichier n'importe pas shop-utils (qui l'importe) pour éviter un cycle.
 
 import type { CartItem, ProductVariant, ShopProduct } from './shop-types';
@@ -372,6 +372,30 @@ export function prixVarientDansBloc(analyse: AnalyseVariantes, prixProduit: numb
   return new Set(prix).size > 1;
 }
 
+// ─── Sans prix ──────────────────────────────────────────────────────────────
+// Un produit ou une variante sans prix ne va jamais au panier : on écrit « Prix sur demande »,
+// sans état de stock, et le bouton principal demande le prix sur WhatsApp.
+
+export const PRIX_SUR_DEMANDE: Record<Language, string> = { fr: 'Prix sur demande', ar: 'السعر عند الطلب' };
+
+const LIEN_SITE = 'https://www.lebtex.ma';
+
+export function lienProduit(id: string): string {
+  return `${LIEN_SITE}/shop/produit/${id}`;
+}
+
+// Aucun prix nulle part : ni sur le produit, ni sur une variante achetable
+export function sansPrix(product: Pick<ShopProduct, 'price' | 'variants'>): boolean {
+  return prixProduitAffiche(product).montant <= 0;
+}
+
+// Message WhatsApp prérempli, toujours en français (il est lu par l'équipe) :
+// le produit, le choix fait s'il y en a un, et le lien de la fiche
+export function messageDemandePrix(product: Pick<ShopProduct, 'id' | 'name'>, choix?: string): string {
+  const article = choix ? `${product.name} — ${choix}` : product.name;
+  return `Bonjour LEBTEX, je voudrais connaître le prix de : ${article}\n${lienProduit(product.id)}`;
+}
+
 export type EtatStock = 'en_stock' | 'limite' | 'sur_commande';
 
 export function etatStock(stock: number): EtatStock {
@@ -381,6 +405,9 @@ export function etatStock(stock: number): EtatStock {
 }
 
 // ─── Panier ─────────────────────────────────────────────────────────────────
+
+// Ligne sans prix restée d'un ancien panier : elle n'est pas comptée et peut être retirée
+export const PRIX_A_CONFIRMER: Record<Language, string> = { fr: 'Prix à confirmer', ar: 'السعر سيتم تأكيده' };
 
 // Libellé d'une ligne de panier : « Ruban noir-dents dorées », « 15mm · Nickel »… ('' sans variante)
 export function libelleLignePanier(variant: CartItem['variant'], language: Language): string {
@@ -433,7 +460,9 @@ export function construireCartItem(product: ProduitPanier, v: ProductVariant | n
 
 // Bouton d'ajout des cartes produit : ajout direct quand il n'y a rien à choisir,
 // sinon on envoie le client sur la fiche (plus jamais de commande sans couleur).
-export function ajoutRapide(product: ShopProduct): { mode: 'direct'; item: CartItem } | { mode: 'choisir' } {
+// Sans aucun prix : pas d'ajout, le prix se demande sur WhatsApp.
+export function ajoutRapide(product: ShopProduct): { mode: 'direct'; item: CartItem } | { mode: 'choisir' } | { mode: 'prix' } {
+  if (sansPrix(product)) return { mode: 'prix' };
   const achetables = variantesAchetables(product.variants);
   if (achetables.length >= 2) return { mode: 'choisir' };
   const quantite = product.minOrderQty || 1;

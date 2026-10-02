@@ -10,8 +10,8 @@ import { getFirestore, doc, getDoc } from 'firebase/firestore';
 import { firebaseConfig } from '@/firebase/config';
 import { formatPrice, getWhatsAppContact } from '@/lib/shop-utils';
 import {
-  fraisColisAnnonces, moyenPaiementDe, numeroCommandeAffichable, prixUnitaireLigne, receptionDe, texteClientSur, totalLigne,
-  transportPrevu, varianteLisible, type ReceptionLue,
+  fraisColisAnnonces, lignesSansPrix, moyenPaiementDe, numeroCommandeAffichable, prixUnitaireLigne, receptionDe, texteClientSur,
+  totalLigne, transportPrevu, varianteLisible, type ReceptionLue,
 } from '@/lib/commandes-boutique';
 import { delaiColis, libelleFrais, TEXTE_TRANSPORT_VOLUMINEUX, TEXTE_TRANSPORT_VOLUMINEUX_AR } from '@/lib/livraison-boutique';
 import { ribLisible, type ReglagesReception } from '@/lib/reglages-reception';
@@ -27,6 +27,21 @@ const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
 type Etape = { icon: React.ComponentType<{ className?: string }>; title: string; desc: string; status: 'done' | 'current' | 'pending' };
+
+/**
+ * Quand l'équipe rappelle : c'est ce qu'on promet au client (plus de « sous 2 h », intenable
+ * le soir et le dimanche). Les horaires des réglages sont en français seulement : écrits ici.
+ */
+const QUAND_ON_APPELLE = {
+  fr: "aujourd'hui pendant nos horaires (lundi au samedi, 8h30–18h30), sinon le jour ouvré suivant",
+  ar: 'اليوم خلال أوقات عملنا (من الاثنين إلى السبت، 8:30–18:30)، وإلا ففي يوم العمل الموالي',
+};
+
+/** Un montant pour le client : jamais « 0 MAD » (un prix encore à confirmer). */
+function montantOuAConfirmer(v: unknown, ar: boolean): string {
+  const n = Number(v) || 0;
+  return n > 0 ? formatPrice(n) : ar ? 'قيد التأكيد' : 'À confirmer';
+}
 
 /** Ce que le client lit selon son mode de réception : colis Sendit, retrait, ou transport d'un rouleau. */
 function etapesPour(
@@ -55,8 +70,8 @@ function etapesPour(
     return [
       recue,
       ar
-        ? { icon: Phone, title: 'التأكيد (خلال ساعتين)', desc: 'نتصل بك خلال أوقات العمل لتأكيد الطلب.', status: 'current' }
-        : { icon: Phone, title: 'Confirmation (sous 2 h)', desc: 'Nous vous appelons pendant nos horaires pour confirmer la commande.', status: 'current' },
+        ? { icon: Phone, title: 'مكالمة التأكيد', desc: `نتصل بك ${QUAND_ON_APPELLE.ar} لتأكيد الطلب.`, status: 'current' }
+        : { icon: Phone, title: 'Appel de confirmation', desc: `Nous vous appelons ${QUAND_ON_APPELLE.fr} pour confirmer la commande.`, status: 'current' },
       preparation(lieu.nom),
       ar
         ? { icon: Store, title: 'جاهز للاستلام', desc: 'نرسل لك العنوان بالضبط ويوم الاستلام عبر واتساب.', status: 'pending' }
@@ -118,14 +133,14 @@ function etapesPour(
       ar
         ? {
             icon: Phone,
-            title: 'مكالمة لتنظيم النقل (خلال ساعتين)',
-            desc: 'نتصل بك خلال أوقات العمل لتنظيم النقل وإعطائك ثمنه. لا يُرسل أي شيء قبل موافقتك.',
+            title: 'مكالمة لتنظيم النقل',
+            desc: `نتصل بك ${QUAND_ON_APPELLE.ar} لتنظيم النقل وإعطائك ثمنه. لا يُرسل أي شيء قبل موافقتك.`,
             status: 'current',
           }
         : {
             icon: Phone,
-            title: 'Appel pour le transport (sous 2 h)',
-            desc: 'Nous vous appelons pendant nos horaires pour organiser le transport et vous donner son prix. Rien ne part avant votre accord.',
+            title: 'Appel pour le transport',
+            desc: `Nous vous appelons ${QUAND_ON_APPELLE.fr} pour organiser le transport et vous donner son prix. Rien ne part avant votre accord.`,
             status: 'current',
           },
       preparation(reglages.lieux.chrifa.nom),
@@ -137,8 +152,8 @@ function etapesPour(
   return [
     recue,
     ar
-      ? { icon: Phone, title: 'التأكيد (خلال ساعتين)', desc: 'نتصل بك خلال أوقات العمل لتأكيد الطلب والعنوان.', status: 'current' }
-      : { icon: Phone, title: 'Confirmation (sous 2 h)', desc: "Nous vous appelons pendant nos horaires pour confirmer la commande et l'adresse.", status: 'current' },
+      ? { icon: Phone, title: 'مكالمة التأكيد', desc: `نتصل بك ${QUAND_ON_APPELLE.ar} لتأكيد الطلب والعنوان.`, status: 'current' }
+      : { icon: Phone, title: 'Appel de confirmation', desc: `Nous vous appelons ${QUAND_ON_APPELLE.fr} pour confirmer la commande et l'adresse.`, status: 'current' },
     preparation(),
     ar
       ? { icon: Truck, title: 'شحن الطرد', desc: `المدة المتوقعة: ${ville ? delaiColis(ville, language) : 'من 24 ساعة إلى 4 أيام عمل'}`, status: 'pending' }
@@ -217,27 +232,63 @@ export default function ConfirmationPage({ params }: { params: Promise<{ id: str
   const { id } = React.use(params);
   const [order, setOrder] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(false);
+  // « reseau » : la page n'a pas pu lire la commande (connexion) ; ce n'est pas qu'elle n'existe pas.
+  const [error, setError] = useState<'introuvable' | 'reseau' | null>(null);
+  const [essai, setEssai] = useState(0);
   const { reglages, charge: reglagesCharges } = useReglagesReception();
   const { language } = useLanguage();
   const { getProductById } = useShopProducts();
   const ar = language === 'ar';
 
   useEffect(() => {
-    if (!id) { setError(true); setLoading(false); return; }
+    if (!id) { setError('introuvable'); setLoading(false); return; }
+    setLoading(true);
+    setError(null);
     getDoc(doc(db, 'shop_orders', id))
       .then(snap => {
         if (snap.exists()) setOrder({ id: snap.id, ...snap.data() });
-        else setError(true);
+        else setError('introuvable');
       })
-      .catch(() => setError(true))
+      .catch(() => setError('reseau'))
       .finally(() => setLoading(false));
-  }, [id]);
+  }, [id, essai]);
 
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-[#FBF8F3]">
         <div className="w-12 h-12 border-4 border-[#C8102E] border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
+
+  if (error === 'reseau') {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-[#FBF8F3]" style={{ fontFamily: 'Inter, sans-serif' }}>
+        <div className="text-center max-w-md px-6">
+          <h1 className="text-2xl font-black text-[#1A1A1A] mb-2" style={{ fontFamily: 'Outfit, sans-serif' }}>
+            {ar ? 'تعذّر عرض طلبك الآن' : "Impossible d'afficher votre commande pour le moment"}
+          </h1>
+          <p className="text-[#6B6B6B] mb-6">
+            {ar ? 'تحقق من اتصالك بالإنترنت ثم أعد المحاولة.' : 'Vérifiez votre connexion internet, puis réessayez.'}
+          </p>
+          <div className="flex flex-col sm:flex-row gap-3 justify-center">
+            <button
+              type="button"
+              onClick={() => setEssai(n => n + 1)}
+              className="min-h-[48px] px-6 py-3 bg-[#C8102E] text-white rounded-xl font-semibold hover:bg-[#a00d25] transition-colors"
+            >
+              {ar ? 'أعد المحاولة' : 'Réessayer'}
+            </button>
+            <a
+              href={getWhatsAppContact()}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="min-h-[48px] inline-flex items-center justify-center gap-2 px-6 py-3 bg-[#25D366] text-white rounded-xl font-semibold hover:bg-[#1da851] transition-colors"
+            >
+              <MessageCircle className="w-5 h-5" /> WhatsApp
+            </a>
+          </div>
+        </div>
       </div>
     );
   }
@@ -335,13 +386,14 @@ export default function ConfirmationPage({ params }: { params: Promise<{ id: str
       lignes.push('', 'Articles :');
       articles.forEach((item, i) => {
         const variante = varianteLisible(item.variant);
-        const prix = prixUnitaireLigne(item) > 0 ? ` = ${formatPrice(totalLigne(item))}` : '';
+        const prix = prixUnitaireLigne(item) > 0 ? ` = ${formatPrice(totalLigne(item))}` : ' (prix à confirmer)';
         lignes.push(`${i + 1}. ${texteClientSur(item.productName, 100)}${variante ? ` (${texteClientSur(variante, 80)})` : ''} × ${item.quantity}${prix}`);
       });
     }
-    lignes.push('', `Sous-total : ${formatPrice(Number(order.subtotal) || 0)}`);
+    const montant = (v: unknown) => (Number(v) > 0 ? formatPrice(Number(v)) : 'à confirmer');
+    lignes.push('', `Sous-total : ${montant(order.subtotal)}`);
     lignes.push(`${reception.mode === 'transport' ? 'Transport' : reception.mode === 'retrait' ? 'Retrait' : 'Livraison'} : ${ligneLivraison}`);
-    lignes.push(`Total : ${formatPrice(Number(order.total) || 0)}${transportAConfirmer ? ' + transport' : ''}`);
+    lignes.push(`Total : ${montant(order.total)}${transportAConfirmer ? ' + transport' : ''}`);
     lignes.push('', `Réception : ${libelleReception}`);
     if (reception.mode !== 'retrait' && (adresseClient || ville)) {
       lignes.push(`Adresse : ${[adresseClient, ville].filter(Boolean).join(', ')}`);
@@ -352,18 +404,29 @@ export default function ConfirmationPage({ params }: { params: Promise<{ id: str
   })();
   const whatsappLink = getWhatsAppContact(messageWhatsApp);
 
+  // Le gros bouton du haut : le client confirme d'un geste. C'est aussi un filet de sécurité
+  // si l'e-mail d'alerte au commerçant ne part pas. En français : lu par l'équipe.
+  const totalCommande = Number(order.total) || 0;
+  const totalDH = totalCommande > 0
+    ? `total ${totalCommande.toLocaleString('fr-MA', { maximumFractionDigits: 2 })} DH${transportAConfirmer ? ' + transport' : ''}`
+    : 'total à confirmer';
+  const lienConfirmerWhatsApp = getWhatsAppContact(
+    `Bonjour LEBTEX, je confirme ma commande N° ${numero} (${totalDH}). Nom : ${nomClient || '—'}`,
+  );
+  const sansPrix = lignesSansPrix(order).length > 0;
+
   const merci = ar ? `شكراً${nomClient ? ` ${nomClient}` : ''}!` : `Merci${nomClient ? ` ${nomClient}` : ''} !`;
   const introduction = ar
     ? reception.mode === 'transport'
-      ? `${merci} سنتصل بك خلال ساعتين (في أوقات العمل) لتنظيم النقل. لا يُرسل أي شيء قبل موافقتك.`
+      ? `${merci} سنتصل بك ${QUAND_ON_APPELLE.ar} لتنظيم النقل. لا يُرسل أي شيء قبل موافقتك.`
       : reception.mode === 'retrait'
-        ? `${merci} سنتصل بك لتأكيد الطلب، ثم نحضّره. ستتوصل بالعنوان ويوم الاستلام عبر واتساب.`
-        : `${merci} سنتصل بك خلال ساعتين (في أوقات العمل) لتأكيد الطلب معك.`
+        ? `${merci} سنتصل بك ${QUAND_ON_APPELLE.ar} لتأكيد الطلب، ثم نحضّره. ستتوصل بالعنوان ويوم الاستلام عبر واتساب.`
+        : `${merci} سنتصل بك ${QUAND_ON_APPELLE.ar} لتأكيد الطلب معك.`
     : reception.mode === 'transport'
-      ? `${merci} Nous vous appelons sous 2 h (pendant nos horaires) pour organiser le transport. Rien ne part avant votre accord.`
+      ? `${merci} Nous vous appelons ${QUAND_ON_APPELLE.fr} pour organiser le transport. Rien ne part avant votre accord.`
       : reception.mode === 'retrait'
-        ? `${merci} Nous vous appelons pour confirmer la commande, puis nous la préparons. Vous recevrez l'adresse et le jour de retrait par WhatsApp.`
-        : `${merci} Nous vous appelons sous 2 h (pendant nos horaires) pour la confirmer avec vous.`;
+        ? `${merci} Nous vous appelons ${QUAND_ON_APPELLE.fr} pour confirmer la commande, puis nous la préparons. Vous recevrez l'adresse et le jour de retrait par WhatsApp.`
+        : `${merci} Nous vous appelons ${QUAND_ON_APPELLE.fr} pour la confirmer avec vous.`;
 
   // Nom du produit dans la langue du site : l'arabe enregistré sur la ligne, sinon celui du catalogue.
   const nomArticle = (item: any) =>
@@ -390,6 +453,24 @@ export default function ConfirmationPage({ params }: { params: Promise<{ id: str
             <bdi dir="ltr" className="font-black text-base tracking-wider break-all">{numeroAffiche}</bdi>
           </div>
         </div>
+
+        {/* Confirmer d'un geste : message déjà écrit, le client n'a qu'à l'envoyer. */}
+        <a
+          href={lienConfirmerWhatsApp}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="mb-6 flex min-h-[60px] w-full items-center justify-center gap-3 rounded-2xl bg-[#25D366] px-5 py-4 text-center text-white shadow-lg shadow-green-200 transition-colors hover:bg-[#1da851]"
+        >
+          <MessageCircle className="w-6 h-6 flex-shrink-0" />
+          <span>
+            <span className="block text-lg font-black leading-tight" style={{ fontFamily: 'Outfit, sans-serif' }}>
+              {ar ? 'أكّد طلبك الآن عبر واتساب' : 'Confirmer tout de suite sur WhatsApp'}
+            </span>
+            <span className="block text-sm font-medium text-white/90">
+              {ar ? 'الرسالة جاهزة: اضغط فقط على «إرسال».' : 'Le message est prêt : appuyez simplement sur « Envoyer ».'}
+            </span>
+          </span>
+        </a>
 
         {/* Rouleau entier : la notice du transport (transport à organiser, ou ancienne commande
             « à domicile ») ; pour un retrait, une phrase courte qui ne parle pas de transport. */}
@@ -451,7 +532,7 @@ export default function ConfirmationPage({ params }: { params: Promise<{ id: str
                   <div>
                     <dt className="text-xs font-bold text-[#6B6B6B] uppercase tracking-wider">{ar ? 'المبلغ' : 'Montant'}</dt>
                     <dd className="text-base font-black text-[#C8102E]">
-                      <bdi dir="ltr">{formatPrice(Number(order.total) || 0)}</bdi>
+                      <bdi dir="ltr">{montantOuAConfirmer(order.total, ar)}</bdi>
                       {transportAConfirmer && (
                         <span className="text-sm font-semibold text-[#4A4A4A]">
                           {ar ? ' + ثمن النقل، يُحدَّد عبر الهاتف' : ' + le transport, confirmé au téléphone'}
@@ -540,7 +621,10 @@ export default function ConfirmationPage({ params }: { params: Promise<{ id: str
             })}
           </div>
           <div className="border-t border-[#F3EFE8] pt-4 space-y-2">
-            <div className="flex justify-between text-sm"><span className="text-[#6B6B6B]">{ar ? 'المجموع الفرعي' : 'Sous-total'}</span><span className="font-semibold">{formatPrice(order.subtotal)}</span></div>
+            <div className="flex justify-between text-sm"><span className="text-[#6B6B6B]">{ar ? 'المجموع الفرعي' : 'Sous-total'}</span><span className="font-semibold">{montantOuAConfirmer(order.subtotal, ar)}</span></div>
+            {sansPrix && Number(order.subtotal) > 0 && (
+              <p className="text-xs text-[#6B6B6B] -mt-1">{ar ? 'لا يشمل المنتجات التي سعرها قيد التأكيد' : 'Hors articles au prix à confirmer'}</p>
+            )}
             <div className="flex justify-between gap-3 text-sm">
               <span className="text-[#6B6B6B]">{titreLigneLivraison}</span>
               <span className={`font-semibold text-end ${offerte || reception.mode === 'retrait' ? 'text-green-700' : ''}`}>{ligneLivraisonAffichee}</span>
@@ -548,7 +632,7 @@ export default function ConfirmationPage({ params }: { params: Promise<{ id: str
             <div className="flex justify-between gap-3 font-black text-base pt-2 border-t border-[#F3EFE8]">
               <span>{ar ? 'المبلغ الواجب دفعه' : 'Total à payer'}</span>
               <span className="text-[#C8102E] text-end">
-                {formatPrice(order.total)}
+                {montantOuAConfirmer(order.total, ar)}
                 {transportAConfirmer && (
                   <span className="block text-xs font-semibold text-[#6B6B6B]">
                     {ar ? '+ ثمن النقل، يُحدَّد عبر الهاتف' : '+ transport, confirmé au téléphone'}
@@ -616,7 +700,7 @@ export default function ConfirmationPage({ params }: { params: Promise<{ id: str
         {/* WhatsApp CTA — le message envoyé reste en français : il est lu par l'équipe. */}
         <div className="bg-[#0F0F0F] rounded-2xl p-6 mb-5 text-white text-center">
           <h3 className="font-black text-lg mb-1" style={{ fontFamily: 'Outfit, sans-serif' }}>{ar ? 'هل لديك سؤال حول طلبك؟' : 'Une question sur votre commande ?'}</h3>
-          <p className="text-gray-400 text-sm mb-4">{ar ? 'راسلنا على واتساب، نرد عليك بسرعة 📲' : 'Contactez-nous sur WhatsApp, réponse rapide garantie 📲'}</p>
+          <p className="text-gray-400 text-sm mb-4">{ar ? <>راسلنا على واتساب: نرد عليك من الإثنين إلى السبت، <bdi dir="ltr">8:30 – 18:30</bdi></> : 'Contactez-nous sur WhatsApp : réponse du lundi au samedi, 8h30–18h30'}</p>
           <a href={whatsappLink} target="_blank" rel="noopener noreferrer"
             className="inline-flex items-center gap-2 bg-[#25D366] hover:bg-[#1da851] text-white px-6 py-3 rounded-xl font-bold transition-colors">
             <MessageCircle className="w-5 h-5" /> {ar ? 'تواصل مع LEBTEX' : 'Contacter LEBTEX'}

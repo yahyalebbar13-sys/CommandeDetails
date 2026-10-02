@@ -1,6 +1,9 @@
 "use client";
 import { useState } from 'react';
-import { MessageCircle, Phone, Mail, MapPin, Clock, CheckCircle, Send } from 'lucide-react';
+import { MessageCircle, Phone, Mail, MapPin, Clock, Send } from 'lucide-react';
+
+// Horaires réels de l'équipe (les mêmes que le pied de page et les magasins)
+const HORAIRES = 'du lundi au samedi, 8h30–18h30';
 
 export default function ContactPage() {
   const [form, setForm] = useState({ name: '', phone: '', email: '', subject: '', message: '' });
@@ -25,7 +28,7 @@ export default function ContactPage() {
           <h1 className="text-4xl md:text-5xl font-black mb-4" style={{ fontFamily: 'Outfit, sans-serif' }}>
             On est là pour vous !
           </h1>
-          <p className="text-gray-400 text-lg">Notre équipe répond dans l'heure sur WhatsApp</p>
+          <p className="text-gray-400 text-lg">Réponse sur WhatsApp {HORAIRES}</p>
         </div>
       </div>
 
@@ -67,9 +70,8 @@ export default function ContactPage() {
               </div>
               <div className="space-y-2 text-sm">
                 {[
-                  { day: 'Lundi - Vendredi', hours: '8h00 - 20h00' },
-                  { day: 'Samedi', hours: '9h00 - 18h00' },
-                  { day: 'Dimanche', hours: '10h00 - 16h00' },
+                  { day: 'Lundi - Samedi', hours: '8h30 - 18h30' },
+                  { day: 'Dimanche', hours: 'Fermé' },
                 ].map(({ day, hours }) => (
                   <div key={day} className="flex justify-between items-center py-2 border-b border-[#F3EFE8] last:border-0">
                     <span className="text-[#6B6B6B]">{day}</span>
@@ -77,9 +79,9 @@ export default function ContactPage() {
                   </div>
                 ))}
               </div>
-              <div className="mt-4 flex items-center gap-2 text-xs text-[#25D366] font-semibold">
-                <span className="w-2 h-2 bg-[#25D366] rounded-full animate-pulse" />
-                WhatsApp disponible 7j/7
+              <div className="mt-4 flex items-center gap-2 text-xs text-[#128C7E] font-semibold">
+                <MessageCircle className="w-3.5 h-3.5 shrink-0" />
+                Réponse sur WhatsApp {HORAIRES}
               </div>
             </div>
           </div>
@@ -90,12 +92,15 @@ export default function ContactPage() {
               <h2 className="text-2xl font-bold text-[#1A1A1A] mb-2" style={{ fontFamily: 'Outfit, sans-serif' }}>
                 Envoyez-nous un message
               </h2>
-              <p className="text-[#6B6B6B] text-sm mb-6">Nous vous répondrons dans les 2h sur WhatsApp</p>
+              <p className="text-[#6B6B6B] text-sm mb-6">
+                Nous vous répondons sur WhatsApp aujourd’hui pendant nos horaires (lundi au samedi, 8h30–18h30), sinon le jour ouvré suivant.
+              </p>
 
+              {/* Rien n'est parti tant que le client n'a pas appuyé sur Envoyer dans WhatsApp */}
               {sent && (
-                <div className="mb-6 p-4 bg-green-50 border border-green-200 rounded-xl flex items-center gap-3">
-                  <CheckCircle className="w-5 h-5 text-green-600" />
-                  <p className="text-green-700 font-medium">Message envoyé sur WhatsApp ! Nous vous répondons bientôt.</p>
+                <div role="status" className="mb-6 p-4 bg-green-50 border border-green-200 rounded-xl flex items-center gap-3">
+                  <MessageCircle className="w-5 h-5 text-green-600 shrink-0" />
+                  <p className="text-green-700 font-medium">WhatsApp s’ouvre avec votre message : appuyez sur Envoyer pour nous l’envoyer.</p>
                 </div>
               )}
 

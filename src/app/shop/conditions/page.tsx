@@ -21,7 +21,7 @@ export const metadata: Metadata = {
   description: 'Commande, prix, livraison, retrait, paiement, retours : les conditions de vente de lebtex.ma.',
 };
 
-const VERSION = '29/09/2026';
+const VERSION = '02/10/2026';
 
 function Section({ n, titre, children }: { n: number; titre: string; children: ReactNode }) {
   return (
@@ -75,7 +75,7 @@ export default function ConditionsPage() {
 
           <Section n={2} titre="Commande et confirmation">
             <Liste items={[
-              'Votre commande est enregistrée sur le site, puis confirmée par téléphone : nous vous appelons sous 2 h pendant nos horaires, sinon le jour ouvré suivant.',
+              'Votre commande est enregistrée sur le site, puis confirmée par téléphone : nous vous appelons le jour même pendant nos horaires (lundi au samedi, 8h30–18h30), sinon le jour ouvré suivant.',
               'Si un article n’est plus disponible, nous vous le disons à l’appel et vous proposons une autre couleur (avec photo), d’attendre le prochain arrivage, un envoi partiel ou l’annulation. Vous ne payez que ce que vous recevez.',
               'Une commande qui contient un article volumineux (rouleau entier) devient ferme quand vous acceptez le prix du transport annoncé au téléphone. Avant cela, vous pouvez l’annuler sans frais.',
               'Toute autre commande peut être annulée sans frais avant son expédition ou sa remise.',
@@ -85,6 +85,7 @@ export default function ConditionsPage() {
           <Section n={3} titre="Prix et frais">
             <Liste items={[
               'Les prix affichés sont les prix à payer, en dirhams (MAD). Aucune taxe ne s’y ajoute.',
+              'Un article marqué « Prix sur demande » ne se commande pas sur le site : son prix vous est donné sur WhatsApp.',
               <>Colis livré à domicile : {formatPrice(FRAIS_ZONE.casablanca)} à Casablanca ; {formatPrice(FRAIS_ZONE.standard)} dans la périphérie de Casablanca ({PERIPHERIE_CASABLANCA.join(', ')}) et les grandes villes ; {formatPrice(FRAIS_ZONE.eloignee)} dans les villes éloignées et toute ville absente de notre liste. Quelques zones éloignées de Casablanca sont à {formatPrice(FRAIS_ZONE.eloignee)} : nous vous le disons à l’appel, avant l’envoi.</>,
               'Le prix du colis ne dépend que de la ville : il est le même quel que soit le montant de la commande.',
               'Retrait en magasin : toujours gratuit.',

@@ -1,41 +1,42 @@
+import { SITE_URL } from '@/lib/catalogue-serveur';
+
 // JSON-LD structured data for Google — LocalBusiness + Store schema
 // This tells Google exactly what LEBTEX sells and where it is
+// Seulement des informations vraies : pas d'avis, pas de note, pas de rue ni de
+// coordonnées GPS tant qu'on ne les a pas (le centre de Casablanca n'est pas le magasin).
 export default function LocalBusinessSchema() {
+  const logo = {
+    '@type': 'ImageObject',
+    url: `${SITE_URL}/logo.png`,
+    width: 1536,
+    height: 1024,
+  };
+
   const schema = {
     '@context': 'https://schema.org',
     '@graph': [
       {
         '@type': ['LocalBusiness', 'Store'],
-        '@id': 'https://lebtex.ma/#business',
+        '@id': `${SITE_URL}/#business`,
         name: 'LEBTEX',
         alternateName: ['لبتكس', 'Lebtex Mercerie'],
         description:
-          'Spécialiste en mercerie au Maroc : fermetures éclair nylon et métal, élastiques, boutons pression, rubans, fils à coudre, tissus. Vente en gros et détail. Livraison rapide partout au Maroc. سحاب، مطاط، أزرار، أقمشة بالجملة في المغرب.',
-        url: 'https://lebtex.ma',
-        logo: {
-          '@type': 'ImageObject',
-          url: 'https://lebtex.ma/logo.png',
-          width: 512,
-          height: 512,
-        },
-        image: 'https://lebtex.ma/hero-banner.png',
+          'Mercerie en gros et au détail à Casablanca : fermetures éclair, fils, doublures, entoilages, boutons, élastiques, rubans. Livraison partout au Maroc, paiement à la livraison. خردوات الخياطة بالجملة والتقسيط في الدار البيضاء.',
+        url: SITE_URL,
+        logo,
+        image: `${SITE_URL}/og-lebtex.jpg`,
         // Le numéro affiché sur la page À propos et partout sur le site (WhatsApp compris).
         telephone: '+212 760 998 347',
         email: 'lebtexsarlau@gmail.com',
         priceRange: '$$',
         currenciesAccepted: 'MAD',
-        paymentAccepted: 'Espèces à la livraison ou au retrait, Virement bancaire',
+        paymentAccepted: 'Espèces, à la livraison ou au retrait',
+        // Rue et code postal à ajouter quand le patron les aura donnés
         address: {
           '@type': 'PostalAddress',
           addressLocality: 'Casablanca',
-          addressRegion: 'Grand Casablanca',
+          addressRegion: 'Casablanca-Settat',
           addressCountry: 'MA',
-          postalCode: '20000',
-        },
-        geo: {
-          '@type': 'GeoCoordinates',
-          latitude: '33.5731',
-          longitude: '-7.5898',
         },
         areaServed: [
           { '@type': 'City', name: 'Casablanca' },
@@ -81,10 +82,7 @@ export default function LocalBusinessSchema() {
             },
           ],
         },
-        sameAs: [
-          'https://lebtex.ma',
-          // Add Google My Business URL, Facebook, Instagram URLs here
-        ],
+        // sameAs : ajouter ici les pages Google Business, Facebook, Instagram une fois vérifiées
         openingHoursSpecification: [
           {
             '@type': 'OpeningHoursSpecification',
@@ -97,29 +95,21 @@ export default function LocalBusinessSchema() {
       },
       {
         '@type': 'Organization',
-        '@id': 'https://lebtex.ma/#organization',
+        '@id': `${SITE_URL}/#organization`,
         name: 'LEBTEX',
-        url: 'https://lebtex.ma',
-        logo: {
-          '@type': 'ImageObject',
-          url: 'https://lebtex.ma/logo.png',
-          width: 512,
-          height: 512,
-        },
-        sameAs: [
-          'https://lebtex.ma',
-        ],
+        url: SITE_URL,
+        logo,
       },
       {
         '@type': 'WebSite',
-        '@id': 'https://lebtex.ma/#website',
-        url: 'https://lebtex.ma',
+        '@id': `${SITE_URL}/#website`,
+        url: SITE_URL,
         name: 'LEBTEX',
         description: 'Mercerie & Accessoires Textiles au Maroc',
-        publisher: { '@id': 'https://lebtex.ma/#business' },
+        publisher: { '@id': `${SITE_URL}/#business` },
         potentialAction: {
           '@type': 'SearchAction',
-          target: 'https://lebtex.ma/shop/boutique?q={search_term_string}',
+          target: `${SITE_URL}/shop/boutique?q={search_term_string}`,
           'query-input': 'required name=search_term_string',
         },
         inLanguage: ['fr-MA', 'ar-MA'],

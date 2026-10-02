@@ -7,11 +7,21 @@ import ShopFooter from '@/components/shop/ShopFooter';
 import CartDrawer from '@/components/shop/CartDrawer';
 import LocalBusinessSchema from '@/components/shop/LocalBusinessSchema';
 import ChoixLangueAccueil from '@/components/shop/ChoixLangueAccueil';
+import CaptureProvenance from '@/components/shop/CaptureProvenance';
+import { IMAGE_PARTAGE, SITE_URL } from '@/lib/catalogue-serveur';
 
+// Étiquettes par défaut de la boutique. Chaque page a les siennes (layout.tsx de son
+// dossier) : titre complet « … | LEBTEX », description, adresse canonique. Rien ici
+// ne doit faire croire à Google que toutes les pages sont l'accueil : pas d'adresse
+// canonique, de hreflang ni d'openGraph.url communs (une vraie version /ar viendra plus tard).
+// Pas de modèle de titre « %s | LEBTEX » : conditions, confidentialité et livraison
+// écrivent déjà « | LEBTEX » dans le titre de leur page, il serait doublé.
 export const metadata: Metadata = {
-  title: 'LEBTEX — Mercerie & Fermetures Éclair au Maroc | سحاب، مطاط، أزرار',
+  metadataBase: new URL(SITE_URL),
+  title: 'LEBTEX — Mercerie en gros et au détail à Casablanca | خردوات الخياطة',
   description:
-    'LEBTEX : spécialiste mercerie au Maroc. Fermetures éclair nylon & métal, élastiques, boutons, rubans, tissus, fils. Livraison rapide Casablanca, Rabat, Marrakech. Paiement à la livraison. سحاب، مطاط، أزرار، أقمشة بالجملة في المغرب.',
+    'Mercerie en gros et au détail à Casablanca — fermetures éclair, fils, doublures, entoilages, boutons. Livraison partout au Maroc, paiement à la livraison. ' +
+    'خردوات الخياطة بالجملة والتقسيط في الدار البيضاء: سحابات، خيوط، بطانة، حشوات، أزرار. التوصيل لجميع مدن المغرب والدفع عند الاستلام.',
   keywords: [
     // French keywords
     'fermeture éclair', 'fermeture nylon', 'fermeture métal', 'fermeture plastique',
@@ -35,41 +45,23 @@ export const metadata: Metadata = {
     'بالجملة المغرب', 'الدار البيضاء', 'مراكش', 'الرباط',
     'محل خياطة', 'لوازم خياطة المغرب',
   ],
-  authors: [{ name: 'LEBTEX', url: 'https://lebtex.ma' }],
+  authors: [{ name: 'LEBTEX', url: SITE_URL }],
   creator: 'LEBTEX',
   publisher: 'LEBTEX',
-  metadataBase: new URL('https://lebtex.ma'),
-  alternates: {
-    canonical: 'https://lebtex.ma',
-    languages: {
-      'fr-MA': 'https://lebtex.ma',
-      'ar-MA': 'https://lebtex.ma',
-    },
-  },
+  // Aperçu de partage par défaut : titre et description repris de chaque page
   openGraph: {
     type: 'website',
     locale: 'fr_MA',
-    alternateLocale: 'ar_MA',
-    url: 'https://lebtex.ma',
     siteName: 'LEBTEX',
-    title: 'LEBTEX — Mercerie & Fermetures Éclair au Maroc',
-    description: 'Fermetures éclair, élastiques, boutons, rubans, tissus. Livraison partout au Maroc. سحاب، مطاط، أزرار بالجملة في المغرب.',
-    images: [{ url: '/hero-banner.png', width: 1200, height: 630, alt: 'LEBTEX Mercerie Maroc' }],
+    images: [IMAGE_PARTAGE],
   },
-  twitter: {
-    card: 'summary_large_image',
-    title: 'LEBTEX — Mercerie & Fermetures Éclair au Maroc',
-    description: 'Fermetures éclair, élastiques, boutons, rubans. Livraison rapide au Maroc.',
-    images: ['/hero-banner.png'],
-  },
+  twitter: { card: 'summary_large_image' },
   robots: {
     index: true,
     follow: true,
     googleBot: { index: true, follow: true, 'max-image-preview': 'large' },
   },
-  verification: {
-    google: '', // Add your Google Search Console verification code here
-  },
+  // Search Console : ajouter ici verification: { google: '<code>' } le jour où on l'a
 };
 
 export default function ShopLayout({ children }: { children: React.ReactNode }) {
@@ -85,6 +77,7 @@ export default function ShopLayout({ children }: { children: React.ReactNode }) 
             <ShopHeader />
             <CartDrawer />
             <ChoixLangueAccueil />
+            <CaptureProvenance />
             <main className="flex-grow pb-16 lg:pb-0">{children}</main>
             <ShopFooter />
           </div>

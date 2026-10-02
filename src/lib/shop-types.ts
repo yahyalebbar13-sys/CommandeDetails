@@ -263,6 +263,45 @@ export interface ReceptionCommande {
   preferenceTransport?: 'camionnette' | 'transporteur';
 }
 
+/** Réponse du client à « Comment avez-vous connu LEBTEX ? » (facultative). */
+export type ConnuPar =
+  | 'facebook_instagram'
+  | 'whatsapp'
+  | 'google'
+  | 'tiktok'
+  | 'ami_collegue'
+  | 'client_magasin'
+  | 'autre';
+
+/** D'où vient une visite : lu dans l'adresse d'arrivée et le site d'où l'on vient (src/lib/provenance-boutique.ts). */
+export interface SourceVisite {
+  utmSource?: string;
+  utmMedium?: string;
+  utmCampaign?: string;
+  /** Paramètre « ref » de l'adresse (lien partagé, QR code…). */
+  ref?: string;
+  /** Domaine du site d'où vient le client (« facebook.com ») ; jamais lebtex.ma. */
+  referent?: string;
+  /** Chemin de la page d'arrivée, sans paramètres (« /shop/produit/… »). */
+  arrivee?: string;
+  /** Date ISO de la visite. */
+  le?: string;
+}
+
+/**
+ * Provenance jointe à une commande depuis le 02/10/2026 : écrite par le navigateur
+ * du client, pour savoir d'où viennent les clients (jamais une preuve de rien).
+ */
+export interface ProvenanceCommande {
+  /** Première source connue sur 30 jours. */
+  premiere?: SourceVisite;
+  /** Dernière visite venue de quelque part (publicité, lien, autre site). */
+  derniere?: SourceVisite;
+  /** Langue du site au moment de la commande. */
+  langue: 'fr' | 'ar';
+  connuPar?: ConnuPar;
+}
+
 export interface ShippingAddress {
   fullName: string;
   phone: string;
@@ -298,6 +337,8 @@ export interface ShopOrder {
    * un client peut l'écrire lui-même ; l'envoi et le webhook ne lisent que shop_orders_interne.
    */
   livraison?: { transporteur: 'sendit'; code: string };
+  /** D'où vient le client (publicité, lien, réponse à « Comment avez-vous connu LEBTEX ? »). */
+  provenance?: ProvenanceCommande;
   notes?: string;
   trackingNotes?: TrackingNote[];
   whatsappSent?: boolean;

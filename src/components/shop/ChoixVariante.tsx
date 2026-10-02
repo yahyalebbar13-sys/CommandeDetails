@@ -3,6 +3,8 @@
 // Fiche produit : prix, choix du modèle / de la taille / de la couleur, quantité et ajout au panier.
 // Tout est visible dès l'arrivée et se choisit dans l'ordre qu'on veut ; le bouton rouge n'est
 // jamais gris (s'il manque un choix, il montre où). La logique est dans lib/shop-variantes.
+// Sans prix (le produit, ou la variante choisie) : « Prix sur demande », pas d'état de stock,
+// et le bouton rouge demande le prix sur WhatsApp au lieu d'ajouter au panier.
 
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Check, Layers, ListPlus, MessageCircle, Minus, Plus, ShoppingCart } from 'lucide-react';
@@ -13,7 +15,6 @@ import type { Language } from '@/lib/translations';
 import { translations } from '@/lib/translations';
 import {
   formatPrice,
-  formatPriceOrOnRequest,
   getDiscountPercent,
   getWhatsAppContact,
   hasActivePromo,
@@ -31,11 +32,15 @@ import {
   libelleLignePanier,
   libelleValeur,
   libelleVariante,
+  lienProduit,
+  messageDemandePrix,
   optionCompatible,
+  PRIX_SUR_DEMANDE,
   prixDe,
   prixDesVariantes,
   prixUniqueDOption,
   prixVarientDansBloc,
+  sansPrix,
   selectionDe,
   trierVariantes,
   identifiant,
@@ -47,7 +52,6 @@ import {
 } from '@/lib/shop-variantes';
 
 const QTE_MAX_SANS_STOCK = 9999;
-const LIEN_SITE = 'https://www.lebtex.ma';
 
 // ─── Textes ─────────────────────────────────────────────────────────────────
 
@@ -246,6 +250,11 @@ export default function ChoixVariante({ product, onSelectionChange, onImagePrevi
       ? prixDesVariantes(product.price, compatibles)
       : { montant: product.price || 0, aPartirDe: false };
   const promo = !prix.aPartirDe && hasActivePromo(product.comparePrice, prix.montant);
+  // Aucun prix pour ce qui est choisi (ou pour tout le produit) : on demande le prix sur WhatsApp
+  const demandePrix = prix.montant <= 0;
+  const produitSansPrix = useMemo(() => sansPrix(product), [product]);
+  // Prix en chiffres, ou « Prix sur demande » dans la langue du site
+  const textePrix = (montant: number) => (montant > 0 ? formatPrice(montant) : PRIX_SUR_DEMANDE[language]);
 
   const stockProduitSimple = product.stockQty ?? 0;
   const enRupture = !aVariantes && stockProduitSimple <= 0;
@@ -327,6 +336,8 @@ export default function ChoixVariante({ product, onSelectionChange, onImagePrevi
       } catch {}
       return;
     }
+    // Jamais de ligne sans prix au panier (le bouton est alors le lien WhatsApp)
+    if (demandePrix) return;
     addItems([construireCartItem(product, variante, Math.max(minQte, quantite))], { ouvrir: false });
     setAjoute(true);
     setDernierAjout(variante ? identifiant(variante) : '');
@@ -344,12 +355,12 @@ export default function ChoixVariante({ product, onSelectionChange, onImagePrevi
     () => new Set(analyse.achetables.map(v => prixDe(product.price, v))).size > 1,
     [analyse, product.price],
   );
+  // Une ligne sans prix n'a pas de compteur : elle ne reçoit jamais de quantité
   const totalListe = variantesTriees.reduce((s, v) => s + (qtesListe[identifiant(v)] || 0), 0);
   const montantListe = variantesTriees.reduce((s, v) => s + (qtesListe[identifiant(v)] || 0) * prixDe(product.price, v), 0);
-  const listeSurDemande = variantesTriees.some(v => (qtesListe[identifiant(v)] || 0) > 0 && prixDe(product.price, v) <= 0);
 
   const ouvrirListe = () => {
-    if (variante && complet && !qtesListe[identifiant(variante)] && dernierAjout !== identifiant(variante)) {
+    if (variante && complet && !demandePrix && !qtesListe[identifiant(variante)] && dernierAjout !== identifiant(variante)) {
       setQtesListe(q => ({ ...q, [identifiant(variante)]: quantite }));
     }
     setModeListe(true);
@@ -360,7 +371,7 @@ export default function ChoixVariante({ product, onSelectionChange, onImagePrevi
   const ajouterListe = () => {
     if (ajoutesListe !== null) return;
     const lignes: CartItem[] = variantesTriees
-      .filter(v => (qtesListe[identifiant(v)] || 0) > 0)
+      .filter(v => (qtesListe[identifiant(v)] || 0) > 0 && prixDe(product.price, v) > 0)
       .map(v => construireCartItem(product, v, qtesListe[identifiant(v)]));
     if (lignes.length === 0) {
       setAlerteListe(true);
@@ -388,7 +399,7 @@ export default function ChoixVariante({ product, onSelectionChange, onImagePrevi
 
   // ── WhatsApp
   const nomProduit = language === 'ar' && product.nameAr ? product.nameAr : product.name;
-  const lienProduit = `${LIEN_SITE}/shop/produit/${product.id}`;
+  const lienFiche = lienProduit(product.id);
   const messageWhatsApp = (() => {
     if (modeListe && totalListe > 0) {
       const lignes = variantesTriees
@@ -396,20 +407,29 @@ export default function ChoixVariante({ product, onSelectionChange, onImagePrevi
         .map(v => `- ${libelleVariante(v, analyse, language)} × ${qtesListe[identifiant(v)]}`)
         .join('\n');
       return language === 'ar'
-        ? `السلام عليكم LEBTEX، أريد أن أطلب:\n${nomProduit}\n${lignes}\n${lienProduit}`
-        : `Bonjour LEBTEX, je voudrais commander :\n${nomProduit}\n${lignes}\n${lienProduit}`;
+        ? `السلام عليكم LEBTEX، أريد أن أطلب:\n${nomProduit}\n${lignes}\n${lienFiche}`
+        : `Bonjour LEBTEX, je voudrais commander :\n${nomProduit}\n${lignes}\n${lienFiche}`;
     }
     if (!modeListe && complet && !enRupture) {
       const libelle = variante ? libelleVariante(variante, analyse, language) : '';
       const ligne = `${nomProduit}${libelle ? ` — ${libelle}` : ''} × ${quantite}`;
       return language === 'ar'
-        ? `السلام عليكم LEBTEX، أريد أن أطلب:\n${ligne}\n${lienProduit}`
-        : `Bonjour LEBTEX, je voudrais commander :\n${ligne}\n${lienProduit}`;
+        ? `السلام عليكم LEBTEX، أريد أن أطلب:\n${ligne}\n${lienFiche}`
+        : `Bonjour LEBTEX, je voudrais commander :\n${ligne}\n${lienFiche}`;
     }
     return language === 'ar'
-      ? `السلام عليكم LEBTEX، عندي سؤال حول: ${nomProduit}\n${lienProduit}`
-      : `Bonjour LEBTEX, j'ai une question sur : ${nomProduit}\n${lienProduit}`;
+      ? `السلام عليكم LEBTEX، عندي سؤال حول: ${nomProduit}\n${lienFiche}`
+      : `Bonjour LEBTEX, j'ai une question sur : ${nomProduit}\n${lienFiche}`;
   })();
+
+  // Demande de prix (en français, pour l'équipe) : la variante choisie, ou les choix déjà faits
+  const choixEnFrancais = variante
+    ? libelleVariante(variante, analyse, 'fr')
+    : aChoisir
+        .filter(d => selection[d] !== undefined)
+        .map(d => libelleValeur(exempleDe(analyse, d, selection[d]!)!, d, 'fr'))
+        .join(' · ');
+  const lienDemandePrix = getWhatsAppContact(messageDemandePrix(product, choixEnFrancais));
 
   // ── Rendu des blocs de choix
   const titreBloc = (dim: DimVariante) => {
@@ -479,16 +499,23 @@ export default function ChoixVariante({ product, onSelectionChange, onImagePrevi
             const choisi = selection[dim] === val.cle;
             const incompatible = !choisi && !optionCompatible(analyse, selection, dim, val.cle);
             const prixOption = prixSurOptions ? prixUniqueDOption(analyse, product.price, dim, val.cle) : 0;
-            const surCommande = analyse.achetables.filter(v => cleDe(v, dim) === val.cle).every(v => v.stock <= 0);
+            const variantesOption = analyse.achetables.filter(v => cleDe(v, dim) === val.cle);
+            const surCommande = variantesOption.every(v => v.stock <= 0);
+            // Option dont aucune variante n'a de prix : jamais d'état de stock
+            const optionSansPrix = variantesOption.every(v => prixDe(product.price, v) <= 0);
             const libelle = libelles[i];
             const ariaLabel = incompatible
               ? t(language, `${libelle}, pas disponible avec ${choixActuelTexte(dim)}`, `${libelle}، غير متوفر مع ${choixActuelTexte(dim)}`)
               : undefined;
-            const sousLigne = !incompatible && prixOption > 0
-              ? <bdi dir="ltr">{formatPrice(prixOption)}</bdi>
-              : !incompatible && surCommande
-                ? t(language, 'Sur commande', 'متوفر عند الطلب')
-                : null;
+            const sousLigne = incompatible
+              ? null
+              : prixOption > 0
+                ? <bdi dir="ltr">{formatPrice(prixOption)}</bdi>
+                : optionSansPrix
+                  ? (prixSurOptions ? PRIX_SUR_DEMANDE[language] : null)
+                  : surCommande
+                    ? t(language, 'Sur commande', 'متوفر عند الطلب')
+                    : null;
 
             if (dim === 'model') {
               return (
@@ -598,11 +625,11 @@ export default function ChoixVariante({ product, onSelectionChange, onImagePrevi
                 {(v.image || avecCouleur) && <Pastille v={v} taille="md" />}
                 <span className="flex-1 min-w-0">
                   <span className="block text-base font-bold leading-snug">{libelleVariante(v, analyse, language, aChoisir)}</span>
-                  {v.stock <= 0 && <span className="block text-sm text-neutral-600">{t(language, 'Sur commande', 'متوفر عند الطلب')}</span>}
+                  {v.stock <= 0 && p > 0 && <span className="block text-sm text-neutral-600">{t(language, 'Sur commande', 'متوفر عند الطلب')}</span>}
                 </span>
                 {prixDifferentsListe && (
-                  <bdi dir="ltr" className="shrink-0 text-base font-black text-[#C8102E]">
-                    {formatPriceOrOnRequest(p, language)}
+                  <bdi dir={p > 0 ? 'ltr' : undefined} className={`shrink-0 font-black text-[#C8102E] ${p > 0 ? 'text-base' : 'text-sm'}`}>
+                    {textePrix(p)}
                   </bdi>
                 )}
                 {choisi && <Coche />}
@@ -669,8 +696,8 @@ export default function ChoixVariante({ product, onSelectionChange, onImagePrevi
       <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1 pb-4 border-b border-neutral-100">
         <span className="flex items-baseline gap-2">
           {prix.aPartirDe && <span className="text-base font-semibold text-neutral-600">{translations.price_from[language]}</span>}
-          <bdi dir="ltr" className="text-3xl font-black text-[#C8102E]">
-            {formatPriceOrOnRequest(prix.montant, language)}
+          <bdi dir={demandePrix ? undefined : 'ltr'} className={`font-black text-[#C8102E] ${demandePrix ? 'text-2xl' : 'text-3xl'}`}>
+            {textePrix(prix.montant)}
           </bdi>
         </span>
         {promo && (
@@ -681,25 +708,28 @@ export default function ChoixVariante({ product, onSelectionChange, onImagePrevi
             </span>
           </span>
         )}
-        <span
-          className={`inline-flex items-center gap-1.5 text-sm font-semibold ${
-            enRupture ? 'text-rose-700' : etat === 'en_stock' ? 'text-emerald-700' : etat === 'limite' ? 'text-amber-700' : 'text-neutral-600'
-          }`}
-        >
+        {/* Sans prix : pas d'état de stock, sauf la rupture (comme sur la carte) */}
+        {(!demandePrix || enRupture) && (
           <span
-            aria-hidden="true"
-            className={`size-2 rounded-full ${
-              enRupture ? 'bg-rose-500' : etat === 'en_stock' ? 'bg-emerald-500' : etat === 'limite' ? 'bg-amber-500' : 'bg-neutral-400'
+            className={`inline-flex items-center gap-1.5 text-sm font-semibold ${
+              enRupture ? 'text-rose-700' : etat === 'en_stock' ? 'text-emerald-700' : etat === 'limite' ? 'text-amber-700' : 'text-neutral-600'
             }`}
-          />
-          {enRupture
-            ? t(language, 'Rupture de stock', 'نفد المخزون')
-            : etat === 'en_stock'
-              ? t(language, 'En stock', 'متوفر')
-              : etat === 'limite'
-                ? t(language, 'Stock limité', 'الكمية محدودة')
-                : t(language, 'Sur commande', 'متوفر عند الطلب')}
-        </span>
+          >
+            <span
+              aria-hidden="true"
+              className={`size-2 rounded-full ${
+                enRupture ? 'bg-rose-500' : etat === 'en_stock' ? 'bg-emerald-500' : etat === 'limite' ? 'bg-amber-500' : 'bg-neutral-400'
+              }`}
+            />
+            {enRupture
+              ? t(language, 'Rupture de stock', 'نفد المخزون')
+              : etat === 'en_stock'
+                ? t(language, 'En stock', 'متوفر')
+                : etat === 'limite'
+                  ? t(language, 'Stock limité', 'الكمية محدودة')
+                  : t(language, 'Sur commande', 'متوفر عند الطلب')}
+          </span>
+        )}
       </div>
 
       {/* ── 2. Informations fixes ── */}
@@ -732,10 +762,10 @@ export default function ChoixVariante({ product, onSelectionChange, onImagePrevi
                   <p className="text-sm text-neutral-500">{t(language, 'Votre choix', 'اختيارك')}</p>
                   <p className="text-lg font-bold text-neutral-900 leading-snug">{libelleVariante(variante, analyse, language)}</p>
                   <p className="text-base font-black text-[#C8102E]">
-                    <bdi dir="ltr">{formatPriceOrOnRequest(prix.montant, language)}</bdi>
+                    <bdi dir={demandePrix ? undefined : 'ltr'}>{textePrix(prix.montant)}</bdi>
                   </p>
-                  {etat === 'limite' && <p className="text-sm font-semibold text-amber-700">{t(language, 'Stock limité', 'الكمية محدودة')}</p>}
-                  {etat === 'sur_commande' && <p className="text-sm text-neutral-600">{t(language, 'Sur commande', 'متوفر عند الطلب')}</p>}
+                  {!demandePrix && etat === 'limite' && <p className="text-sm font-semibold text-amber-700">{t(language, 'Stock limité', 'الكمية محدودة')}</p>}
+                  {!demandePrix && etat === 'sur_commande' && <p className="text-sm text-neutral-600">{t(language, 'Sur commande', 'متوفر عند الطلب')}</p>}
                 </div>
               </div>
             ) : (
@@ -747,8 +777,8 @@ export default function ChoixVariante({ product, onSelectionChange, onImagePrevi
               </div>
             ))}
 
-          {/* ── 5. Quantité ── */}
-          {!enRupture && (
+          {/* ── 5. Quantité (rien à compter tant que le prix est à demander) ── */}
+          {!enRupture && !demandePrix && (
             <div className="pt-4 border-t border-neutral-100">
               <div className="flex items-center justify-between gap-3">
                 <span className="text-base font-bold text-neutral-900">{t(language, 'Quantité', 'الكمية')}</span>
@@ -762,9 +792,19 @@ export default function ChoixVariante({ product, onSelectionChange, onImagePrevi
             </div>
           )}
 
-          {/* ── 6. Ajouter ── */}
+          {/* ── 6. Ajouter (ou demander le prix) ── */}
           <div className="space-y-2">
-            {enRupture ? (
+            {demandePrix ? (
+              <a
+                href={lienDemandePrix}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="w-full min-h-14 px-4 rounded-2xl bg-[#C8102E] hover:bg-[#a00d25] active:bg-[#a00d25] shadow-lg shadow-[#C8102E]/20 text-white text-base font-bold flex items-center justify-center gap-2 transition-colors"
+              >
+                <MessageCircle className="size-5 shrink-0" />
+                {t(language, 'Demander le prix sur WhatsApp', 'اسأل عن الثمن في واتساب')}
+              </a>
+            ) : enRupture ? (
               <button
                 type="button"
                 disabled
@@ -808,19 +848,21 @@ export default function ChoixVariante({ product, onSelectionChange, onImagePrevi
               </p>
             )}
 
-            {/* ── 7. WhatsApp ── */}
-            <a
-              href={getWhatsAppContact(messageWhatsApp)}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="w-full h-12 rounded-2xl border-2 border-[#25D366] bg-white text-[#128C7E] text-base font-bold flex items-center justify-center gap-2"
-            >
-              <MessageCircle className="size-5" />
-              {t(language, 'Commander sur WhatsApp', 'اطلب عبر واتساب')}
-            </a>
+            {/* ── 7. WhatsApp (déjà le bouton principal quand le prix est à demander) ── */}
+            {!demandePrix && (
+              <a
+                href={getWhatsAppContact(messageWhatsApp)}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="w-full h-12 rounded-2xl border-2 border-[#25D366] bg-white text-[#128C7E] text-base font-bold flex items-center justify-center gap-2"
+              >
+                <MessageCircle className="size-5" />
+                {t(language, 'Commander sur WhatsApp', 'اطلب عبر واتساب')}
+              </a>
+            )}
 
-            {/* ── 8. Plusieurs ── */}
-            {aChoisir.length > 0 && analyse.achetables.length >= 3 && (
+            {/* ── 8. Plusieurs (la liste remplit le panier : pas pour un produit sans prix) ── */}
+            {aChoisir.length > 0 && analyse.achetables.length >= 3 && !produitSansPrix && (
               <button
                 type="button"
                 onClick={ouvrirListe}
@@ -860,24 +902,29 @@ export default function ChoixVariante({ product, onSelectionChange, onImagePrevi
                     <span className={`text-base leading-snug line-clamp-2 ${q > 0 ? 'font-bold' : 'font-semibold'}`}>
                       {libelleVariante(v, analyse, language, aChoisir)}
                     </span>
-                    {prixDifferentsListe ? (
-                      <span className="block text-sm text-neutral-600"><bdi dir="ltr">{formatPriceOrOnRequest(p, language)}</bdi></span>
+                    {p <= 0 ? (
+                      <span className="block text-sm font-semibold text-[#C8102E]">{PRIX_SUR_DEMANDE[language]}</span>
+                    ) : prixDifferentsListe ? (
+                      <span className="block text-sm text-neutral-600"><bdi dir="ltr">{formatPrice(p)}</bdi></span>
                     ) : v.stock <= 0 ? (
                       <span className="block text-sm text-neutral-600">{t(language, 'Sur commande', 'متوفر عند الطلب')}</span>
                     ) : null}
                   </span>
-                  <Compteur
-                    valeur={q}
-                    min={0}
-                    max={v.stock > 0 ? v.stock : QTE_MAX_SANS_STOCK}
-                    onChange={valeur => {
-                      setQtesListe(prev => ({ ...prev, [identifiant(v)]: valeur }));
-                      setAlerteListe(false);
-                    }}
-                    language={language}
-                    petit
-                    nom={libelleVariante(v, analyse, language, aChoisir)}
-                  />
+                  {/* Sans prix : pas de compteur, cette ligne ne va pas au panier */}
+                  {p > 0 && (
+                    <Compteur
+                      valeur={q}
+                      min={0}
+                      max={v.stock > 0 ? v.stock : QTE_MAX_SANS_STOCK}
+                      onChange={valeur => {
+                        setQtesListe(prev => ({ ...prev, [identifiant(v)]: valeur }));
+                        setAlerteListe(false);
+                      }}
+                      language={language}
+                      petit
+                      nom={libelleVariante(v, analyse, language, aChoisir)}
+                    />
+                  )}
                 </li>
               );
             })}
@@ -905,15 +952,8 @@ export default function ChoixVariante({ product, onSelectionChange, onImagePrevi
               </span>
               {ajoutesListe === null && totalListe > 0 && (
                 <span className="text-sm text-white/85">
-                  {montantListe > 0 ? (
-                    <>
-                      {t(language, 'Total : ', 'المجموع: ')}
-                      <bdi dir="ltr">{formatPrice(montantListe)}</bdi>
-                      {listeSurDemande && t(language, ' + prix sur demande', ' + ثمن حسب الطلب')}
-                    </>
-                  ) : (
-                    t(language, 'Prix sur demande', 'الثمن حسب الطلب')
-                  )}
+                  {t(language, 'Total : ', 'المجموع: ')}
+                  <bdi dir="ltr">{formatPrice(montantListe)}</bdi>
                 </span>
               )}
             </button>

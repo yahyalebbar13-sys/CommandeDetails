@@ -17,7 +17,11 @@ import { normaliserRecherche } from './recherche-commandes';
 import { estCasablanca, estPeripherieCasablanca, fraisColis, fraisLivraison, lieuRetraitPour } from './livraison-boutique';
 import { REGLAGES_RECEPTION_DEFAUT, type LieuDeRetrait, type ReglagesReception } from './reglages-reception';
 
-/** La page de confirmation promet au client un appel « sous 2h ». */
+/**
+ * Objectif de l'équipe : rappeler sous 2 h (au-delà, la commande est « en retard »). Le
+ * client, lui, lit depuis le 02/10/2026 « aujourd'hui pendant nos horaires, sinon le jour
+ * ouvré suivant » : plus de promesse « sous 2 h », intenable le soir et le dimanche.
+ */
 export const DELAI_CONFIRMATION_MS = 2 * 60 * 60 * 1000;
 
 /** Adresse publique du site, pour les liens envoyés au client (jamais tirée d'une requête). */
@@ -771,9 +775,10 @@ export function messageStatut(o: ShopOrder, statut: OrderStatus, options: Option
       ? `Votre commande n° ${n} est partie avec notre chauffeur ou le transporteur. Nous vous appelons pour la réception.`
       : `Votre commande n° ${n} est partie avec le livreur, qui vous appellera avant de passer. ${aPayer('à la livraison')}`,
     out_for_delivery: `Le livreur arrive avec votre commande n° ${n}. ${aPayer()}`,
+    // Recommander en un message : le client répond, l'équipe reprend la même commande.
     delivered: r.mode === 'retrait'
-      ? `Votre commande n° ${n} est retirée. Merci pour votre confiance !`
-      : `Votre commande n° ${n} est livrée. Merci pour votre confiance !`,
+      ? `Votre commande n° ${n} est retirée. Merci pour votre confiance !\nPour recommander les mêmes articles, répondez simplement à ce message.`
+      : `Votre commande n° ${n} est livrée. Merci pour votre confiance !\nPour recommander les mêmes articles, répondez simplement à ce message.`,
     cancelled: `Votre commande n° ${n} a été annulée. Pour toute question, répondez simplement à ce message.`,
     returned: `Votre commande n° ${n} nous est revenue. Répondez à ce message si vous souhaitez la recevoir à nouveau.`,
   };

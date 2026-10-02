@@ -14,6 +14,7 @@
 import {
   ORDER_STATUS_LABELS, type CartItem, type MoyenPaiement, type OrderStatus, type ReceptionCommande, type ShopOrder, type TrackingNote,
 } from '@/lib/shop-types';
+import { provenanceLue } from '@/lib/provenance-boutique';
 
 const STATUTS = Object.keys(ORDER_STATUS_LABELS) as OrderStatus[];
 
@@ -158,6 +159,8 @@ export function normaliserCommande(id: string, brut: unknown): ShopOrder {
     paymentMethod: MOYENS.includes(d.paymentMethod as MoyenPaiement) ? (d.paymentMethod as MoyenPaiement) : 'cod',
     ...(reception(d.reception) ? { reception: reception(d.reception) } : {}),
     ...(livraison(d.livraison) ? { livraison: livraison(d.livraison) } : {}),
+    // D'où vient le client (depuis le 02/10/2026) : seulement des textes connus et bornés.
+    ...(provenanceLue(d.provenance) ? { provenance: provenanceLue(d.provenance) } : {}),
     notes: texteOuAbsent(d.notes, 2000),
     trackingNotes: (Array.isArray(d.trackingNotes) ? d.trackingNotes : [])
       .map(ligneDeSuivi)

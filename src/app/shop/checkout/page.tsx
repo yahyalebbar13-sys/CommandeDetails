@@ -1,18 +1,18 @@
 "use client";
 
-import React, { useState, useEffect, useCallback, useMemo } from "react";
+import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import {
   ChevronRight,
+  ChevronDown,
   ShoppingBag,
   Truck,
   User,
   MapPin,
   Phone,
   Mail,
-  FileText,
   Shield,
   CheckCircle2,
   AlertCircle,
@@ -25,15 +25,19 @@ import {
   Landmark,
   CreditCard,
   Info,
+  MessageCircle,
+  RefreshCw,
+  Trash2,
 } from "lucide-react";
 
 import { initializeApp, getApps, getApp } from "firebase/app";
-import { getFirestore, collection, addDoc, serverTimestamp } from "firebase/firestore";
+import { getFirestore, collection, doc, getDocFromServer, setDoc, serverTimestamp } from "firebase/firestore";
 import { firebaseConfig } from "@/firebase/config";
 
 import {
   useShopCart,
   getCartItemUnitPrice,
+  getCartItemVariantKey,
   groupCartItemsByProduct,
   summarizeCartProduct,
 } from "@/contexts/shop-cart-context";
@@ -41,13 +45,27 @@ import { useLanguage } from "@/contexts/language-context";
 import { useShopProducts } from "@/contexts/shop-products-context";
 import {
   formatPrice,
-  formatPriceOrOnRequest,
   generateOrderNumber,
+  getWhatsAppContact,
   MOROCCAN_CITIES,
 } from "@/lib/shop-utils";
 import { premierTexte } from "@/lib/shop-textes";
 import { libelleLignePanier } from "@/lib/shop-variantes";
 import type { Language } from "@/lib/translations";
+import { erreurTelephone, normaliserTelephoneMaroc, telephoneMarocLisible } from "@/lib/telephone-maroc";
+import {
+  ecrireBrouillon,
+  effacerBrouillon,
+  lireBrouillon,
+  memeEnvoi,
+  messagePrixAConfirmer,
+  messageWhatsAppCommande,
+  signatureCommande,
+  suiteRenvoi,
+  type BrouillonCommande,
+  type LigneMessage,
+} from "@/lib/brouillon-commande";
+import { CHOIX_CONNU_PAR, connuParValide, lireProvenanceStockee, provenanceCommande } from "@/lib/provenance-boutique";
 import {
   FRAIS_ZONE,
   TEXTE_TRANSPORT_VOLUMINEUX,
@@ -66,6 +84,7 @@ import { useReglagesReception } from "@/lib/use-reglages-reception";
 import type { ReglagesReception } from "@/lib/reglages-reception";
 import type {
   CartItem,
+  ConnuPar,
   LieuRetrait,
   ModeReception,
   MoyenPaiement,
@@ -81,10 +100,16 @@ const db = getFirestore(app);
 // Valeur de la liste des villes quand le client écrit lui-même sa ville.
 const AUTRE_VILLE = "__autre__";
 
+/** Sans réponse du serveur au bout de ce temps, on dit au client que le réseau est lent. */
+const DELAI_ENVOI_MS = 15_000;
+/** Vérifier qu'une commande est arrivée : au-delà, on ne peut pas le savoir. */
+const DELAI_VERIFICATION_MS = 10_000;
+
 // ─── Types ───────────────────────────────────────────────────────────────────
-interface FormData {
-  firstName: string;
-  lastName: string;
+// Un type (pas une interface) : le formulaire se range tel quel dans le brouillon.
+type FormData = {
+  /** Nom complet, en un seul champ (enregistré dans customerName et shippingAddress.fullName). */
+  fullName: string;
   phone: string;
   phone2: string;
   email: string;
@@ -99,10 +124,55 @@ interface FormData {
   region: string;
   postalCode: string;
   notes: string;
-  acceptTerms: boolean;
-}
+  /** Réponse facultative à « Comment avez-vous connu LEBTEX ? ». */
+  connuPar: ConnuPar | "";
+};
 
 type FormErrors = Partial<Record<keyof FormData, string>>;
+
+const FORM_VIDE: FormData = {
+  fullName: "",
+  phone: "",
+  phone2: "",
+  email: "",
+  city: "",
+  villeAutre: "",
+  mode: "",
+  paiement: "cod",
+  address: "",
+  region: "",
+  postalCode: "",
+  notes: "",
+  connuPar: "",
+};
+
+/** Le formulaire repris du brouillon : des textes bornés, et seulement des choix permis. */
+function formDepuisBrouillon(champs: Record<string, string>): FormData {
+  const t = (cle: keyof FormData, max = 300) => (typeof champs[cle] === "string" ? champs[cle].slice(0, max) : "");
+  const city = t("city", 80);
+  const mode = t("mode");
+  const paiement = t("paiement");
+  return {
+    fullName: t("fullName", 120),
+    phone: t("phone", 30),
+    phone2: t("phone2", 30),
+    email: t("email", 200),
+    city: city === AUTRE_VILLE || MOROCCAN_CITIES.includes(city) ? city : "",
+    villeAutre: t("villeAutre", 60),
+    mode: mode === "domicile" || mode === "retrait" || mode === "transport" ? mode : "",
+    paiement: paiement === "virement" || paiement === "carte" ? paiement : "cod",
+    address: t("address", 300),
+    region: t("region", 120),
+    postalCode: t("postalCode", 10),
+    notes: t("notes", 1000),
+    connuPar: connuParValide(t("connuPar")) ?? "",
+  };
+}
+
+/** Des champs du bloc « facultatif » sont remplis : on l'ouvre, le client voit ce qu'il a tapé. */
+function facultatifsRemplis(f: FormData): boolean {
+  return !!(f.phone2.trim() || f.email.trim() || f.notes.trim() || f.region.trim() || f.postalCode.trim());
+}
 
 type PreferenceTransport = NonNullable<ReceptionCommande["preferenceTransport"]>;
 
@@ -272,29 +342,35 @@ function SectionHeader({ icon, title, subtitle }: { icon: React.ReactNode; title
 // ─── Input Field ─────────────────────────────────────────────────────────────
 interface InputFieldProps {
   label: string;
+  /** id du champ : le libellé lui est rattaché, le message d'erreur aussi (`${id}-erreur`). */
+  id?: string;
   required?: boolean;
   error?: string;
   children: React.ReactNode;
 }
-function InputField({ label, required, error, children }: InputFieldProps) {
+function InputField({ label, id, required, error, children }: InputFieldProps) {
   const { language } = useLanguage();
   return (
     <div>
-      <label className="block text-sm font-medium text-[#0F0F0F] mb-1.5">
+      <label htmlFor={id} className="block text-sm font-medium text-[#0F0F0F] mb-1.5">
         {label}
         {required && <span className="text-[#C8102E] ms-1">*</span>}
         {!required && <span className="text-[#6B6B6B] text-xs ms-1.5">{language === "ar" ? "(اختياري)" : "(optionnel)"}</span>}
       </label>
       {children}
       {error && (
-        <p className="text-xs text-red-500 mt-1 flex items-center gap-1">
-          <AlertCircle className="w-3 h-3" />
+        <p id={id ? `${id}-erreur` : undefined} className="text-xs text-red-500 mt-1 flex items-start gap-1">
+          <AlertCircle className="w-3 h-3 flex-shrink-0 mt-0.5" />
           {error}
         </p>
       )}
     </div>
   );
 }
+
+/** Attributs d'accessibilité d'un champ qui peut être en erreur. */
+const aria = (id: string, error?: string) =>
+  error ? { "aria-invalid": true, "aria-describedby": `${id}-erreur` } : {};
 
 // 16 px dans les champs : en dessous, le téléphone zoome sur le formulaire.
 const inputCls = (error?: string) =>
@@ -362,16 +438,13 @@ function OptionCarte({
 function validate(form: FormData, choix: ChoixReception, language: Language): FormErrors {
   const ar = language === "ar";
   const errors: FormErrors = {};
-  if (!form.firstName.trim()) errors.firstName = ar ? "الاسم الأول مطلوب" : "Le prénom est requis";
-  if (!form.lastName.trim()) errors.lastName = ar ? "الاسم العائلي مطلوب" : "Le nom est requis";
-  if (!form.phone.trim()) {
-    errors.phone = ar ? "رقم الهاتف مطلوب" : "Le téléphone est requis";
-  } else if (!/^(06|07)\d{8}$/.test(form.phone.replace(/[\s\-]/g, ""))) {
-    errors.phone = ar
-      ? "رقم غير صحيح — يجب أن يبدأ بـ 06 أو 07 (10 أرقام)"
-      : "Format invalide — commencez par 06 ou 07 (10 chiffres)";
-  }
-  if (form.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) {
+  if (!form.fullName.trim()) errors.fullName = ar ? "الاسم الكامل مطلوب" : "Le nom complet est requis";
+  const erreurTel = erreurTelephone(form.phone, language);
+  if (erreurTel) errors.phone = erreurTel;
+  // Le 2e numéro est facultatif, mais s'il est écrit, il doit pouvoir servir.
+  const erreurTel2 = erreurTelephone(form.phone2, language, false);
+  if (erreurTel2) errors.phone2 = erreurTel2;
+  if (form.email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim())) {
     errors.email = ar ? "بريد إلكتروني غير صحيح" : "Adresse email invalide";
   }
   // Retrait au magasin : la ville ne change ni les frais ni le lieu, elle devient facultative.
@@ -379,7 +452,6 @@ function validate(form: FormData, choix: ChoixReception, language: Language): Fo
   else if (form.city === AUTRE_VILLE && !form.villeAutre.trim()) errors.villeAutre = ar ? "اكتب اسم مدينتك" : "Écrivez le nom de votre ville";
   if (!choix.mode) errors.mode = ar ? "اختر طريقة استلام طلبك" : "Choisissez comment recevoir votre commande";
   if (choix.adresseRequise && !form.address.trim()) errors.address = ar ? "العنوان مطلوب للتوصيل" : "L'adresse est requise pour la livraison";
-  if (!form.acceptTerms) errors.acceptTerms = ar ? "يجب الموافقة على الشروط" : "Vous devez accepter les conditions";
   return errors;
 }
 
@@ -438,6 +510,11 @@ function calculerTotaux(choix: ChoixReception, subtotal: number, paiement: Moyen
   };
 }
 
+/** Un montant, ou « À confirmer » quand il vaut 0 : les mêmes mots que les lignes sans prix. */
+function montantOuAConfirmer(montant: number, ar: boolean): string {
+  return montant > 0 ? formatPrice(montant) : ar ? "قيد التأكيد" : "À confirmer";
+}
+
 /** Sous-total, frais et total : le client les voit juste avant « Confirmer ma commande ». */
 function ResumeAvantValidation({ subtotal, choix, paiement }: { subtotal: number; choix: ChoixReception; paiement: MoyenPaiement }) {
   const { language } = useLanguage();
@@ -447,7 +524,7 @@ function ResumeAvantValidation({ subtotal, choix, paiement }: { subtotal: number
     <div className="lg:hidden mb-5 rounded-2xl border border-[#E8E4DF] bg-[#FBF8F3] px-4 py-3 space-y-2" aria-label={ar ? "ملخص الطلب" : "Résumé de la commande"}>
       <div className="flex items-center justify-between gap-3 text-sm">
         <span className="text-[#6B6B6B]">{ar ? "المجموع الفرعي" : "Sous-total"}</span>
-        <span className="font-semibold text-[#0F0F0F] tabular-nums">{formatPriceOrOnRequest(subtotal, language)}</span>
+        <span className="font-semibold text-[#0F0F0F] tabular-nums">{montantOuAConfirmer(subtotal, ar)}</span>
       </div>
       <div className="flex items-start justify-between gap-3 text-sm">
         <span className="text-[#6B6B6B]">{t.titreLigne}</span>
@@ -456,7 +533,7 @@ function ResumeAvantValidation({ subtotal, choix, paiement }: { subtotal: number
       <div className="border-t border-[#E8E4DF] pt-2 flex items-start justify-between gap-3">
         <span className="font-bold text-[#0F0F0F]">{ar ? "المجموع" : "Total"}</span>
         <div className="text-end">
-          <span className="font-bold text-[#C8102E] text-lg tabular-nums">{formatPriceOrOnRequest(subtotal > 0 ? t.total : 0, language)}</span>
+          <span className="font-bold text-[#C8102E] text-lg tabular-nums">{montantOuAConfirmer(subtotal > 0 ? t.total : 0, ar)}</span>
           <p className="text-xs text-[#6B6B6B]">{t.legendeTotal}</p>
         </div>
       </div>
@@ -512,6 +589,7 @@ function SummaryPanel({ items, subtotal, productQtyMap, choix, paiement }: Summa
           const first = productItems[0];
           const productTotalQty = productQtyMap?.[productId] || first.quantity;
           const { total: productTotal } = summarizeCartProduct(productItems, productTotalQty);
+          const prixAConfirmer = productItems.some((item) => getCartItemUnitPrice(item, productTotalQty) <= 0);
           const variantsSummary = productItems
             .filter((item) => item.variant)
             .map((item) => {
@@ -554,9 +632,14 @@ function SummaryPanel({ items, subtotal, productQtyMap, choix, paiement }: Summa
                 {first.volumineux && (
                   <p className="text-xs font-semibold text-amber-700 mt-0.5">{ar ? "منتج كبير الحجم" : "Article volumineux"}</p>
                 )}
+                {prixAConfirmer && productTotal > 0 && (
+                  <p className="text-xs font-semibold text-amber-700 mt-0.5">{ar ? "جزء منه: السعر قيد التأكيد" : "En partie : prix à confirmer"}</p>
+                )}
               </div>
               <span className="text-xs font-bold text-[#0F0F0F] flex-shrink-0 tabular-nums">
-                {formatPriceOrOnRequest(productTotal, language)}
+                {productTotal > 0
+                  ? formatPrice(productTotal)
+                  : <span className="font-semibold text-amber-700">{ar ? "السعر قيد التأكيد" : "Prix à confirmer"}</span>}
               </span>
             </div>
           );
@@ -567,11 +650,11 @@ function SummaryPanel({ items, subtotal, productQtyMap, choix, paiement }: Summa
       <div className="px-5 py-4 border-t border-[#E8E4DF] space-y-2.5">
         <div className="flex items-center justify-between text-sm">
           <span className="text-[#6B6B6B]">{ar ? "المجموع الفرعي" : "Sous-total"}</span>
-          <span className="font-semibold text-[#0F0F0F] tabular-nums">{formatPriceOrOnRequest(subtotal, language)}</span>
+          <span className="font-semibold text-[#0F0F0F] tabular-nums">{montantOuAConfirmer(subtotal, ar)}</span>
         </div>
         {subtotal > 0 && hasUnpricedItems && (
           <p className="text-xs text-[#6B6B6B] -mt-1.5">
-            {ar ? 'لا يشمل المنتجات حسب الطلب' : 'Hors articles sur demande'}
+            {ar ? 'لا يشمل المنتجات التي سعرها قيد التأكيد' : 'Hors articles au prix à confirmer'}
           </p>
         )}
         <div className="flex items-start justify-between gap-3 text-sm">
@@ -600,7 +683,7 @@ function SummaryPanel({ items, subtotal, productQtyMap, choix, paiement }: Summa
           <span className="font-bold text-[#0F0F0F]">{ar ? "المجموع" : "Total"}</span>
           <div className="text-end">
             <span className="font-bold text-[#C8102E] text-xl shop-font-display tabular-nums">
-              {formatPriceOrOnRequest(subtotal > 0 ? total : 0, language)}
+              {montantOuAConfirmer(subtotal > 0 ? total : 0, ar)}
             </span>
             <p className="text-xs text-[#6B6B6B]">{legendeTotal}</p>
           </div>
@@ -618,34 +701,188 @@ function SummaryPanel({ items, subtotal, productQtyMap, choix, paiement }: Summa
   );
 }
 
+// ─── Envoi de la commande : réseau lent, sans doublon ─────────────────────────
+// L'identifiant de la commande est choisi une fois (gardé dans le brouillon) et la
+// commande s'écrit avec setDoc : renvoyée, elle vise le même document. La règle
+// Firestore n'autorise que la création ; réécrire une commande qui existe est
+// refusé, signe qu'un envoi précédent est passé : on le vérifie sur le serveur
+// (getDocFromServer ; lire une commande par son identifiant est ouvert à tous).
+
+type EtatEnvoi = "repos" | "envoi" | "lent" | "erreur";
+
+/** Une écriture partie. Le SDK Firestore la garde et la réessaie seul tant que la page reste ouverte. */
+interface EnvoiCommande {
+  id: string;
+  numero: string;
+  telephone: string;
+  promesse: Promise<void>;
+  fini: "non" | "ok" | "refus";
+  erreur?: unknown;
+}
+
+const DELAI_PASSE: unique symbol = Symbol("delai");
+
+function avecDelai<T>(p: Promise<T>, ms: number): Promise<T | typeof DELAI_PASSE> {
+  let minuteur: ReturnType<typeof setTimeout> | undefined;
+  const delai = new Promise<typeof DELAI_PASSE>((resoudre) => {
+    minuteur = setTimeout(() => resoudre(DELAI_PASSE), ms);
+  });
+  return Promise.race([p, delai]).finally(() => clearTimeout(minuteur));
+}
+
+/** La commande est-elle arrivée chez nous ? null : impossible de le savoir (pas de connexion). */
+async function commandeExiste(id: string): Promise<boolean | null> {
+  try {
+    const snap = await avecDelai(getDocFromServer(doc(db, "shop_orders", id)), DELAI_VERIFICATION_MS);
+    if (snap === DELAI_PASSE || snap.metadata.hasPendingWrites) return null;
+    return snap.exists();
+  } catch {
+    return null;
+  }
+}
+
+/** Code d'une erreur Firebase (« permission-denied »…) : montré en petit, jamais comme message. */
+function codeErreurDe(err: unknown): string {
+  const code = (err as { code?: unknown } | null)?.code;
+  return typeof code === "string" && code ? code.slice(0, 60) : "inconnue";
+}
+
+interface DonneesCommande {
+  form: FormData;
+  choix: ChoixReception;
+  mode: ModeReception;
+  paiement: MoyenPaiement;
+  items: CartItem[];
+  productQtyMap: Record<string, number>;
+  subtotal: number;
+  language: Language;
+  getProductById: (id: string) => ShopProduct | undefined;
+}
+
+/** Ce qui part dans shop_orders, sans le n° ni les horodatages. */
+function contenuCommande(d: DonneesCommande) {
+  const { form, choix, mode } = d;
+  // Validés avant : enregistrés au format 0XXXXXXXXX, que lisent l'admin, le suivi et le transporteur.
+  const telephone = normaliserTelephoneMaroc(form.phone) ?? form.phone.trim();
+  const telephone2 = form.phone2.trim() ? normaliserTelephoneMaroc(form.phone2) ?? form.phone2.trim() : "";
+  const nom = form.fullName.trim().replace(/\s+/g, " ");
+  // Transport d'un rouleau : prix donné au téléphone, la commande part à 0 et
+  // l'équipe l'ajoute après l'accord du client.
+  const deliveryFee = choix.frais ?? 0;
+
+  const reception: ReceptionCommande = {
+    mode,
+    volumineux: choix.volumineux,
+    ...(mode === "retrait" ? { lieuRetrait: choix.lieuRetrait } : {}),
+    ...(mode === "transport" ? { preferenceTransport: choix.preferenceTransport } : {}),
+  };
+
+  const shippingAddress: ShippingAddress = {
+    fullName: nom,
+    phone: telephone,
+    ...(telephone2 ? { phone2: telephone2 } : {}),
+    address: form.address.trim(),
+    city: choix.ville,
+    ...(form.region.trim() ? { region: form.region.trim() } : {}),
+    ...(form.postalCode.trim() ? { postalCode: form.postalCode.trim() } : {}),
+  };
+
+  return {
+    customerName: nom,
+    customerPhone: telephone,
+    customerEmail: form.email.trim() || null,
+    shippingAddress,
+    items: d.items.map((item) => {
+      // Clean undefined values from variant object as Firestore does not support them
+      const cleanVariant = item.variant
+        ? Object.fromEntries(Object.entries(item.variant).filter(([, v]) => v !== undefined))
+        : null;
+      // Nom arabe vu par le client dans le récapitulatif ; absent plutôt que vide (Firestore refuse undefined).
+      const productNameAr = nomArabe(item, d.getProductById(item.productId));
+
+      return {
+        productId: item.productId || "unknown",
+        productName: item.productName || "Produit",
+        ...(productNameAr ? { productNameAr } : {}),
+        productImage: item.productImage || "/placeholder.png",
+        price: item.price || 0,
+        // Prix réellement facturé (prix de gros compris), calculé comme le
+        // sous-total du panier : somme(unitPrice × quantité) = subtotal.
+        unitPrice: Number(getCartItemUnitPrice(item, d.productQtyMap[item.productId])) || 0,
+        quantity: item.quantity || 1,
+        variant: cleanVariant && Object.keys(cleanVariant).length > 0 ? cleanVariant : null,
+        maxStock: item.maxStock ?? 99,
+        // L'équipe voit quelle ligne est un rouleau entier (préparé à CHRIFA).
+        ...(item.volumineux ? { volumineux: true } : {}),
+      };
+    }),
+    subtotal: d.subtotal || 0,
+    deliveryFee: deliveryFee || 0,
+    total: d.subtotal + deliveryFee || 0,
+    paymentMethod: d.paiement,
+    reception,
+    status: "pending",
+    notes: form.notes.trim() || null,
+    // D'où vient le client : publicité, lien, réponse à « Comment avez-vous connu LEBTEX ? ».
+    provenance: provenanceCommande(lireProvenanceStockee(), d.language, form.connuPar),
+  };
+}
+
+/** Les lignes du panier pour un message WhatsApp (en français : lu par l'équipe). */
+function lignesMessage(items: CartItem[], productQtyMap: Record<string, number>): LigneMessage[] {
+  return items.map((item) => ({
+    nom: item.productName || "Article",
+    variante: libelleLignePanier(item.variant, "fr"),
+    quantite: item.quantity || 1,
+    prixUnitaire: getCartItemUnitPrice(item, productQtyMap[item.productId]),
+  }));
+}
+
+/** Le mode de réception dit à l'équipe (jamais le nom du transporteur des colis). */
+function texteReception(choix: ChoixReception, nomLieu: string): string {
+  if (choix.mode === "retrait") return `Réception : retrait gratuit à ${nomLieu}`;
+  if (choix.mode === "transport") {
+    return `Réception : transport ${choix.preferenceTransport === "camionnette" ? "par la camionnette LEBTEX" : "jusqu’au dépôt du transporteur"} (prix à confirmer)`;
+  }
+  if (choix.mode === "domicile") {
+    const frais = choix.fraisConnus && choix.frais !== null ? formatPrice(choix.frais) : "à confirmer";
+    return `Réception : livraison à domicile${choix.ville ? ` (${choix.ville})` : ""}, ${frais}`;
+  }
+  return "Réception : à convenir";
+}
+
+/** Le numéro tel qu'on le relit : « 06 12 34 56 78 » s'il est reconnu, sinon tel que tapé. */
+function telephoneSaisiLisible(saisie: string): string {
+  const n = normaliserTelephoneMaroc(saisie);
+  return n ? telephoneMarocLisible(n) : saisie.trim();
+}
+
 // ─── Main Checkout Page ───────────────────────────────────────────────────────
 export default function CheckoutPage() {
   const router = useRouter();
-  const { items, subtotal, clearCart, productQtyMap } = useShopCart();
+  const { items, subtotal, clearCart, removeItem, productQtyMap, charge } = useShopCart();
   const { reglages } = useReglagesReception();
   const { language } = useLanguage();
   const { getProductById } = useShopProducts();
   const ar = language === "ar";
-  const [form, setForm] = useState<FormData>({
-    firstName: "",
-    lastName: "",
-    phone: "",
-    phone2: "",
-    email: "",
-    city: "",
-    villeAutre: "",
-    mode: "",
-    paiement: "cod",
-    address: "",
-    region: "",
-    postalCode: "",
-    notes: "",
-    acceptTerms: false,
-  });
+  const [form, setForm] = useState<FormData>(FORM_VIDE);
   const [errors, setErrors] = useState<FormErrors>({});
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [submitError, setSubmitError] = useState<string | null>(null);
   const [orderSuccess, setOrderSuccess] = useState(false);
+  // Brouillon relu : avant, on n'écrit rien (le formulaire vide écraserait la saisie gardée).
+  const [brouillonLu, setBrouillonLu] = useState(false);
+  // Bloc « e-mail, 2e numéro, remarque » : replié tant que le client n'en a pas besoin.
+  const [facultatifOuvert, setFacultatifOuvert] = useState(false);
+  const [etatEnvoi, setEtatEnvoi] = useState<EtatEnvoi>("repos");
+  const [codeErreur, setCodeErreur] = useState<string | null>(null);
+
+  // Identifiant, n° et empreinte de la commande en cours : gardés avec le brouillon.
+  const envoiPrevu = useRef<Omit<BrouillonCommande, "champs" | "majLe">>({});
+  const envoiEnCours = useRef<EnvoiCommande | null>(null);
+  // Un seul envoi à la fois (posé avant toute attente : un double appui ne passe pas).
+  const verrou = useRef(false);
+  const terminee = useRef(false);
+  const monte = useRef(true);
+  const etatRef = useRef<EtatEnvoi>("repos");
 
   const volumineux = useMemo(() => commandeVolumineuse(items), [items]);
   const choix = useMemo(
@@ -660,13 +897,55 @@ export default function CheckoutPage() {
   const lieu = reglages.lieux[choix.lieuRetrait];
   const especes = libelleEspeces(choix, language);
   const totalConnu = subtotal + (choix.fraisConnus && choix.frais !== null ? choix.frais : 0);
+  // D'anciens paniers peuvent garder un article sans prix : la commande ne part pas avec.
+  const lignesSansPrix = useMemo(
+    () => items.filter((item) => getCartItemUnitPrice(item, productQtyMap[item.productId]) <= 0),
+    [items, productQtyMap]
+  );
 
-  // Redirect if cart empty
   useEffect(() => {
-    if (items.length === 0 && !orderSuccess) {
+    monte.current = true;
+    return () => {
+      monte.current = false;
+    };
+  }, []);
+
+  // Le brouillon de ce navigateur : le client retrouve ce qu'il avait tapé.
+  useEffect(() => {
+    const b = lireBrouillon();
+    if (b) {
+      const repris = formDepuisBrouillon(b.champs);
+      setForm(repris);
+      setFacultatifOuvert(facultatifsRemplis(repris));
+      envoiPrevu.current = {
+        ...(b.idCommande ? { idCommande: b.idCommande } : {}),
+        ...(b.numeroCommande ? { numeroCommande: b.numeroCommande } : {}),
+        ...(b.signature ? { signature: b.signature } : {}),
+        ...(b.envoyeLe ? { envoyeLe: b.envoyeLe } : {}),
+      };
+    }
+    setBrouillonLu(true);
+  }, []);
+
+  // Gardé pendant la saisie (un peu après la dernière touche), jamais après la commande.
+  useEffect(() => {
+    if (!brouillonLu || terminee.current) return;
+    const minuteur = setTimeout(() => {
+      if (terminee.current) return;
+      const rienTape = (Object.keys(FORM_VIDE) as (keyof FormData)[]).every((k) => form[k] === FORM_VIDE[k]);
+      // Tout effacé (et rien d'envoyé) : on ne garde pas l'ancien brouillon.
+      if (rienTape && !envoiPrevu.current.idCommande) return effacerBrouillon();
+      ecrireBrouillon({ champs: { ...form }, ...envoiPrevu.current });
+    }, 400);
+    return () => clearTimeout(minuteur);
+  }, [form, brouillonLu]);
+
+  // Panier vraiment vide (une fois relu du navigateur) : retour au panier.
+  useEffect(() => {
+    if (charge && items.length === 0 && !orderSuccess) {
       router.replace("/shop/panier");
     }
-  }, [items.length, router, orderSuccess]);
+  }, [charge, items.length, router, orderSuccess]);
 
   const setField = useCallback(
     <K extends keyof FormData>(key: K, value: FormData[K]) => {
@@ -680,15 +959,94 @@ export default function CheckoutPage() {
     []
   );
 
+  const changerEtat = useCallback((etat: EtatEnvoi) => {
+    etatRef.current = etat;
+    setEtatEnvoi(etat);
+  }, []);
+
+  /** La commande est chez nous : une seule fois par page, quel que soit le chemin qui y mène. */
+  const reussir = useCallback(
+    (envoi: Pick<EnvoiCommande, "id" | "numero" | "telephone">) => {
+      if (terminee.current || !monte.current) return;
+      terminee.current = true;
+
+      // Save customer info for auto-tracking on suivi page
+      // Isolated try/catch: localStorage failure must NOT crash the checkout
+      try {
+        localStorage.setItem("lebtex_customer_phone", envoi.telephone);
+        localStorage.setItem("lebtex_last_order_id", envoi.id);
+        if (envoi.numero) localStorage.setItem("lebtex_last_order_number", envoi.numero);
+      } catch { /* ignore localStorage errors (private browsing, quota) */ }
+
+      // Prévient le commerçant par e-mail. Sans await et sans suite en cas
+      // d'échec : l'alerte ne doit jamais retarder ni faire échouer la commande.
+      // keepalive laisse partir la requête même si la page change aussitôt.
+      // (La route n'envoie qu'une alerte par commande, même appelée deux fois.)
+      fetch("/api/shop/commandes/alerte", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: envoi.id }),
+        keepalive: true,
+      }).catch(() => {});
+
+      effacerBrouillon();
+
+      // IMPORTANT: redirect FIRST, then clear cart
+      // If we clearCart first, items.length === 0 causes the component to unmount before navigation
+      setOrderSuccess(true);
+      clearCart();
+      router.push(`/shop/confirmation/${envoi.id}`);
+    },
+    [clearCart, router]
+  );
+
+  /**
+   * Écriture refusée : souvent parce que la commande existe déjà (un envoi précédent
+   * est passé). On le vérifie sur le serveur avant de parler d'erreur. `etatAttendu` :
+   * si le client a relancé entre-temps, c'est ce nouvel essai qui conclura.
+   */
+  const conclureRefus = useCallback(
+    async (envoi: EnvoiCommande, etatAttendu: EtatEnvoi) => {
+      const existe = await commandeExiste(envoi.id);
+      if (!monte.current || terminee.current) return;
+      if (existe) return reussir(envoi);
+      if (etatRef.current !== etatAttendu) return;
+      setCodeErreur(codeErreurDe(envoi.erreur));
+      changerEtat("erreur");
+    },
+    [reussir, changerEtat]
+  );
+
+  /** Attendre la réponse du serveur, 15 s au plus ; refusée, vérifier si la commande est déjà là. */
+  const attendre = useCallback(
+    async (envoi: EnvoiCommande) => {
+      const issue = await avecDelai(
+        envoi.promesse.then(() => "ok" as const, () => "refus" as const),
+        DELAI_ENVOI_MS
+      );
+      if (!monte.current || terminee.current) return;
+      if (issue === "ok") return reussir(envoi);
+      if (issue === DELAI_PASSE) {
+        // L'écriture continue en arrière-plan : si elle aboutit ou est refusée, on enchaîne tout seul.
+        setCodeErreur(null);
+        changerEtat("lent");
+        return;
+      }
+      return conclureRefus(envoi, "envoi");
+    },
+    [reussir, changerEtat, conclureRefus]
+  );
+
   const handleSubmit = useCallback(
     async (e: React.FormEvent) => {
       e.preventDefault();
-      setSubmitError(null);
+      if (verrou.current || terminee.current || lignesSansPrix.length > 0) return;
 
       const validationErrors = validate(form, choix, language);
       const mode = choix.mode;
       if (Object.keys(validationErrors).length > 0 || !mode) {
         setErrors(validationErrors);
+        if (validationErrors.phone2 || validationErrors.email) setFacultatifOuvert(true);
         // Scroll to first error
         setTimeout(() => {
           const firstErrorEl = document.querySelector('[data-error="true"]');
@@ -697,113 +1055,135 @@ export default function CheckoutPage() {
         return;
       }
 
-      setIsSubmitting(true);
+      verrou.current = true;
+      setCodeErreur(null);
+      changerEtat("envoi");
 
       try {
-        // Transport d'un rouleau : prix donné au téléphone, la commande part à 0 et
-        // l'équipe l'ajoute après l'accord du client.
-        const deliveryFee = choix.frais ?? 0;
-        const total = subtotal + deliveryFee;
-        const orderNumber = generateOrderNumber();
+        // Un envoi précédent est encore en route (réseau lent) : on l'attend encore, sans réécrire.
+        const enRoute = envoiEnCours.current;
+        if (enRoute?.fini === "ok") return reussir(enRoute);
+        if (enRoute?.fini === "non") {
+          await attendre(enRoute);
+          return;
+        }
 
-        const reception: ReceptionCommande = {
-          mode,
-          volumineux: choix.volumineux,
-          ...(mode === "retrait" ? { lieuRetrait: choix.lieuRetrait } : {}),
-          ...(mode === "transport" ? { preferenceTransport: choix.preferenceTransport } : {}),
-        };
+        const contenu = contenuCommande({
+          form, choix, mode, paiement, items, productQtyMap, subtotal, language, getProductById,
+        });
+        // « Même commande » = même panier, même téléphone : changer l'adresse puis réessayer
+        // ne doit pas créer une 2e commande.
+        const signature = signatureCommande({ items: contenu.items, telephone: contenu.customerPhone });
 
-        const shippingAddress: ShippingAddress = {
-          fullName: `${form.firstName.trim()} ${form.lastName.trim()}`,
-          phone: form.phone.trim(),
-          ...(form.phone2.trim() ? { phone2: form.phone2.trim() } : {}),
-          address: form.address.trim(),
-          city: choix.ville,
-          ...(form.region.trim() ? { region: form.region.trim() } : {}),
-          ...(form.postalCode.trim() ? { postalCode: form.postalCode.trim() } : {}),
-        };
+        // L'identifiant du brouillon, tant que c'est la même commande.
+        const prevu = envoiPrevu.current;
+        let idCommande = prevu.idCommande;
+        let numeroCommande = prevu.numeroCommande;
+        if (idCommande && prevu.envoyeLe) {
+          // Déjà envoyé une fois (cette page ou une page fermée) : est-ce arrivé ?
+          // null = le serveur ne répond pas (réseau faible) : on écrit quand même, sans risque.
+          const existe = await commandeExiste(idCommande);
+          if (!monte.current || terminee.current) return;
+          const suite = suiteRenvoi(existe, memeEnvoi(prevu, signature));
+          if (suite === "deja-la") {
+            return reussir({ id: idCommande, numero: numeroCommande ?? "", telephone: contenu.customerPhone });
+          }
+          // Une autre commande (déjà arrivée, ou peut-être) : celle-ci en est une nouvelle.
+          // La même, sans réponse du serveur : renvoyée sous le même identifiant ; si elle est
+          // déjà là, la règle refuse de la réécrire et conclureRefus la retrouve.
+          // (Seul l'administrateur connecté dans ce navigateur a le droit de réécrire : sa
+          // commande test serait alors remplacée par la même, remise « en attente ».)
+          if (suite === "nouveau") idCommande = undefined;
+        }
+        if (!idCommande || !numeroCommande) {
+          idCommande = doc(collection(db, "shop_orders")).id;
+          numeroCommande = generateOrderNumber();
+        }
+        envoiPrevu.current = { idCommande, numeroCommande, signature, envoyeLe: Date.now() };
+        ecrireBrouillon({ champs: { ...form }, ...envoiPrevu.current });
 
-        // Sanitize phone: remove spaces and dashes for consistent lookup
-        const cleanPhone = form.phone.trim().replace(/[\s\-]/g, '');
-
-        const docRef = await addDoc(collection(db, "shop_orders"), {
-          orderNumber,
-          customerName: shippingAddress.fullName,
-          customerPhone: cleanPhone,
-          customerEmail: form.email.trim() || null,
-          shippingAddress,
-          items: items.map((item) => {
-            // Clean undefined values from variant object as Firestore does not support them
-            const cleanVariant = item.variant
-              ? Object.fromEntries(Object.entries(item.variant).filter(([_, v]) => v !== undefined))
-              : null;
-            // Nom arabe vu par le client dans le récapitulatif ; absent plutôt que vide (Firestore refuse undefined).
-            const productNameAr = nomArabe(item, getProductById(item.productId));
-
-            return {
-              productId: item.productId || 'unknown',
-              productName: item.productName || 'Produit',
-              ...(productNameAr ? { productNameAr } : {}),
-              productImage: item.productImage || '/placeholder.png',
-              price: item.price || 0,
-              // Prix réellement facturé (prix de gros compris), calculé comme le
-              // sous-total du panier : somme(unitPrice × quantité) = subtotal.
-              unitPrice: Number(getCartItemUnitPrice(item, productQtyMap[item.productId])) || 0,
-              quantity: item.quantity || 1,
-              variant: cleanVariant && Object.keys(cleanVariant).length > 0 ? cleanVariant : null,
-              maxStock: item.maxStock ?? 99,
-              // L'équipe voit quelle ligne est un rouleau entier (préparé à CHRIFA).
-              ...(item.volumineux ? { volumineux: true } : {}),
-            };
-          }),
-          subtotal: subtotal || 0,
-          deliveryFee: deliveryFee || 0,
-          total: total || 0,
-          paymentMethod: paiement,
-          reception,
-          status: "pending",
-          notes: form.notes.trim() || null,
+        const promesse = setDoc(doc(db, "shop_orders", idCommande), {
+          ...contenu,
+          orderNumber: numeroCommande,
           createdAt: serverTimestamp(),
           updatedAt: serverTimestamp(),
         });
-
-        // Save customer info for auto-tracking on suivi page
-        // Isolated try/catch: localStorage failure must NOT crash the checkout
-        try {
-          localStorage.setItem('lebtex_customer_phone', cleanPhone);
-          localStorage.setItem('lebtex_last_order_id', docRef.id);
-          localStorage.setItem('lebtex_last_order_number', orderNumber);
-        } catch { /* ignore localStorage errors (private browsing, quota) */ }
-
-        // Prévient le commerçant par e-mail. Sans await et sans suite en cas
-        // d'échec : l'alerte ne doit jamais retarder ni faire échouer la commande.
-        // keepalive laisse partir la requête même si la page change aussitôt.
-        fetch('/api/shop/commandes/alerte', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ id: docRef.id }),
-          keepalive: true,
-        }).catch(() => {});
-
-        // IMPORTANT: redirect FIRST, then clear cart
-        // If we clearCart first, items.length === 0 causes the component to unmount before navigation
-        setOrderSuccess(true);
-        clearCart();
-        router.push(`/shop/confirmation/${docRef.id}`);
-      } catch (err: any) {
-        console.error("Erreur Checkout:", err);
-        setSubmitError(
-          language === "ar"
-            ? `تعذّر تسجيل الطلب (${err?.code || "خطأ غير معروف"}). حاول مرة أخرى أو تواصل معنا عبر واتساب.`
-            : `Erreur (${err?.code || 'Inconnue'}): ${err?.message || "Veuillez réessayer ou nous contacter sur WhatsApp."}`
+        const envoi: EnvoiCommande = {
+          id: idCommande,
+          numero: numeroCommande,
+          telephone: contenu.customerPhone,
+          promesse,
+          fini: "non",
+        };
+        envoiEnCours.current = envoi;
+        promesse.then(
+          () => {
+            envoi.fini = "ok";
+            // Arrivée après le message « connexion lente » : on enchaîne sans attendre le client.
+            if (etatRef.current === "lent") reussir(envoi);
+          },
+          (err) => {
+            envoi.fini = "refus";
+            envoi.erreur = err;
+            // Refus arrivé après le message « connexion lente » : personne ne l'attend plus ;
+            // on vérifie si la commande est là, sinon on montre l'erreur.
+            if (etatRef.current === "lent" && envoiEnCours.current === envoi && monte.current && !terminee.current) {
+              void conclureRefus(envoi, "lent");
+            }
+          }
         );
-        setIsSubmitting(false);
+        await attendre(envoi);
+      } catch (err) {
+        // Erreur avant même l'envoi (données refusées par le SDK…).
+        console.error("Erreur Checkout:", err);
+        if (monte.current && !terminee.current) {
+          setCodeErreur(codeErreurDe(err));
+          changerEtat("erreur");
+        }
+      } finally {
+        verrou.current = false;
+        if (monte.current && !terminee.current && etatRef.current === "envoi") changerEtat("repos");
       }
     },
-    [form, choix, paiement, items, subtotal, productQtyMap, clearCart, router, language, getProductById]
+    [
+      form, choix, paiement, items, subtotal, productQtyMap, language, getProductById, lignesSansPrix.length,
+      reussir, attendre, conclureRefus, changerEtat,
+    ]
   );
 
-  if (items.length === 0 && !orderSuccess) return null;
+  const retirerLignesSansPrix = useCallback(() => {
+    for (const item of lignesSansPrix) removeItem(item.productId, getCartItemVariantKey(item));
+  }, [lignesSansPrix, removeItem]);
+
+  // Commande arrivée (le panier vient d'être vidé) : plus de formulaire ni de message « lent »
+  // pendant que la confirmation s'ouvre, parfois lentement.
+  if (orderSuccess) {
+    return (
+      <div className="min-h-screen bg-[#FBF8F3] flex items-center justify-center px-4" role="status" aria-live="polite">
+        <div className="max-w-sm w-full rounded-2xl border border-[#E8E4DF] bg-white p-6 text-center shadow-sm">
+          <CheckCircle2 className="w-12 h-12 text-green-600 mx-auto" aria-hidden />
+          <p className="mt-3 text-lg font-bold text-[#0F0F0F] shop-font-display">
+            {ar ? "تم تسجيل طلبك" : "Commande enregistrée"}
+          </p>
+          <p className="mt-1 text-sm text-[#6B6B6B] flex items-center justify-center gap-2">
+            <Loader2 className="w-4 h-4 animate-spin text-[#C8102E]" aria-hidden />
+            {ar ? "جاري فتح صفحة التأكيد…" : "Ouverture de la confirmation…"}
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  // Panier pas encore relu après un rechargement : on attend, sans renvoyer au panier.
+  if (!charge) {
+    return (
+      <div className="min-h-screen bg-[#FBF8F3] flex items-center justify-center" role="status" aria-live="polite">
+        <Loader2 className="w-8 h-8 animate-spin text-[#C8102E]" aria-hidden />
+        <span className="sr-only">{ar ? "جاري التحميل…" : "Chargement…"}</span>
+      </div>
+    );
+  }
+  if (items.length === 0) return null;
 
   // Texte de l'option transport : ce qui se passe dépend de la ville.
   const texteTransport = ar
@@ -833,6 +1213,37 @@ export default function CheckoutPage() {
       : choix.mode === "transport"
         ? "Ex : meilleur moment pour vous appeler"
         : "Ex : livrer après 18h, sonnez au 2ème étage";
+
+  // Articles sans prix : leurs noms, et le message pour demander leur prix.
+  const nomLigne = (item: CartItem) => {
+    const nom = (ar && nomArabe(item, getProductById(item.productId))) || item.productName;
+    const variante = libelleLignePanier(item.variant, language);
+    return variante ? `${nom} (${variante})` : nom;
+  };
+  const lienPrixWhatsApp = lignesSansPrix.length > 0
+    ? getWhatsAppContact(messagePrixAConfirmer(lignesMessage(lignesSansPrix, productQtyMap)))
+    : "";
+
+  // Envoi bloqué (réseau lent ou erreur) : toute la commande, prête à partir sur WhatsApp.
+  const enDifficulte = etatEnvoi === "lent" || etatEnvoi === "erreur";
+  const lienSecours = enDifficulte
+    ? getWhatsAppContact(
+        messageWhatsAppCommande({
+          lignes: lignesMessage(items, productQtyMap),
+          sousTotal: subtotal,
+          ligneReception: texteReception(choix, lieu.nom),
+          total: choix.fraisConnus ? totalConnu : null,
+          totalEnPlus: choix.mode === "transport" ? "+ transport à confirmer" : "",
+          nom: form.fullName.trim().replace(/\s+/g, " "),
+          telephone: telephoneSaisiLisible(form.phone),
+          ville: choix.ville,
+          adresse: choix.adresseRequise ? form.address.trim() : "",
+          paiement: paiement === "virement" ? "virement bancaire" : paiement === "carte" ? "carte bancaire" : "espèces",
+          remarque: form.notes.trim(),
+          numero: envoiPrevu.current.numeroCommande,
+        })
+      )
+    : "";
 
   return (
     <div className="min-h-screen bg-[#FBF8F3]">
@@ -868,92 +1279,92 @@ export default function CheckoutPage() {
             {/* ── Left: Form (60%) ── */}
             <div className="lg:col-span-3 space-y-6">
 
-              {/* ── Section 1: Personal Info ── */}
+              {/* ── Articles sans prix : à retirer ou à faire chiffrer avant de commander ── */}
+              {lignesSansPrix.length > 0 && (
+                <div id="articles-sans-prix" role="alert" className="rounded-2xl border border-amber-200 bg-amber-50 p-5">
+                  <p className="font-bold text-[#0F0F0F] flex items-center gap-2">
+                    <Info className="w-5 h-5 text-amber-700 flex-shrink-0" />
+                    {ar ? "سعر بعض المنتجات قيد التأكيد" : "Prix à confirmer pour certains articles"}
+                  </p>
+                  <p className="text-sm text-[#4A4A4A] mt-1.5 leading-relaxed">
+                    {ar
+                      ? "لا يمكن إرسال الطلب وهذه المنتجات في السلة. احذفها لطلب الباقي، أو اسألنا عن سعرها عبر واتساب."
+                      : "La commande ne peut pas partir avec ces articles. Retirez-les pour commander le reste, ou demandez-nous leur prix sur WhatsApp."}
+                  </p>
+                  <ul className="mt-2 space-y-0.5 text-sm text-[#0F0F0F] list-disc ps-5">
+                    {lignesSansPrix.map((item) => (
+                      <li key={`${item.productId}::${getCartItemVariantKey(item) ?? ""}`}>
+                        {nomLigne(item)} <bdi dir="ltr">×{item.quantity}</bdi>
+                      </li>
+                    ))}
+                  </ul>
+                  <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={retirerLignesSansPrix}
+                      className="inline-flex min-h-[44px] items-center justify-center gap-2 rounded-xl border border-[#E8E4DF] bg-white px-4 text-sm font-bold text-[#0F0F0F] hover:border-[#C8102E] hover:text-[#C8102E] transition-colors"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                      {ar ? "حذف هذه المنتجات" : "Retirer ces articles"}
+                    </button>
+                    <a
+                      href={lienPrixWhatsApp}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex min-h-[44px] items-center justify-center gap-2 rounded-xl bg-[#25D366] px-4 text-sm font-bold text-white hover:bg-[#1da851] transition-colors"
+                    >
+                      <MessageCircle className="w-4 h-4" />
+                      {ar ? "اسأل عن السعر عبر واتساب" : "Demander le prix sur WhatsApp"}
+                    </a>
+                  </div>
+                </div>
+              )}
+
+              {/* ── Section 1: Coordonnées ── */}
               <div className="bg-white rounded-2xl border border-[#E8E4DF] p-6 shadow-sm">
                 <SectionHeader
                   icon={<User className="w-4 h-4" />}
-                  title={ar ? "المعلومات الشخصية" : "Informations personnelles"}
-                  subtitle={ar ? "بياناتك لتتبع الطلب" : "Vos coordonnées pour le suivi de commande"}
+                  title={ar ? "معلوماتك" : "Vos coordonnées"}
+                  subtitle={ar ? "نتصل بك على هذا الرقم لتأكيد الطلب" : "Nous vous appelons à ce numéro pour confirmer la commande"}
                 />
                 <div className="space-y-4">
-                  <div className="grid grid-cols-2 gap-4">
-                    <InputField label={ar ? "الاسم الأول" : "Prénom"} required error={errors.firstName}>
-                      <input
-                        type="text"
-                        value={form.firstName}
-                        onChange={(e) => setField("firstName", e.target.value)}
-                        placeholder="Yassine"
-                        data-error={!!errors.firstName}
-                        className={inputCls(errors.firstName)}
-                        autoComplete="given-name"
-                      />
-                    </InputField>
-                    <InputField label={ar ? "الاسم العائلي" : "Nom"} required error={errors.lastName}>
-                      <input
-                        type="text"
-                        value={form.lastName}
-                        onChange={(e) => setField("lastName", e.target.value)}
-                        placeholder="El Idrissi"
-                        data-error={!!errors.lastName}
-                        className={inputCls(errors.lastName)}
-                        autoComplete="family-name"
-                      />
-                    </InputField>
-                  </div>
+                  <InputField id="checkout-nom" label={ar ? "الاسم الكامل" : "Nom complet"} required error={errors.fullName}>
+                    <input
+                      id="checkout-nom"
+                      type="text"
+                      value={form.fullName}
+                      onChange={(e) => setField("fullName", e.target.value)}
+                      placeholder={ar ? "مثال: ياسين الإدريسي" : "Ex : Yassine El Idrissi"}
+                      data-error={!!errors.fullName}
+                      {...aria("checkout-nom", errors.fullName)}
+                      className={inputCls(errors.fullName)}
+                      autoComplete="name"
+                      maxLength={120}
+                    />
+                  </InputField>
 
-                  <InputField
-                    label={ar ? "رقم الهاتف الرئيسي" : "Téléphone principal"}
-                    required
-                    error={errors.phone}
-                  >
+                  <InputField id="checkout-tel" label={ar ? "رقم الهاتف" : "Téléphone"} required error={errors.phone}>
                     {/* Un numéro s'écrit de gauche à droite, même sur le site en arabe. */}
                     <div className="relative" dir="ltr">
-                      <div className="absolute left-3 top-1/2 -translate-y-1/2 flex items-center gap-1 pointer-events-none">
+                      <div className="absolute left-3 top-1/2 -translate-y-1/2 flex items-center gap-1 pointer-events-none" aria-hidden>
                         <span className="text-sm">🇲🇦</span>
                         <span className="text-xs text-[#6B6B6B] font-medium">+212</span>
                       </div>
                       <input
+                        id="checkout-tel"
                         type="tel"
+                        inputMode="tel"
                         value={form.phone}
                         onChange={(e) => setField("phone", e.target.value)}
-                        placeholder="06 XX XX XX XX"
+                        placeholder="06 12 34 56 78"
                         data-error={!!errors.phone}
+                        {...aria("checkout-tel", errors.phone)}
                         className={`${inputCls(errors.phone)} pl-[4.5rem]`}
                         autoComplete="tel"
-                        maxLength={14}
+                        maxLength={24}
                       />
                     </div>
                   </InputField>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <InputField label={ar ? "رقم هاتف إضافي" : "Téléphone secondaire"} error={errors.phone2}>
-                      <div className="relative" dir="ltr">
-                        <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#6B6B6B]/40 pointer-events-none" />
-                        <input
-                          type="tel"
-                          value={form.phone2}
-                          onChange={(e) => setField("phone2", e.target.value)}
-                          placeholder="07 XX XX XX XX"
-                          className={`${inputCls(errors.phone2)} pl-10`}
-                          autoComplete="tel"
-                          maxLength={14}
-                        />
-                      </div>
-                    </InputField>
-                    <InputField label={ar ? "البريد الإلكتروني" : "Email"} error={errors.email}>
-                      <div className="relative" dir="ltr">
-                        <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#6B6B6B]/40 pointer-events-none" />
-                        <input
-                          type="email"
-                          value={form.email}
-                          onChange={(e) => setField("email", e.target.value)}
-                          placeholder="vous@exemple.com"
-                          className={`${inputCls(errors.email)} pl-10`}
-                          autoComplete="email"
-                        />
-                      </div>
-                    </InputField>
-                  </div>
                 </div>
               </div>
 
@@ -973,11 +1384,13 @@ export default function CheckoutPage() {
                   )}
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <InputField label={ar ? "المدينة" : "Ville"} required={choix.mode !== "retrait"} error={errors.city}>
+                    <InputField id="checkout-ville" label={ar ? "المدينة" : "Ville"} required={choix.mode !== "retrait"} error={errors.city}>
                       <select
+                        id="checkout-ville"
                         value={form.city}
                         onChange={(e) => setField("city", e.target.value)}
                         data-error={!!errors.city}
+                        {...aria("checkout-ville", errors.city)}
                         className={inputCls(errors.city)}
                         autoComplete="address-level2"
                       >
@@ -991,13 +1404,15 @@ export default function CheckoutPage() {
                       </select>
                     </InputField>
                     {form.city === AUTRE_VILLE && (
-                      <InputField label={ar ? "مدينتك" : "Votre ville"} required error={errors.villeAutre}>
+                      <InputField id="checkout-ville-autre" label={ar ? "مدينتك" : "Votre ville"} required error={errors.villeAutre}>
                         <input
+                          id="checkout-ville-autre"
                           type="text"
                           value={form.villeAutre}
                           onChange={(e) => setField("villeAutre", e.target.value)}
                           placeholder={ar ? "مثال: سيدي بنور" : "ex : Sidi Bennour"}
                           data-error={!!errors.villeAutre}
+                          {...aria("checkout-ville-autre", errors.villeAutre)}
                           className={inputCls(errors.villeAutre)}
                           autoComplete="address-level2"
                           maxLength={60}
@@ -1103,45 +1518,22 @@ export default function CheckoutPage() {
                     )}
                   </fieldset>
 
+                  {/* Région et code postal : dans le bloc facultatif, plus bas. */}
                   {choix.adresseRequise && (
-                    <>
-                      <InputField label={ar ? "العنوان الكامل" : "Adresse complète"} required error={errors.address}>
-                        <input
-                          type="text"
-                          value={form.address}
-                          onChange={(e) => setField("address", e.target.value)}
-                          placeholder={ar ? "رقم ...، زنقة ...، حي ..." : "N° X, Rue ..., Quartier ..."}
-                          data-error={!!errors.address}
-                          className={inputCls(errors.address)}
-                          autoComplete="street-address"
-                        />
-                      </InputField>
-
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        <InputField label={ar ? "الجهة" : "Région"} error={errors.region}>
-                          <input
-                            type="text"
-                            value={form.region}
-                            onChange={(e) => setField("region", e.target.value)}
-                            placeholder={ar ? "مثال: الدار البيضاء الكبرى" : "ex: Grand Casablanca"}
-                            className={inputCls(errors.region)}
-                            autoComplete="address-level1"
-                          />
-                        </InputField>
-                        <InputField label={ar ? "الرمز البريدي" : "Code postal"} error={errors.postalCode}>
-                          <input
-                            type="text"
-                            inputMode="numeric"
-                            value={form.postalCode}
-                            onChange={(e) => setField("postalCode", e.target.value)}
-                            placeholder={ar ? "مثال: 20000" : "ex: 20000"}
-                            className={`${inputCls(errors.postalCode)} max-w-40`}
-                            autoComplete="postal-code"
-                            maxLength={5}
-                          />
-                        </InputField>
-                      </div>
-                    </>
+                    <InputField id="checkout-adresse" label={ar ? "العنوان الكامل" : "Adresse complète"} required error={errors.address}>
+                      <input
+                        id="checkout-adresse"
+                        type="text"
+                        value={form.address}
+                        onChange={(e) => setField("address", e.target.value)}
+                        placeholder={ar ? "رقم ...، زنقة ...، حي ..." : "N° X, Rue ..., Quartier ..."}
+                        data-error={!!errors.address}
+                        {...aria("checkout-adresse", errors.address)}
+                        className={inputCls(errors.address)}
+                        autoComplete="street-address"
+                        maxLength={300}
+                      />
+                    </InputField>
                   )}
                 </div>
               </div>
@@ -1224,115 +1616,225 @@ export default function CheckoutPage() {
                 )}
               </div>
 
-              {/* ── Section 4: Notes ── */}
-              <div className="bg-white rounded-2xl border border-[#E8E4DF] p-6 shadow-sm">
-                <SectionHeader
-                  icon={<FileText className="w-4 h-4" />}
-                  title={ar ? "ملاحظات الطلب" : "Notes de commande"}
-                  subtitle={ar ? "ملاحظة لفريقنا؟" : "Une précision pour notre équipe ?"}
-                />
-                <textarea
-                  value={form.notes}
-                  onChange={(e) => setField("notes", e.target.value)}
-                  placeholder={placeholderNotes}
-                  rows={3}
-                  className="w-full px-4 py-3 text-base border border-[#E8E4DF] rounded-xl bg-[#FBF8F3] text-[#0F0F0F] placeholder:text-[#6B6B6B]/50 focus:outline-none focus:ring-2 focus:ring-[#C8102E]/20 focus:border-[#C8102E]/40 transition-all resize-none"
-                />
-              </div>
-
-              {/* ── Section 5: Terms + Submit ── */}
-              <div className="bg-white rounded-2xl border border-[#E8E4DF] p-6 shadow-sm">
-                {/* Terms checkbox */}
-                <label
-                  className={`flex items-start gap-3 cursor-pointer group mb-6 ${
-                    errors.acceptTerms ? "text-red-600" : ""
-                  }`}
-                  data-error={!!errors.acceptTerms}
-                >
-                  <div className="relative mt-0.5">
-                    <input
-                      type="checkbox"
-                      checked={form.acceptTerms}
-                      onChange={(e) => setField("acceptTerms", e.target.checked)}
-                      className="sr-only"
-                    />
-                    <div
-                      className={`w-5 h-5 rounded flex items-center justify-center border-2 transition-all ${
-                        form.acceptTerms
-                          ? "bg-[#C8102E] border-[#C8102E]"
-                          : errors.acceptTerms
-                          ? "border-red-400 bg-red-50"
-                          : "border-[#E8E4DF] bg-[#FBF8F3] group-hover:border-[#C8102E]/40"
-                      }`}
-                    >
-                      {form.acceptTerms && (
-                        <CheckCircle2 className="w-3.5 h-3.5 text-white" />
-                      )}
-                    </div>
+              {/* ── Section 4: Facultatif (2e numéro, e-mail, détails d'adresse, remarque) ── */}
+              <details
+                open={facultatifOuvert}
+                onToggle={(e) => setFacultatifOuvert(e.currentTarget.open)}
+                className="bg-white rounded-2xl border border-[#E8E4DF] shadow-sm"
+              >
+                <summary className="flex min-h-[56px] cursor-pointer list-none items-center justify-between gap-3 px-6 py-4 text-sm font-semibold text-[#0F0F0F] [&::-webkit-details-marker]:hidden">
+                  <span>
+                    {ar
+                      ? "أضف بريداً إلكترونياً أو رقماً ثانياً أو ملاحظة (اختياري)"
+                      : "Ajouter un e-mail, un 2e numéro ou une remarque (facultatif)"}
+                  </span>
+                  <ChevronDown
+                    className={`w-5 h-5 flex-shrink-0 text-[#6B6B6B] transition-transform ${facultatifOuvert ? "rotate-180" : ""}`}
+                    aria-hidden
+                  />
+                </summary>
+                <div className="space-y-4 px-6 pb-6">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <InputField id="checkout-tel2" label={ar ? "رقم هاتف ثانٍ" : "2e numéro de téléphone"} error={errors.phone2}>
+                      <div className="relative" dir="ltr">
+                        <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#6B6B6B]/40 pointer-events-none" aria-hidden />
+                        <input
+                          id="checkout-tel2"
+                          type="tel"
+                          inputMode="tel"
+                          value={form.phone2}
+                          onChange={(e) => setField("phone2", e.target.value)}
+                          placeholder="07 12 34 56 78"
+                          data-error={!!errors.phone2}
+                          {...aria("checkout-tel2", errors.phone2)}
+                          className={`${inputCls(errors.phone2)} pl-10`}
+                          autoComplete="tel"
+                          maxLength={24}
+                        />
+                      </div>
+                    </InputField>
+                    <InputField id="checkout-email" label={ar ? "البريد الإلكتروني" : "E-mail"} error={errors.email}>
+                      <div className="relative" dir="ltr">
+                        <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#6B6B6B]/40 pointer-events-none" aria-hidden />
+                        <input
+                          id="checkout-email"
+                          type="email"
+                          inputMode="email"
+                          value={form.email}
+                          onChange={(e) => setField("email", e.target.value)}
+                          placeholder="vous@exemple.com"
+                          data-error={!!errors.email}
+                          {...aria("checkout-email", errors.email)}
+                          className={`${inputCls(errors.email)} pl-10`}
+                          autoComplete="email"
+                          maxLength={200}
+                        />
+                      </div>
+                    </InputField>
                   </div>
-                  {ar ? (
-                    <span className={`text-sm leading-relaxed ${errors.acceptTerms ? "text-red-600" : "text-[#6B6B6B]"}`}>
-                      أوافق على{" "}
-                      <Link href="/shop/conditions" className="text-[#C8102E] underline hover:no-underline">
-                        الشروط العامة للبيع
-                      </Link>{" "}
-                      و
-                      <Link href="/shop/confidentialite" className="text-[#C8102E] underline hover:no-underline">
-                        سياسة الخصوصية
-                      </Link>{" "}
-                      الخاصة بـ LEBTEX.
-                    </span>
-                  ) : (
-                    <span className={`text-sm leading-relaxed ${errors.acceptTerms ? "text-red-600" : "text-[#6B6B6B]"}`}>
-                      J&apos;accepte les{" "}
-                      <Link href="/shop/conditions" className="text-[#C8102E] underline hover:no-underline">
-                        conditions générales de vente
-                      </Link>{" "}
-                      et la{" "}
-                      <Link href="/shop/confidentialite" className="text-[#C8102E] underline hover:no-underline">
-                        politique de confidentialité
-                      </Link>{" "}
-                      de LEBTEX.
-                    </span>
+
+                  {choix.adresseRequise && (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <InputField id="checkout-region" label={ar ? "الجهة" : "Région"} error={errors.region}>
+                        <input
+                          id="checkout-region"
+                          type="text"
+                          value={form.region}
+                          onChange={(e) => setField("region", e.target.value)}
+                          placeholder={ar ? "مثال: الدار البيضاء الكبرى" : "ex: Grand Casablanca"}
+                          className={inputCls(errors.region)}
+                          autoComplete="address-level1"
+                          maxLength={120}
+                        />
+                      </InputField>
+                      <InputField id="checkout-code-postal" label={ar ? "الرمز البريدي" : "Code postal"} error={errors.postalCode}>
+                        <input
+                          id="checkout-code-postal"
+                          type="text"
+                          inputMode="numeric"
+                          value={form.postalCode}
+                          onChange={(e) => setField("postalCode", e.target.value)}
+                          placeholder={ar ? "مثال: 20000" : "ex: 20000"}
+                          className={`${inputCls(errors.postalCode)} max-w-40`}
+                          autoComplete="postal-code"
+                          maxLength={5}
+                        />
+                      </InputField>
+                    </div>
                   )}
-                </label>
-                {errors.acceptTerms && (
-                  <p className="text-xs text-red-500 -mt-4 mb-4 flex items-center gap-1">
-                    <AlertCircle className="w-3 h-3" />
-                    {errors.acceptTerms}
-                  </p>
-                )}
+
+                  <InputField id="checkout-remarque" label={ar ? "ملاحظة لفريقنا" : "Remarque pour notre équipe"}>
+                    <textarea
+                      id="checkout-remarque"
+                      value={form.notes}
+                      onChange={(e) => setField("notes", e.target.value)}
+                      placeholder={placeholderNotes}
+                      rows={3}
+                      maxLength={1000}
+                      className="w-full px-4 py-3 text-base border border-[#E8E4DF] rounded-xl bg-[#FBF8F3] text-[#0F0F0F] placeholder:text-[#6B6B6B]/50 focus:outline-none focus:ring-2 focus:ring-[#C8102E]/20 focus:border-[#C8102E]/40 transition-all resize-none"
+                    />
+                  </InputField>
+                </div>
+              </details>
+
+              {/* ── Section 5: Submit ── */}
+              <div className="bg-white rounded-2xl border border-[#E8E4DF] p-6 shadow-sm">
+                {/* Jamais obligatoire : savoir d'où viennent les clients (bouche-à-oreille, statuts WhatsApp…). */}
+                <div className="mb-5">
+                  <InputField id="checkout-connu-par" label={ar ? "كيف تعرفت على LEBTEX؟" : "Comment avez-vous connu LEBTEX ?"}>
+                    <select
+                      id="checkout-connu-par"
+                      value={form.connuPar}
+                      onChange={(e) => setField("connuPar", connuParValide(e.target.value) ?? "")}
+                      className={inputCls()}
+                    >
+                      <option value="">{ar ? "اختر…" : "Choisir…"}</option>
+                      {CHOIX_CONNU_PAR.map((c) => (
+                        <option key={c.valeur} value={c.valeur}>
+                          {ar ? c.ar : c.fr}
+                        </option>
+                      ))}
+                    </select>
+                  </InputField>
+                </div>
 
                 {/* Sur téléphone, le récapitulatif vient après le bouton : le total se voit ici avant de valider. */}
                 <ResumeAvantValidation subtotal={subtotal} choix={choix} paiement={paiement} />
 
-                {/* Submit error */}
-                {submitError && (
-                  <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-xl flex items-start gap-3">
-                    <AlertCircle className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" />
-                    <p className="text-sm text-red-700 leading-relaxed">{submitError}</p>
+                {enDifficulte ? (
+                  // Réseau lent ou erreur : jamais d'anglais ni de texte technique (le code reste en petit).
+                  <div
+                    role="alert"
+                    className={`rounded-2xl border p-4 ${etatEnvoi === "lent" ? "border-amber-200 bg-amber-50" : "border-red-200 bg-red-50"}`}
+                  >
+                    <p className="font-bold text-[#0F0F0F] flex items-start gap-2">
+                      <AlertCircle className={`w-5 h-5 flex-shrink-0 mt-0.5 ${etatEnvoi === "lent" ? "text-amber-700" : "text-red-600"}`} />
+                      {etatEnvoi === "lent"
+                        ? ar ? "الاتصال بطيء" : "La connexion est lente"
+                        : ar ? "لم يُسجَّل طلبك بعد" : "Votre commande n'est pas encore enregistrée"}
+                    </p>
+                    <p className="text-sm text-[#4A4A4A] mt-1.5 leading-relaxed">
+                      {etatEnvoi === "lent"
+                        ? ar
+                          ? "لم يصلنا طلبك بعد. اضغط على «أعد المحاولة»: لن يُسجَّل طلبك مرتين أبداً. يمكنك أيضاً إرساله لنا عبر واتساب."
+                          : "Votre commande n'est pas encore arrivée chez nous. Appuyez sur « Réessayer » : elle ne sera jamais enregistrée deux fois. Vous pouvez aussi nous l'envoyer sur WhatsApp."
+                        : ar
+                          ? "تحقق من اتصالك بالإنترنت، ثم اضغط على «أعد المحاولة»: لن يُسجَّل طلبك مرتين أبداً. يمكنك أيضاً إرساله لنا عبر واتساب، ونعالجه بنفس الطريقة."
+                          : "Vérifiez votre connexion internet, puis appuyez sur « Réessayer » : elle ne sera jamais enregistrée deux fois. Vous pouvez aussi nous l'envoyer sur WhatsApp, nous la traitons de la même façon."}
+                    </p>
+                    <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-2">
+                      <button
+                        type="submit"
+                        className="inline-flex min-h-[48px] items-center justify-center gap-2 rounded-xl bg-[#C8102E] px-4 text-sm font-bold text-white hover:bg-[#a00d25] transition-colors"
+                      >
+                        <RefreshCw className="w-4 h-4" />
+                        {ar ? "أعد المحاولة" : "Réessayer"}
+                      </button>
+                      <a
+                        href={lienSecours}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex min-h-[48px] items-center justify-center gap-2 rounded-xl bg-[#25D366] px-4 text-sm font-bold text-white hover:bg-[#1da851] transition-colors"
+                      >
+                        <MessageCircle className="w-4 h-4" />
+                        {ar ? "أرسل طلبي عبر واتساب" : "Envoyer ma commande sur WhatsApp"}
+                      </a>
+                    </div>
+                    {codeErreur && (
+                      <p className="mt-3 text-xs text-[#6B6B6B]">
+                        {ar ? "الرمز: " : "Code : "}<bdi dir="ltr">{codeErreur}</bdi>
+                      </p>
+                    )}
                   </div>
+                ) : (
+                  <button
+                    type="submit"
+                    disabled={etatEnvoi === "envoi" || lignesSansPrix.length > 0}
+                    className="w-full py-4 bg-[#C8102E] hover:bg-[#a00d25] disabled:opacity-70 disabled:cursor-not-allowed text-white font-bold rounded-2xl transition-all duration-200 shadow-lg shadow-[#C8102E]/25 hover:shadow-xl hover:shadow-[#C8102E]/35 hover:-translate-y-0.5 disabled:hover:translate-y-0 flex items-center justify-center gap-3 shop-btn-press shop-font-display text-base"
+                  >
+                    {etatEnvoi === "envoi" ? (
+                      <>
+                        <Loader2 className="w-5 h-5 animate-spin" />
+                        {ar ? "جاري التأكيد..." : "Validation en cours..."}
+                      </>
+                    ) : (
+                      <>
+                        <CheckCircle2 className="w-5 h-5" />
+                        {ar ? "تأكيد طلبي" : "Confirmer ma commande"}
+                        <ChevronRight className="w-4 h-4 rtl:rotate-180" />
+                      </>
+                    )}
+                  </button>
                 )}
 
-                {/* Submit button */}
-                <button
-                  type="submit"
-                  disabled={isSubmitting}
-                  className="w-full py-4 bg-[#C8102E] hover:bg-[#a00d25] disabled:opacity-70 disabled:cursor-not-allowed text-white font-bold rounded-2xl transition-all duration-200 shadow-lg shadow-[#C8102E]/25 hover:shadow-xl hover:shadow-[#C8102E]/35 hover:-translate-y-0.5 disabled:hover:translate-y-0 flex items-center justify-center gap-3 shop-btn-press shop-font-display text-base"
-                >
-                  {isSubmitting ? (
+                {lignesSansPrix.length > 0 && (
+                  <p className="mt-2 text-xs font-semibold text-amber-700 text-center">
+                    {ar
+                      ? "احذف أولاً المنتجات التي سعرها قيد التأكيد (أعلى الصفحة)."
+                      : "Retirez d'abord les articles au prix à confirmer (en haut de la page)."}
+                  </p>
+                )}
+
+                {/* Plus de case à cocher : la phrase suffit, et ne bloque personne. La politique de
+                    confidentialité reste à portée de main là où le client donne ses coordonnées (loi 09-08). */}
+                <p className="mt-3 text-xs text-[#6B6B6B] text-center leading-relaxed">
+                  {ar ? (
                     <>
-                      <Loader2 className="w-5 h-5 animate-spin" />
-                      {ar ? "جاري التأكيد..." : "Validation en cours..."}
+                      بتأكيد طلبك، فأنت توافق على{" "}
+                      <Link href="/shop/conditions" className="text-[#C8102E] underline hover:no-underline">شروط البيع</Link>{" "}
+                      و
+                      <Link href="/shop/confidentialite" className="text-[#C8102E] underline hover:no-underline">سياسة الخصوصية</Link>{" "}
+                      لدينا.
                     </>
                   ) : (
                     <>
-                      <CheckCircle2 className="w-5 h-5" />
-                      {ar ? "تأكيد طلبي" : "Confirmer ma commande"}
-                      <ChevronRight className="w-4 h-4 rtl:rotate-180" />
+                      En confirmant, vous acceptez nos{" "}
+                      <Link href="/shop/conditions" className="text-[#C8102E] underline hover:no-underline">conditions de vente</Link>{" "}
+                      et notre{" "}
+                      <Link href="/shop/confidentialite" className="text-[#C8102E] underline hover:no-underline">politique de confidentialité</Link>.
                     </>
                   )}
-                </button>
+                </p>
 
                 <div className="flex items-center justify-center gap-4 mt-4">
                   <Shield className="w-4 h-4 text-[#D4A843]" />

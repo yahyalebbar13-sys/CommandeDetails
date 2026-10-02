@@ -5,7 +5,7 @@ import ProductCard from '@/components/shop/ProductCard';
 import {
   Heart,
   Truck,
-  ShieldCheck,
+  Store,
   Sparkles,
   ChevronRight,
   ArrowLeft,
@@ -380,8 +380,8 @@ export default function ProductPage({ params }: { params: Promise<{ id: string }
                 </div>
               )}
 
-              {/* ── Reassurance Micro-Banner ── */}
-              <div className="grid grid-cols-3 gap-2 py-4 my-4 border-y border-neutral-100 text-center">
+              {/* ── Reassurance Micro-Banner : des faits, pas de promesse ── */}
+              <div className={`grid gap-2 py-4 my-4 border-y border-neutral-100 text-center ${product.volumineux ? 'grid-cols-2' : 'grid-cols-3'}`}>
                 {product.volumineux ? (
                   <div className="flex flex-col items-center">
                     <Truck className="w-4 h-4 text-amber-700 mb-1" />
@@ -401,12 +401,15 @@ export default function ProductPage({ params }: { params: Promise<{ id: string }
                     </span>
                   </div>
                 )}
-                <div className="flex flex-col items-center border-x border-neutral-100">
-                  <ShieldCheck className="w-4 h-4 text-emerald-600 mb-1" />
-                  <span className="text-xs font-bold text-neutral-900">{language === 'ar' ? 'جودة مضمونة' : 'Qualité garantie'}</span>
-                  <span className="text-xs text-neutral-500">{language === 'ar' ? 'معايير صناعية' : 'Certifié pro'}</span>
-                </div>
-                <div className="flex flex-col items-center">
+                {/* Le retrait gratuit (déjà annoncé au panier et dans le bandeau) ; un rouleau l'affiche déjà à gauche */}
+                {!product.volumineux && (
+                  <div className="flex flex-col items-center border-x border-neutral-100">
+                    <Store className="w-4 h-4 text-emerald-600 mb-1" />
+                    <span className="text-xs font-bold text-neutral-900">{language === 'ar' ? 'استلام مجاني' : 'Retrait gratuit'}</span>
+                    <span className="text-xs text-neutral-500">{language === 'ar' ? 'من محلنا بالدار البيضاء' : 'en magasin, Casablanca'}</span>
+                  </div>
+                )}
+                <div className={`flex flex-col items-center ${product.volumineux ? 'border-s border-neutral-100' : ''}`}>
                   <PackageCheck className="w-4 h-4 text-[#C8102E] mb-1" />
                   <span className="text-xs font-bold text-neutral-900">{language === 'ar' ? 'البيع بالجملة' : 'Vente en gros'}</span>
                   <span className="text-xs text-neutral-500">{language === 'ar' ? 'حسب الطلب' : 'Sur mesure'}</span>
@@ -494,7 +497,7 @@ export default function ProductPage({ params }: { params: Promise<{ id: string }
                   </h2>
                   <p className="text-xs text-neutral-500 mt-0.5">
                     {language === 'ar' 
-                      ? 'مختارات موصى بها لك بأفضل الأسعار وبجودة مضمونة' 
+                      ? 'منتجات مختارة لك حسب اهتماماتك'
                       : 'Articles sélectionnés pour vous selon vos centres d\'intérêt'}
                   </p>
                 </div>

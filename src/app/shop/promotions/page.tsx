@@ -1,17 +1,18 @@
 "use client";
 import React, { useMemo, useState } from 'react';
 import Link from 'next/link';
-import { Tag, Clock, Zap, ShoppingBag } from 'lucide-react';
+import { Tag, Clock, Zap, ShoppingBag, MessageCircle } from 'lucide-react';
 import { useShopProducts } from '@/contexts/shop-products-context';
 import {
   formatPrice,
   formatProductPrice,
   getProductPromo,
+  getWhatsAppContact,
 } from '@/lib/shop-utils';
 import { useShopCartActions } from '@/contexts/shop-cart-context';
 import { useLanguage } from '@/contexts/language-context';
 import type { ShopProduct } from '@/lib/shop-types';
-import { ajoutRapide } from '@/lib/shop-variantes';
+import { ajoutRapide, messageDemandePrix, PRIX_SUR_DEMANDE } from '@/lib/shop-variantes';
 import { nomCategorieProduit, nomProduit } from '@/lib/shop-textes';
 import { delaiZone, FRAIS_ZONE } from '@/lib/livraison-boutique';
 
@@ -28,8 +29,16 @@ const PromoCard = React.memo(function PromoCard({ product }: { product: ShopProd
   // Un produit à choisir (taille, couleur…) ne s'ajoute plus sans sa variante : le bouton mène à la fiche
   const ajout = useMemo(() => ajoutRapide(product), [product]);
   const aChoisir = ajout.mode === 'choisir';
+  // Sans prix (onglets Nouveautés / Vedettes) : jamais au panier, le prix se demande sur WhatsApp
+  const surDemande = ajout.mode === 'prix';
 
   const handleAdd = (e: React.MouseEvent) => {
+    if (surDemande) {
+      e.preventDefault();
+      e.stopPropagation();
+      window.open(getWhatsAppContact(messageDemandePrix(product)), '_blank', 'noopener,noreferrer');
+      return;
+    }
     if (ajout.mode !== 'direct') return;
     e.preventDefault();
     e.stopPropagation();
@@ -62,18 +71,19 @@ const PromoCard = React.memo(function PromoCard({ product }: { product: ShopProd
           <button
             onClick={handleAdd}
             disabled={added}
+            aria-label={surDemande ? (isAr ? 'اسأل عن الثمن في واتساب' : 'Demander le prix sur WhatsApp') : undefined}
             className={`lg:hidden absolute bottom-3 right-3 z-10 w-11 h-11 rounded-full shadow-md flex items-center justify-center transition-all cursor-pointer touch-manipulation ${
               added ? 'bg-[#10B981] text-white' : 'bg-white text-gray-900 active:bg-gray-100'
             }`}
           >
-            {added ? <span className="text-[10px] font-bold">✓</span> : aChoisir ? <span className="text-[11px] font-bold text-[#C8102E]">{isAr ? 'اختر' : 'Choisir'}</span> : <ShoppingBag className="w-4 h-4" />}
+            {added ? <span className="text-[10px] font-bold">✓</span> : surDemande ? <MessageCircle className="w-5 h-5 text-[#128C7E]" /> : aChoisir ? <span className="text-[11px] font-bold text-[#C8102E]">{isAr ? 'اختر' : 'Choisir'}</span> : <ShoppingBag className="w-4 h-4" />}
           </button>
         )}
         {/* Desktop Quick add overlay */}
         <div className="hidden lg:block absolute inset-x-0 bottom-0 p-3 opacity-0 group-hover:opacity-100 transition-opacity z-10 pointer-events-none">
           <button onClick={handleAdd}
             className={`pointer-events-auto w-full py-2 rounded-xl text-sm font-bold transition-all cursor-pointer ${added ? 'bg-[#10B981] text-white' : 'bg-[#0F0F0F] text-white hover:bg-[#C8102E]'}`}>
-            {added ? t('added_to_cart') : aChoisir ? (isAr ? 'اختر الخيار' : 'Choisir une option') : `+ ${t('add_to_cart')}`}
+            {added ? t('added_to_cart') : surDemande ? (isAr ? 'اسأل عن الثمن في واتساب' : 'Demander le prix sur WhatsApp') : aChoisir ? (isAr ? 'اختر الخيار' : 'Choisir une option') : `+ ${t('add_to_cart')}`}
           </button>
         </div>
       </div>
@@ -81,7 +91,7 @@ const PromoCard = React.memo(function PromoCard({ product }: { product: ShopProd
         <p className="text-xs font-semibold text-[#D4A843] uppercase mb-1">{nomCategorieProduit(product, categories, language)}</p>
         <h3 className="font-semibold text-[#1A1A1A] text-sm line-clamp-2 mb-3 group-hover:text-[#C8102E] transition-colors" style={{ fontFamily: 'Outfit, sans-serif' }}>{nom}</h3>
         <div className="mt-auto flex flex-wrap items-center gap-x-2 gap-y-0.5">
-          <span className="font-black text-[#C8102E] text-lg">{formatProductPrice(product, language)}</span>
+          <span className={`font-black text-[#C8102E] ${surDemande ? 'text-base' : 'text-lg'}`}>{surDemande ? PRIX_SUR_DEMANDE[language] : formatProductPrice(product, language)}</span>
           {isPromo && (
             <div className="flex flex-col">
               <span className="text-xs text-[#6B6B6B] line-through">{formatPrice(product.comparePrice as number)}</span>

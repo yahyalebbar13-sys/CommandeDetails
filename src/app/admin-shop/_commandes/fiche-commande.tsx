@@ -49,7 +49,7 @@ import {
 } from './elements';
 import {
   emailAffichable, encaissement, estStatutFinal, historiqueClient, messageWhatsAppDuMoment, numerosNonReconnus,
-  resumeHistorique, statutLisiblePour, texteAdresse,
+  resumeHistorique, resumeProvenance, statutLisiblePour, texteAdresse,
 } from './outils-ecran';
 import { telechargerBonsLivraison } from './documents-commande';
 import { DocumentsReception } from './documents-transport';
@@ -927,6 +927,7 @@ export function FicheCommande({
     ? [...(o.trackingNotes || [])].filter(n => n.status === 'ready_for_pickup').sort((a, b) => msDe(b.timestamp) - msDe(a.timestamp))[0]
     : undefined;
   const precedentsAffiches = tousLesPrecedents ? historique.autres : historique.autres.slice(0, 5);
+  const provenance = resumeProvenance(o.provenance);
   const notes = [...(o.trackingNotes || [])].sort((a, b) => msDe(a.timestamp) - msDe(b.timestamp));
 
   // « par … » : seulement d'après le journal de l'équipe (la commande, elle, peut
@@ -967,7 +968,7 @@ export function FicheCommande({
             </p>
             <p className={`mt-0.5 text-sm ${retard ? 'font-semibold text-red-400' : 'text-gray-300'}`}>
               reçue {dateHeure(o.createdAt, maintenant)} · {depuisQuand(o.createdAt, maintenant)}
-              {retard && ' · en retard (appel promis sous 2 h)'}
+              {retard && ' · en retard (plus de 2 h sans appel)'}
             </p>
           </div>
           {!pleinEcran && (
@@ -1259,6 +1260,13 @@ export function FicheCommande({
               </button>
             )}
           </div>
+
+          {/* D'où vient le client (publicité, lien, sa réponse) : écrit par son navigateur, à titre indicatif. */}
+          {provenance && (
+            <p className="mt-3 break-words text-xs text-gray-400">
+              <span className="font-semibold text-gray-300">Venu par :</span> {provenance}
+            </p>
+          )}
         </Section>
 
         {/* 4. Réception : colis Sendit, retrait au magasin, ou transport d'un rouleau */}

@@ -25,7 +25,7 @@ import {
 } from "@/lib/shop-utils";
 import type { CartItem } from "@/lib/shop-types";
 import type { Language } from "@/lib/translations";
-import { libelleLignePanier } from "@/lib/shop-variantes";
+import { libelleLignePanier, PRIX_A_CONFIRMER } from "@/lib/shop-variantes";
 import { paire, premierTexte } from "@/lib/shop-textes";
 import { FRAIS_ZONE, commandeVolumineuse } from "@/lib/livraison-boutique";
 import InfoLivraison from "@/components/shop/InfoLivraison";
@@ -66,6 +66,13 @@ function CartProductGroup({
   // Une ligne seule garde sa pastille dès qu'elle a un modèle, une taille ou une couleur
   const hasMultipleVariants = items.length > 1 || Boolean(first.variant && (first.variant.model || first.variant.size || first.variant.color));
   const { total, minUnit, maxUnit } = summarizeCartProduct(items, totalProductQty);
+  // Ligne sans prix (ancien panier) : « Prix à confirmer », pas de quantité, un bouton pour la retirer
+  const sansPrixLigne = (item: CartItem) => getCartItemUnitPrice(item, totalProductQty) <= 0;
+  const retirer = (item: CartItem) => {
+    const vKey = item.variant?.variantId || [item.variant?.model, item.variant?.size, item.variant?.color].filter(Boolean).join('__');
+    onRemove(item.productId, vKey || undefined);
+  };
+  const texteRetirer = language === 'ar' ? 'حذف' : 'Retirer';
 
   const handleRemoveAll = () => {
     items.forEach(item => {
@@ -111,8 +118,8 @@ function CartProductGroup({
             </button>
           </div>
           <div className="flex items-center justify-between gap-2 mt-0.5">
-            <p className="text-xs text-gray-400 tabular-nums">
-              {formatPriceRange(minUnit, maxUnit, language)}
+            <p className={`text-xs tabular-nums ${minUnit > 0 ? 'text-gray-400' : 'font-semibold text-amber-700'}`}>
+              {minUnit > 0 ? formatPriceRange(minUnit, maxUnit, language) : PRIX_A_CONFIRMER[language]}
               {minUnit > 0 && (language === 'ar' ? ' / الوحدة' : ' / u')}
             </p>
             {hasMultipleVariants && total > 0 && (
@@ -144,38 +151,65 @@ function CartProductGroup({
                 {/* Label */}
                 <span className="text-gray-600 font-medium truncate max-w-[11rem]" title={label}>{label}</span>
 
-                {/* Qty stepper */}
-                <div className="flex items-center ms-0.5 bg-white border border-gray-200 rounded-full overflow-hidden">
-                  <button
-                    onClick={() => onUpdateQty(item.productId, item.quantity - 1, vKey || undefined)}
-                    disabled={item.quantity <= 1}
-                    className="w-5 h-5 flex items-center justify-center text-gray-400 hover:text-gray-700 disabled:opacity-30 touch-manipulation"
-                    aria-label={language === 'ar' ? 'إنقاص' : 'Diminuer'}
-                  >
-                    <Minus className="w-2.5 h-2.5" />
-                  </button>
-                  <span className="w-5 text-center text-[11px] font-bold text-gray-800 tabular-nums">{item.quantity}</span>
-                  <button
-                    onClick={() => onUpdateQty(item.productId, item.quantity + 1, vKey || undefined)}
-                    disabled={item.maxStock > 0 && item.quantity >= item.maxStock}
-                    className="w-5 h-5 flex items-center justify-center text-gray-400 hover:text-gray-700 disabled:opacity-30 touch-manipulation"
-                    aria-label={language === 'ar' ? 'زيادة' : 'Augmenter'}
-                  >
-                    <Plus className="w-2.5 h-2.5" />
-                  </button>
-                </div>
+                {sansPrixLigne(item) ? (
+                  <>
+                    <span className="ms-0.5 text-[11px] font-semibold text-amber-700 whitespace-nowrap">{PRIX_A_CONFIRMER[language]}</span>
+                    <button
+                      type="button"
+                      onClick={() => retirer(item)}
+                      className="min-h-6 px-1.5 text-[11px] font-bold text-[#C8102E] underline underline-offset-2 touch-manipulation"
+                    >
+                      {texteRetirer}
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    {/* Qty stepper */}
+                    <div className="flex items-center ms-0.5 bg-white border border-gray-200 rounded-full overflow-hidden">
+                      <button
+                        onClick={() => onUpdateQty(item.productId, item.quantity - 1, vKey || undefined)}
+                        disabled={item.quantity <= 1}
+                        className="w-5 h-5 flex items-center justify-center text-gray-400 hover:text-gray-700 disabled:opacity-30 touch-manipulation"
+                        aria-label={language === 'ar' ? 'إنقاص' : 'Diminuer'}
+                      >
+                        <Minus className="w-2.5 h-2.5" />
+                      </button>
+                      <span className="w-5 text-center text-[11px] font-bold text-gray-800 tabular-nums">{item.quantity}</span>
+                      <button
+                        onClick={() => onUpdateQty(item.productId, item.quantity + 1, vKey || undefined)}
+                        disabled={item.maxStock > 0 && item.quantity >= item.maxStock}
+                        className="w-5 h-5 flex items-center justify-center text-gray-400 hover:text-gray-700 disabled:opacity-30 touch-manipulation"
+                        aria-label={language === 'ar' ? 'زيادة' : 'Augmenter'}
+                      >
+                        <Plus className="w-2.5 h-2.5" />
+                      </button>
+                    </div>
 
-                {/* Remove single variant */}
-                <button
-                  onClick={() => onRemove(item.productId, vKey || undefined)}
-                  className="w-4 h-4 flex items-center justify-center text-gray-300 hover:text-red-500 rounded-full touch-manipulation"
-                  aria-label={language === 'ar' ? 'حذف' : 'Retirer'}
-                >
-                  <X className="w-2.5 h-2.5" />
-                </button>
+                    {/* Remove single variant */}
+                    <button
+                      onClick={() => onRemove(item.productId, vKey || undefined)}
+                      className="w-4 h-4 flex items-center justify-center text-gray-300 hover:text-red-500 rounded-full touch-manipulation"
+                      aria-label={language === 'ar' ? 'حذف' : 'Retirer'}
+                    >
+                      <X className="w-2.5 h-2.5" />
+                    </button>
+                  </>
+                )}
               </div>
             );
           })}
+        </div>
+      ) : sansPrixLigne(first) ? (
+        /* Article seul sans prix (ancien panier) : pas de quantité, on peut le retirer */
+        <div className="flex items-center justify-between gap-2 mt-1">
+          <p className="text-sm font-semibold text-amber-700">{PRIX_A_CONFIRMER[language]}</p>
+          <button
+            type="button"
+            onClick={() => retirer(first)}
+            className="min-h-9 px-3 rounded-lg border border-gray-200 text-xs font-bold text-[#C8102E] hover:bg-red-50 transition-colors touch-manipulation"
+          >
+            {texteRetirer}
+          </button>
         </div>
       ) : (
         /* Single item without variants — simple stepper */
@@ -289,6 +323,9 @@ export default function CartDrawer() {
   // Un rouleau entier dans le panier : pas de colis Sendit, donc pas de frais de colis ;
   // le retrait est gratuit, le transport se chiffre au téléphone.
   const volumineux = useMemo(() => commandeVolumineuse(items), [items]);
+  // Lignes sans prix (anciens paniers) : elles ne comptent pas dans le total
+  const lignesSansPrix = items.some(item => getCartItemUnitPrice(item, productQtyMap?.[item.productId] || 1) <= 0);
+  const totalAffiche = subtotal > 0 ? formatPrice(subtotal) : PRIX_A_CONFIRMER[language];
   useEffect(() => {
     if (!isOpen) return;
     const handler = (e: KeyboardEvent) => {
@@ -438,7 +475,7 @@ export default function CartDrawer() {
                     {t('subtotal')} ({itemCount})
                   </span>
                   <span className="font-semibold text-gray-800 tabular-nums">
-                    {formatPriceOrOnRequest(subtotal, language)}
+                    {totalAffiche}
                   </span>
                 </div>
                 <div className="flex items-center justify-between text-sm">
@@ -465,9 +502,14 @@ export default function CartDrawer() {
                     className="font-black text-xl tabular-nums"
                     style={{ color: "#C8102E" }}
                   >
-                    {formatPriceOrOnRequest(subtotal, language)}
+                    {totalAffiche}
                   </span>
                 </div>
+                {subtotal > 0 && lignesSansPrix && (
+                  <p className="text-[11px] text-gray-500 text-end">
+                    {language === 'ar' ? 'بدون المنتجات التي سيتم تأكيد سعرها' : 'Sans les articles « Prix à confirmer »'}
+                  </p>
+                )}
               </div>
 
               {/* Aller au panier CTA */}

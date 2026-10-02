@@ -14,6 +14,7 @@ import {
   Facebook,
   Phone,
   Heart,
+  Package,
 } from "lucide-react";
 import {
   formatPrice,
@@ -23,6 +24,7 @@ import { delaiZone, FRAIS_ZONE } from "@/lib/livraison-boutique";
 import { useShopProducts } from "@/contexts/shop-products-context";
 import { useLanguage } from "@/contexts/language-context";
 import { texte } from "@/lib/shop-textes";
+import WhatsAppFloat from "@/components/shop/WhatsAppFloat";
 
 // ─── Data ─────────────────────────────────────────────────────────────────────
 
@@ -55,11 +57,12 @@ const GUARANTEES: {
     },
     color: "#10B981",
   },
+  // Un fait, pas une promesse (« Qualité garantie » ne s'appuyait sur aucune garantie écrite)
   {
-    id: "qualite",
-    icon: CheckCircle2,
-    title: { fr: "Qualité garantie", ar: "جودة مضمونة" },
-    desc: { fr: "Sélection rigoureuse de chaque produit", ar: "نختار كل منتج بعناية" },
+    id: "import",
+    icon: Package,
+    title: { fr: "Importation directe", ar: "استيراد مباشر" },
+    desc: { fr: "Prix de gros affichés", ar: "أثمنة الجملة معروضة" },
     color: "#D4A843",
   },
   {
@@ -184,6 +187,8 @@ export default function ShopFooter() {
       className="mt-auto"
       style={{ backgroundColor: "#0F0F0F", color: "#E5E7EB" }}
     >
+      {/* Bouton WhatsApp flottant : position fixe, il reste en bas de l'écran sur toutes les pages */}
+      <WhatsAppFloat />
       {/* ── Guarantees strip ──────────────────────────────────────────────────── */}
       <div
         className="border-b"

@@ -1,7 +1,7 @@
 // ─── Boutique : alerte « nouvelle commande » ─────────────────────────────────
 // Le navigateur du client appelle cette route juste après avoir enregistré sa
 // commande (checkout). On envoie alors au commerçant un e-mail avec tout ce
-// qu'il faut pour rappeler le client : l'appel « sous 2 h » promis sur la page
+// qu'il faut pour rappeler le client : l'appel promis (aujourd'hui pendant les horaires) sur la page
 // de confirmation n'est tenable que si quelqu'un est prévenu.
 //
 // La route est ouverte (le client n'a pas de compte) : elle ne reçoit qu'un

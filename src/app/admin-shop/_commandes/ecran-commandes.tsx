@@ -333,8 +333,8 @@ export function EcranCommandes({
             <p className="flex items-start gap-2 text-sm font-semibold text-red-300">
               <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
               {nbEnRetard === 1
-                ? '1 client attend depuis plus de 2 h : l’appel lui a été promis sous 2 h.'
-                : `${nbEnRetard} clients attendent depuis plus de 2 h : l’appel leur a été promis sous 2 h.`}
+                ? '1 client attend depuis plus de 2 h : l’appel lui a été promis dans la journée.'
+                : `${nbEnRetard} clients attendent depuis plus de 2 h : l’appel leur a été promis dans la journée.`}
             </p>
           )}
 

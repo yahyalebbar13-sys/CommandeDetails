@@ -3,8 +3,9 @@
 // client, adresse à copier… Le socle (files, téléphones, messages) est dans
 // src/lib/commandes-boutique.ts ; ici, seulement ce que l'écran ajoute.
 
-import type { OrderStatus, ShopOrder } from '@/lib/shop-types';
+import type { OrderStatus, ProvenanceCommande, ShopOrder, SourceVisite } from '@/lib/shop-types';
 import type { ReglagesReception } from '@/lib/reglages-reception';
+import { libelleConnuPar } from '@/lib/provenance-boutique';
 import { firebaseConfig } from '@/firebase/config';
 import {
   FILES,
@@ -202,6 +203,37 @@ export function resumeHistorique(h: HistoriqueClient): string {
   if (h.livrees) morceaux.push(`${h.livrees} livrée${h.livrees > 1 ? 's' : ''}`);
   if (h.annulees) morceaux.push(`${h.annulees} annulée${h.annulees > 1 ? 's' : ''}`);
   if (h.retournees) morceaux.push(`${h.retournees} retournée${h.retournees > 1 ? 's' : ''}`);
+  return morceaux.join(' · ');
+}
+
+/** Une source en mots courts : « facebook / cpc », « lien qr-salon », « google.com », « accès direct ». */
+function texteSource(s: SourceVisite): string {
+  const canal = [s.utmSource, s.utmMedium].filter(Boolean).join(' / ');
+  return canal || (s.ref ? `lien « ${s.ref} »` : '') || s.referent || 'accès direct';
+}
+
+/**
+ * D'où vient la commande, en une ligne : « facebook / cpc · campagne « ramadan » · 1re visite :
+ * google.com · a répondu « Statut ou groupe WhatsApp » · site en arabe ». null : commande d'avant.
+ * Écrit par le navigateur du client : une indication, jamais une preuve.
+ */
+export function resumeProvenance(p?: ProvenanceCommande | null): string | null {
+  if (!p) return null;
+  const derniere = p.derniere ?? p.premiere;
+  const morceaux: string[] = [];
+  if (derniere) {
+    morceaux.push(texteSource(derniere));
+    if (derniere.utmCampaign) morceaux.push(`campagne « ${derniere.utmCampaign} »`);
+    if (derniere.ref && (derniere.utmSource || derniere.utmMedium)) morceaux.push(`lien « ${derniere.ref} »`);
+  } else {
+    morceaux.push('source inconnue');
+  }
+  if (p.premiere && p.derniere && texteSource(p.premiere) !== texteSource(p.derniere)) {
+    morceaux.push(`1re visite : ${texteSource(p.premiere)}`);
+  }
+  const reponse = libelleConnuPar(p.connuPar);
+  if (reponse) morceaux.push(`a répondu « ${reponse} »`);
+  morceaux.push(p.langue === 'ar' ? 'site en arabe' : 'site en français');
   return morceaux.join(' · ');
 }
 

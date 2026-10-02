@@ -16,10 +16,11 @@ const STATS = [
   { number: "48h", label: "Délai Casablanca max" },
 ];
 
+// Des faits vérifiables, pas de promesse qu'on ne tient pas (7j/7, jour même, « certifiés », « meilleurs prix »)
 const TEAM_VALUES = [
-  { icon: <Shield className="w-6 h-6" />, title: "Qualité avant tout", desc: "Chaque produit est soigneusement sélectionné auprès de fournisseurs certifiés pour garantir la meilleure qualité." },
-  { icon: <Zap className="w-6 h-6" />, title: "Réactivité", desc: "Commandes traitées le jour même, équipe disponible 7j/7 sur WhatsApp pour répondre à toutes vos questions." },
-  { icon: <TrendingUp className="w-6 h-6" />, title: "Prix compétitifs", desc: "Meilleurs prix du marché grâce à nos partenariats directs avec les fabricants. Semi-gros et détail." },
+  { icon: <Shield className="w-6 h-6" />, title: "Qualité avant tout", desc: "Nos produits viennent de fournisseurs sélectionnés et sont contrôlés à l'arrivée." },
+  { icon: <Zap className="w-6 h-6" />, title: "Réactivité", desc: "Réponse sur WhatsApp du lundi au samedi, 8h30–18h30, pour toutes vos questions." },
+  { icon: <TrendingUp className="w-6 h-6" />, title: "Prix de gros", desc: "Prix de gros affichés, importation directe. Semi-gros et détail." },
   { icon: <Handshake className="w-6 h-6" />, title: "Partenariat durable", desc: "Nous construisons des relations durables avec nos clients. Votre satisfaction est notre priorité absolue." },
 ];
 
@@ -321,7 +322,7 @@ export default function AProposPage() {
                 LEBTEX est née de la passion pour le textile et la mercerie. Fondée à Casablanca, notre entreprise s'est donnée pour mission de rendre accessibles les meilleurs accessoires de couture à tous les professionnels et amateurs du Maroc.
               </p>
               <p>
-                Nous travaillons directement avec des fournisseurs de renommée internationale pour vous proposer des fermetures éclair, boutons, élastiques, rubans et bien plus encore — à des prix compétitifs, sans compromis sur la qualité.
+                Nous importons directement nos fermetures éclair, boutons, élastiques, rubans et bien plus encore, auprès de fournisseurs sélectionnés, et nous contrôlons la marchandise à l'arrivée. Nos prix affichés sont des prix de gros.
               </p>
               <p>
                 Aujourd'hui, LEBTEX livre dans tout le Maroc et accompagne des centaines de couturiers, stylistes, ateliers et entreprises textiles dans leur activité quotidienne.
@@ -346,8 +347,8 @@ export default function AProposPage() {
             </div>
             <div className="bg-[#10B981] rounded-2xl p-6 text-white">
               <Award className="w-8 h-8 mb-3 opacity-80" />
-              <p className="font-bold text-lg mb-1" style={{ fontFamily: "Outfit, sans-serif" }}>Qualité</p>
-              <p className="text-emerald-200 text-sm">Garantie sur tous les produits</p>
+              <p className="font-bold text-lg mb-1" style={{ fontFamily: "Outfit, sans-serif" }}>Import direct</p>
+              <p className="text-emerald-200 text-sm">Marchandise contrôlée à l'arrivée</p>
             </div>
           </div>
         </div>
@@ -395,7 +396,7 @@ export default function AProposPage() {
             <div className="text-3xl mb-3">🚚</div>
             <h3 className="text-xl font-bold mb-2" style={{ fontFamily: "Outfit, sans-serif" }}>Vous n'êtes pas à Casablanca ?</h3>
             <p className="text-gray-400 text-sm max-w-md mx-auto mb-6">
-              Pas de problème ! Nous livrons dans <strong className="text-white">tout le Maroc</strong> en 24–72h.
+              Pas de problème ! Nous livrons dans <strong className="text-white">tout le Maroc</strong>, en 1 à 4 jours ouvrés selon la ville.
               Commandez en ligne ou via WhatsApp et recevez vos produits chez vous.
             </p>
             <div className="flex flex-col sm:flex-row gap-3 justify-center">

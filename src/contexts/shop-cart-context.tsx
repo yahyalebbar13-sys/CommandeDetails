@@ -1,6 +1,6 @@
 "use client";
 
-import React, { createContext, useContext, useReducer, useEffect, useCallback, useRef, useMemo } from 'react';
+import React, { createContext, useContext, useReducer, useEffect, useMemo, useState } from 'react';
 import type { CartItem } from '@/lib/shop-types';
 import { useShopProducts } from '@/contexts/shop-products-context';
 
@@ -165,6 +165,11 @@ interface CartStateValue {
   itemCount: number;
   subtotal: number;
   productQtyMap: Record<string, number>;
+  /**
+   * Faux tant que le panier gardé dans ce navigateur n'est pas relu (premier affichage
+   * après un rechargement) : un panier vide ne veut alors rien dire.
+   */
+  charge: boolean;
 }
 
 interface CartActionsValue {
@@ -185,7 +190,7 @@ const STORAGE_KEY = 'lebtex_cart_v1';
 
 export function ShopCartProvider({ children }: { children: React.ReactNode }) {
   const [state, dispatch] = useReducer(cartReducer, { items: [], isOpen: false });
-  const loaded = useRef(false);
+  const [charge, setCharge] = useState(false);
 
   // Load from localStorage on mount
   useEffect(() => {
@@ -196,16 +201,17 @@ export function ShopCartProvider({ children }: { children: React.ReactNode }) {
         dispatch({ type: 'LOAD_CART', payload: items });
       }
     } catch {}
-    loaded.current = true;
+    setCharge(true);
   }, []);
 
-  // Persist to localStorage on change
+  // Persist to localStorage on change — jamais avant la relecture : le panier vide
+  // du premier affichage écraserait le panier gardé.
   useEffect(() => {
-    if (!loaded.current) return;
+    if (!charge) return;
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(state.items));
     } catch {}
-  }, [state.items]);
+  }, [state.items, charge]);
 
   const actions = useMemo(() => ({
     addItem: (item: CartItem) => dispatch({ type: 'ADD_ITEM', payload: item }),
@@ -251,7 +257,8 @@ export function ShopCartProvider({ children }: { children: React.ReactNode }) {
     itemCount,
     subtotal,
     productQtyMap,
-  }), [items, state.isOpen, itemCount, subtotal, productQtyMap]);
+    charge,
+  }), [items, state.isOpen, itemCount, subtotal, productQtyMap, charge]);
 
   return (
     <CartActionsContext.Provider value={actions}>

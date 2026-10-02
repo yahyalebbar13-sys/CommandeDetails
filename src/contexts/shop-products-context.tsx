@@ -8,6 +8,7 @@ import { SHOP_PRODUCTS_DATA, SHOP_CATEGORIES } from '@/lib/shop-products-data';
 import type { ShopProduct, ShopCategory } from '@/lib/shop-types';
 import { getProductPromo } from '@/lib/shop-utils';
 import shopStaticData from '@/lib/shop-firebase-dump.json';
+import { fusionnerProduits, fusionnerRayons, type ProductOverride } from '@/lib/catalogue-boutique';
 
 // Produits affichés avec un prix barré, plus forte remise d'abord
 function selectPromoProducts<T extends Pick<ShopProduct, 'price' | 'comparePrice' | 'variants'>>(products: T[], limit: number): T[] {
@@ -17,78 +18,12 @@ function selectPromoProducts<T extends Pick<ShopProduct, 'price' | 'comparePrice
     .slice(0, limit);
 }
 
-// Tous les champs arabes remplis d'une surcharge (nameAr, applicationsAr, typeProduitAr…) :
-// ajouter un champ arabe ne demande plus de le recopier ici un par un.
-function champsArabes(ov: object): Record<string, string> {
-  return Object.fromEntries(
-    Object.entries(ov).filter(([k, v]) => k.endsWith('Ar') && typeof v === 'string' && v.trim() !== '')
-  ) as Record<string, string>;
-}
-
 const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
-// Fields that can be overridden from admin
-export interface ProductOverride {
-  price?: number;
-  comparePrice?: number | null;
-  images?: string[];
-  isFeatured?: boolean;
-  isNew?: boolean;
-  isPromo?: boolean;
-  inStock?: boolean;
-  stockQty?: number;
-  name?: string;
-  catalogueName?: string | null;
-  nameAr?: string;
-  shortDescription?: string;
-  shortDescriptionAr?: string;
-  description?: string;
-  descriptionAr?: string;
-  wholesalePrice?: number;
-  minOrderQty?: number;
-  variants?: import('@/lib/shop-types').ProductVariant[];
-  // Champs fiche produit
-  material?: string;
-  materialAr?: string;
-  specification?: string;
-  specificationAr?: string;
-  weight?: number;
-  width?: string;
-  packaging?: string;
-  packagingAr?: string;
-  // Metadata additionnelle
-  categorySlug?: string;
-  additionalCategorySlugs?: string[];
-  categoryAliases?: import('@/lib/shop-types').CategoryAlias[];
-  categoryName?: string;
-  categoryNameAr?: string;
-  hidden?: boolean;
-  // Détails Hyper Pro
-  applications?: string;
-  avantages?: string;
-  conseilsEntretien?: string;
-  informationCommerciale?: string;
-  motsCles?: string;
-  typeProduit?: string;
-  matiereMailles?: string;
-  compositionRuban?: string;
-  couleur?: string;
-  largeurMaille?: string;
-  longueur?: string;
-  type?: string;
-  design?: string;
-  securite?: string;
-  resistance?: string;
-  compatibleAvec?: string;
-  conditionnementUnitaire?: string;
-  conditionnementGros?: string;
-  // Liaison stock réel
-  stockArticleId?: string;
-  stockArticleIds?: Record<string, string>; // variantId -> stock articleId
-  // Rouleau entier : jamais par colis Sendit (retrait ou transport organisé par téléphone)
-  volumineux?: boolean;
-}
+// Fields that can be overridden from admin : le type vit dans lib/catalogue-boutique
+// (partagé avec le serveur), toujours exporté ici pour l'admin.
+export type { ProductOverride };
 
 interface ShopProductsContextType {
   products: ShopProduct[];
@@ -117,185 +52,17 @@ export function ShopProductsProvider({ children }: { children: React.ReactNode }
   const [isLoading, setIsLoading] = useState(false);
 
   // Merge hardcoded data with Firestore overrides and custom products
-  const products = useMemo(() => {
-    const hardcoded = SHOP_PRODUCTS_DATA.map(p => {
-      const ov = overrides[p.id];
-      if (!ov) return p;
-      return {
-        ...p,
-        ...(ov.price !== undefined && { price: ov.price }),
-        ...(ov.comparePrice !== undefined && { comparePrice: ov.comparePrice ?? undefined }),
-        ...(ov.images && ov.images.length > 0 && { images: ov.images }),
-        ...(ov.isFeatured !== undefined && { isFeatured: ov.isFeatured }),
-        ...(ov.isNew !== undefined && { isNew: ov.isNew }),
-        ...(ov.isPromo !== undefined && { isPromo: ov.isPromo }),
-        ...(ov.inStock !== undefined && { inStock: ov.inStock }),
-        ...(ov.stockQty !== undefined && { stockQty: ov.stockQty }),
-        ...(ov.name && { name: ov.name }),
-        // null = nom de catalogue effacé dans l'admin : on retombe sur le nom du produit.
-        ...(ov.catalogueName !== undefined && { catalogueName: ov.catalogueName ?? undefined }),
-        ...(ov.nameAr && { nameAr: ov.nameAr }),
-        ...(ov.shortDescription && { shortDescription: ov.shortDescription }),
-        ...(ov.shortDescriptionAr && { shortDescriptionAr: ov.shortDescriptionAr }),
-        ...(ov.description && { description: ov.description }),
-        ...(ov.descriptionAr && { descriptionAr: ov.descriptionAr }),
-        ...(ov.wholesalePrice !== undefined && { wholesalePrice: ov.wholesalePrice }),
-        ...(ov.minOrderQty !== undefined && { minOrderQty: ov.minOrderQty }),
-        ...(ov.variants && ov.variants.length > 0 && { variants: ov.variants }),
-        ...(ov.material && { material: ov.material }),
-        ...(ov.materialAr && { materialAr: ov.materialAr }),
-        ...(ov.specification && { specification: ov.specification }),
-        ...(ov.specificationAr && { specificationAr: ov.specificationAr }),
-        ...(ov.weight !== undefined && { weight: ov.weight }),
-        ...(ov.width && { width: ov.width }),
-        ...(ov.packaging && { packaging: ov.packaging }),
-        ...(ov.packagingAr && { packagingAr: ov.packagingAr }),
-        ...(ov.categorySlug && { categorySlug: ov.categorySlug }),
-        ...(ov.categoryName && { categoryName: ov.categoryName }),
-        ...(ov.categoryNameAr && { categoryNameAr: ov.categoryNameAr }),
-        ...(ov.applications && { applications: ov.applications }),
-        ...(ov.avantages && { avantages: ov.avantages }),
-        ...(ov.conseilsEntretien && { conseilsEntretien: ov.conseilsEntretien }),
-        ...(ov.informationCommerciale && { informationCommerciale: ov.informationCommerciale }),
-        ...(ov.motsCles && { motsCles: ov.motsCles }),
-        ...(ov.typeProduit && { typeProduit: ov.typeProduit }),
-        ...(ov.matiereMailles && { matiereMailles: ov.matiereMailles }),
-        ...(ov.compositionRuban && { compositionRuban: ov.compositionRuban }),
-        ...(ov.couleur && { couleur: ov.couleur }),
-        ...(ov.largeurMaille && { largeurMaille: ov.largeurMaille }),
-        ...(ov.longueur && { longueur: ov.longueur }),
-        ...(ov.type && { type: ov.type }),
-        ...(ov.design && { design: ov.design }),
-        ...(ov.securite && { securite: ov.securite }),
-        ...(ov.resistance && { resistance: ov.resistance }),
-        ...(ov.compatibleAvec && { compatibleAvec: ov.compatibleAvec }),
-        ...(ov.conditionnementUnitaire && { conditionnementUnitaire: ov.conditionnementUnitaire }),
-        ...(ov.conditionnementGros && { conditionnementGros: ov.conditionnementGros }),
-        ...(ov.stockArticleId && { stockArticleId: ov.stockArticleId }),
-        ...(ov.stockArticleIds && { stockArticleIds: ov.stockArticleIds }),
-        // Booléen : décocher la case doit aussi l'emporter sur la fiche d'origine
-        ...(ov.volumineux !== undefined && { volumineux: !!ov.volumineux }),
-        ...champsArabes(ov),
-      };
-    });
-    // Filter out hardcoded products marked hidden by admin
-    const visibleHardcoded = hardcoded.filter(p => !(overrides[p.id] as any)?.hidden);
-    const existingIds = new Set(hardcoded.map(p => p.id));
-    const mergedCustom = customProducts
-      .filter(p => !existingIds.has(p.id) && !(overrides[p.id] as any)?.hidden)
-      .map(p => {
-        const ov = overrides[p.id];
-        const baseInStock = p.inStock !== undefined ? p.inStock : true;
-        const baseStockQty = p.stockQty !== undefined ? p.stockQty : 99;
-        const baseCat = p.categorySlug || (p as any).categoryId || 'autres';
-        if (!ov) return { ...p, inStock: baseInStock, stockQty: baseStockQty, categorySlug: baseCat };
-        return {
-          ...p,
-          categorySlug: ov.categorySlug || baseCat,
-          inStock: ov.inStock !== undefined ? ov.inStock : baseInStock,
-          stockQty: ov.stockQty !== undefined ? ov.stockQty : baseStockQty,
-          ...(ov.price !== undefined && { price: ov.price }),
-          ...(ov.comparePrice !== undefined && { comparePrice: ov.comparePrice ?? undefined }),
-          ...(ov.images && ov.images.length > 0 && { images: ov.images }),
-          ...(ov.isFeatured !== undefined && { isFeatured: ov.isFeatured }),
-          ...(ov.isNew !== undefined && { isNew: ov.isNew }),
-          ...(ov.isPromo !== undefined && { isPromo: ov.isPromo }),
-          ...(ov.name && { name: ov.name }),
-          ...(ov.catalogueName !== undefined && { catalogueName: ov.catalogueName ?? undefined }),
-          ...(ov.nameAr && { nameAr: ov.nameAr }),
-          ...(ov.shortDescription && { shortDescription: ov.shortDescription }),
-          ...(ov.shortDescriptionAr && { shortDescriptionAr: ov.shortDescriptionAr }),
-          ...(ov.description && { description: ov.description }),
-          ...(ov.descriptionAr && { descriptionAr: ov.descriptionAr }),
-          ...(ov.wholesalePrice !== undefined && { wholesalePrice: ov.wholesalePrice }),
-          ...(ov.minOrderQty !== undefined && { minOrderQty: ov.minOrderQty }),
-          ...(ov.variants && ov.variants.length > 0 && { variants: ov.variants }),
-          ...(ov.material && { material: ov.material }),
-          ...(ov.materialAr && { materialAr: ov.materialAr }),
-          ...(ov.specification && { specification: ov.specification }),
-          ...(ov.specificationAr && { specificationAr: ov.specificationAr }),
-          ...(ov.weight !== undefined && { weight: ov.weight }),
-          ...(ov.width && { width: ov.width }),
-          ...(ov.packaging && { packaging: ov.packaging }),
-          ...(ov.packagingAr && { packagingAr: ov.packagingAr }),
-          ...(ov.categoryName && { categoryName: ov.categoryName }),
-          ...(ov.categoryNameAr && { categoryNameAr: ov.categoryNameAr }),
-          ...(ov.additionalCategorySlugs && { additionalCategorySlugs: ov.additionalCategorySlugs }),
-          ...(ov.categoryAliases && { categoryAliases: ov.categoryAliases }),
-          ...(ov.applications && { applications: ov.applications }),
-          ...(ov.avantages && { avantages: ov.avantages }),
-          ...(ov.conseilsEntretien && { conseilsEntretien: ov.conseilsEntretien }),
-          ...(ov.informationCommerciale && { informationCommerciale: ov.informationCommerciale }),
-          ...(ov.motsCles && { motsCles: ov.motsCles }),
-          ...(ov.typeProduit && { typeProduit: ov.typeProduit }),
-          ...(ov.matiereMailles && { matiereMailles: ov.matiereMailles }),
-          ...(ov.compositionRuban && { compositionRuban: ov.compositionRuban }),
-          ...(ov.couleur && { couleur: ov.couleur }),
-          ...(ov.largeurMaille && { largeurMaille: ov.largeurMaille }),
-          ...(ov.longueur && { longueur: ov.longueur }),
-          ...(ov.type && { type: ov.type }),
-          ...(ov.design && { design: ov.design }),
-          ...(ov.securite && { securite: ov.securite }),
-          ...(ov.resistance && { resistance: ov.resistance }),
-          ...(ov.compatibleAvec && { compatibleAvec: ov.compatibleAvec }),
-          ...(ov.conditionnementUnitaire && { conditionnementUnitaire: ov.conditionnementUnitaire }),
-          ...(ov.conditionnementGros && { conditionnementGros: ov.conditionnementGros }),
-          ...(ov.stockArticleId && { stockArticleId: ov.stockArticleId }),
-          ...(ov.stockArticleIds && { stockArticleIds: ov.stockArticleIds }),
-          ...(ov.volumineux !== undefined && { volumineux: !!ov.volumineux }),
-          ...champsArabes(ov),
-        };
-      });
-    return [...visibleHardcoded, ...mergedCustom];
-  }, [overrides, customProducts]);
+  // (règle partagée avec le serveur : lib/catalogue-boutique)
+  const products = useMemo(
+    () => fusionnerProduits(SHOP_PRODUCTS_DATA, overrides, customProducts),
+    [overrides, customProducts]
+  );
 
-  const allCategories = useMemo(() => {
-    const existingSlugs = new Set(SHOP_CATEGORIES.map(c => c.slug));
-    const mergedHardcoded = SHOP_CATEGORIES.map(c => {
-      const ov = categoryOverrides[c.slug];
-      if (!ov) return c;
-      const merged = { ...c, ...ov };
-      // Rayon renommé dans l'admin sans traduction : l'arabe codé en dur ne correspond plus
-      if (ov.name && ov.name !== c.name && !ov.nameAr) delete merged.nameAr;
-      if (ov.description && ov.description !== c.description && !ov.descriptionAr) delete merged.descriptionAr;
-      return merged;
-    });
-    
-    // Deduplicate custom categories: if two custom cats have the same slug, only keep the first one
-    const seenCustomSlugs = new Set(existingSlugs);
-    const deduplicatedCustom = customCategories.filter(c => {
-      if (seenCustomSlugs.has(c.slug)) return false;
-      seenCustomSlugs.add(c.slug);
-      return true;
-    });
-    // Une catégorie d'origine « supprimée » dans l'admin y est seulement marquée hidden :
-    // on la retire, ainsi que ses sous-catégories
-    const hiddenSlugs = new Set(
-      [...mergedHardcoded, ...deduplicatedCustom].filter(c => c.hidden).map(c => c.slug)
-    );
-    const combined = [...mergedHardcoded, ...deduplicatedCustom].filter(
-      c => !hiddenSlugs.has(c.slug) && !(c.parentSlug && hiddenSlugs.has(c.parentSlug))
-    );
-
-    // Sort categories by priority descending, then by name
-    combined.sort((a, b) => {
-      const priorityA = a.priority || 0;
-      const priorityB = b.priority || 0;
-      if (priorityA !== priorityB) {
-        return priorityB - priorityA;
-      }
-      return a.name.localeCompare(b.name);
-    });
-    
-    return combined.map(cat => {
-      if (cat.image) return cat;
-      const firstProduct = products.find(p => (p.categorySlug === cat.slug || p.additionalCategorySlugs?.includes(cat.slug)) && p.images && p.images.length > 0);
-      if (firstProduct && firstProduct.images?.[0]) {
-        return { ...cat, image: firstProduct.images[0] };
-      }
-      return cat;
-    });
-  }, [customCategories, categoryOverrides, products]);
+  // Rayons visibles (règle partagée avec le serveur : lib/catalogue-boutique)
+  const allCategories = useMemo(
+    () => fusionnerRayons(SHOP_CATEGORIES, customCategories, categoryOverrides, products),
+    [customCategories, categoryOverrides, products]
+  );
 
   const updateProduct = useCallback(async (productId: string, override: ProductOverride) => {
     // Save to Firestore

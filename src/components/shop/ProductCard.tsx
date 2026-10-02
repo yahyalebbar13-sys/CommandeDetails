@@ -3,16 +3,17 @@
 import React, { useState, useCallback, useMemo } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
-import { ShoppingCart, Star, StarHalf, AlertCircle, CheckCircle2, Flame } from 'lucide-react';
+import { ShoppingCart, Star, StarHalf, AlertCircle, CheckCircle2, Flame, MessageCircle } from 'lucide-react';
 import { useShopCartActions } from '@/contexts/shop-cart-context';
 import { useLanguage } from '@/contexts/language-context';
 import {
   formatPrice,
   formatProductPrice,
   getProductPromo,
+  getWhatsAppContact,
 } from '@/lib/shop-utils';
 import type { ShopProduct } from '@/lib/shop-types';
-import { ajoutRapide } from '@/lib/shop-variantes';
+import { ajoutRapide, messageDemandePrix, PRIX_SUR_DEMANDE } from '@/lib/shop-variantes';
 import { nomProduit } from '@/lib/shop-textes';
 
 // Tiny base64 blur placeholder (1×1 px gris clair) — évite le layout shift
@@ -68,6 +69,17 @@ export default React.memo(function ProductCard({ product, showAddToCart = true }
 
   // Un produit à choisir (taille, couleur…) ne s'ajoute plus sans sa variante : la carte mène à la fiche
   const ajout = useMemo(() => ajoutRapide(product), [product]);
+  // Aucun prix : « Prix sur demande », pas de stock affiché, le bouton demande le prix sur WhatsApp
+  const surDemande = ajout.mode === 'prix';
+
+  const handleDemandePrix = useCallback(
+    (e: React.MouseEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      window.open(getWhatsAppContact(messageDemandePrix(product)), '_blank', 'noopener,noreferrer');
+    },
+    [product]
+  );
 
   const handleAddToCart = useCallback(
     (e: React.MouseEvent) => {
@@ -148,8 +160,8 @@ export default React.memo(function ProductCard({ product, showAddToCart = true }
         <div className="flex flex-wrap items-end justify-between gap-x-2 gap-y-1 mt-1">
           <div className="flex flex-col">
             <div className="flex flex-wrap items-baseline gap-x-1.5">
-              <span className="text-[15px] font-extrabold text-[#C8102E] leading-tight whitespace-nowrap">
-                {formatProductPrice(product, language)}
+              <span className={`font-extrabold text-[#C8102E] leading-tight whitespace-nowrap ${surDemande ? 'text-[13px]' : 'text-[15px]'}`}>
+                {surDemande ? PRIX_SUR_DEMANDE[language] : formatProductPrice(product, language)}
               </span>
               {isPromo && (
                 <span className="text-[11px] text-gray-400 line-through leading-tight whitespace-nowrap">
@@ -162,7 +174,7 @@ export default React.memo(function ProductCard({ product, showAddToCart = true }
                 {language === 'ar' ? `من ${product.minOrderQty}: ${formatPrice(product.wholesalePrice as number)}` : `À partir de ${product.minOrderQty} : ${formatPrice(product.wholesalePrice as number)}/pc`}
               </span>
             )}
-            {isLowStock ? (
+            {surDemande ? null : isLowStock ? (
               <span className="text-[10px] font-semibold text-orange-500 mt-0.5 flex items-center gap-0.5">
                 <Flame className="w-2.5 h-2.5" />
                 {language === 'ar' ? `تبقى ${product.stockQty} فقط` : `Plus que ${product.stockQty} en stock`}
@@ -173,6 +185,19 @@ export default React.memo(function ProductCard({ product, showAddToCart = true }
               </span>
             )}
           </div>
+
+          {/* Sans prix : jamais au panier, le prix se demande sur WhatsApp */}
+          {showAddToCart && surDemande && (
+            <button
+              type="button"
+              onClick={handleDemandePrix}
+              aria-label={language === 'ar' ? 'اسأل عن الثمن في واتساب' : 'Demander le prix sur WhatsApp'}
+              className="w-full h-9 px-2 rounded-lg border-2 border-[#25D366] bg-white text-[#128C7E] text-xs font-bold flex items-center justify-center gap-1 active:scale-95 transition-transform cursor-pointer"
+            >
+              <MessageCircle className="w-3.5 h-3.5 flex-shrink-0" />
+              <span className="truncate">{language === 'ar' ? 'اسأل عن الثمن' : 'Demander le prix'}</span>
+            </button>
+          )}
 
           {/* Produit à choisir : le toucher suit le lien de la carte vers la fiche */}
           {showAddToCart && product.inStock && ajout.mode === 'choisir' && (

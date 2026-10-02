@@ -71,8 +71,8 @@ const IMPORT_FEATURES = [
   },
   {
     icon: <ShieldCheck className="w-8 h-8" />,
-    title: "Qualité Garantie",
-    desc: "Nous contrôlons la qualité directement à la source. Vous recevez exactement ce que vous avez commandé, sans mauvaises surprises.",
+    title: "Marchandise contrôlée",
+    desc: "Nous contrôlons la marchandise à son arrivée. En cas de défaut, contactez-nous sur WhatsApp et nous trouvons une solution.",
     color: "#10B981"
   }
 ];

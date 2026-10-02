@@ -32,6 +32,9 @@ import {
 } from "@/lib/shop-utils";
 import { delaiZone, FRAIS_ZONE } from "@/lib/livraison-boutique";
 import { nomProduit, texte } from "@/lib/shop-textes";
+import { PRIX_SUR_DEMANDE, sansPrix } from "@/lib/shop-variantes";
+import type { ShopProduct } from "@/lib/shop-types";
+import type { Language } from "@/lib/translations";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface NavLink {
@@ -77,6 +80,11 @@ const PROMO_TEXT_AR = [
   "🏬 الاستلام مجاناً من محلنا في الدار البيضاء",
   "💬 واتساب: 0760998347",
 ].join(PROMO_SEPARATOR);
+
+// Prix d'une vignette du menu des catégories : « Prix sur demande » quand le produit n'a aucun prix
+function prixVignette(p: ShopProduct, language: Language): string {
+  return sansPrix(p) ? PRIX_SUR_DEMANDE[language] : formatProductPrice(p, language);
+}
 
 // Nombre de sous-rayons ou de produits en arabe : le nom s'accorde avec le nombre (1, 2, de 3 à 10, au-delà)
 function compteAr(n: number, un: string, deux: string, pluriel: string, singulier: string): string {
@@ -256,13 +264,20 @@ export default function ShopHeader() {
         {/* ── Desktop Collapsible Header Section ──────────────────────────── */}
         <div className={`transition-all duration-200 ease-in-out origin-top ${isScrolled ? 'lg:max-h-0 lg:opacity-0 lg:overflow-hidden' : 'max-h-[500px] opacity-100'}`}>
           {/* ── Promo Banner ──────────────────────────────────────────────── */}
+          {/* La piste reste de gauche à droite dans les deux langues : en sens arabe, elle partait
+              du bord droit et sortait de l'écran (bandeau vide 2 fois sur 3). En arabe, chaque copie
+              s'écrit de droite à gauche et la piste défile vers la droite : la phrase entre par son début. */}
           <div
+            dir="ltr"
             className="text-white text-xs font-medium py-2 overflow-hidden select-none"
             style={{ backgroundColor: "#C8102E" }}
           >
-            <div className="shop-marquee-inner inline-flex items-center gap-0">
-              <span className="pr-8">{language === 'ar' ? PROMO_TEXT_AR : PROMO_TEXT_FR}</span>
-              <span className="pr-8">{language === 'ar' ? PROMO_TEXT_AR : PROMO_TEXT_FR}</span>
+            <div
+              className="shop-marquee-inner inline-flex items-center gap-0"
+              style={language === 'ar' ? { animationDirection: 'reverse' } : undefined}
+            >
+              <span className="pr-8" dir={language === 'ar' ? 'rtl' : 'ltr'}>{language === 'ar' ? PROMO_TEXT_AR : PROMO_TEXT_FR}</span>
+              <span className="pr-8" dir={language === 'ar' ? 'rtl' : 'ltr'} aria-hidden="true">{language === 'ar' ? PROMO_TEXT_AR : PROMO_TEXT_FR}</span>
             </div>
           </div>
 
@@ -595,7 +610,7 @@ export default function ShopHeader() {
                                                 </p>
                                                 <div className="mt-2 pt-1 border-t border-neutral-100 flex items-center justify-between">
                                                   <span className="text-xs font-black text-[#C8102E]">
-                                                    {formatProductPrice(p, language)}
+                                                    {prixVignette(p, language)}
                                                   </span>
                                                   <span className="text-[10px] font-semibold text-neutral-400 group-hover:text-neutral-900 transition-colors">
                                                     {language === 'ar' ? 'عرض ←' : 'Voir →'}
@@ -659,7 +674,7 @@ export default function ShopHeader() {
                                             </p>
                                             <div className="mt-2 pt-1 border-t border-neutral-100 flex items-center justify-between">
                                               <span className="text-xs font-black text-[#C8102E]">
-                                                {formatProductPrice(p, language)}
+                                                {prixVignette(p, language)}
                                               </span>
                                               <span className="text-[10px] font-semibold text-neutral-400 group-hover:text-neutral-900 transition-colors">
                                                 {language === 'ar' ? 'عرض ←' : 'Voir →'}
@@ -1271,7 +1286,7 @@ export default function ShopHeader() {
                                     </p>
                                     <div className="mt-1.5 pt-1 border-t border-neutral-100 flex items-center justify-between">
                                       <span className="text-xs font-black text-[#C8102E]">
-                                        {formatProductPrice(p, language)}
+                                        {prixVignette(p, language)}
                                       </span>
                                       <span className="text-[9px] font-bold text-neutral-400 group-hover:text-neutral-900">
                                         {language === 'ar' ? 'عرض ←' : 'Voir →'}
@@ -1333,7 +1348,7 @@ export default function ShopHeader() {
                                 </p>
                                 <div className="mt-2 pt-1.5 border-t border-neutral-100 flex items-center justify-between">
                                   <span className="text-xs font-black text-[#C8102E]">
-                                    {formatProductPrice(p, language)}
+                                    {prixVignette(p, language)}
                                   </span>
                                   <span className="text-[10px] font-bold text-neutral-400 group-hover:text-neutral-900">
                                     {language === 'ar' ? 'تفاصيل ←' : 'Détails →'}

@@ -76,7 +76,7 @@ const ETAPES = [
   { step: '01', title: 'Commande passée', desc: 'Vous commandez sur le site. Notre équipe la reçoit tout de suite.', icon: Package },
   {
     step: '02', title: 'Appel de confirmation', icon: Phone,
-    desc: 'Nous vous appelons sous 2 h pendant nos horaires (lundi–samedi, 8h30–18h30), sinon le jour ouvré suivant : articles, adresse, frais.',
+    desc: 'Nous vous appelons aujourd’hui pendant nos horaires (lundi au samedi, 8h30–18h30), sinon le jour ouvré suivant : articles, adresse, frais.',
   },
   {
     step: '03', title: 'Préparation et expédition', icon: Truck,

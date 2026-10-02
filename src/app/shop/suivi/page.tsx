@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import { normaliserTelephoneMaroc } from '@/lib/telephone-maroc';
 import Link from 'next/link';
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import {
@@ -506,7 +507,8 @@ export default function SuiviPage() {
 
     try {
       // Normalize phone — search with raw digits
-      const cleanPhone = phone.replace(/[\s\-]/g, '');
+      // Même format que celui enregistré à la commande (0XXXXXXXXX)
+      const cleanPhone = normaliserTelephoneMaroc(phone) ?? phone.replace(/[\s\-]/g, '');
 
       const q = query(
         collection(db, 'shop_orders'),

@@ -41,8 +41,9 @@ const FAQS = [
   {
     category: "Produits",
     questions: [
-      { q: "Vos produits sont-ils de qualité professionnelle ?", a: "Oui, tous nos produits sont sélectionnés auprès de fournisseurs certifiés. Nous proposons des produits pour professionnels et particuliers." },
-      { q: "Proposez-vous des prix de gros ?", a: "Oui ! Nous proposons des tarifs semi-gros et gros selon les quantités commandées. Contactez-nous pour un devis personnalisé." },
+      { q: "Vos produits sont-ils de qualité professionnelle ?", a: "Oui : nos produits viennent de fournisseurs sélectionnés et sont contrôlés à l'arrivée. Nous proposons des produits pour professionnels et particuliers." },
+      { q: "Proposez-vous des prix de gros ?", a: "Nos prix affichés sont des prix de gros (lots, rouleaux). Pour une grosse quantité, demandez un prix sur WhatsApp." },
+      { q: "Pourquoi certains articles affichent « Prix sur demande » ?", a: "Leur prix n'est pas encore en ligne : ils ne se commandent pas sur le site. Touchez « Demander le prix sur WhatsApp » sur la fiche, nous vous répondons pendant nos horaires (lundi au samedi, 8h30–18h30)." },
       { q: "Les couleurs correspondent-elles aux photos ?", a: "Nous faisons notre maximum pour que les photos soient fidèles. De légères variations sont possibles selon les écrans, et entre deux bains de teinture. En cas de doute, contactez-nous avant de commander." },
       { q: "Puis-je commander des échantillons ?", a: "Oui, contactez-nous sur WhatsApp pour commander des échantillons avant de passer une grande commande." },
     ]

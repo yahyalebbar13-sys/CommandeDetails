@@ -15,7 +15,8 @@ export const viewport: Viewport = {
 };
 
 export const metadata: Metadata = {
-  metadataBase: new URL('https://lebtex.ma'),
+  // L'adresse unique du site (https://lebtex.ma répond 308 vers www)
+  metadataBase: new URL('https://www.lebtex.ma'),
   title: 'LEBTEX — Mercerie & Accessoires Textiles au Maroc',
   description: 'Spécialiste en fermetures éclair, boutons, élastiques, rubans et accessoires textiles. Livraison rapide partout au Maroc.',
   // Onglet : src/app/favicon.ico (16/32/48, logo LEBTEX), ajouté tout seul par Next.

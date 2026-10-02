@@ -12,7 +12,7 @@ export const metadata: Metadata = {
   description: 'Ce que LEBTEX fait de vos informations personnelles quand vous commandez sur lebtex.ma (loi 09-08).',
 };
 
-const VERSION = '29/09/2026';
+const VERSION = '02/10/2026';
 
 function Section({ n, titre, children }: { n: number; titre: string; children: ReactNode }) {
   return (
@@ -68,7 +68,8 @@ export default function ConfidentialitePage() {
               'Si vous créez un compte : votre e-mail, votre nom, votre téléphone et les adresses que vous enregistrez.',
               'Les messages que vous nous envoyez (WhatsApp, e-mail) et les notes de l’appel de confirmation.',
               'Si vous payez par virement : le nom de l’émetteur et le montant, tels qu’ils apparaissent sur notre relevé bancaire.',
-              'Sur votre appareil : votre panier et votre langue sont gardés dans votre navigateur, pour les retrouver à votre prochaine visite. Nous mesurons aussi la fréquentation du site de façon anonyme, sans cookie publicitaire.',
+              'Sur votre appareil : votre panier, votre langue et ce que vous tapez dans le formulaire de commande (effacé une fois la commande passée) sont gardés dans votre navigateur, pour ne rien perdre si la page se recharge. Nous mesurons aussi la fréquentation du site de façon anonyme, sans cookie publicitaire.',
+              'D’où vient votre visite : le lien par lequel vous êtes arrivé (par exemple une publicité ou un message WhatsApp), le site d’origine, la première page vue et, si vous y répondez, « Comment avez-vous connu LEBTEX ? ». Ces informations sont jointes à votre commande.',
             ]} />
             <p>Nous ne collectons aucun numéro de carte bancaire.</p>
           </Section>
@@ -79,6 +80,7 @@ export default function ConfidentialitePage() {
               'Vous envoyer la confirmation et le suivi de votre commande (WhatsApp, e-mail).',
               'Établir une facture si vous la demandez, et tenir notre comptabilité.',
               'Traiter un retour, un échange ou une réclamation.',
+              'Savoir quelles annonces et quels messages amènent des commandes, pour mieux dépenser notre publicité.',
             ]} />
             <p>Nous ne vous envoyons pas de publicité sans votre accord.</p>
           </Section>

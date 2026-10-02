@@ -31,10 +31,9 @@ import { useLanguage } from "@/contexts/language-context";
 import { useShopProducts } from "@/contexts/shop-products-context";
 import { lienWhatsAppPanier } from "@/lib/whatsapp-panier";
 import { paire, premierTexte } from "@/lib/shop-textes";
-import { libelleCouleur, libelleModele, libelleTaille } from "@/lib/shop-variantes";
+import { libelleCouleur, libelleModele, libelleTaille, PRIX_A_CONFIRMER } from "@/lib/shop-variantes";
 import {
   formatPrice,
-  formatPriceOrOnRequest,
   formatPriceRange,
 } from "@/lib/shop-utils";
 import type { CartItem, ProductVariant } from "@/lib/shop-types";
@@ -199,6 +198,9 @@ function CartProductGroup({
   const { total, minUnit, maxUnit } = summarizeCartProduct(items, productTotalQty);
   const standardLabel = language === "ar" ? "قياسي" : "Standard";
   const unitSuffix = language === "ar" ? "/ الوحدة" : "/ unité";
+  // Ligne sans prix (ancien panier) : « Prix à confirmer », pas de quantité, un bouton pour la retirer
+  const simpleSansPrix = isSimple && getCartItemUnitPrice(first, productTotalQty) <= 0;
+  const texteRetirer = language === "ar" ? "حذف" : "Retirer";
 
   // Quand les couleurs se répètent dans plusieurs tailles (ou modèles), on les range sous
   // un en-tête par taille plutôt que de répéter la taille sur chaque ligne.
@@ -313,9 +315,13 @@ function CartProductGroup({
             <p className="text-xs text-[#6B6B6B] tabular-nums">
               {minUnit > 0 && `${formatPriceRange(minUnit, maxUnit, language)} ${unitSuffix}`}
             </p>
-            <p className="text-base sm:text-lg font-bold text-[#C8102E] tabular-nums leading-none shop-font-display">
-              {formatPriceOrOnRequest(total, language)}
-            </p>
+            {total > 0 ? (
+              <p className="text-base sm:text-lg font-bold text-[#C8102E] tabular-nums leading-none shop-font-display">
+                {formatPrice(total)}
+              </p>
+            ) : (
+              <p className="text-sm font-semibold text-amber-700 leading-none">{PRIX_A_CONFIRMER[language]}</p>
+            )}
           </div>
 
           {wholesale && (
@@ -334,7 +340,7 @@ function CartProductGroup({
             </p>
           )}
 
-          {isSimple && (
+          {isSimple && !simpleSansPrix && (
             <div className="mt-3">
               <QtyStepper
                 quantity={first.quantity}
@@ -343,6 +349,16 @@ function CartProductGroup({
                 language={language}
               />
             </div>
+          )}
+          {simpleSansPrix && (
+            <button
+              type="button"
+              onClick={() => onRemove(first.productId, getCartItemVariantKey(first))}
+              className="mt-3 min-h-10 px-4 rounded-xl border border-[#E8E4DF] bg-white text-sm font-bold text-[#C8102E] inline-flex items-center gap-1.5 hover:bg-red-50 transition-colors"
+            >
+              <Trash2 className="w-4 h-4" />
+              {texteRetirer}
+            </button>
           )}
         </div>
       </div>
@@ -354,7 +370,8 @@ function CartProductGroup({
             {visibleRows.map(({ item, header }) => {
               const variantKey = getCartItemVariantKey(item);
               const unit = getCartItemUnitPrice(item, productTotalQty);
-              const lineTotal = formatPriceOrOnRequest(unit * item.quantity, language);
+              const sansPrix = unit <= 0;
+              const lineTotal = sansPrix ? PRIX_A_CONFIRMER[language] : formatPrice(unit * item.quantity);
               const atMax = item.maxStock > 0 && item.quantity >= item.maxStock;
 
               return (
@@ -371,7 +388,7 @@ function CartProductGroup({
                     <VariantSwatch item={item} />
                     <div className="flex-1 min-w-0">
                       <p className="text-sm text-[#0F0F0F] truncate">{rowLabel(item)}</p>
-                      <p className="sm:hidden text-xs font-semibold text-[#6B6B6B] tabular-nums">{lineTotal}</p>
+                      <p className={`sm:hidden text-xs font-semibold tabular-nums ${sansPrix ? "text-amber-700" : "text-[#6B6B6B]"}`}>{lineTotal}</p>
                       {unit > 0 && maxUnit > minUnit && (
                         <p className="hidden sm:block text-xs text-[#6B6B6B] tabular-nums">
                           {formatPrice(unit)} {unitSuffix}
@@ -383,23 +400,35 @@ function CartProductGroup({
                         </p>
                       )}
                     </div>
-                    <QtyStepper
-                      quantity={item.quantity}
-                      maxStock={item.maxStock}
-                      onChange={(q) => onUpdateQty(item.productId, q, variantKey)}
-                      language={language}
-                    />
-                    <span className="hidden sm:block w-24 text-end text-sm font-semibold text-[#0F0F0F] tabular-nums">
+                    {!sansPrix && (
+                      <QtyStepper
+                        quantity={item.quantity}
+                        maxStock={item.maxStock}
+                        onChange={(q) => onUpdateQty(item.productId, q, variantKey)}
+                        language={language}
+                      />
+                    )}
+                    <span className={`hidden sm:block w-24 text-end text-sm font-semibold tabular-nums ${sansPrix ? "text-amber-700" : "text-[#0F0F0F]"}`}>
                       {lineTotal}
                     </span>
-                    <button
-                      type="button"
-                      onClick={() => onRemove(item.productId, variantKey)}
-                      className="w-8 h-8 flex-shrink-0 flex items-center justify-center rounded-lg text-[#6B6B6B] hover:text-red-500 hover:bg-red-50 transition-colors"
-                      aria-label={language === "ar" ? "حذف" : "Retirer"}
-                    >
-                      <X className="w-4 h-4" />
-                    </button>
+                    {sansPrix ? (
+                      <button
+                        type="button"
+                        onClick={() => onRemove(item.productId, variantKey)}
+                        className="min-h-9 px-3 flex-shrink-0 rounded-lg border border-[#E8E4DF] text-xs font-bold text-[#C8102E] hover:bg-red-50 transition-colors"
+                      >
+                        {texteRetirer}
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => onRemove(item.productId, variantKey)}
+                        className="w-8 h-8 flex-shrink-0 flex items-center justify-center rounded-lg text-[#6B6B6B] hover:text-red-500 hover:bg-red-50 transition-colors"
+                        aria-label={language === "ar" ? "حذف" : "Retirer"}
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    )}
                   </div>
                 </React.Fragment>
               );
@@ -471,7 +500,7 @@ function EmptyCart() {
 // ─── Main Page ───────────────────────────────────────────────────────────────
 export default function PanierPage() {
   const { t, language } = useLanguage();
-  const { items, subtotal, itemCount, updateQty, removeItem, clearCart, productQtyMap } = useShopCart();
+  const { items, subtotal, itemCount, updateQty, removeItem, clearCart, productQtyMap, charge } = useShopCart();
   const [clearConfirm, setClearConfirm] = useState(false);
 
   const groups = useMemo(() => groupCartItemsByProduct(items), [items]);
@@ -484,7 +513,7 @@ export default function PanierPage() {
   // Le virement n'est cité que s'il est proposé au formulaire (RIB saisi par le patron).
   const { reglages, charge: reglagesCharges } = useReglagesReception();
   const virementPropose = reglagesCharges && reglages.virement.actif;
-  const totalLabel = hasPrices ? formatPrice(subtotal) : t('price_on_request');
+  const totalLabel = hasPrices ? formatPrice(subtotal) : PRIX_A_CONFIRMER[language];
   const isAr = language === "ar";
 
   const handleClearCart = useCallback(() => {
@@ -497,6 +526,9 @@ export default function PanierPage() {
     }
   }, [clearConfirm, clearCart]);
 
+  // Panier pas encore relu du navigateur (juste après un rechargement) : ne pas
+  // afficher « panier vide » une fraction de seconde.
+  if (!charge) return <div className="min-h-[60vh]" aria-busy="true" />;
   if (items.length === 0) {
     return <EmptyCart />;
   }
@@ -609,12 +641,12 @@ export default function PanierPage() {
                 <div className="flex items-center justify-between text-sm text-[#6B6B6B]">
                   <span>{t('subtotal')} ({itemCount})</span>
                   <span className="font-semibold text-[#0F0F0F] tabular-nums">
-                    {formatPriceOrOnRequest(subtotal, language)}
+                    {totalLabel}
                   </span>
                 </div>
                 {hasPrices && hasUnpricedItems && (
                   <p className="text-xs text-[#6B6B6B] -mt-2">
-                    {isAr ? "لا يشمل المنتجات حسب الطلب" : "Hors articles sur demande"}
+                    {isAr ? "بدون المنتجات التي سيتم تأكيد سعرها" : "Sans les articles « Prix à confirmer »"}
                   </p>
                 )}
 

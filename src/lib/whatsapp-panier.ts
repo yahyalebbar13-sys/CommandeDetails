@@ -16,7 +16,7 @@ export function lienWhatsAppPanier(
     const nom = ar && item.productNameAr ? item.productNameAr : item.productName;
     const variante = libelleLignePanier(item.variant, language);
     const prix = prixUnitaire(item);
-    const detailPrix = prix > 0 ? `${formatPrice(prix)}${ar ? ' للوحدة' : '/u'}` : ar ? 'الثمن حسب الطلب' : 'prix sur demande';
+    const detailPrix = prix > 0 ? `${formatPrice(prix)}${ar ? ' للوحدة' : '/u'}` : ar ? 'السعر سيتم تأكيده' : 'prix à confirmer';
     return `- ${nom}${variante ? ` — ${variante}` : ''} × ${item.quantity} (${detailPrix})`;
   });
   const total = items.reduce((s, item) => s + prixUnitaire(item) * item.quantity, 0);

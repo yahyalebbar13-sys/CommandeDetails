@@ -195,7 +195,7 @@ function BoutiqueContent() {
               </h1>
               <p className="text-gray-400 text-xs sm:text-sm mt-0.5 max-w-lg">
                 {language === 'ar'
-                  ? 'اكتشف جميع مستلزمات الخياطة والأكسسوارات النسيجية بأفضل الأسعار'
+                  ? 'اكتشف جميع مستلزمات الخياطة والأكسسوارات النسيجية المهنية'
                   : 'Tous nos articles en accessoires textiles et mercerie professionnelle'}
               </p>
             </div>
