@@ -1,17 +1,19 @@
 // Ce que le serveur sait du catalogue, pour Google et les aperçus de liens (WhatsApp,
 // Facebook) : l'adresse du site, le catalogue figé au build, un produit ajouté dans
-// l'admin après le build, et les étiquettes d'une page (titre, description, image).
+// l'admin après le build, les étiquettes d'une page (titre, description, image) et ses
+// données structurées (produit avec son prix, fil d'Ariane).
 // Serveur seulement (layouts, plan du site) ; la règle de fusion du catalogue est dans
 // catalogue-boutique, la même que celle du navigateur.
 
 import type { Metadata } from 'next';
 import { cache } from 'react';
 import { firebaseConfig } from '../firebase/config';
-import { fusionnerProduits, fusionnerRayons, type ProductOverride } from './catalogue-boutique';
+import { fusionnerProduits, fusionnerRayons, trouverRayon, type ProductOverride } from './catalogue-boutique';
 import shopStaticData from './shop-firebase-dump.json';
 import { SHOP_CATEGORIES, SHOP_PRODUCTS_DATA } from './shop-products-data';
 import type { ShopCategory, ShopProduct } from './shop-types';
 import { getProductDisplayPrice } from './shop-utils';
+import { prixDe, variantesAchetables } from './shop-variantes';
 
 // Une seule adresse : https://lebtex.ma répond 308 vers celle-ci
 export const SITE_URL = 'https://www.lebtex.ma';
@@ -245,4 +247,105 @@ export function etiquettesPrivees(titre: string, description: string): Metadata 
     description,
     robots: { index: false, follow: true },
   };
+}
+
+// ─── Données structurées pour Google (JSON-LD) ──────────────────────────────
+// Ce que Google peut montrer sous le lien : le prix et le chemin « Accueil › Rayon › Produit ».
+// Seulement du vrai : le prix affiché (celui qui sera facturé, jamais un prix barré),
+// aucun avis, aucune note. Un produit sans prix (« Prix sur demande ») n'a pas de fiche Product.
+
+type DonneesStructurees = Record<string, unknown>;
+
+export function adresseProduit(id: string): string {
+  return `${SITE_URL}/shop/produit/${encodeURIComponent(id)}`;
+}
+
+export function adresseRayon(slug: string): string {
+  return `${SITE_URL}/shop/categorie/${encodeURIComponent(slug)}`;
+}
+
+// Photo en adresse complète (https), sinon rien
+function photoAbsolue(photo: unknown): string | null {
+  if (typeof photo !== 'string' || !photo.trim()) return null;
+  if (photo.startsWith('/') && !photo.startsWith('//')) return `${SITE_URL}${photo}`;
+  return /^https:\/\//.test(photo) ? photo : null;
+}
+
+const VENDEUR = { '@type': 'Organization', name: 'LEBTEX', url: SITE_URL };
+
+// Fiche produit avec prix : nom, photos, description, référence, marque et offre au prix affiché.
+// « À partir de » (variantes à prix différents) : une offre groupée, du moins cher au plus cher.
+export function donneesProduit(p: ShopProduct, rayons: ShopCategory[]): DonneesStructurees | null {
+  const { amount, isFrom } = getProductDisplayPrice(p);
+  if (!(amount > 0)) return null;
+
+  const url = adresseProduit(p.id);
+  const photos = [...(p.images || []), ...(p.variants || []).map(v => v?.image)]
+    .map(photoAbsolue)
+    .filter((x): x is string => !!x);
+  const disponibilite = p.inStock === false ? 'https://schema.org/OutOfStock' : 'https://schema.org/InStock';
+  const commun = { priceCurrency: 'MAD', availability: disponibilite, url, seller: VENDEUR };
+
+  let offre: DonneesStructurees = { '@type': 'Offer', price: amount, ...commun };
+  if (isFrom) {
+    const prix = variantesAchetables(p.variants).map(v => prixDe(p.price, v)).filter(x => x > 0);
+    offre = {
+      '@type': 'AggregateOffer',
+      lowPrice: amount,
+      highPrice: Math.max(amount, ...prix),
+      offerCount: prix.length,
+      ...commun,
+    };
+  }
+
+  return {
+    '@context': 'https://schema.org',
+    '@type': 'Product',
+    name: nettoyer(p.name) || 'Produit',
+    ...(photos.length > 0 && { image: Array.from(new Set(photos)).slice(0, 10) }),
+    description: descriptionProduit(p, rayons),
+    sku: p.id,
+    brand: { '@type': 'Brand', name: 'LEBTEX' },
+    offers: offre,
+  };
+}
+
+type Etape = { nom: string; url: string };
+
+function filAriane(etapes: Etape[]): DonneesStructurees {
+  return {
+    '@context': 'https://schema.org',
+    '@type': 'BreadcrumbList',
+    itemListElement: etapes.map((e, i) => ({ '@type': 'ListItem', position: i + 1, name: e.nom, item: e.url })),
+  };
+}
+
+// Accueil, le rayon parent s'il y en a un (visible), puis le rayon
+function etapesRayon(rayon: ShopCategory, rayons: ShopCategory[]): Etape[] {
+  const parent = rayon.parentSlug ? trouverRayon(rayons, rayon.parentSlug) : null;
+  return [
+    { nom: 'Accueil', url: SITE_URL },
+    ...(parent ? [{ nom: nettoyer(parent.name), url: adresseRayon(parent.slug) }] : []),
+    { nom: nettoyer(rayon.name), url: adresseRayon(rayon.slug) },
+  ];
+}
+
+// Page rayon : « Accueil › Rayon »
+export function filArianeRayon(rayon: ShopCategory, rayons: ShopCategory[]): DonneesStructurees {
+  return filAriane(etapesRayon(rayon, rayons));
+}
+
+// Fiche produit : « Accueil › Rayon › Produit » (sans le rayon s'il est introuvable ou masqué)
+export function filArianeProduit(p: ShopProduct, rayons: ShopCategory[]): DonneesStructurees {
+  const rayon = p.categorySlug ? trouverRayon(rayons, p.categorySlug) : null;
+  return filAriane([
+    ...(rayon ? etapesRayon(rayon, rayons) : [{ nom: 'Accueil', url: SITE_URL }]),
+    { nom: nettoyer(p.name) || 'Produit', url: adresseProduit(p.id) },
+  ]);
+}
+
+// Texte à mettre dans <script type="application/ld+json"> : « < » échappé, pour qu'un
+// « </script> » dans un nom ou une description ne puisse pas fermer la balise
+export function jsonLd(donnees: DonneesStructurees): string {
+  return JSON.stringify(donnees).replace(/</g, '\\u003c');
 }

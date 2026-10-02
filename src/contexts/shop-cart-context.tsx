@@ -3,6 +3,7 @@
 import React, { createContext, useContext, useReducer, useEffect, useMemo, useState } from 'react';
 import type { CartItem } from '@/lib/shop-types';
 import { useShopProducts } from '@/contexts/shop-products-context';
+import { compter } from '@/lib/compteurs-boutique';
 
 // ─── State ────────────────────────────────────────────────────────────────────
 interface CartState {
@@ -214,8 +215,9 @@ export function ShopCartProvider({ children }: { children: React.ReactNode }) {
   }, [state.items, charge]);
 
   const actions = useMemo(() => ({
-    addItem: (item: CartItem) => dispatch({ type: 'ADD_ITEM', payload: item }),
-    addItems: (items: CartItem[], options?: { ouvrir?: boolean }) => dispatch({ type: 'ADD_ITEMS', payload: items, ouvrir: options?.ouvrir }),
+    // Compteur anonyme « ajout au panier » (lib/compteurs-boutique) : un par clic, jamais bloquant
+    addItem: (item: CartItem) => { compter('ajout_panier'); dispatch({ type: 'ADD_ITEM', payload: item }); },
+    addItems: (items: CartItem[], options?: { ouvrir?: boolean }) => { compter('ajout_panier'); dispatch({ type: 'ADD_ITEMS', payload: items, ouvrir: options?.ouvrir }); },
     removeItem: (productId: string, variantId?: string) => dispatch({ type: 'REMOVE_ITEM', payload: { productId, variantId } }),
     updateQty: (productId: string, quantity: number, variantId?: string) => dispatch({ type: 'UPDATE_QTY', payload: { productId, variantId, quantity } }),
     clearCart: () => dispatch({ type: 'CLEAR_CART' }),

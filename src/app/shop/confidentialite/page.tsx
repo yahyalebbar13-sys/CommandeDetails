@@ -1,11 +1,25 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import type { ReactNode } from 'react';
+import {
+  ADRESSE_SIEGE,
+  EMAIL_LEBTEX,
+  lienTel,
+  NUMEROS_LEGAUX,
+  RAISON_SOCIALE,
+  TELEPHONES_SIEGE,
+  WHATSAPP_BOUTIQUE,
+} from '@/lib/identite-lebtex';
 
 // Politique de confidentialité de lebtex.ma (lien obligatoire du formulaire de
 // commande). Loi 09-08 : dire ce qu'on collecte, pourquoi, qui y a accès,
 // combien de temps, et comment exercer ses droits. À garder en phase avec ce
 // que le site enregistre vraiment (shop_orders, comptes clients, panier local).
+// Responsable (02/10/2026) : l'identité des factures de /gestion (lib/identite-lebtex),
+// au lieu de « LEBTEX SARL AU ».
+//
+// À FAIRE (hors page) : faire relire ce document par le conseiller de LEBTEX.
+// La mention « à faire valider » n'est plus affichée aux clients (comme les conditions de vente).
 
 export const metadata: Metadata = {
   title: 'Politique de confidentialité | LEBTEX',
@@ -34,7 +48,7 @@ function Liste({ items }: { items: ReactNode[] }) {
 }
 
 const lien = 'text-[#C8102E] font-semibold underline hover:no-underline';
-const EMAIL = 'lebtexsarlau@gmail.com';
+const EMAIL = EMAIL_LEBTEX;
 
 export default function ConfidentialitePage() {
   return (
@@ -58,7 +72,12 @@ export default function ConfidentialitePage() {
 
           <Section n={1} titre="Qui est responsable">
             <p>
-              LEBTEX SARL AU, Casablanca. Pour toute question sur vos données : <a href={`mailto:${EMAIL}`} className={lien}>{EMAIL}</a>.
+              <strong className="text-[#1A1A1A]">{RAISON_SOCIALE}</strong>, siège : {ADRESSE_SIEGE.fr}, Maroc
+              (RC {NUMEROS_LEGAUX.rc}, ICE {NUMEROS_LEGAUX.ice}).
+            </p>
+            <p>
+              Pour toute question sur vos données : <a href={`mailto:${EMAIL}`} className={lien}>{EMAIL}</a>, ou par téléphone
+              au <a href={lienTel(TELEPHONES_SIEGE[0])} className={lien}>{TELEPHONES_SIEGE[0]}</a>.
             </p>
           </Section>
 
@@ -68,7 +87,7 @@ export default function ConfidentialitePage() {
               'Si vous créez un compte : votre e-mail, votre nom, votre téléphone et les adresses que vous enregistrez.',
               'Les messages que vous nous envoyez (WhatsApp, e-mail) et les notes de l’appel de confirmation.',
               'Si vous payez par virement : le nom de l’émetteur et le montant, tels qu’ils apparaissent sur notre relevé bancaire.',
-              'Sur votre appareil : votre panier, votre langue et ce que vous tapez dans le formulaire de commande (effacé une fois la commande passée) sont gardés dans votre navigateur, pour ne rien perdre si la page se recharge. Nous mesurons aussi la fréquentation du site de façon anonyme, sans cookie publicitaire.',
+              'Sur votre appareil : votre panier, votre langue et ce que vous tapez dans le formulaire de commande (effacé une fois la commande passée) sont gardés dans votre navigateur, pour ne rien perdre si la page se recharge. Si la case « Se souvenir de moi sur ce téléphone » est cochée quand vous commandez, votre nom, votre téléphone, votre ville, votre adresse et le mode de réception choisi y restent pour la commande suivante ; « Ce n’est pas moi » les efface. Nous mesurons aussi la fréquentation du site de façon anonyme (nombre de pages vues, d’ajouts au panier, de clics WhatsApp par jour), sans cookie publicitaire.',
               'D’où vient votre visite : le lien par lequel vous êtes arrivé (par exemple une publicité ou un message WhatsApp), le site d’origine, la première page vue et, si vous y répondez, « Comment avez-vous connu LEBTEX ? ». Ces informations sont jointes à votre commande.',
             ]} />
             <p>Nous ne collectons aucun numéro de carte bancaire.</p>
@@ -114,7 +133,7 @@ export default function ConfidentialitePage() {
             <Liste items={[
               'L’accès aux commandes est réservé à l’équipe LEBTEX.',
               'Nous ne vous demanderons jamais de mot de passe ou de code par message.',
-              'LEBTEX ne change jamais de RIB par message : en cas de doute, appelez-nous au +212 760 998 347.',
+              `LEBTEX ne change jamais de RIB par message : en cas de doute, appelez-nous au ${WHATSAPP_BOUTIQUE}.`,
             ]} />
           </Section>
 
@@ -122,8 +141,6 @@ export default function ConfidentialitePage() {
             Voir aussi nos <Link href="/shop/conditions" className={lien}>conditions générales de vente</Link>.
           </p>
         </article>
-
-        <p className="text-xs text-[#6B6B6B] mt-4 text-center">Document à faire valider par notre conseiller.</p>
       </div>
     </div>
   );

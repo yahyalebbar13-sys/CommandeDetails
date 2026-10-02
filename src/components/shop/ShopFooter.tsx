@@ -1,14 +1,12 @@
 "use client";
 
-import React, { useState } from "react";
+import React from "react";
 import Link from "next/link";
 import {
   Truck,
-  CheckCircle2,
   MessageCircle,
   RotateCcw,
   Mail,
-  ArrowRight,
   MapPin,
   Instagram,
   Facebook,
@@ -24,6 +22,12 @@ import { delaiZone, FRAIS_ZONE } from "@/lib/livraison-boutique";
 import { useShopProducts } from "@/contexts/shop-products-context";
 import { useLanguage } from "@/contexts/language-context";
 import { texte } from "@/lib/shop-textes";
+import {
+  ADRESSE_SIEGE,
+  ligneNumerosLegaux,
+  RAISON_SOCIALE,
+  TELEPHONES_SIEGE,
+} from "@/lib/identite-lebtex";
 import WhatsAppFloat from "@/components/shop/WhatsAppFloat";
 
 // ─── Data ─────────────────────────────────────────────────────────────────────
@@ -37,7 +41,6 @@ const SERVICE_LINKS = [
   { fr: "Suivi de commande", ar: "تتبع الطلب", href: "/shop/suivi" },
   { fr: "À propos de LEBTEX", ar: "من نحن", href: "/shop/a-propos" },
   { fr: "Service Import", ar: "خدمة الاستيراد", href: "/shop/precommande" },
-  { fr: "Promotions en cours", ar: "العروض الحالية", href: "/shop/promotions" },
 ];
 
 const GUARANTEES: {
@@ -57,12 +60,14 @@ const GUARANTEES: {
     },
     color: "#10B981",
   },
-  // Un fait, pas une promesse (« Qualité garantie » ne s'appuyait sur aucune garantie écrite)
+  // Un fait, pas une promesse (« Qualité garantie » ne s'appuyait sur aucune garantie écrite).
+  // Même discours que la FAQ et le bouton « Demander un prix de gros » de l'accueil : prix de
+  // gros affichés pour les lots et rouleaux, prix des grosses quantités sur WhatsApp.
   {
     id: "import",
     icon: Package,
     title: { fr: "Importation directe", ar: "استيراد مباشر" },
-    desc: { fr: "Prix de gros affichés", ar: "أثمنة الجملة معروضة" },
+    desc: { fr: "Lots et rouleaux à prix de gros", ar: "الحزم واللفافات بثمن الجملة" },
     color: "#D4A843",
   },
   {
@@ -92,80 +97,15 @@ const MOYENS_PAIEMENT = [
   { fr: "🏦 Virement bancaire", ar: "🏦 تحويل بنكي" },
 ];
 
-// ─── Newsletter form ──────────────────────────────────────────────────────────
-function NewsletterForm() {
-  const { language } = useLanguage();
-  const ar = language === "ar";
-  const [email, setEmail] = useState("");
-  const [status, setStatus] = useState<"idle" | "success" | "error">("idle");
-  const [isLoading, setIsLoading] = useState(false);
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!email.trim() || !email.includes("@")) return;
-    setIsLoading(true);
-    // Simulate API call
-    await new Promise((r) => setTimeout(r, 900));
-    setStatus("success");
-    setIsLoading(false);
-    setEmail("");
-  };
-
-  if (status === "success") {
-    return (
-      <div className="flex items-center gap-3 p-4 rounded-xl bg-green-500/10 border border-green-500/20">
-        <CheckCircle2 className="w-5 h-5 text-green-400 flex-shrink-0" />
-        <div>
-          <p className="text-sm font-semibold text-green-300">
-            {ar ? "تم التسجيل بنجاح!" : "Inscription réussie !"}
-          </p>
-          <p className="text-xs text-green-400/80 mt-0.5">
-            {ar ? "ستصلك أفضل عروضنا." : "Vous recevrez nos meilleures offres."}
-          </p>
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <form onSubmit={handleSubmit} className="space-y-3">
-      <div className="relative">
-        <Mail className="absolute start-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500 pointer-events-none" />
-        <input
-          type="email"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          placeholder={ar ? "بريدك الإلكتروني" : "votre@email.com"}
-          required
-          className="w-full ps-10 pe-4 py-3 text-base rounded-xl border border-white/10 bg-white/5 text-white placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#D4A843]/40 focus:border-[#D4A843]/50 transition-all"
-        />
-      </div>
-      <button
-        type="submit"
-        disabled={isLoading}
-        className="flex items-center justify-center gap-2 w-full py-3 px-4 rounded-xl text-sm font-semibold text-white transition-all hover:opacity-90 active:scale-[0.98] disabled:opacity-60 disabled:cursor-not-allowed"
-        style={{ backgroundColor: "#C8102E" }}
-      >
-        {isLoading ? (
-          <>
-            <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-            {ar ? "جارٍ التسجيل…" : "Inscription…"}
-          </>
-        ) : (
-          <>
-            {ar ? "اشترك في العروض" : "S'abonner aux offres"}
-            <ArrowRight className="w-4 h-4 rtl:rotate-180" />
-          </>
-        )}
-      </button>
-      {status === "error" && (
-        <p className="text-xs text-red-400 text-center">
-          {ar ? "حدث خطأ، حاول مرة أخرى." : "Erreur. Veuillez réessayer."}
-        </p>
-      )}
-    </form>
-  );
-}
+// ─── Arrivages : sur WhatsApp ─────────────────────────────────────────────────
+// L'ancienne inscription par e-mail n'enregistrait rien et affichait pourtant
+// « Inscription réussie » (02/10/2026). Le client écrit lui-même sur WhatsApp :
+// rien n'est enregistré par le site. Une vraie liste d'envoi attend l'accord du
+// patron et la déclaration CNDP.
+const MESSAGE_ARRIVAGES = {
+  fr: "Bonjour LEBTEX, quels sont vos derniers arrivages ?",
+  ar: "السلام عليكم LEBTEX، ما هي السلع الجديدة التي وصلت؟",
+};
 
 // ─── Component ────────────────────────────────────────────────────────────────
 export default function ShopFooter() {
@@ -450,7 +390,7 @@ export default function ShopFooter() {
             </div>
           </div>
 
-          {/* ── Col 4: Newsletter ──────────────────────────────────────────── */}
+          {/* ── Col 4: Arrivages (sur WhatsApp) ────────────────────────────── */}
           <div>
             <h3
               className="text-sm font-bold uppercase tracking-widest mb-5 flex items-center gap-2"
@@ -460,26 +400,23 @@ export default function ShopFooter() {
                 className="w-4 h-0.5 rounded-full"
                 style={{ backgroundColor: "#D4A843" }}
               />
-              {ar ? "عروض حصرية" : "Offres exclusives"}
+              {ar ? "السلع الجديدة" : "Arrivages"}
             </h3>
+            {/* Plus de promesse de remise ni de code de réduction (décision du patron, 02/10/2026) */}
             <p className="text-sm mb-4" style={{ color: "#9CA3AF" }}>
               {ar
-                ? "اشترك لتصلك أفضل التخفيضات والمنتجات الجديدة وأكواد الخصم قبل الجميع."
-                : "Abonnez-vous pour recevoir nos meilleures promotions, nouveautés et codes de réduction en avant-première."}
+                ? "اسألنا على واتساب عن السلع التي وصلت مؤخراً."
+                : "Demandez-nous sur WhatsApp ce qui vient d'arriver."}
             </p>
-            <NewsletterForm />
-
-            {/* Trust badges */}
-            <div className="mt-5 space-y-2">
-              <div className="flex items-center gap-2 text-xs" style={{ color: "#9CA3AF" }}>
-                <CheckCircle2 className="w-3.5 h-3.5 text-green-500 flex-shrink-0" />
-                {ar ? "بدون رسائل مزعجة — إلغاء الاشتراك بنقرة واحدة" : "Pas de spam — désinscription en 1 clic"}
-              </div>
-              <div className="flex items-center gap-2 text-xs" style={{ color: "#9CA3AF" }}>
-                <CheckCircle2 className="w-3.5 h-3.5 text-green-500 flex-shrink-0" />
-                {ar ? "بياناتك محمية" : "Vos données sont protégées"}
-              </div>
-            </div>
+            <a
+              href={getWhatsAppContact(MESSAGE_ARRIVAGES[language])}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center justify-center gap-2 w-full min-h-[44px] py-3 px-4 rounded-xl text-sm font-semibold text-white bg-[#25D366] hover:bg-[#1da851] transition-colors active:scale-[0.98]"
+            >
+              <MessageCircle className="w-4 h-4 flex-shrink-0" />
+              {ar ? "اسأل عن السلع الجديدة على واتساب" : "Demander les arrivages sur WhatsApp"}
+            </a>
           </div>
         </div>
       </div>
@@ -542,6 +479,12 @@ export default function ShopFooter() {
             </Link>
           </div>
         </div>
+
+        {/* Identité légale (celle des factures de /gestion) : petite ligne, sobre */}
+        <p className="mt-3 text-[11px] leading-relaxed text-center" style={{ color: "#9CA3AF" }}>
+          <bdi dir="ltr">{RAISON_SOCIALE}</bdi> — {ADRESSE_SIEGE[language]} — {ligneNumerosLegaux(language)} —{" "}
+          {ar ? "الهاتف" : "Tél."} <bdi dir="ltr">{TELEPHONES_SIEGE.join(" / ")}</bdi>
+        </p>
       </div>
     </footer>
   );

@@ -6,17 +6,10 @@ import { getFirestore, doc, setDoc } from 'firebase/firestore';
 import { firebaseConfig } from '@/firebase/config';
 import { SHOP_PRODUCTS_DATA, SHOP_CATEGORIES } from '@/lib/shop-products-data';
 import type { ShopProduct, ShopCategory } from '@/lib/shop-types';
-import { getProductPromo } from '@/lib/shop-utils';
 import shopStaticData from '@/lib/shop-firebase-dump.json';
 import { fusionnerProduits, fusionnerRayons, type ProductOverride } from '@/lib/catalogue-boutique';
 
-// Produits affichés avec un prix barré, plus forte remise d'abord
-function selectPromoProducts<T extends Pick<ShopProduct, 'price' | 'comparePrice' | 'variants'>>(products: T[], limit: number): T[] {
-  return products
-    .filter(p => getProductPromo(p).active)
-    .sort((a, b) => getProductPromo(b).percent - getProductPromo(a).percent)
-    .slice(0, limit);
-}
+// Plus de sélection « Promotions » : aucun prix barré sur la boutique (décision du patron, 02/10/2026)
 
 const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
 const db = getFirestore(app);
@@ -34,7 +27,6 @@ interface ShopProductsContextType {
   getProductForCategory: (product: ShopProduct, categorySlug: string) => ShopProduct;
   getFeaturedProducts: (limit?: number) => ShopProduct[];
   getNewProducts: (limit?: number) => ShopProduct[];
-  getPromoProducts: (limit?: number) => ShopProduct[];
   getSimilarProducts: (product: ShopProduct, limit?: number) => ShopProduct[];
   searchProducts: (query: string) => ShopProduct[];
   // Admin functions
@@ -98,7 +90,6 @@ export function ShopProductsProvider({ children }: { children: React.ReactNode }
   }, []);
   const getFeaturedProducts = useCallback((limit = 8) => products.filter(p => p.isFeatured).slice(0, limit), [products]);
   const getNewProducts = useCallback((limit = 6) => products.filter(p => p.isNew).slice(0, limit), [products]);
-  const getPromoProducts = useCallback((limit = 6) => selectPromoProducts(products, limit), [products]);
   const getSimilarProducts = useCallback((product: ShopProduct, limit = 4) => 
     products.filter(p => p.id !== product.id && (p.categorySlug === product.categorySlug || p.additionalCategorySlugs?.includes(product.categorySlug))).slice(0, limit), [products]);
   const searchProducts = useCallback((query: string) => {
@@ -116,7 +107,7 @@ export function ShopProductsProvider({ children }: { children: React.ReactNode }
     <ShopProductsContext.Provider value={{
       products, categories: allCategories, isLoading, overrides,
       getProductById, getProductsByCategory, getProductForCategory, getFeaturedProducts,
-      getNewProducts, getPromoProducts, getSimilarProducts, searchProducts,
+      getNewProducts, getSimilarProducts, searchProducts,
       updateProduct,
     }}>
       {children}
@@ -142,7 +133,6 @@ export function useShopProducts() {
       },
       getFeaturedProducts: (limit = 8) => SHOP_PRODUCTS_DATA.filter(p => p.isFeatured).slice(0, limit),
       getNewProducts: (limit = 6) => SHOP_PRODUCTS_DATA.filter(p => p.isNew).slice(0, limit),
-      getPromoProducts: (limit = 6) => selectPromoProducts(SHOP_PRODUCTS_DATA, limit),
       getSimilarProducts: (product: ShopProduct, limit = 4) => SHOP_PRODUCTS_DATA.filter(p => p.id !== product.id && (p.categorySlug === product.categorySlug || p.additionalCategorySlugs?.includes(product.categorySlug))).slice(0, limit),
       searchProducts: (query: string) => {
         if (!query.trim()) return SHOP_PRODUCTS_DATA;

@@ -4,8 +4,17 @@ import Link from "next/link";
 import {
   Award, Users, TrendingUp, Heart, MapPin, Star,
   MessageCircle, Phone, Clock, ChevronLeft, ChevronRight,
-  Package, Shield, Zap, Handshake
+  Package, Shield, Zap, Handshake, Building2
 } from "lucide-react";
+import { useLanguage } from "@/contexts/language-context";
+import {
+  ADRESSE_SIEGE,
+  EMAIL_LEBTEX,
+  lienTel,
+  ligneNumerosLegaux,
+  RAISON_SOCIALE,
+  TELEPHONES_SIEGE,
+} from "@/lib/identite-lebtex";
 
 // ─── Data ──────────────────────────────────────────────────────────────────────
 
@@ -20,7 +29,8 @@ const STATS = [
 const TEAM_VALUES = [
   { icon: <Shield className="w-6 h-6" />, title: "Qualité avant tout", desc: "Nos produits viennent de fournisseurs sélectionnés et sont contrôlés à l'arrivée." },
   { icon: <Zap className="w-6 h-6" />, title: "Réactivité", desc: "Réponse sur WhatsApp du lundi au samedi, 8h30–18h30, pour toutes vos questions." },
-  { icon: <TrendingUp className="w-6 h-6" />, title: "Prix de gros", desc: "Prix de gros affichés, importation directe. Semi-gros et détail." },
+  // Même discours que la FAQ et l'accueil (02/10/2026) : lots et rouleaux à prix de gros, grosses quantités sur WhatsApp
+  { icon: <TrendingUp className="w-6 h-6" />, title: "Prix de gros", desc: "Importation directe. Lots et rouleaux à prix de gros ; pour une grosse quantité, demandez un prix sur WhatsApp." },
   { icon: <Handshake className="w-6 h-6" />, title: "Partenariat durable", desc: "Nous construisons des relations durables avec nos clients. Votre satisfaction est notre priorité absolue." },
 ];
 
@@ -247,6 +257,36 @@ function StoreCard({ store }: { store: (typeof STORES)[0] }) {
   );
 }
 
+// ─── Siège et identité légale (celle des factures de /gestion, 02/10/2026) ────────
+function SiegeLegal() {
+  const { language } = useLanguage();
+  const ar = language === "ar";
+  return (
+    <div className="mt-8 bg-white border border-[#E8E4DF] rounded-2xl p-5 sm:p-6 flex flex-col sm:flex-row gap-4">
+      <div className="w-12 h-12 rounded-2xl bg-[#0F0F0F] text-white flex items-center justify-center flex-shrink-0">
+        <Building2 className="w-6 h-6" />
+      </div>
+      <div className="min-w-0 space-y-1.5 text-sm text-[#3F3F3F]">
+        <p className="text-xs font-bold uppercase tracking-widest text-[#C8102E]">{ar ? "المقر" : "Siège"}</p>
+        <p className="font-bold text-[#1A1A1A] text-base"><bdi dir="ltr">{RAISON_SOCIALE}</bdi></p>
+        <p>{ADRESSE_SIEGE[language]}</p>
+        <p>
+          {ar ? "الهاتف: " : "Téléphone : "}
+          {TELEPHONES_SIEGE.map((tel, i) => (
+            <span key={tel}>
+              {i > 0 && " / "}
+              <a href={lienTel(tel)} className="font-semibold hover:text-[#C8102E] whitespace-nowrap"><bdi dir="ltr">{tel}</bdi></a>
+            </span>
+          ))}
+          {" · "}
+          <a href={`mailto:${EMAIL_LEBTEX}`} className="font-semibold hover:text-[#C8102E] break-all">{EMAIL_LEBTEX}</a>
+        </p>
+        <p className="text-xs text-[#6B6B6B]">{ligneNumerosLegaux(language)}</p>
+      </div>
+    </div>
+  );
+}
+
 // ─── Page ──────────────────────────────────────────────────────────────────────
 export default function AProposPage() {
   return (
@@ -322,7 +362,7 @@ export default function AProposPage() {
                 LEBTEX est née de la passion pour le textile et la mercerie. Fondée à Casablanca, notre entreprise s'est donnée pour mission de rendre accessibles les meilleurs accessoires de couture à tous les professionnels et amateurs du Maroc.
               </p>
               <p>
-                Nous importons directement nos fermetures éclair, boutons, élastiques, rubans et bien plus encore, auprès de fournisseurs sélectionnés, et nous contrôlons la marchandise à l'arrivée. Nos prix affichés sont des prix de gros.
+                Nous importons directement nos fermetures éclair, boutons, élastiques, rubans et bien plus encore, auprès de fournisseurs sélectionnés, et nous contrôlons la marchandise à l'arrivée. Nos prix affichés sont des prix de gros (lots, rouleaux) ; pour une grosse quantité, demandez un prix sur WhatsApp.
               </p>
               <p>
                 Aujourd'hui, LEBTEX livre dans tout le Maroc et accompagne des centaines de couturiers, stylistes, ateliers et entreprises textiles dans leur activité quotidienne.
@@ -390,6 +430,9 @@ export default function AProposPage() {
               <StoreCard key={store.id} store={store} />
             ))}
           </div>
+
+          {/* Siège (adresse des documents officiels), en plus des magasins */}
+          <SiegeLegal />
 
           {/* Delivery banner */}
           <div className="mt-10 bg-[#0F0F0F] rounded-2xl p-8 text-center text-white">

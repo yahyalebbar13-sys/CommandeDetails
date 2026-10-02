@@ -4,10 +4,12 @@
 // Ce qui attend (à confirmer, à préparer, transport à organiser, à retirer, en
 // livraison) et l'argent vraiment encaissé (commandes livrées ou retirées) — plus
 // de « chiffre d'affaires » qui comptait les commandes jamais confirmées. En
-// dessous, les commandes à rappeler en premier.
+// dessous, les commandes à rappeler en premier, puis ce qui se passe sur le site
+// (compteurs anonymes : où les visiteurs s'arrêtent avant de commander).
 
-import { useMemo, type ReactNode } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import {
+  Activity,
   AlertCircle,
   BarChart2,
   ChevronRight,
@@ -23,9 +25,11 @@ import {
 } from 'lucide-react';
 import type { ShopOrder } from '@/lib/shop-types';
 import { formatPrice } from '@/lib/shop-utils';
+import { authedFetch } from '@/lib/authed-fetch';
 import {
   commandesDeLaFile,
   compteParFile,
+  dateDe,
   dateHeure,
   depuisQuand,
   enRetard,
@@ -33,6 +37,15 @@ import {
   totalLigne,
   type FileCommandes,
 } from '@/lib/commandes-boutique';
+import {
+  ROUTE_COMPTEUR,
+  jourMaroc,
+  resumerPeriode,
+  taux,
+  type Evenement,
+  type JourCompte,
+  type Periode,
+} from '@/lib/compteurs-boutique';
 
 /** Commandes qui ne comptent pas dans les classements : rien n'a été vendu. */
 const exclue = (o: ShopOrder) => o.status === 'cancelled' || o.status === 'returned';
@@ -315,7 +328,145 @@ export function TableauDeBord({
           )}
         </section>
       </div>
+
+      <CeQuiSePasseSurLeSite orders={orders} />
     </div>
+  );
+}
+
+// ─── Ce qui se passe sur le site (compteurs anonymes) ────────────────────────
+// Lu par GET /api/shop/compteur (administrateur seulement). Les commandes passées
+// viennent des commandes déjà chargées ici, comptées par jour au Maroc.
+
+type ReponseCompteurs = { aujourdhui: string; jours: JourCompte[] };
+
+const LIGNES_SITE: { cle: Evenement | 'commandes'; libelle: string }[] = [
+  { cle: 'vue_produit', libelle: 'Fiches produit vues' },
+  { cle: 'ajout_panier', libelle: 'Ajouts au panier' },
+  { cle: 'ouverture_panier', libelle: 'Paniers ouverts' },
+  { cle: 'arrivee_commande', libelle: 'Arrivées au formulaire de commande' },
+  { cle: 'commandes', libelle: 'Commandes passées' },
+  { cle: 'clic_whatsapp', libelle: 'Clics WhatsApp' },
+];
+
+const valeurSite = (p: Periode, cle: Evenement | 'commandes') => (cle === 'commandes' ? p.commandes : p.evenements[cle]);
+const pourcent = (v: number | null) => (v === null ? '—' : `${v} %`);
+
+function CeQuiSePasseSurLeSite({ orders }: { orders: ShopOrder[] }) {
+  const [reponse, setReponse] = useState<ReponseCompteurs | null>(null);
+  const [erreur, setErreur] = useState<string | null>(null);
+  const [essai, setEssai] = useState(0);
+
+  useEffect(() => {
+    let actif = true;
+    setErreur(null);
+    authedFetch(`${ROUTE_COMPTEUR}?jours=7`, { cache: 'no-store' })
+      .then(async r => {
+        const d = await r.json().catch(() => null);
+        if (!r.ok) throw new Error(d?.error || `Erreur ${r.status}`);
+        return d as ReponseCompteurs;
+      })
+      .then(d => { if (actif) setReponse(d); })
+      .catch(e => { if (actif) setErreur(e instanceof Error ? e.message : 'Compteurs illisibles pour le moment'); });
+    return () => { actif = false; };
+  }, [essai]);
+
+  // Commandes passées par jour (heure du Maroc), annulées comprises : elles ont été passées
+  const commandesParJour = useMemo(() => {
+    const parJour: Record<string, number> = {};
+    for (const o of orders) {
+      const d = dateDe(o.createdAt);
+      if (!d) continue;
+      const jour = jourMaroc(d);
+      parJour[jour] = (parJour[jour] || 0) + 1;
+    }
+    return parJour;
+  }, [orders]);
+
+  const periodes = useMemo(() => {
+    if (!reponse) return null;
+    return {
+      jour: resumerPeriode(reponse.jours.filter(j => j.jour === reponse.aujourdhui), commandesParJour),
+      semaine: resumerPeriode(reponse.jours, commandesParJour),
+    };
+  }, [reponse, commandesParJour]);
+
+  return (
+    <section className="bg-[#1A1A1A] rounded-2xl border border-white/5 overflow-hidden" aria-labelledby="sur-le-site">
+      <div className="px-4 md:px-6 py-4 border-b border-white/5 flex items-center justify-between gap-3">
+        <h2 id="sur-le-site" className="text-white font-semibold text-base flex items-center gap-2">
+          <Activity className="w-4 h-4 text-[#D4A843]" />
+          Ce qui se passe sur le site
+        </h2>
+        <button type="button" onClick={() => setEssai(n => n + 1)}
+          className="min-h-[40px] px-3 rounded-xl text-xs font-semibold text-gray-300 hover:text-white hover:bg-white/5 inline-flex items-center gap-1.5">
+          <RefreshCw className="w-3.5 h-3.5" />
+          Actualiser
+        </button>
+      </div>
+
+      {erreur ? (
+        <p role="alert" className="px-4 md:px-6 py-6 text-sm text-red-200">Compteurs non lus : {erreur}</p>
+      ) : !periodes ? (
+        <div className="px-4 md:px-6 py-8 flex items-center gap-3 text-sm text-gray-300" role="status">
+          <Loader2 className="w-5 h-5 animate-spin text-[#C8102E]" />
+          Chargement des compteurs…
+        </div>
+      ) : (
+        <>
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="text-xs text-gray-400">
+                <th scope="col" className="text-left font-medium px-4 md:px-6 py-2"><span className="sr-only">Étape</span></th>
+                <th scope="col" className="text-right font-medium px-2 py-2">Aujourd&apos;hui</th>
+                <th scope="col" className="text-right font-medium px-4 md:px-6 py-2">7 derniers jours</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-white/5">
+              {LIGNES_SITE.map(l => (
+                <tr key={l.cle}>
+                  <th scope="row" className="text-left font-normal text-gray-200 px-4 md:px-6 py-2.5">{l.libelle}</th>
+                  <td className="text-right text-white font-semibold px-2 py-2.5">{valeurSite(periodes.jour, l.cle)}</td>
+                  <td className="text-right text-white font-semibold px-4 md:px-6 py-2.5">{valeurSite(periodes.semaine, l.cle)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+
+          <div className="grid sm:grid-cols-2 gap-3 px-4 md:px-6 py-4 border-t border-white/5">
+            {[
+              {
+                titre: 'Ajoutent au panier',
+                detail: 'ajouts au panier pour 100 fiches vues',
+                jour: taux(periodes.jour.evenements.ajout_panier, periodes.jour.evenements.vue_produit),
+                semaine: taux(periodes.semaine.evenements.ajout_panier, periodes.semaine.evenements.vue_produit),
+              },
+              {
+                titre: 'Passent commande',
+                detail: 'commandes pour 100 arrivées au formulaire',
+                jour: taux(periodes.jour.commandesJoursMesures, periodes.jour.evenements.arrivee_commande),
+                semaine: taux(periodes.semaine.commandesJoursMesures, periodes.semaine.evenements.arrivee_commande),
+              },
+            ].map(t => (
+              <div key={t.titre} className="rounded-xl bg-white/[0.04] p-3">
+                <p className="text-sm text-gray-200 font-medium">{t.titre}</p>
+                <p className="text-xs text-gray-400 mb-2">{t.detail}</p>
+                <p className="text-sm text-gray-300">
+                  Aujourd&apos;hui <span className="text-white font-bold">{pourcent(t.jour)}</span>
+                  {' · '}7 jours <span className="text-white font-bold">{pourcent(t.semaine)}</span>
+                </p>
+              </div>
+            ))}
+          </div>
+
+          <p className="px-4 md:px-6 pb-4 text-xs text-gray-400">
+            Compté sans rien savoir des visiteurs : ni nom, ni téléphone, ni adresse IP. Chaque passage compte
+            (une fiche ouverte deux fois compte deux fois ; le panier qui s&apos;ouvre tout seul après un ajout aussi).
+            Les commandes viennent de la liste des commandes ; leur taux ne prend que les jours où les compteurs tournaient.
+          </p>
+        </>
+      )}
+    </section>
   );
 }
 

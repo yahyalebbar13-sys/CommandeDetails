@@ -199,30 +199,16 @@
 .shop-marquee-inner { animation: marquee 20s linear infinite; white-space: nowrap; }
 
 /* ════════════════════════════════════════
-   Protection anti-copie / anti-inspection
-   ════════════════════════════════════════ */
-
-/* Désactiver la sélection sur les images uniquement */
-img {
-  -webkit-user-select: none;
-  -moz-user-select: none;
-  -ms-user-select: none;
-  user-select: none;
-}
-
-/* Bloquer le glisser-déposer des images uniquement (sans casser l'affichage) */
-img {
-  -webkit-user-drag: none !important;
-  user-drag: none !important;
-  /* NE PAS mettre pointer-events:none ici — ça casse Next.js Image et le lazy-load */
-}
-
-/* Masquer le contenu lors de l'impression */
-@media print {
-  body {
-    display: none !important;
-  }
-}
+   Plus de « protection anti-copie » (retirée le 02/10/2026)
+   ════════════════════════════════════════
+   Elle ne protégeait rien (une capture d'écran suffit) et gênait les clients :
+   - images non sélectionnables ni glissables : impossible de glisser une photo dans
+     WhatsApp Web ;
+   - impression masquée (body caché) : « Imprimer » ou « Enregistrer en PDF » une fiche
+     produit ou une confirmation de commande sortait une page blanche. Les documents du
+     logiciel (factures, bons) s'impriment dans leur propre cadre (src/lib/impression.ts),
+     sans cette feuille de style : ils ne changent pas.
+   Le blocage du clic droit et de l'appui long (CopyProtection) est retiré de layout.tsx. */
 /* ══════════════════════════════════════
    TEMU-STYLE PERFORMANCE: Instant clicks
    ══════════════════════════════════════ */

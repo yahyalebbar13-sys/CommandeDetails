@@ -4,6 +4,15 @@ import type { ReactNode } from 'react';
 import { formatPrice } from '@/lib/shop-utils';
 import { DELAI_ZONE, FRAIS_ZONE, PERIPHERIE_CASABLANCA } from '@/lib/livraison-boutique';
 import { PLAFOND_ESPECES_COLIS } from '@/lib/commandes-boutique';
+import {
+  ADRESSE_SIEGE,
+  EMAIL_LEBTEX,
+  lienTel,
+  ligneNumerosLegaux,
+  RAISON_SOCIALE,
+  TELEPHONES_SIEGE,
+  WHATSAPP_BOUTIQUE,
+} from '@/lib/identite-lebtex';
 
 // Conditions de vente de lebtex.ma (lien obligatoire du formulaire de commande).
 // Les prix et délais viennent de livraison-boutique.ts, comme au panier.
@@ -12,6 +21,8 @@ import { PLAFOND_ESPECES_COLIS } from '@/lib/commandes-boutique';
 // Le plafond d'espèces d'un colis est une règle de LEBTEX, jamais présentée comme
 // celle du livreur. Le virement n'existe que si le patron a saisi son RIB (sinon
 // l'option est cachée au formulaire) : le texte le dit.
+// Vendeur (02/10/2026) : l'identité des factures de /gestion (lib/identite-lebtex),
+// au lieu de « LEBTEX SARL AU ».
 //
 // À FAIRE (hors page) : faire relire ce document par le conseiller de LEBTEX.
 // La mention « à faire valider » n'est plus affichée aux clients.
@@ -67,8 +78,14 @@ export default function ConditionsPage() {
 
           <Section n={1} titre="Qui vend">
             <p>
-              LEBTEX SARL AU, Casablanca. Téléphone et WhatsApp : <a href="tel:+212760998347" className={lien}>+212 760 998 347</a>.
-              E-mail : <a href="mailto:lebtexsarlau@gmail.com" className={lien}>lebtexsarlau@gmail.com</a>.
+              <strong className="text-[#1A1A1A]">{RAISON_SOCIALE}</strong>, siège : {ADRESSE_SIEGE.fr}, Maroc.
+              {' '}{ligneNumerosLegaux('fr')}.
+            </p>
+            <p>
+              Téléphone : {TELEPHONES_SIEGE.map((tel, i) => (
+                <span key={tel}>{i > 0 && ' ou '}<a href={lienTel(tel)} className={`${lien} whitespace-nowrap`}>{tel}</a></span>
+              ))}. WhatsApp : <a href={lienTel(WHATSAPP_BOUTIQUE)} className={`${lien} whitespace-nowrap`}>{WHATSAPP_BOUTIQUE}</a>.
+              E-mail : <a href={`mailto:${EMAIL_LEBTEX}`} className={lien}>{EMAIL_LEBTEX}</a>.
               Horaires : du lundi au samedi, de 8h30 à 18h30.
             </p>
           </Section>

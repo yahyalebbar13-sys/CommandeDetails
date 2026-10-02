@@ -1,7 +1,10 @@
 // ─── Brouillon du formulaire de commande ─────────────────────────────────────
 // Ce que le client tape au checkout est gardé dans ce navigateur pendant la
 // saisie : un rechargement, un appel qui coupe le navigateur ou une page fermée
-// par erreur ne lui font rien perdre. Effacé après une commande réussie.
+// par erreur ne lui font rien perdre. Effacé après une commande réussie, et par
+// « Ce n'est pas moi » (les coordonnées que le client choisit de garder pour la
+// suivante sont à part, dans coordonnees-client.ts ; le brouillon passe avant
+// elles s'il existe).
 //
 // Le brouillon garde aussi l'identifiant de la commande, choisi UNE fois : la
 // même commande renvoyée (réseau lent, « Réessayer », page rechargée) vise le

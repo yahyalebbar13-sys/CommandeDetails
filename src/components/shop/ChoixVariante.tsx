@@ -5,6 +5,8 @@
 // jamais gris (s'il manque un choix, il montre où). La logique est dans lib/shop-variantes.
 // Sans prix (le produit, ou la variante choisie) : « Prix sur demande », pas d'état de stock,
 // et le bouton rouge demande le prix sur WhatsApp au lieu d'ajouter au panier.
+// Sous le prix : ce qu'on achète (« Vendu par rouleau de 50 m ») et, quand c'est sûr, le prix
+// au mètre ou à la pièce (lib/unite-vente). Jamais de prix barré ni de pourcentage.
 
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Check, Layers, ListPlus, MessageCircle, Minus, Plus, ShoppingCart } from 'lucide-react';
@@ -13,12 +15,8 @@ import { useShopCartActions, useShopCartState } from '@/contexts/shop-cart-conte
 import type { CartItem, ProductVariant, ShopProduct } from '@/lib/shop-types';
 import type { Language } from '@/lib/translations';
 import { translations } from '@/lib/translations';
-import {
-  formatPrice,
-  getDiscountPercent,
-  getWhatsAppContact,
-  hasActivePromo,
-} from '@/lib/shop-utils';
+import { formatPrice, getWhatsAppContact } from '@/lib/shop-utils';
+import { prixUnitaire, textePrixUnitaire, texteUnite, uniteDeVente } from '@/lib/unite-vente';
 import {
   analyserVariantes,
   blocsManquants,
@@ -249,9 +247,18 @@ export default function ChoixVariante({ product, onSelectionChange, onImagePrevi
     : aVariantes
       ? prixDesVariantes(product.price, compatibles)
       : { montant: product.price || 0, aPartirDe: false };
-  const promo = !prix.aPartirDe && hasActivePromo(product.comparePrice, prix.montant);
   // Aucun prix pour ce qui est choisi (ou pour tout le produit) : on demande le prix sur WhatsApp
   const demandePrix = prix.montant <= 0;
+  // Ce qu'on achète pour ce prix (variante choisie, sinon ce que toutes les variantes partagent)
+  // Filet de sécurité : une lecture qui échoue n'empêche jamais de choisir ni d'acheter
+  const unite = useMemo(() => {
+    try {
+      return uniteDeVente(product, variante);
+    } catch {
+      return null;
+    }
+  }, [product, variante]);
+  const parUnite = demandePrix ? null : prixUnitaire(unite, prix.montant);
   const produitSansPrix = useMemo(() => sansPrix(product), [product]);
   // Prix en chiffres, ou « Prix sur demande » dans la langue du site
   const textePrix = (montant: number) => (montant > 0 ? formatPrice(montant) : PRIX_SUR_DEMANDE[language]);
@@ -700,14 +707,6 @@ export default function ChoixVariante({ product, onSelectionChange, onImagePrevi
             {textePrix(prix.montant)}
           </bdi>
         </span>
-        {promo && (
-          <span className="flex items-baseline gap-2">
-            <bdi dir="ltr" className="text-lg font-semibold text-neutral-400 line-through">{formatPrice(product.comparePrice as number)}</bdi>
-            <span dir="ltr" className="self-center bg-[#C8102E] text-white text-xs font-black px-2 py-0.5 rounded-full">
-              -{getDiscountPercent(prix.montant, product.comparePrice as number)}%
-            </span>
-          </span>
-        )}
         {/* Sans prix : pas d'état de stock, sauf la rupture (comme sur la carte) */}
         {(!demandePrix || enRupture) && (
           <span
@@ -729,6 +728,18 @@ export default function ChoixVariante({ product, onSelectionChange, onImagePrevi
                   ? t(language, 'Stock limité', 'الكمية محدودة')
                   : t(language, 'Sur commande', 'متوفر عند الطلب')}
           </span>
+        )}
+        {/* Ce qu'on achète, puis le prix au mètre ou à la pièce s'il est sûr */}
+        {unite && (
+          <p className="basis-full text-base text-neutral-700">
+            {texteUnite(unite, language)}
+            {parUnite && (
+              <>
+                <span aria-hidden="true" className="text-neutral-400"> · </span>
+                <span className="font-bold text-neutral-900">{textePrixUnitaire(parUnite, language, prix.aPartirDe)}</span>
+              </>
+            )}
+          </p>
         )}
       </div>
 

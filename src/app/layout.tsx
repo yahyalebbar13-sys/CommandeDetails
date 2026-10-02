@@ -52,6 +52,7 @@ export default function RootLayout({
       </head>
       <body className="font-body antialiased">
         <ProgressBar />
+        {/* Hors boutique seulement : sur /shop, il bloquait l'appui long (copier un lien, enregistrer une photo) */}
         <CopyProtection />
         <FirebaseClientProvider>
           {children}

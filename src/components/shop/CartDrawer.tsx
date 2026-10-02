@@ -29,6 +29,7 @@ import { libelleLignePanier, PRIX_A_CONFIRMER } from "@/lib/shop-variantes";
 import { paire, premierTexte } from "@/lib/shop-textes";
 import { FRAIS_ZONE, commandeVolumineuse } from "@/lib/livraison-boutique";
 import InfoLivraison from "@/components/shop/InfoLivraison";
+import { compter } from "@/lib/compteurs-boutique";
 
 // « 3 articles » ; en arabe, le nom s'accorde avec le nombre
 function nombreArticles(n: number, language: Language): string {
@@ -335,10 +336,11 @@ export default function CartDrawer() {
     return () => document.removeEventListener("keydown", handler);
   }, [isOpen, closeCart]);
 
-  // Lock body scroll when open
+  // Lock body scroll when open (et compteur anonyme « panier ouvert », lib/compteurs-boutique)
   useEffect(() => {
     if (isOpen) {
       document.body.style.overflow = "hidden";
+      compter("ouverture_panier");
     } else {
       document.body.style.overflow = "";
     }

@@ -18,7 +18,6 @@ import {
   Plus,
   Building2,
   PhoneCall,
-  Percent,
   Globe,
   Layers,
 } from "lucide-react";
@@ -48,7 +47,7 @@ const NAV_LINKS: NavLink[] = [
   { labelKey: "nav_home", href: "/shop" },
   { labelKey: "nav_categories", href: "/shop/categories", hasDropdown: true },
   { labelKey: "nav_shop", href: "/shop/boutique" },
-  { labelKey: "nav_promos", href: "/shop/promotions" },
+  // Plus de page Promotions (aucun prix barré, décision du patron du 02/10/2026)
   { labelKey: "nav_precommande", href: "/shop/precommande" },
   { labelKey: "nav_boutiques", href: "/shop/a-propos" },
   { labelKey: "nav_more", href: "#", isMoreDropdown: true },
@@ -598,11 +597,6 @@ export default function ShopHeader() {
                                                     <Layers className="w-6 h-6" />
                                                   </div>
                                                 )}
-                                                {p.isPromo && (
-                                                  <span className="absolute top-1.5 left-1.5 bg-[#C8102E] text-white text-[8px] font-black px-1.5 py-0.5 rounded-md uppercase shadow-xs">
-                                                    {language === 'ar' ? 'تخفيض' : 'PROMO'}
-                                                  </span>
-                                                )}
                                               </div>
                                               <div className="p-2.5 flex flex-col flex-1 justify-between">
                                                 <p className="text-xs font-bold text-neutral-800 line-clamp-2 leading-snug group-hover:text-[#C8102E] transition-colors">
@@ -661,11 +655,6 @@ export default function ShopHeader() {
                                               <div className="w-full h-full flex items-center justify-center bg-neutral-100 text-neutral-400">
                                                 <Layers className="w-6 h-6" />
                                               </div>
-                                            )}
-                                            {p.isPromo && (
-                                              <span className="absolute top-1.5 left-1.5 bg-[#C8102E] text-white text-[8px] font-black px-1.5 py-0.5 rounded-md uppercase shadow-xs">
-                                                {language === 'ar' ? 'تخفيض' : 'PROMO'}
-                                              </span>
                                             )}
                                           </div>
                                           <div className="p-2.5 flex flex-col flex-1 justify-between">
@@ -956,7 +945,7 @@ export default function ShopHeader() {
         </div>
       </div>
 
-      {/* ── Mobile "+" Menu Bottom Sheet (À propos magasin, Contact, Promotion, Service import) ── */}
+      {/* ── Mobile "+" Menu Bottom Sheet (Livraison, À propos magasin, Service import, Contact) ── */}
       {isPlusMenuOpen && (
         <div className="fixed inset-0 z-50 lg:hidden flex flex-col justify-end animate-in fade-in-0 duration-200">
           {/* Backdrop */}
@@ -993,28 +982,25 @@ export default function ShopHeader() {
               </button>
             </div>
 
-            {/* 4 Cards Grid (À propos magasin, Contact, Promotion, Service import) */}
+            {/* 4 Cards Grid (Livraison, À propos magasin, Service import, Contact) */}
             <div className="grid grid-cols-2 gap-3">
-              {/* 1. Promotions */}
+              {/* 1. Livraison et paiement (remplace « Promotions » : plus de prix barrés depuis le 02/10/2026) */}
               <Link
-                href="/shop/promotions"
+                href="/shop/livraison"
                 onClick={() => setIsPlusMenuOpen(false)}
                 className="p-3.5 rounded-2xl bg-amber-50/70 border border-amber-200/80 hover:bg-amber-100/60 transition-all flex flex-col justify-between group cursor-pointer"
               >
                 <div className="flex items-center justify-between mb-2">
                   <div className="w-9 h-9 rounded-xl bg-amber-500 text-white flex items-center justify-center shadow-xs">
-                    <Percent className="w-4 h-4" />
+                    <Truck className="w-4 h-4" />
                   </div>
-                  <span className="bg-amber-500 text-white text-[9px] font-black px-1.5 py-0.5 rounded-full uppercase tracking-tight">
-                    HOT
-                  </span>
                 </div>
                 <div>
                   <h4 className="text-xs font-bold text-neutral-900 group-hover:text-[#C8102E] transition-colors">
-                    {language === 'ar' ? 'العروض والتخفيضات' : 'Promotions'}
+                    {language === 'ar' ? 'التوصيل والدفع' : 'Livraison & paiement'}
                   </h4>
                   <p className="text-[10px] text-neutral-500 mt-0.5 leading-tight">
-                    {language === 'ar' ? 'تخفيضات وصفقات حصرية' : 'Offres & remises exclusives'}
+                    {language === 'ar' ? 'الأثمنة والآجال والاستلام المجاني' : 'Tarifs, délais, retrait gratuit'}
                   </p>
                 </div>
               </Link>
@@ -1274,11 +1260,6 @@ export default function ShopHeader() {
                                         <Layers className="w-6 h-6" />
                                       </div>
                                     )}
-                                    {p.isPromo && (
-                                      <span className="absolute top-1.5 left-1.5 bg-[#C8102E] text-white text-[8px] font-black px-1.5 py-0.5 rounded-md uppercase shadow-xs">
-                                        {language === 'ar' ? 'تخفيض' : 'PROMO'}
-                                      </span>
-                                    )}
                                   </div>
                                   <div className="p-2 flex flex-col flex-1 justify-between">
                                     <p className="text-[11px] font-bold text-neutral-800 line-clamp-2 leading-snug group-hover:text-[#C8102E] transition-colors">
@@ -1335,11 +1316,6 @@ export default function ShopHeader() {
                                   <div className="w-full h-full flex items-center justify-center bg-neutral-100 text-neutral-400">
                                     <Layers className="w-7 h-7" />
                                   </div>
-                                )}
-                                {p.isPromo && (
-                                  <span className="absolute top-1.5 left-1.5 bg-[#C8102E] text-white text-[8px] font-black px-1.5 py-0.5 rounded-md uppercase shadow-xs">
-                                    {language === 'ar' ? 'تخفيض' : 'PROMO'}
-                                  </span>
                                 )}
                               </div>
                               <div className="p-2.5 flex flex-col flex-1 justify-between">

@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect } from 'react';
+import { usePathname } from 'next/navigation';
 
 /**
  * CopyProtection – composant invisible qui protège le contenu du site :
@@ -11,7 +12,13 @@ import { useEffect } from 'react';
  *  - Bloque le glisser-déposer d'images
  */
 export default function CopyProtection() {
+  const pathname = usePathname();
+  // La boutique (« / » est réécrit vers /shop) n'est plus protégée : les clients
+  // doivent pouvoir copier un lien et enregistrer une photo (lot 2, 02/10/2026).
+  const boutique = pathname === '/' || pathname?.startsWith('/shop');
+
   useEffect(() => {
+    if (boutique) return;
     /* ── 1. Désactiver le clic droit ── */
     const blockContextMenu = (e: MouseEvent) => {
       e.preventDefault();
@@ -62,7 +69,7 @@ export default function CopyProtection() {
       document.removeEventListener('contextmenu', blockContextMenu);
       document.removeEventListener('keydown', blockShortcuts);
     };
-  }, []);
+  }, [boutique]);
 
   return null; // composant invisible
 }

@@ -63,9 +63,10 @@ export const LIBELLE_ZONE_AR: Record<ZoneLivraison, string> = {
   eloignee: 'المدن البعيدة وباقي المدن',
 };
 
-// ─── Les villes par palier (sendit.ma/tarifs, lu le 28/09/2026) ──────────────
+// ─── Les villes par palier (sendit.ma/tarifs, lu le 28/09 et le 02/10/2026) ──
 // Les noms sont écrits comme sur le site ; la recherche ignore accents, casse,
-// espaces et tirets. Toute ville absente de ces listes est « éloignée ».
+// espaces et tirets, et reconnaît le nom arabe. Toute ville absente de ces
+// listes est « éloignée ».
 
 /**
  * Communes collées à Casablanca : colis à 35 DH, et camionnette LEBTEX possible pour un rouleau.
@@ -78,30 +79,97 @@ export const PERIPHERIE_CASABLANCA: readonly string[] = [
   'Tit Mellil', 'Aïn Harrouda', 'Nouaceur', 'Had Soualem', 'Lahraouiyine', 'Deroua',
 ];
 
-/** Grandes villes à 35 DH. */
+/**
+ * Grandes villes à 35 DH. Bouznika, Ben Slimane et Aït Melloul (ajoutées le 02/10/2026)
+ * sont au même prix public que Rabat chez Sendit (35 DH, lu le 02/10/2026).
+ */
 export const GRANDES_VILLES: readonly string[] = [
   'Rabat', 'Salé', 'Témara', 'Kénitra', 'Fès', 'Meknès', 'Marrakech', 'Tanger', 'Agadir',
   'Inezgane', 'Oujda', 'Nador', 'El Jadida', 'Settat', 'Berrechid', 'Safi', 'Béni Mellal', 'Khouribga',
+  'Bouznika', 'Ben Slimane', 'Aït Melloul',
 ];
 
 /**
  * Villes éloignées à 45 DH, pour l'affichage : toute ville absente des deux listes
- * du dessus paie aussi 45 DH, qu'elle soit ici ou non.
+ * du dessus paie aussi 45 DH, qu'elle soit ici ou non. Celles ajoutées le 02/10/2026
+ * sont à 39 ou 45 DH chez Sendit : le palier juste au-dessus est 45 DH (Skhirat comprise).
  */
 export const VILLES_ELOIGNEES: readonly string[] = [
   'Tétouan', 'Taza', 'Al Hoceima', 'Khémisset', 'Guelmim', 'Laâyoune', 'Dakhla', 'Berkane',
   'Larache', 'Ksar el-Kébir', 'Khénifra', 'Sidi Kacem', 'Taourirt',
   'Tiznit', 'Essaouira', 'Ouarzazate', 'Errachidia', 'Taroudant', 'Chefchaouen',
+  'Skhirat', 'Benguerir', 'Sidi Bennour', 'Youssoufia', 'Fquih Ben Salah', 'Kelaa des Sraghna',
+  'Azemmour', 'Midelt', 'Ifrane', 'Azrou', 'Sefrou', 'Guercif', 'Martil', "M'diq", 'Fnideq',
+  'Ouazzane', 'Souk El Arbaa', 'Sidi Slimane', 'Sidi Ifni', 'Tan-Tan', 'Zagora', 'Tinghir',
+  'Asilah', 'Ben Ahmed', 'Kasba Tadla', 'Oued Zem', 'Oulad Teima', 'Taounate', 'Tiflet',
 ];
+
+// ─── Les villes du formulaire de commande, en français et en arabe ───────────
+
+/**
+ * Chaque ville proposée au formulaire, avec son nom arabe. La clé est le nom
+ * français : c'est lui qui est enregistré dans la commande (l'admin et le livreur
+ * le lisent), même quand le client choisit sa ville en arabe. Ne jamais renommer
+ * une clé : commandes, brouillons et coordonnées gardées sur le téléphone du
+ * client la contiennent telle quelle (« Kenitra » est écrit comme avant).
+ * Chaque ville a son palier dans les listes du dessus.
+ */
+export const NOM_ARABE_VILLE: Readonly<Record<string, string>> = {
+  Casablanca: 'الدار البيضاء',
+  // Périphérie de Casablanca
+  Mohammedia: 'المحمدية', Bouskoura: 'بوسكورة', 'Dar Bouazza': 'دار بوعزة', 'Médiouna': 'مديونة',
+  'Tit Mellil': 'تيط مليل', 'Aïn Harrouda': 'عين حرودة', Nouaceur: 'النواصر', 'Had Soualem': 'حد السوالم',
+  Lahraouiyine: 'الهراويين', Deroua: 'الدروة',
+  // Grandes villes
+  Rabat: 'الرباط', 'Salé': 'سلا', 'Témara': 'تمارة', Kenitra: 'القنيطرة', 'Fès': 'فاس', 'Meknès': 'مكناس',
+  Marrakech: 'مراكش', Tanger: 'طنجة', Agadir: 'أكادير', Inezgane: 'إنزكان', Oujda: 'وجدة', Nador: 'الناظور',
+  'El Jadida': 'الجديدة', Settat: 'سطات', Berrechid: 'برشيد', Safi: 'آسفي', 'Béni Mellal': 'بني ملال',
+  Khouribga: 'خريبكة', Bouznika: 'بوزنيقة', 'Ben Slimane': 'بنسليمان', 'Aït Melloul': 'أيت ملول',
+  // Villes éloignées
+  'Tétouan': 'تطوان', Taza: 'تازة', 'Al Hoceima': 'الحسيمة', 'Khémisset': 'الخميسات', Guelmim: 'كلميم',
+  'Laâyoune': 'العيون', Dakhla: 'الداخلة', Berkane: 'بركان', Larache: 'العرائش', 'Ksar el-Kébir': 'القصر الكبير',
+  'Khénifra': 'خنيفرة', 'Sidi Kacem': 'سيدي قاسم', Taourirt: 'تاوريرت', Tiznit: 'تزنيت', Essaouira: 'الصويرة',
+  Ouarzazate: 'ورزازات', Errachidia: 'الرشيدية', Taroudant: 'تارودانت', Chefchaouen: 'شفشاون',
+  Skhirat: 'الصخيرات', Benguerir: 'ابن جرير', 'Sidi Bennour': 'سيدي بنور', Youssoufia: 'اليوسفية',
+  'Fquih Ben Salah': 'الفقيه بن صالح', 'Kelaa des Sraghna': 'قلعة السراغنة', Azemmour: 'أزمور', Midelt: 'ميدلت',
+  Ifrane: 'إفران', Azrou: 'أزرو', Sefrou: 'صفرو', Guercif: 'جرسيف', Martil: 'مرتيل', "M'diq": 'المضيق',
+  Fnideq: 'الفنيدق', Ouazzane: 'وزان', 'Souk El Arbaa': 'سوق أربعاء الغرب', 'Sidi Slimane': 'سيدي سليمان',
+  'Sidi Ifni': 'سيدي إفني', 'Tan-Tan': 'طانطان', Zagora: 'زاكورة', Tinghir: 'تنغير', Asilah: 'أصيلة',
+  'Ben Ahmed': 'بن أحمد', 'Kasba Tadla': 'قصبة تادلة', 'Oued Zem': 'وادي زم', 'Oulad Teima': 'أولاد تايمة',
+  Taounate: 'تاونات', Tiflet: 'تيفلت',
+};
+
+/** Les valeurs permises de la liste des villes (noms français, Casablanca en tête). */
+export const VILLES_FORMULAIRE: readonly string[] = Object.keys(NOM_ARABE_VILLE);
+
+/** Le nom d'une ville dans la langue du site ; une ville tapée à la main reste telle quelle. */
+export function nomVille(ville: string, language: 'fr' | 'ar'): string {
+  return (language === 'ar' && NOM_ARABE_VILLE[ville]) || ville;
+}
+
+/**
+ * La liste du formulaire dans la langue affichée : Casablanca en tête, puis l'ordre
+ * alphabétique de cette langue. `valeur` est toujours le nom français.
+ */
+export function optionsVilles(language: 'fr' | 'ar'): { valeur: string; libelle: string }[] {
+  const [premiere, ...autres] = VILLES_FORMULAIRE.map((valeur) => ({ valeur, libelle: nomVille(valeur, language) }));
+  autres.sort((a, b) => a.libelle.localeCompare(b.libelle, language, { sensitivity: 'base' }));
+  return [premiere, ...autres];
+}
 
 /**
  * « Ksar el-Kébir », « KSAR EL KEBIR » et « ksarelkebir » donnent la même clé.
- * Les lettres arabes sont gardées (sans leurs voyelles) pour reconnaître « الدار البيضاء ».
+ * Les lettres arabes sont gardées (sans voyelles, hamza ni tatweel) pour reconnaître
+ * « الدار البيضاء » ; ة/ه et ى/ي, souvent confondues au clavier, comptent pareil
+ * (« المحمديه » = « المحمدية »), comme ی et ک des claviers persans.
  */
 export function normaliserVille(ville: string): string {
   return String(ville ?? '')
     .normalize('NFD')
-    .replace(/[\u0300-\u036f\u064b-\u065f\u0670]/g, '')
+    .replace(/[\u0300-\u036f\u064b-\u065f\u0670\u0640]/g, '')
+    .replace(/\u0629/g, '\u0647')
+    .replace(/[\u0649\u06cc]/g, '\u064a')
+    .replace(/\u06a9/g, '\u0643')
     .toLowerCase()
     .replace(/[^a-z0-9\u0621-\u064a]/g, '');
 }
@@ -148,7 +216,13 @@ const ALIAS: Record<string, string> = {
   elayoun: 'Laâyoune',
   ksarelkebir: 'Ksar el-Kébir',
   ksarkebir: 'Ksar el-Kébir',
+  aitmellol: 'Aït Melloul',
 };
+
+/** Le nom arabe d'une ville tapé dans « Autre ville » (« المحمدية ») se lit comme son nom français. */
+const ALIAS_ARABE: Record<string, string> = Object.fromEntries(
+  Object.entries(NOM_ARABE_VILLE).map(([fr, ar]) => [normaliserVille(ar), fr]),
+);
 
 const cles = (villes: readonly string[]) => new Set(villes.map(normaliserVille));
 
@@ -171,7 +245,7 @@ function cleVille(ville: string): string {
   const brut = String(ville ?? '');
   const essayer = (texte: string) => {
     const cle = normaliserVille(texte);
-    const alias = ALIAS[cle];
+    const alias = ALIAS[cle] ?? ALIAS_ARABE[cle];
     return alias ? normaliserVille(alias) : cle;
   };
   const entiere = essayer(brut);

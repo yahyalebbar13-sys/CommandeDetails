@@ -47,7 +47,6 @@ import {
   formatPrice,
   generateOrderNumber,
   getWhatsAppContact,
-  MOROCCAN_CITIES,
 } from "@/lib/shop-utils";
 import { premierTexte } from "@/lib/shop-textes";
 import { libelleLignePanier } from "@/lib/shop-variantes";
@@ -78,7 +77,20 @@ import {
   libelleFrais,
   lieuRetraitPour,
   modesPossibles,
+  nomVille,
+  optionsVilles,
+  VILLES_FORMULAIRE,
 } from "@/lib/livraison-boutique";
+import {
+  coordonneesAGarder,
+  ecrireCoordonnees,
+  effacerCoordonnees,
+  lireCoordonnees,
+  memeClient,
+  modeRepris,
+  nomPourSaluer,
+  type CoordonneesClient,
+} from "@/lib/coordonnees-client";
 import { PLAFOND_ESPECES_COLIS } from "@/lib/commandes-boutique";
 import { useReglagesReception } from "@/lib/use-reglages-reception";
 import type { ReglagesReception } from "@/lib/reglages-reception";
@@ -157,7 +169,7 @@ function formDepuisBrouillon(champs: Record<string, string>): FormData {
     phone: t("phone", 30),
     phone2: t("phone2", 30),
     email: t("email", 200),
-    city: city === AUTRE_VILLE || MOROCCAN_CITIES.includes(city) ? city : "",
+    city: city === AUTRE_VILLE || VILLES_FORMULAIRE.includes(city) ? city : "",
     villeAutre: t("villeAutre", 60),
     mode: mode === "domicile" || mode === "retrait" || mode === "transport" ? mode : "",
     paiement: paiement === "virement" || paiement === "carte" ? paiement : "cod",
@@ -206,19 +218,23 @@ function transportPour(ville: string): PreferenceTransport {
 function calculerChoix(
   form: FormData,
   volumineux: boolean,
-  reglages: ReglagesReception
+  reglages: ReglagesReception,
+  /** Mode de la dernière commande gardé sur ce téléphone (petits articles seulement), ou "". */
+  modeGarde: ModeReception | "" = ""
 ): ChoixReception {
   const ville = villeSaisie(form);
   const lieuRetrait = lieuRetraitPour(volumineux);
   const modes = modesPossibles(volumineux).filter(
     (m) => m !== "retrait" || reglages.lieux[lieuRetrait].actif
   );
-  // Petits articles : « à domicile » coché d'office, comme avant. Volumineux : le client
-  // choisit lui-même entre retrait et transport, les deux ne demandent pas la même chose.
+  // Petits articles : « à domicile » coché d'office, comme avant (ou le mode de sa dernière
+  // commande de petits articles). Volumineux : le client choisit lui-même entre retrait et
+  // transport, les deux ne demandent pas la même chose ; rien n'est jamais coché d'office.
+  const modeOffice = modeGarde && modes.includes(modeGarde) ? modeGarde : modes[0];
   const mode: ModeReception | null = modes.includes(form.mode as ModeReception)
     ? (form.mode as ModeReception)
     : !volumineux && modes.length > 0
-      ? modes[0]
+      ? modeOffice
       : null;
   const preferenceTransport = transportPour(ville);
   const frais = mode ? fraisLivraison({ mode, ville }) : null;
@@ -475,7 +491,7 @@ function calculerTotaux(choix: ChoixReception, subtotal: number, paiement: Moyen
       ? ar ? "الاستلام" : "Retrait"
       : mode === "transport"
         ? ar ? "النقل" : "Transport"
-        : `${ar ? "التوصيل" : "Livraison"}${ville ? ` — ${ville}` : ""}`;
+        : `${ar ? "التوصيل" : "Livraison"}${ville ? ` — ${nomVille(ville, language)}` : ""}`;
   const valeurLigne = !mode
     ? volumineux ? (ar ? "حسب الطريقة المختارة" : "Selon le mode choisi") : selonVille
     : mode === "retrait"
@@ -874,6 +890,14 @@ export default function CheckoutPage() {
   const [facultatifOuvert, setFacultatifOuvert] = useState(false);
   const [etatEnvoi, setEtatEnvoi] = useState<EtatEnvoi>("repos");
   const [codeErreur, setCodeErreur] = useState<string | null>(null);
+  // Coordonnées gardées sur ce téléphone après une commande précédente (null : aucune).
+  const [souvenir, setSouvenir] = useState<CoordonneesClient | null>(null);
+  // Case « Se souvenir de moi sur ce téléphone », cochée d'office. Le ref la donne telle
+  // qu'elle est quand la commande arrive (le client peut la changer pendant « connexion lente »).
+  const [seSouvenir, setSeSouvenir] = useState(true);
+  const seSouvenirRef = useRef(true);
+  // Coordonnées de la commande envoyée, gardées si la case est cochée quand elle arrive.
+  const aGarder = useRef<CoordonneesClient | null>(null);
 
   // Identifiant, n° et empreinte de la commande en cours : gardés avec le brouillon.
   const envoiPrevu = useRef<Omit<BrouillonCommande, "champs" | "majLe">>({});
@@ -885,9 +909,15 @@ export default function CheckoutPage() {
   const etatRef = useRef<EtatEnvoi>("repos");
 
   const volumineux = useMemo(() => commandeVolumineuse(items), [items]);
+  const villes = useMemo(() => optionsVilles(language), [language]);
+  // Le formulaire montre encore la personne gardée sur ce téléphone : ligne « Bonjour ».
+  const clientGarde = !!souvenir && memeClient(souvenir, form);
+  // Son mode de réception, coché d'office comme ses autres coordonnées sont pré-remplies
+  // (jamais pour un rouleau) ; « Ce n'est pas moi » l'oublie avec elles.
+  const modeGarde = souvenir ? modeRepris(souvenir, volumineux) : "";
   const choix = useMemo(
-    () => calculerChoix(form, volumineux, reglages),
-    [form, volumineux, reglages]
+    () => calculerChoix(form, volumineux, reglages, modeGarde),
+    [form, volumineux, reglages, modeGarde]
   );
   // Un moyen de paiement retiré des réglages entre-temps retombe sur les espèces.
   const paiement: MoyenPaiement =
@@ -910,9 +940,14 @@ export default function CheckoutPage() {
     };
   }, []);
 
-  // Le brouillon de ce navigateur : le client retrouve ce qu'il avait tapé.
+  // Le brouillon de ce navigateur : le client retrouve ce qu'il avait tapé. Sans
+  // brouillon, les coordonnées gardées à sa dernière commande remplissent le formulaire.
+  // Leur mode n'entre pas dans le formulaire : il n'est qu'un choix d'office (modeGarde),
+  // décidé avec le panier en cours, et le brouillon ne garde que ce que le client a choisi.
   useEffect(() => {
     const b = lireBrouillon();
+    const s = lireCoordonnees();
+    setSouvenir(s);
     if (b) {
       const repris = formDepuisBrouillon(b.champs);
       setForm(repris);
@@ -923,6 +958,14 @@ export default function CheckoutPage() {
         ...(b.signature ? { signature: b.signature } : {}),
         ...(b.envoyeLe ? { envoyeLe: b.envoyeLe } : {}),
       };
+    } else if (s) {
+      setForm(formDepuisBrouillon({
+        fullName: s.fullName,
+        phone: telephoneMarocLisible(s.phone),
+        city: s.city,
+        villeAutre: s.villeAutre,
+        address: s.address,
+      }));
     }
     setBrouillonLu(true);
   }, []);
@@ -959,6 +1002,27 @@ export default function CheckoutPage() {
     []
   );
 
+  // « Ce n'est pas moi » : téléphone partagé. On oublie la personne précédente sur ce
+  // téléphone : ses coordonnées gardées, son brouillon (e-mail, 2e numéro, remarque
+  // compris), l'identifiant de commande de ce brouillon, et le numéro que /shop/suivi
+  // relit tout seul. Le formulaire repart vide.
+  const oublierCoordonnees = useCallback(() => {
+    effacerCoordonnees();
+    effacerBrouillon();
+    try {
+      localStorage.removeItem("lebtex_customer_phone");
+      localStorage.removeItem("lebtex_last_order_id");
+      localStorage.removeItem("lebtex_last_order_number");
+    } catch { /* navigation privée : rien n'était gardé */ }
+    setSouvenir(null);
+    aGarder.current = null;
+    envoiPrevu.current = {};
+    setForm(FORM_VIDE);
+    setFacultatifOuvert(false);
+    setErrors({});
+    document.getElementById("checkout-nom")?.focus();
+  }, []);
+
   const changerEtat = useCallback((etat: EtatEnvoi) => {
     etatRef.current = etat;
     setEtatEnvoi(etat);
@@ -977,6 +1041,10 @@ export default function CheckoutPage() {
         localStorage.setItem("lebtex_last_order_id", envoi.id);
         if (envoi.numero) localStorage.setItem("lebtex_last_order_number", envoi.numero);
       } catch { /* ignore localStorage errors (private browsing, quota) */ }
+
+      // Coordonnées pour la prochaine commande, seulement si la case est cochée à cet instant.
+      if (seSouvenirRef.current && aGarder.current) ecrireCoordonnees(aGarder.current);
+      else effacerCoordonnees();
 
       // Prévient le commerçant par e-mail. Sans await et sans suite en cas
       // d'échec : l'alerte ne doit jamais retarder ni faire échouer la commande.
@@ -1058,6 +1126,15 @@ export default function CheckoutPage() {
       verrou.current = true;
       setCodeErreur(null);
       changerEtat("envoi");
+      // Ce que le client envoie ; écrit seulement quand la commande est arrivée, et si la
+      // case est encore cochée à ce moment-là (reussir). Le mode d'un rouleau n'est pas gardé.
+      aGarder.current = coordonneesAGarder(
+        {
+          fullName: form.fullName, phone: form.phone, city: form.city, villeAutre: form.villeAutre,
+          address: form.address, mode,
+        },
+        choix.volumineux
+      );
 
       try {
         // Un envoi précédent est encore en route (réseau lent) : on l'attend encore, sans réécrire.
@@ -1193,7 +1270,7 @@ export default function CheckoutPage() {
         ? reglages.camionnette.actif
           ? `توصل شاحنة LEBTEX طلبك إلى أسفل العمارة. أيام الجولات: ${reglages.camionnette.jours}.`
           : "التوصيل إلى عنوانك، ونتفق معك على موعده عبر الهاتف."
-        : `يوصل ناقلنا المعتاد البضاعة إلى مستودعه في ${choix.ville}. تستلمها من هذا المستودع، ونعطيك عنوانه عبر الهاتف.`
+        : `يوصل ناقلنا المعتاد البضاعة إلى مستودعه في ${nomVille(choix.ville, "ar")}. تستلمها من هذا المستودع، ونعطيك عنوانه عبر الهاتف.`
     : !choix.ville
       ? "Choisissez d'abord votre ville."
       : choix.preferenceTransport === "camionnette"
@@ -1327,6 +1404,25 @@ export default function CheckoutPage() {
                   title={ar ? "معلوماتك" : "Vos coordonnées"}
                   subtitle={ar ? "نتصل بك على هذا الرقم لتأكيد الطلب" : "Nous vous appelons à ce numéro pour confirmer la commande"}
                 />
+                {/* Coordonnées reprises de la dernière commande : « Ce n'est pas moi » les efface. */}
+                {souvenir && clientGarde && (
+                  <div className="mb-4 flex flex-wrap items-center justify-between gap-x-3 gap-y-1 rounded-xl border border-[#E8E4DF] bg-[#FBF8F3] px-4 py-2.5">
+                    <p className="min-w-0 break-words text-sm text-[#0F0F0F]">
+                      {ar ? (
+                        <>مرحباً <bdi className="font-semibold">{nomPourSaluer(souvenir.fullName)}</bdi>، معلوماتك جاهزة من طلبك السابق.</>
+                      ) : (
+                        <>Bonjour <bdi className="font-semibold">{nomPourSaluer(souvenir.fullName)}</bdi> — vos coordonnées sont reprises.</>
+                      )}
+                    </p>
+                    <button
+                      type="button"
+                      onClick={oublierCoordonnees}
+                      className="min-h-[44px] text-sm font-semibold text-[#C8102E] underline hover:no-underline"
+                    >
+                      {ar ? "لست أنا" : "Ce n'est pas moi"}
+                    </button>
+                  </div>
+                )}
                 <div className="space-y-4">
                   <InputField id="checkout-nom" label={ar ? "الاسم الكامل" : "Nom complet"} required error={errors.fullName}>
                     <input
@@ -1395,9 +1491,10 @@ export default function CheckoutPage() {
                         autoComplete="address-level2"
                       >
                         <option value="">{ar ? "اختر مدينة..." : "Sélectionner une ville..."}</option>
-                        {MOROCCAN_CITIES.map((city) => (
-                          <option key={city} value={city}>
-                            {city}
+                        {/* En arabe, le nom arabe s'affiche ; la commande garde le nom français. */}
+                        {villes.map((v) => (
+                          <option key={v.valeur} value={v.valeur}>
+                            {v.libelle}
                           </option>
                         ))}
                         <option value={AUTRE_VILLE}>{ar ? "مدينة أخرى (اكتبها)" : "Autre ville (écrivez-la)"}</option>
@@ -1410,7 +1507,7 @@ export default function CheckoutPage() {
                           type="text"
                           value={form.villeAutre}
                           onChange={(e) => setField("villeAutre", e.target.value)}
-                          placeholder={ar ? "مثال: سيدي بنور" : "ex : Sidi Bennour"}
+                          placeholder={ar ? "مثال: إمزورن" : "ex : Imzouren"}
                           data-error={!!errors.villeAutre}
                           {...aria("checkout-ville-autre", errors.villeAutre)}
                           className={inputCls(errors.villeAutre)}
@@ -1737,6 +1834,27 @@ export default function CheckoutPage() {
                     </select>
                   </InputField>
                 </div>
+
+                {/* Gardé seulement sur ce téléphone, après une commande réussie (jamais l'e-mail ni la remarque). */}
+                <label className="mb-5 flex min-h-[44px] cursor-pointer items-start gap-3">
+                  <input
+                    type="checkbox"
+                    checked={seSouvenir}
+                    onChange={(e) => {
+                      seSouvenirRef.current = e.target.checked;
+                      setSeSouvenir(e.target.checked);
+                    }}
+                    className="mt-0.5 w-5 h-5 flex-shrink-0 accent-[#C8102E]"
+                  />
+                  <span className="text-sm">
+                    <span className="font-medium text-[#0F0F0F]">{ar ? "تذكّرني على هذا الهاتف" : "Se souvenir de moi sur ce téléphone"}</span>
+                    <span className="block text-xs text-[#6B6B6B] mt-0.5">
+                      {ar
+                        ? "في المرة القادمة، ستجد اسمك ورقمك ومدينتك وعنوانك جاهزة."
+                        : "La prochaine fois, votre nom, votre numéro, votre ville et votre adresse seront déjà remplis."}
+                    </span>
+                  </span>
+                </label>
 
                 {/* Sur téléphone, le récapitulatif vient après le bouton : le total se voit ici avant de valider. */}
                 <ResumeAvantValidation subtotal={subtotal} choix={choix} paiement={paiement} />

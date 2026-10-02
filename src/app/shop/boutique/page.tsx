@@ -8,7 +8,8 @@ import { formatPrice, getProductDisplayPrice } from '@/lib/shop-utils';
 import { useShopProducts } from '@/contexts/shop-products-context';
 import { useLanguage } from '@/contexts/language-context';
 import type { ShopProduct, ShopCategory } from '@/lib/shop-types';
-import { normaliserRecherche, texte, texteRecherche } from '@/lib/shop-textes';
+import { texte } from '@/lib/shop-textes';
+import { chercherProduits, indexerProduits, motsDeRequete } from '@/lib/recherche-boutique';
 import ProductCard from '@/components/shop/ProductCard';
 import { comparerNouveautes, melangerProduits, useGraineMelange } from '@/lib/melange-produits';
 
@@ -38,11 +39,14 @@ function BoutiqueContent() {
   const SHOP_CATEGORIES = useMemo(() => allContextCategories.filter(c => !c.parentSlug), [allContextCategories]);
   const nomCat = (c: ShopCategory) => texte(c, 'name', language) || c.name;
 
-  // Texte cherchable de chaque produit (français et arabe, description comprise), calculé une fois par catalogue
-  const texteParProduit = useMemo(
-    () => new Map(allProducts.map(p => [p.id, texteRecherche(p, allContextCategories, true)])),
+  // Ce qu'on peut taper pour trouver chaque produit (français et arabe, description comprise),
+  // calculé une fois par catalogue. Même règle et même ordre que la barre de recherche.
+  const indexRecherche = useMemo(
+    () => indexerProduits(allProducts, allContextCategories),
     [allProducts, allContextCategories]
   );
+  // Une recherche est en cours dès qu'un mot utile est tapé (2 lettres, ou un chiffre)
+  const rechercheActive = motsDeRequete(deferredSearch).length > 0;
 
   // Sync with URL query parameter when changed externally
   useEffect(() => {
@@ -95,32 +99,23 @@ function BoutiqueContent() {
       );
     }
 
-    // 2. Search query filter
-    if (deferredSearch.trim()) {
-      const variants = (w: string) => {
-        const v = [w];
-        if (w.endsWith('s') && w.length > 2) v.push(w.slice(0, -1));
-        if (w.endsWith('es') && w.length > 3) v.push(w.slice(0, -2));
-        if (w.endsWith('x') && w.length > 2) v.push(w.slice(0, -1));
-        v.push(w + 's', w + 'es');
-        return v;
-      };
-      const words = normaliserRecherche(deferredSearch).split(/\s+/).filter(w => w.length >= 2);
-      filtered = filtered.filter(p => {
-        const cherchable = texteParProduit.get(p.id) || '';
-        return words.every(word => variants(word).some(v => cherchable.includes(v)));
-      });
-    }
+    // 2. Recherche : tous les mots tapés doivent être trouvés ; « Pertinence » garde l'ordre
+    // de la recherche (nom qui commence par le mot, nom qui le contient, rayon, description)
+    const rang = rechercheActive
+      ? new Map(chercherProduits(indexRecherche, deferredSearch, language).map((p, i) => [p.id, i]))
+      : null;
+    if (rang) filtered = filtered.filter(p => rang.has(p.id));
 
     // 3. Sorting (les produits « sur demande » restent en fin de liste)
     const sortPrice = (p: ShopProduct) => getProductDisplayPrice(p).amount;
     if (sort === 'prix-asc') filtered.sort((a, b) => (sortPrice(a) || Infinity) - (sortPrice(b) || Infinity) || 0);
     else if (sort === 'prix-desc') filtered.sort((a, b) => sortPrice(b) - sortPrice(a));
     else if (sort === 'nouveautes') filtered.sort(comparerNouveautes);
+    else if (rang) filtered.sort((a, b) => (rang.get(a.id) ?? 0) - (rang.get(b.id) ?? 0));
     else filtered = melangerProduits(filtered, graine);
 
     return filtered;
-  }, [allProducts, activeCat, activeSubCat, allContextCategories, deferredSearch, sort, texteParProduit, graine]);
+  }, [allProducts, activeCat, activeSubCat, allContextCategories, deferredSearch, rechercheActive, sort, indexRecherche, language, graine]);
 
   // Reset visibleCount on filter change
   useEffect(() => {
@@ -390,8 +385,9 @@ function BoutiqueContent() {
         ) : (
           /* ── Full Temu-Style Product Grid: WIDER & LARGER DISPLAY ── */
           <div>
-            {/* Le temps de lire la graine du mélange, la grille reste invisible : pas de saut d'ordre */}
-            <div className={`grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-2.5 sm:gap-4 lg:gap-4.5 transition-opacity duration-200 ${sort === 'pertinence' && graine === null ? 'opacity-0' : 'opacity-100'}`}>
+            {/* Le temps de lire la graine du mélange, la grille reste invisible : pas de saut d'ordre
+                (une recherche a son propre ordre, elle n'attend pas la graine) */}
+            <div className={`grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-2.5 sm:gap-4 lg:gap-4.5 transition-opacity duration-200 ${sort === 'pertinence' && !rechercheActive && graine === null ? 'opacity-0' : 'opacity-100'}`}>
               {displayedProducts.map(product => (
                 <ProductCard key={product.id} product={product} showAddToCart={true} />
               ))}

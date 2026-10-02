@@ -1,20 +1,19 @@
 "use client";
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import Link from 'next/link';
 import ProductCard from '@/components/shop/ProductCard';
 import {
   Heart,
-  Truck,
-  Store,
   Sparkles,
   ChevronRight,
   ArrowLeft,
   FileText,
-  PackageCheck
 } from 'lucide-react';
-import { formatPrice } from '@/lib/shop-utils';
-import { FRAIS_ZONE, TEXTE_TRANSPORT_VOLUMINEUX, TEXTE_TRANSPORT_VOLUMINEUX_AR, delaiZone } from '@/lib/livraison-boutique';
 import ChoixVariante from '@/components/shop/ChoixVariante';
+import GaleriePhotos from '@/components/shop/GaleriePhotos';
+import InfoLivraison from '@/components/shop/InfoLivraison';
+import MemeRayon, { produitsDuMemeRayon } from '@/components/shop/MemeRayon';
+import PartagerProduit from '@/components/shop/PartagerProduit';
 import { useShopProducts } from '@/contexts/shop-products-context';
 import { useLanguage } from '@/contexts/language-context';
 import { db } from '@/lib/firebase-db';
@@ -22,6 +21,7 @@ import { doc, getDoc } from 'firebase/firestore';
 import type { ProductVariant, ShopProduct } from '@/lib/shop-types';
 import { nomCategorieProduit, nomProduit, paire, premierTexte, texte, texteFiche } from '@/lib/shop-textes';
 import { libelleModele, libelleTaille } from '@/lib/shop-variantes';
+import { estNouveau } from '@/lib/shop-utils';
 
 type OngletFiche = 'description' | 'applications' | 'avantages' | 'entretien' | 'commercial';
 
@@ -73,6 +73,10 @@ export default function ProductPage({ params }: { params: Promise<{ id: string }
   const exploreObserverRef = useRef<HTMLDivElement>(null);
   // null : le premier onglet qui a du contenu
   const [activeTab, setActiveTab] = useState<OngletFiche | null>(null);
+  // Date du navigateur pour la pastille « Nouveau » (cochée ET ajoutée il y a moins de 60 jours,
+  // comme sur les cartes) ; 0 au rendu serveur, sinon la page préparée garderait la date du build
+  const [maintenant, setMaintenant] = useState(0);
+  useEffect(() => setMaintenant(Date.now()), []);
 
   // Le sélecteur (monté avec key={product.id}) signale lui-même la variante retenue au montage
   useEffect(() => {
@@ -80,17 +84,25 @@ export default function ProductPage({ params }: { params: Promise<{ id: string }
     setActiveTab(null);
   }, [product?.id]);
 
+  // « Du même rayon » : calculé au premier rendu (donc dans le HTML du serveur), ordre stable
+  const memeRayon = useMemo(
+    () => (product ? produitsDuMemeRayon(product, products, categories) : []),
+    [product, products, categories]
+  );
+
   useEffect(() => {
     if (!product || products.length === 0) return;
+    // Déjà montrés dans « Du même rayon » : pas une deuxième fois plus bas
+    const dejaVus = new Set([product.id, ...memeRayon.map(p => p.id)]);
 
     // 1. Products from same category (excluding current)
     const sameCategory = products.filter(
-      p => p.id !== product.id && (p.categorySlug === product.categorySlug || p.additionalCategorySlugs?.includes(product.categorySlug))
+      p => !dejaVus.has(p.id) && (p.categorySlug === product.categorySlug || p.additionalCategorySlugs?.includes(product.categorySlug))
     );
 
     // 2. Products from other categories (excluding current)
     const otherProducts = products.filter(
-      p => p.id !== product.id && p.categorySlug !== product.categorySlug && !p.additionalCategorySlugs?.includes(product.categorySlug)
+      p => !dejaVus.has(p.id) && p.categorySlug !== product.categorySlug && !p.additionalCategorySlugs?.includes(product.categorySlug)
     );
 
     // Shuffle other categories for discovery
@@ -104,7 +116,7 @@ export default function ProductPage({ params }: { params: Promise<{ id: string }
 
     setExploreProducts(unique);
     setExploreVisibleCount(24);
-  }, [product?.id, products]);
+  }, [product?.id, products, memeRayon]);
 
   // Infinite scroll observer for "Explorer vos centres d'intérêt"
   useEffect(() => {
@@ -289,20 +301,12 @@ export default function ProductPage({ params }: { params: Promise<{ id: string }
       <div className="max-w-7xl mx-auto px-4 py-6 md:py-10">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12" dir={language === 'ar' ? 'rtl' : 'ltr'}>
           
-          {/* Left Column: Gallery */}
+          {/* Left Column: Gallery — photo en plein écran au toucher, zoom aux doigts */}
           <div className="lg:col-span-6">
-            <div className="lg:sticky lg:top-24 space-y-3">
-              <div className="relative aspect-square rounded-3xl overflow-hidden bg-neutral-50 border border-neutral-200/80 shadow-xs group">
-                <img
-                  src={galleryImages[mainImg] || galleryImages[0] || '/placeholder.png'}
-                  alt={nom}
-                  loading="eager" 
-                  decoding="async" 
-                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" 
-                />
-                
+            <div className="lg:sticky lg:top-24">
+              <GaleriePhotos images={galleryImages} index={mainImg} onIndexChange={setMainImg} alt={nom}>
                 <div className="absolute top-4 left-4 flex flex-col gap-1.5 pointer-events-none">
-                  {product.isNew && (
+                  {maintenant > 0 && estNouveau(product, maintenant) && (
                     <span className="bg-emerald-600 text-white text-[10px] font-black uppercase tracking-wider px-2.5 py-1 rounded-full shadow-xs">
                       {language === 'ar' ? 'جديد' : 'Nouveau'}
                     </span>
@@ -316,24 +320,7 @@ export default function ProductPage({ params }: { params: Promise<{ id: string }
                 >
                   <Heart className={`w-4 h-4 ${wished ? 'fill-[#C8102E] text-[#C8102E]' : ''}`} />
                 </button>
-              </div>
-
-              {/* Thumbnails — photos du produit + photos des variantes */}
-              {galleryImages.length > 1 && (
-                <div className="flex gap-2.5 overflow-x-auto pb-1 no-scrollbar">
-                  {galleryImages.map((img: string, i: number) => (
-                    <button
-                      key={i}
-                      onClick={() => setMainImg(i)}
-                      className={`w-16 h-16 sm:w-18 sm:h-18 rounded-2xl overflow-hidden border-2 transition-all flex-shrink-0 cursor-pointer ${
-                        mainImg === i ? 'border-neutral-900 ring-2 ring-neutral-900/10' : 'border-neutral-200 hover:border-neutral-400 opacity-70 hover:opacity-100'
-                      }`}
-                    >
-                      <img src={img} alt="" loading="lazy" decoding="async" className="w-full h-full object-cover" />
-                    </button>
-                  ))}
-                </div>
-              )}
+              </GaleriePhotos>
             </div>
           </div>
 
@@ -370,50 +357,15 @@ export default function ProductPage({ params }: { params: Promise<{ id: string }
                 onImagePreview={showImage}
               />
 
-              {/* ── Rouleau entier : pas de colis Sendit, le transport s'organise par téléphone ── */}
-              {product.volumineux && (
-                <div className="mt-4 flex gap-3 p-4 rounded-2xl bg-amber-50 border border-amber-200">
-                  <Truck className="w-5 h-5 text-amber-700 flex-shrink-0 mt-0.5" />
-                  <p className="text-sm text-neutral-800 leading-relaxed" dir={language === 'ar' ? 'rtl' : 'ltr'}>
-                    {language === 'ar' ? TEXTE_TRANSPORT_VOLUMINEUX_AR : TEXTE_TRANSPORT_VOLUMINEUX}
-                  </p>
-                </div>
-              )}
+              {/* ── Envoyer la fiche à un collègue (WhatsApp ou partage du téléphone) ── */}
+              <div className="mt-2">
+                <PartagerProduit id={product.id} nom={nom} />
+              </div>
 
-              {/* ── Reassurance Micro-Banner : des faits, pas de promesse ── */}
-              <div className={`grid gap-2 py-4 my-4 border-y border-neutral-100 text-center ${product.volumineux ? 'grid-cols-2' : 'grid-cols-3'}`}>
-                {product.volumineux ? (
-                  <div className="flex flex-col items-center">
-                    <Truck className="w-4 h-4 text-amber-700 mb-1" />
-                    <span className="text-xs font-bold text-neutral-900">{language === 'ar' ? 'استلام مجاني' : 'Retrait gratuit'}</span>
-                    <span className="text-xs text-neutral-500">{language === 'ar' ? 'أو نقل عبر الهاتف' : 'ou transport par téléphone'}</span>
-                  </div>
-                ) : (
-                  <div className="flex flex-col items-center">
-                    <Truck className="w-4 h-4 text-emerald-600 mb-1" />
-                    <span className="text-xs font-bold text-neutral-900">
-                      {language === 'ar'
-                        ? <>التوصيل <bdi dir="ltr">{formatPrice(FRAIS_ZONE.casablanca)}</bdi></>
-                        : `Livraison ${formatPrice(FRAIS_ZONE.casablanca)}`}
-                    </span>
-                    <span className="text-xs text-neutral-500">
-                      {language === 'ar' ? `الدار البيضاء خلال ${delaiZone('casablanca', language)}` : `Casablanca en ${delaiZone('casablanca', language)}`}
-                    </span>
-                  </div>
-                )}
-                {/* Le retrait gratuit (déjà annoncé au panier et dans le bandeau) ; un rouleau l'affiche déjà à gauche */}
-                {!product.volumineux && (
-                  <div className="flex flex-col items-center border-x border-neutral-100">
-                    <Store className="w-4 h-4 text-emerald-600 mb-1" />
-                    <span className="text-xs font-bold text-neutral-900">{language === 'ar' ? 'استلام مجاني' : 'Retrait gratuit'}</span>
-                    <span className="text-xs text-neutral-500">{language === 'ar' ? 'من محلنا بالدار البيضاء' : 'en magasin, Casablanca'}</span>
-                  </div>
-                )}
-                <div className={`flex flex-col items-center ${product.volumineux ? 'border-s border-neutral-100' : ''}`}>
-                  <PackageCheck className="w-4 h-4 text-[#C8102E] mb-1" />
-                  <span className="text-xs font-bold text-neutral-900">{language === 'ar' ? 'البيع بالجملة' : 'Vente en gros'}</span>
-                  <span className="text-xs text-neutral-500">{language === 'ar' ? 'حسب الطلب' : 'Sur mesure'}</span>
-                </div>
+              {/* ── Livraison : toutes les villes, retrait gratuit, paiement à la livraison.
+                     Rouleau entier : la notice du transport organisé par téléphone ── */}
+              <div className="mt-4">
+                <InfoLivraison fiche volumineux={!!product.volumineux} />
               </div>
 
               {/* ── Dynamic Technical Specifications (Changes live with model/size) ── */}
@@ -481,6 +433,9 @@ export default function ProductPage({ params }: { params: Promise<{ id: string }
             </div>
           </div>
         )}
+
+        {/* ── Du même rayon : vrais liens, dans le HTML du serveur ── */}
+        <MemeRayon produits={memeRayon} lienRayon={`/shop/categorie/${product.categorySlug}`} />
 
         {/* ── Temu-Style: Explorer vos centres d'intérêt ── */}
         {exploreProducts.length > 0 && (

@@ -93,7 +93,8 @@ check('note du client', e.html.includes('Livrer après 18h') && e.texte.includes
 check('adresse complète', e.html.includes('12 Rue Atlas, Maârif') && e.html.includes('Casablanca · Grand Casablanca'));
 check('pas de mention prix de gros quand les lignes collent', !e.html.includes('Prix de gros appliqué'));
 check('pas de « prix à fixer » quand tout a un prix', !e.html.includes('prix à fixer'));
-check('promesse au client rappelée', e.html.includes('un appel sous 2 h') && e.texte.includes('un appel sous 2 h'));
+// Depuis le lot 1 (02/10/2026) : plus de promesse « sous 2 h », l'appel se fait pendant les horaires.
+check('promesse au client rappelée', e.html.includes('pendant les horaires') && e.texte.includes('pendant les horaires') && !e.html.includes('sous 2 h'));
 check('répondre écrit au client', e.html.includes('répondre à cet e-mail écrit directement au client'));
 // Depuis le 29/09/2026 : 0 DH n'est « offerte » qu'au-dessus du seuil (300 DH à Casablanca), sinon c'est à vérifier.
 check('livraison offerte au-dessus du seuil', emailNouvelleCommande(commande({ subtotal: 300, deliveryFee: 0, total: 300,

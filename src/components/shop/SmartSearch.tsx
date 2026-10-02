@@ -9,7 +9,8 @@ import { useLanguage } from '@/contexts/language-context';
 import { formatProductPrice } from '@/lib/shop-utils';
 import { sansPrix, PRIX_SUR_DEMANDE } from '@/lib/shop-variantes';
 import type { ShopCategory } from '@/lib/shop-types';
-import { nomProduit, normaliserRecherche, texte, texteRecherche } from '@/lib/shop-textes';
+import { nomProduit, texte } from '@/lib/shop-textes';
+import { chercherProduits, chercherRayons, indexerProduits } from '@/lib/recherche-boutique';
 
 // ─── Blur placeholder ─────────────────────────────────────────────────────────
 const BLUR =
@@ -73,69 +74,23 @@ export default function SmartSearch({ variant = 'desktop', onNavigate, autoFocus
     return () => document.removeEventListener('mousedown', handle);
   }, []);
 
-  // Search logic — fuzzy match products & categories
+  // Recherche : même règle et même ordre que la page Boutique (lib/recherche-boutique) —
+  // nom qui commence par le mot, puis nom qui le contient, puis rayon, puis description.
   const deferredQuery = React.useDeferredValue(query);
   const q = deferredQuery.trim().toLowerCase();
 
+  // Ce qu'on peut taper pour trouver chaque produit : calculé une fois par catalogue, pas à chaque lettre
+  const indexProduits = useMemo(() => indexerProduits(products, categories), [products, categories]);
 
-  // ── Fuzzy search helpers ────────────────────────────────────────────────
-  // Generate search variants of a word (plural/singular tolerance)
-  const getVariants = useCallback((word: string): string[] => {
-    const variants = [word];
-    // French plural → singular
-    if (word.endsWith('s') && word.length > 2) variants.push(word.slice(0, -1));
-    if (word.endsWith('es') && word.length > 3) variants.push(word.slice(0, -2));
-    if (word.endsWith('x') && word.length > 2) variants.push(word.slice(0, -1));
-    // Singular → plural
-    variants.push(word + 's');
-    variants.push(word + 'es');
-    return variants;
-  }, []);
-
-  // Chaque mot tapé (ou son singulier / pluriel) doit se trouver dans le texte déjà normalisé
-  const fuzzyMatch = useCallback((texteNormalise: string, queryWords: string[]): boolean => {
-    return queryWords.every(word =>
-      getVariants(word).some(variant => texteNormalise.includes(variant))
-    );
-  }, [getVariants]);
-
-  // Split and normalize query into words
-  const queryWords = useMemo(() => {
-    if (!q || q.length < 2) return [];
-    return normaliserRecherche(q).split(' ').filter(w => w.length >= 2);
-  }, [q]);
-
-  // Ce qu'on peut taper pour trouver chaque rayon (sous-rayons compris) et chaque produit,
-  // en français et en arabe : calculé une fois par catalogue, pas à chaque lettre
-  const categoriesCherchables = useMemo(() => {
-    const principales = categories.filter(c => !c.parentSlug);
-    const sousRayons = categories.filter(c => c.parentSlug);
-    return [...principales, ...sousRayons].map(c => ({
-      categorie: c,
-      texte: normaliserRecherche([c.name, c.nameAr, c.slug, c.description, c.descriptionAr].filter(Boolean).join(' ')),
-    }));
-  }, [categories]);
-
-  const produitsCherchables = useMemo(
-    () => products.map(p => ({ produit: p, texte: texteRecherche(p, categories) })),
-    [products, categories]
+  const matchedCategories = useMemo(
+    () => (q.length >= 2 ? chercherRayons(categories, q, language).slice(0, 3) : []),
+    [q, categories, language]
   );
 
-  const matchedCategories = useMemo(() => {
-    if (queryWords.length === 0) return [];
-    return categoriesCherchables
-      .filter(x => fuzzyMatch(x.texte, queryWords))
-      .slice(0, 3)
-      .map(x => x.categorie);
-  }, [queryWords, categoriesCherchables, fuzzyMatch]);
-
-  const matchedProducts = useMemo(() => {
-    if (queryWords.length === 0) return [];
-    return produitsCherchables
-      .filter(x => fuzzyMatch(x.texte, queryWords))
-      .slice(0, 6)
-      .map(x => x.produit);
-  }, [queryWords, produitsCherchables, fuzzyMatch]);
+  const matchedProducts = useMemo(
+    () => (q.length >= 2 ? chercherProduits(indexProduits, q, language).slice(0, 6) : []),
+    [q, indexProduits, language]
+  );
 
   // Nom affiché, et gardé tel quel dans les recherches récentes : dans la langue du site
   const nomCategorie = useCallback((c: ShopCategory) => texte(c, 'name', language) || c.name, [language]);
@@ -334,9 +289,10 @@ export default function SmartSearch({ variant = 'desktop', onNavigate, autoFocus
                         <div className="flex-1 min-w-0">
                           <p className="text-sm font-medium text-[#1A1A1A] truncate">{nomProduit(product, language)}</p>
                           <div className="flex items-center gap-2">
-                            {/* Sans prix : « Prix sur demande », jamais « En stock » (on demande le prix sur WhatsApp). */}
+                            {/* Le prix facturé seulement, jamais de prix barré. Sans prix : « Prix sur demande »,
+                                sans aucun état de stock (on demande le prix sur WhatsApp). */}
                             <span className="text-[11px] font-bold text-[#C8102E]">{sansPrix(product) ? PRIX_SUR_DEMANDE[language] : formatProductPrice(product, language)}</span>
-                            {sansPrix(product) && product.inStock ? null : product.inStock ? (
+                            {sansPrix(product) ? null : product.inStock ? (
                               <span className="text-[10px] text-emerald-500">● {language === 'ar' ? 'متوفر' : 'En stock'}</span>
                             ) : (
                               <span className="text-[10px] text-red-400">● {language === 'ar' ? 'نفد' : 'Rupture'}</span>

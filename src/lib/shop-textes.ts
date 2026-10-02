@@ -57,16 +57,21 @@ export function nomCategorieProduit(
 
 // ─── Recherche ──────────────────────────────────────────────────────────────
 
-// Minuscules sans accents ; en arabe, formes de lettres unifiées (أ إ آ → ا, ة → ه, ى → ي, sans tatweel ni voyelles)
+// Minuscules sans accents ; en arabe, formes de lettres unifiées (أ إ آ → ا, ؤ → و, ئ → ي, ة → ه, ى → ي,
+// sans tatweel ni voyelles) et chiffres arabes (٠١٢… ۰۱۲…) en chiffres latins.
+// NFD sépare la hamza et la madda de leur lettre (أ → ا + ٔ) : on retire ces marques
+// (U+0653 à U+0655, alef suscrit U+0670) comme les voyelles, sinon « ابيض » ne trouvait pas « أبيض ».
 export function normaliserRecherche(valeur: string): string {
   return (valeur || '')
     .normalize('NFD')
-    .replace(/[̀-ͯ]/g, '')
+    .replace(/[\u0300-\u036f]/g, '')
     .toLowerCase()
-    .replace(/[ً-ْـ]/g, '')
+    .replace(/[\u064b-\u0655\u0670\u0640]/g, '')
     .replace(/[أإآ]/g, 'ا')
     .replace(/ة/g, 'ه')
     .replace(/ى/g, 'ي')
+    .replace(/[\u0660-\u0669]/g, c => String(c.charCodeAt(0) - 0x0660))
+    .replace(/[\u06f0-\u06f9]/g, c => String(c.charCodeAt(0) - 0x06f0))
     .replace(/\s+/g, ' ')
     .trim();
 }

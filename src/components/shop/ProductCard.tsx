@@ -1,15 +1,15 @@
 'use client';
 
-import React, { useState, useCallback, useMemo } from 'react';
+import React, { useState, useCallback, useMemo, useSyncExternalStore } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
-import { ShoppingCart, Star, StarHalf, AlertCircle, CheckCircle2, Flame, MessageCircle } from 'lucide-react';
+import { ShoppingCart, Star, StarHalf, AlertCircle, CheckCircle2, MessageCircle } from 'lucide-react';
 import { useShopCartActions } from '@/contexts/shop-cart-context';
 import { useLanguage } from '@/contexts/language-context';
 import {
+  estNouveau,
   formatPrice,
   formatProductPrice,
-  getProductPromo,
   getWhatsAppContact,
 } from '@/lib/shop-utils';
 import type { ShopProduct } from '@/lib/shop-types';
@@ -20,9 +20,21 @@ import { nomProduit } from '@/lib/shop-textes';
 const BLUR_DATA_URL =
   'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mN8/+F9PQAI8wNPvd7POQAAAABJRU5ErkJggg==';
 
-// En dessous de ce seuil, on affiche "Plus que N en stock" pour créer de l'urgence
-// (mécanisme Temu/AliExpress) plutôt que le générique "En stock".
-const LOW_STOCK_THRESHOLD = 5;
+// Plus de « Plus que N en stock » (02/10/2026) : le chiffre venait de l'admin (99 par
+// défaut), pas du vrai stock. Jamais de stock chiffré inventé, ni de fausse urgence.
+
+// ─── Date du jour, pour le badge « Nouveau » ──────────────────────────────────
+// Les pages sont préparées au build : calculé au rendu serveur, le badge garderait la date
+// du build. Pendant l'hydratation, aucune date (0, comme le HTML préparé) ; ensuite celle
+// du navigateur, lue une fois par visite. Partagé avec la fiche produit si besoin.
+let maintenantNavigateur = 0;
+const sansAbonnement = () => () => {};
+const lireMaintenant = () => maintenantNavigateur || (maintenantNavigateur = Date.now());
+const maintenantServeur = () => 0;
+
+export function useMaintenant(): number {
+  return useSyncExternalStore(sansAbonnement, lireMaintenant, maintenantServeur);
+}
 
 // ─── Star Rating (compact) ────────────────────────────────────────────────────
 const StarRating = React.memo(function StarRating({ rating, reviewCount }: { rating: number; reviewCount?: number }) {
@@ -62,9 +74,9 @@ export default React.memo(function ProductCard({ product, showAddToCart = true }
   const [imgLoaded, setImgLoaded] = useState(false);
 
   const primaryImage = product.images?.[0] || `https://picsum.photos/seed/${product.id}/600/600`;
-  // Remise calculée sur le prix affiché (celui des variantes), comme sur la fiche
-  const { active: isPromo, percent: discountPercent } = getProductPromo(product);
-  const isLowStock = product.inStock && product.stockQty > 0 && product.stockQty <= LOW_STOCK_THRESHOLD;
+  // Plus de prix barré ni de « -X % » (02/10/2026) ; « Nouveau » seulement 60 jours après l'ajout
+  const maintenant = useMaintenant();
+  const nouveau = maintenant > 0 && estNouveau(product, maintenant);
   const hasWholesalePrice = Boolean(product.wholesalePrice && product.wholesalePrice > 0 && product.wholesalePrice < product.price && product.minOrderQty && product.minOrderQty > 1);
 
   // Un produit à choisir (taille, couleur…) ne s'ajoute plus sans sa variante : la carte mène à la fiche
@@ -122,16 +134,10 @@ export default React.memo(function ProductCard({ product, showAddToCart = true }
           <div className="absolute inset-0 bg-gradient-to-r from-gray-100 via-gray-50 to-gray-100 animate-pulse pointer-events-none" />
         )}
 
-        {/* Badge réduction — coin haut-gauche, très visible en scroll rapide */}
-        {isPromo && discountPercent > 0 && (
-          <span className="absolute top-1.5 left-1.5 bg-[#C8102E] text-white text-[10px] font-black px-1.5 py-0.5 rounded shadow-sm">
-            -{discountPercent}%
-          </span>
-        )}
-        {/* Badge nouveauté — coin haut-droit, seulement si pas de promo (évite la surcharge) */}
-        {!isPromo && product.isNew && (
-          <span className="absolute top-1.5 right-1.5 bg-emerald-500 text-white text-[9px] font-black px-1.5 py-0.5 rounded shadow-sm uppercase">
-            {language === 'ar' ? 'جديد' : 'New'}
+        {/* Badge nouveauté — coin haut */}
+        {nouveau && (
+          <span className="absolute top-1.5 end-1.5 bg-emerald-600 text-white text-[9px] font-black px-1.5 py-0.5 rounded shadow-sm uppercase">
+            {language === 'ar' ? 'جديد' : 'Nouveau'}
           </span>
         )}
 
@@ -153,33 +159,21 @@ export default React.memo(function ProductCard({ product, showAddToCart = true }
           className={`text-[#1A1A1A] font-normal text-xs leading-snug line-clamp-2 ${language === 'ar' ? 'text-right' : ''}`}
           dir={language === 'ar' ? 'rtl' : 'ltr'}
         >
-          {language === 'ar' && product.nameAr ? product.nameAr : product.name}
+          {nomProduit(product, language)}
         </h3>
 
         {/* Price row + cart button */}
         <div className="flex flex-wrap items-end justify-between gap-x-2 gap-y-1 mt-1">
           <div className="flex flex-col">
-            <div className="flex flex-wrap items-baseline gap-x-1.5">
-              <span className={`font-extrabold text-[#C8102E] leading-tight whitespace-nowrap ${surDemande ? 'text-[13px]' : 'text-[15px]'}`}>
-                {surDemande ? PRIX_SUR_DEMANDE[language] : formatProductPrice(product, language)}
-              </span>
-              {isPromo && (
-                <span className="text-[11px] text-gray-400 line-through leading-tight whitespace-nowrap">
-                  {formatPrice(product.comparePrice as number)}
-                </span>
-              )}
-            </div>
+            <span className={`font-extrabold text-[#C8102E] leading-tight whitespace-nowrap ${surDemande ? 'text-[13px]' : 'text-[15px]'}`}>
+              {surDemande ? PRIX_SUR_DEMANDE[language] : formatProductPrice(product, language)}
+            </span>
             {hasWholesalePrice && (
               <span className="text-[10px] font-semibold text-emerald-600 mt-0.5">
                 {language === 'ar' ? `من ${product.minOrderQty}: ${formatPrice(product.wholesalePrice as number)}` : `À partir de ${product.minOrderQty} : ${formatPrice(product.wholesalePrice as number)}/pc`}
               </span>
             )}
-            {surDemande ? null : isLowStock ? (
-              <span className="text-[10px] font-semibold text-orange-500 mt-0.5 flex items-center gap-0.5">
-                <Flame className="w-2.5 h-2.5" />
-                {language === 'ar' ? `تبقى ${product.stockQty} فقط` : `Plus que ${product.stockQty} en stock`}
-              </span>
-            ) : product.inStock && !hasWholesalePrice && (
+            {!surDemande && product.inStock && !hasWholesalePrice && (
               <span className="text-[10px] text-gray-400 mt-0.5">
                 {language === 'ar' ? 'متوفر' : 'En stock'}
               </span>

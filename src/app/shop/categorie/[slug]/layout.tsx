@@ -1,10 +1,13 @@
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import { trouverRayon } from '@/lib/catalogue-boutique';
-import { catalogueFige, descriptionRayon, etiquettesPage, imageApercu, nettoyer, titrePage } from '@/lib/catalogue-serveur';
+import {
+  catalogueFige, descriptionRayon, etiquettesPage, filArianeRayon, imageApercu, jsonLd, nettoyer, titrePage,
+} from '@/lib/catalogue-serveur';
 
 // Page rayon : la page elle-même est un composant client. Ce layout serveur lui donne
-// son étiquette pour Google et une vraie 404 quand le rayon n'existe pas (ou est masqué).
+// son étiquette pour Google, son chemin « Accueil › Rayon » (données structurées), et une
+// vraie 404 quand le rayon n'existe pas (ou est masqué).
 // Même recherche que la page : le slug décodé, par slug ou par identifiant ; la page ne
 // lit les rayons que dans le catalogue figé au build, le serveur aussi.
 
@@ -40,6 +43,12 @@ export async function generateMetadata({ params }: Params): Promise<Metadata> {
 
 export default async function RayonLayout({ children, params }: Params & { children: React.ReactNode }) {
   const { slug } = await params;
-  if (!rayonDe(slug)) notFound();
-  return children;
+  const rayon = rayonDe(slug);
+  if (!rayon) notFound();
+  return (
+    <>
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLd(filArianeRayon(rayon, catalogueFige().rayons)) }} />
+      {children}
+    </>
+  );
 }

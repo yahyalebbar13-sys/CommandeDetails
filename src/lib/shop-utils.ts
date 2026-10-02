@@ -33,14 +33,53 @@ export function getProductDisplayPrice(product: Pick<ShopProduct, 'price' | 'var
   return { amount: montant, isFrom: aPartirDe };
 }
 
-// Promotion d'une carte produit : calculée sur le prix affiché (celui qui sera facturé),
-// et seulement quand ce prix est exact (pas « À partir de »), comme sur la fiche produit.
-export function getProductPromo(product: Pick<ShopProduct, 'price' | 'variants' | 'comparePrice'>): { active: boolean; percent: number; saving: number } {
-  const { amount, isFrom } = getProductDisplayPrice(product);
-  const active = !isFrom && hasActivePromo(product.comparePrice, amount);
-  if (!active) return { active: false, percent: 0, saving: 0 };
-  const compare = product.comparePrice as number;
-  return { active: true, percent: getDiscountPercent(amount, compare), saving: compare - amount };
+// ─── Plus aucun prix barré (décision du patron, 02/10/2026) ───────────────────
+// Ni ancien prix barré, ni « -X % », ni badge promo, nulle part sur la boutique.
+// L'ancien prix saisi dans l'admin (comparePrice) est ignoré à l'affichage ; le prix
+// facturé (price / variantes) ne change pas. Plus aucun écran n'appelle ces deux fonctions ;
+// elles restent, et répondent toujours « pas de promotion », pour un écran qui les importerait encore.
+
+export function getProductPromo(
+  _product: Pick<ShopProduct, 'price' | 'variants' | 'comparePrice'>,
+): { active: boolean; percent: number; saving: number } {
+  return { active: false, percent: 0, saving: 0 };
+}
+
+export function hasActivePromo(_comparePrice?: number, _price?: number): boolean {
+  return false;
+}
+
+// ─── Badge « Nouveau » (02/10/2026) ───────────────────────────────────────────
+// Il était sur la moitié du catalogue. Il ne reste que sur un produit coché « Nouveau »
+// dans l'admin ET ajouté il y a moins de 60 jours ; sans date d'ajout fiable, pas de badge.
+
+/** Durée du badge « Nouveau » après l'ajout du produit au catalogue. */
+export const DUREE_NOUVEAUTE_JOURS = 60;
+const UN_JOUR_MS = 24 * 60 * 60 * 1000;
+// Avant cette date, une « date d'ajout » n'est pas crédible (identifiant mal formé…)
+const PREMIERE_DATE_CREDIBLE = Date.UTC(2020, 0, 1);
+
+/** Date d'ajout d'un produit en millisecondes (createdAt, sinon l'horodatage de l'identifiant custom_<ms>_…), 0 si inconnue. */
+export function dateAjoutProduit(p: Pick<ShopProduct, 'id' | 'createdAt'>): number {
+  const c = p.createdAt as { seconds?: number; toMillis?: () => number } | number | string | undefined;
+  let date = 0;
+  if (typeof c === 'number') date = c;
+  else if (typeof c === 'string') date = Date.parse(c) || 0;
+  else if (c && typeof c.toMillis === 'function') date = c.toMillis();
+  else if (c && typeof c.seconds === 'number') date = c.seconds * 1000;
+  if (!date) {
+    const m = /^custom_(\d{13})_/.exec(p.id);
+    date = m ? Number(m[1]) : 0;
+  }
+  return date >= PREMIERE_DATE_CREDIBLE ? date : 0;
+}
+
+/** Badge « Nouveau » : coché dans l'admin et ajouté depuis moins de 60 jours (date future = pas fiable). */
+export function estNouveau(p: Pick<ShopProduct, 'id' | 'isNew' | 'createdAt'>, maintenant: number): boolean {
+  if (!p.isNew) return false;
+  const ajout = dateAjoutProduit(p);
+  if (!ajout || ajout > maintenant + UN_JOUR_MS) return false;
+  return maintenant - ajout <= DUREE_NOUVEAUTE_JOURS * UN_JOUR_MS;
 }
 
 export function formatProductPrice(product: Pick<ShopProduct, 'price' | 'variants'>, language: Language): string {
@@ -90,12 +129,6 @@ export function slugify(text: string): string {
     .replace(/\s+/g, '-')
     .replace(/-+/g, '-')
     .trim();
-}
-
-// Calculate discount percentage
-export function getDiscountPercent(price: number, comparePrice: number): number {
-  if (!comparePrice || !price || comparePrice <= price) return 0;
-  return Math.round(((comparePrice - price) / comparePrice) * 100);
 }
 
 // WhatsApp link builder
@@ -170,9 +203,4 @@ export { MOROCCAN_CITIES };
 export function truncate(text: string, maxLength: number): string {
   if (text.length <= maxLength) return text;
   return text.substring(0, maxLength).trim() + '...';
-}
-
-// Check if product has active promo
-export function hasActivePromo(comparePrice?: number, price?: number): boolean {
-  return !!(comparePrice && price && comparePrice > price);
 }

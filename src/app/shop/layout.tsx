@@ -8,6 +8,7 @@ import CartDrawer from '@/components/shop/CartDrawer';
 import LocalBusinessSchema from '@/components/shop/LocalBusinessSchema';
 import ChoixLangueAccueil from '@/components/shop/ChoixLangueAccueil';
 import CaptureProvenance from '@/components/shop/CaptureProvenance';
+import CompteurEvenements from '@/components/shop/CompteurEvenements';
 import { IMAGE_PARTAGE, SITE_URL } from '@/lib/catalogue-serveur';
 
 // Étiquettes par défaut de la boutique. Chaque page a les siennes (layout.tsx de son
@@ -78,6 +79,7 @@ export default function ShopLayout({ children }: { children: React.ReactNode }) 
             <CartDrawer />
             <ChoixLangueAccueil />
             <CaptureProvenance />
+            <CompteurEvenements />
             <main className="flex-grow pb-16 lg:pb-0">{children}</main>
             <ShopFooter />
           </div>
