@@ -17,7 +17,6 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
-import { isAccessoryLine, isFabricLine, isZipperLine, isThreadLine, isTapeLine } from '@/lib/constants';
 import { QUALITIES_FIELD_BY_SPEC, SPEC_BADGES, countQualities, detectSpecType } from '@/lib/quality-schema';
 import { useLignesLogistiques } from '@/hooks/use-lignes-logistiques';
 import { LIBELLE_SPEC, cleLigne, couleurDeLigne, type LigneLogistique, type SpecType } from '@/lib/lignes-logistiques';
@@ -190,19 +189,14 @@ export default function GeneralCategoriesView({ articles = [], generalCategories
       const explicitLine = (gc as any).line;
       let matched = false;
 
-      if (explicitLine) {
-        const lineTrimmed = explicitLine.trim().toLowerCase();
-        const group = result.find(g => 
-          g.title.toLowerCase() === lineTrimmed ||
-          (g.title === 'Accessoires' && isAccessoryLine(explicitLine)) ||
-          (g.title === 'Fabric' && isFabricLine(explicitLine)) ||
-          (g.title === 'Zipper' && isZipperLine(explicitLine)) ||
-          (g.title === 'Thread' && isThreadLine(explicitLine)) ||
-          (g.title === 'Ruban' && isTapeLine(explicitLine))
-        );
-        if (group) { 
-          group.items.push({ gc, stats: groupStats[gc.id] }); 
-          matched = true; 
+      if (explicitLine && explicitLine.trim()) {
+        // Chaque ligne est son propre groupe, au nom exact de la ligne : une ligne
+        // créée (« Bouton », « Élastiques »…) ne se fond plus dans un groupe voisin
+        // parce que son nom contient « bouton » ou « fil ».
+        const group = result.find(g => cleLigne(g.title) === cleLigne(explicitLine));
+        if (group) {
+          group.items.push({ gc, stats: groupStats[gc.id] });
+          matched = true;
         } else {
           // « Élastiques » et « ÉLASTIQUES » sont la même ligne : un seul groupe.
           const cle = cleLigne(explicitLine);
