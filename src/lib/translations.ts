@@ -9,6 +9,7 @@ export const translations: Translations = {
   nav_all_products: { fr: 'Tous les produits', ar: 'كل المنتجات' },
   nav_categories:   { fr: 'Catégories',     ar: 'الفئات' },
   nav_promos:       { fr: 'Promotions',     ar: 'التخفيضات' },
+  nav_ma_liste: { fr: 'Ma liste', ar: 'قائمتي' },
   nav_tracking:     { fr: 'Suivi commande', ar: 'تتبع الطلب' },
   nav_contact:      { fr: 'Contact',        ar: 'اتصل بنا' },
   nav_boutiques:    { fr: 'À Propos & Magasins',  ar: 'من نحن ومحلاتنا' },

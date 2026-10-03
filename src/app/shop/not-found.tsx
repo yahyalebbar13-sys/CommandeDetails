@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { Home, LayoutGrid, MessageCircle, Search } from 'lucide-react';
 import { useLanguage } from '@/contexts/language-context';
 import { getWhatsAppContact } from '@/lib/shop-utils';
+import { lienPage } from '@/lib/liens-boutique';
 
 // Page introuvable de la boutique (vraie 404) : produit ou rayon qui n'existe pas,
 // ou plus. Affichée sous l'en-tête et le pied de page de la boutique, en français ou
@@ -35,14 +36,14 @@ export default function ShopNotFound() {
 
         <div className="flex flex-col gap-3">
           <Link
-            href="/shop"
+            href={lienPage('/shop', language)}
             className="flex items-center justify-center gap-2 px-6 py-3.5 bg-[#C8102E] text-white rounded-xl font-semibold hover:bg-[#a00d25] transition-colors active:scale-95 touch-manipulation"
           >
             <Home className="w-5 h-5" />
             {ar ? 'العودة إلى الصفحة الرئيسية' : "Retour à l'accueil"}
           </Link>
           <Link
-            href="/shop/categories"
+            href={lienPage('/shop/categories', language)}
             className="flex items-center justify-center gap-2 px-6 py-3.5 bg-white text-[#0F0F0F] border border-[#E8E4DF] rounded-xl font-semibold hover:border-[#0F0F0F] transition-colors active:scale-95 touch-manipulation"
           >
             <LayoutGrid className="w-5 h-5" />

@@ -4,6 +4,7 @@
 // serveur (étiquettes Google, plan du site, vraies pages 404) : une seule règle des deux
 // côtés. Ne rien importer ici de « client » (Firebase, React, contextes).
 
+import { attribuerAdresses } from './liens-boutique';
 import type { CategoryAlias, ProductVariant, ShopCategory, ShopProduct } from './shop-types';
 
 // Fields that can be overridden from admin
@@ -217,6 +218,8 @@ export function fusionnerProduits(
 // Rayons visibles : ceux du code avec leurs surcharges, puis ceux ajoutés dans l'admin,
 // sans les rayons masqués ni leurs sous-rayons, triés par priorité puis par nom.
 // Un rayon sans image prend la première photo d'un de ses produits.
+// Chaque rayon reçoit son adresse /shop/categorie/… (champ adresse, lib/liens-boutique),
+// unique dans la liste : c'est pourquoi elle se calcule ici, sur tous les rayons visibles.
 export function fusionnerRayons(
   base: ShopCategory[],
   customCategories: ShopCategory[],
@@ -260,7 +263,7 @@ export function fusionnerRayons(
     return a.name.localeCompare(b.name);
   });
 
-  return combined.map(cat => {
+  return attribuerAdresses(combined).map(cat => {
     if (cat.image) return cat;
     const firstProduct = products.find(p => (p.categorySlug === cat.slug || p.additionalCategorySlugs?.includes(cat.slug)) && p.images && p.images.length > 0);
     if (firstProduct && firstProduct.images?.[0]) {
@@ -270,8 +273,9 @@ export function fusionnerRayons(
   });
 }
 
-// Le rayon d'une adresse /shop/categorie/{slug} : même règle que la page rayon
-// (par son slug, ou par son identifiant pour les vieux liens).
+// Le rayon désigné dans les données (categorySlug d'un produit, parentSlug d'un sous-rayon) :
+// par son slug, ou par son identifiant. Le rayon d'une adresse /shop/categorie/… se trouve
+// par rayonDepuisParametre (lib/liens-boutique), qui accepte aussi la nouvelle adresse.
 export function trouverRayon(rayons: ShopCategory[], slug: string): ShopCategory | null {
   return rayons.find(c => c.slug === slug || c.id === slug) ?? null;
 }

@@ -33,6 +33,7 @@ import {
 import { delaiZone, FRAIS_ZONE } from "@/lib/livraison-boutique";
 import { nomProduit, texte } from "@/lib/shop-textes";
 import { PRIX_SUR_DEMANDE, sansPrix } from "@/lib/shop-variantes";
+import { cheminDansLaLangue, cheminFrancais, lienPage, lienProduit, lienRayon } from "@/lib/liens-boutique";
 import type { ShopProduct } from "@/lib/shop-types";
 import type { Language } from "@/lib/translations";
 
@@ -56,6 +57,7 @@ const NAV_LINKS: NavLink[] = [
 
 const MORE_LINKS = [
   { labelKey: "nav_tracking", href: "/shop/suivi" },
+  { labelKey: "nav_ma_liste", href: "/shop/ma-liste" },
   { labelKey: "nav_contact", href: "/shop/contact" },
 ];
 
@@ -100,6 +102,10 @@ export default function ShopHeader() {
   const { categories: allContextCategories, products: allProducts } = useShopProducts();
   const SHOP_CATEGORIES = allContextCategories.filter(c => !c.parentSlug);
   const pathname = usePathname();
+  // Adresse française de la page (« /ar/shop/suivi » → « /shop/suivi ») : pour savoir quel
+  // onglet est ouvert, dans les deux langues
+  const cheminFr = cheminFrancais(pathname);
+  const autreLangue: Language = language === 'fr' ? 'ar' : 'fr';
 
   const [isScrolled, setIsScrolled] = useState(false);
   const [isCategoriesOpen, setIsCategoriesOpen] = useState(false);
@@ -237,17 +243,15 @@ export default function ShopHeader() {
     (e: React.FormEvent) => {
       e.preventDefault();
       if (searchQuery.trim()) {
-        window.location.href = `/shop/boutique?q=${encodeURIComponent(
-          searchQuery.trim()
-        )}`;
+        window.location.href = lienPage(`/shop/boutique?q=${encodeURIComponent(searchQuery.trim())}`, language);
       }
     },
-    [searchQuery]
+    [searchQuery, language]
   );
 
   const isActive = (href: string) => {
-    if (href === "/shop") return pathname === "/shop";
-    return pathname?.startsWith(href);
+    if (href === "/shop") return cheminFr === "/shop";
+    return cheminFr.startsWith(href);
   };
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -286,7 +290,7 @@ export default function ShopHeader() {
           <div className="flex items-center justify-between h-16 lg:h-24 gap-4 lg:gap-8">
             {/* ── Logo ──────────────────────────────────────────────────── */}
             <Link
-              href="/shop"
+              href={lienPage("/shop", language)}
               className="flex-shrink-0 group"
               aria-label={language === 'ar' ? 'LEBTEX - الرئيسية' : 'LEBTEX - Accueil'}
             >
@@ -305,14 +309,22 @@ export default function ShopHeader() {
             <div className="flex items-center gap-1 sm:gap-2">
               
               {/* Langue : le bouton affiche la langue vers laquelle on passe, écrite dans cette langue
-                  (pas de drapeau : le drapeau français faisait penser à la France) */}
-              <button
-                onClick={() => setLanguage(language === 'fr' ? 'ar' : 'fr')}
+                  (pas de drapeau : le drapeau français faisait penser à la France).
+                  Un vrai lien vers la même page dans l'autre langue (/shop/… ↔ /ar/shop/…), que Google
+                  suit ; au toucher, setLanguage enregistre le choix et garde la recherche (?q=…). */}
+              <a
+                href={cheminDansLaLangue(pathname, autreLangue)}
+                hrefLang={autreLangue}
+                onClick={(e) => {
+                  if (e.ctrlKey || e.metaKey || e.shiftKey) return; // nouvel onglet : le lien suffit
+                  e.preventDefault();
+                  setLanguage(autreLangue);
+                }}
                 className="flex items-center px-3 py-2 rounded-xl border border-gray-200 text-sm font-bold text-gray-800 hover:border-[#C8102E] hover:text-[#C8102E] hover:bg-red-50 transition-all cursor-pointer"
                 aria-label={language === 'fr' ? 'Passer en arabe' : 'التبديل إلى الفرنسية'}
               >
                 {language === 'fr' ? <span lang="ar" dir="rtl">العربية</span> : <span lang="fr" dir="ltr">Français</span>}
-              </button>
+              </a>
 
               {/* Search Toggle - Mobile/Tablet only */}
               <button
@@ -359,9 +371,9 @@ export default function ShopHeader() {
           <div className="flex items-center gap-1.5 px-3 py-2 overflow-x-auto no-scrollbar scroll-smooth">
             {/* "Tout" Pill */}
             <Link
-              href="/shop"
+              href={lienPage("/shop", language)}
               className={`flex-shrink-0 px-3.5 py-1.5 rounded-full text-xs font-bold transition-all whitespace-nowrap cursor-pointer ${
-                pathname === "/shop"
+                cheminFr === "/shop"
                   ? "bg-[#C8102E] text-white shadow-xs"
                   : "bg-neutral-100 text-neutral-700 hover:bg-neutral-200"
               }`}
@@ -371,11 +383,12 @@ export default function ShopHeader() {
 
             {/* Real Parent Categories (clean text, no emojis) */}
             {SHOP_CATEGORIES.map((cat) => {
-              const isCatActive = pathname === `/shop/categorie/${cat.slug}`;
+              const lienCat = lienRayon(cat, language);
+              const isCatActive = cheminFr === lienRayon(cat);
               return (
                 <Link
                   key={cat.id}
-                  href={`/shop/categorie/${cat.slug}`}
+                  href={lienCat}
                   className={`flex-shrink-0 px-3.5 py-1.5 rounded-full text-xs font-medium transition-all whitespace-nowrap cursor-pointer ${
                     isCatActive
                       ? "bg-[#C8102E] text-white font-bold shadow-xs"
@@ -457,7 +470,7 @@ export default function ShopHeader() {
                                     onMouseEnter={() => setHoveredCatSlug(cat.slug)}
                                     onClick={() => {
                                       setIsCategoriesOpen(false);
-                                      window.location.href = `/shop/categorie/${cat.slug}`;
+                                      window.location.href = lienRayon(cat, language);
                                     }}
                                     className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-start font-medium text-xs sm:text-sm transition-all duration-150 cursor-pointer ${
                                       isSelected
@@ -488,7 +501,7 @@ export default function ShopHeader() {
                               {activeCategory && (
                                 <div className="flex items-center justify-between pb-4 mb-4 border-b border-neutral-100">
                                   <Link
-                                    href={`/shop/categorie/${activeCategory.slug}`}
+                                    href={lienRayon(activeCategory, language)}
                                     onClick={() => setIsCategoriesOpen(false)}
                                     className="inline-flex items-center gap-1.5 text-base font-bold text-neutral-900 hover:text-[#C8102E] transition-colors group cursor-pointer"
                                   >
@@ -501,7 +514,7 @@ export default function ShopHeader() {
                                   </Link>
 
                                   <Link
-                                    href="/shop/categories"
+                                    href={lienPage("/shop/categories", language)}
                                     onClick={() => setIsCategoriesOpen(false)}
                                     className="text-xs font-semibold text-neutral-500 hover:text-[#C8102E] transition-colors flex items-center gap-1"
                                   >
@@ -534,7 +547,7 @@ export default function ShopHeader() {
                                         return (
                                           <Link
                                             key={sub.id || sub.slug}
-                                            href={`/shop/categorie/${sub.slug}`}
+                                            href={lienRayon(sub, language)}
                                             onClick={() => setIsCategoriesOpen(false)}
                                             className="group flex flex-col items-center cursor-pointer text-center p-2 rounded-xl hover:bg-neutral-50 border border-transparent hover:border-neutral-200 transition-all"
                                           >
@@ -580,7 +593,7 @@ export default function ShopHeader() {
                                           return (
                                             <Link
                                               key={p.id}
-                                              href={`/shop/produit/${p.id}`}
+                                              href={lienProduit(p, language)}
                                               onClick={() => setIsCategoriesOpen(false)}
                                               className="group flex flex-col bg-white rounded-xl border border-neutral-200 overflow-hidden hover:border-[#C8102E] hover:shadow-md transition-all cursor-pointer"
                                             >
@@ -644,7 +657,7 @@ export default function ShopHeader() {
                                       return (
                                         <Link
                                           key={p.id}
-                                          href={`/shop/produit/${p.id}`}
+                                          href={lienProduit(p, language)}
                                           onClick={() => setIsCategoriesOpen(false)}
                                           className="group flex flex-col bg-white rounded-xl border border-neutral-200 overflow-hidden hover:border-[#C8102E] hover:shadow-md transition-all cursor-pointer"
                                         >
@@ -698,7 +711,7 @@ export default function ShopHeader() {
                                     {language === 'ar' ? (activeCategory.descriptionAr || 'استكشف جميع منتجات هذا القسم') : (activeCategory.description || 'Découvrez tous les articles disponibles dans ce rayon')}
                                   </p>
                                   <Link
-                                    href={`/shop/categorie/${activeCategory.slug}`}
+                                    href={lienRayon(activeCategory, language)}
                                     onClick={() => setIsCategoriesOpen(false)}
                                     className="inline-flex items-center gap-1.5 px-5 py-2 rounded-full text-xs font-bold text-white bg-[#C8102E] hover:bg-red-700 transition-colors shadow-xs"
                                   >
@@ -718,7 +731,7 @@ export default function ShopHeader() {
                                     : '🚚 Expédition rapide partout au Maroc'}
                                 </span>
                                 <Link
-                                  href={`/shop/categorie/${activeCategory.slug}`}
+                                  href={lienRayon(activeCategory, language)}
                                   onClick={() => setIsCategoriesOpen(false)}
                                   className="text-xs font-bold text-[#C8102E] hover:underline flex items-center gap-1"
                                 >
@@ -751,7 +764,7 @@ export default function ShopHeader() {
                         className="absolute top-full end-0 mt-0 w-48 bg-white rounded-b-2xl shadow-[0_20px_60px_rgba(0,0,0,0.12)] border border-t-0 border-gray-100 p-2 z-50 flex flex-col gap-1"
                       >
                         {MORE_LINKS.map(ml => (
-                           <Link key={ml.labelKey} href={ml.href} onClick={() => setIsMoreOpen(false)} className="px-3 py-2 text-sm font-semibold text-gray-700 hover:text-[#C8102E] hover:bg-gray-50 rounded-lg transition-colors">
+                           <Link key={ml.labelKey} href={lienPage(ml.href, language)} onClick={() => setIsMoreOpen(false)} className="px-3 py-2 text-sm font-semibold text-gray-700 hover:text-[#C8102E] hover:bg-gray-50 rounded-lg transition-colors">
                              {t(ml.labelKey)}
                            </Link>
                         ))}
@@ -761,7 +774,7 @@ export default function ShopHeader() {
                 ) : (
                   <Link
                     key={link.labelKey}
-                    href={link.href}
+                    href={lienPage(link.href, language)}
                     className={`flex items-center gap-1.5 h-full text-sm font-semibold transition-all duration-200 border-b-2 ${
                       isActive(link.href)
                         ? "border-[#C8102E] text-[#C8102E]"
@@ -834,9 +847,9 @@ export default function ShopHeader() {
         <div className="grid grid-cols-6 h-14 items-center">
           {/* 1. Accueil */}
           <Link
-            href="/shop"
+            href={lienPage("/shop", language)}
             className={`flex flex-col items-center justify-center h-full transition-colors cursor-pointer ${
-              pathname === "/shop" && !isMobileCatExplorerOpen && !isPlusMenuOpen
+              cheminFr === "/shop" && !isMobileCatExplorerOpen && !isPlusMenuOpen
                 ? "text-[#C8102E] font-bold"
                 : "text-neutral-500 hover:text-neutral-900"
             }`}
@@ -856,7 +869,7 @@ export default function ShopHeader() {
               setIsMobileCatExplorerOpen(true);
             }}
             className={`flex flex-col items-center justify-center h-full transition-colors cursor-pointer ${
-              isMobileCatExplorerOpen || pathname?.startsWith("/shop/categorie")
+              isMobileCatExplorerOpen || cheminFr.startsWith("/shop/categorie")
                 ? "text-[#C8102E] font-bold"
                 : "text-neutral-500 hover:text-neutral-900"
             }`}
@@ -869,13 +882,13 @@ export default function ShopHeader() {
 
           {/* 3. Boutique */}
           <Link
-            href="/shop/boutique"
+            href={lienPage("/shop/boutique", language)}
             onClick={() => {
               setIsMobileCatExplorerOpen(false);
               setIsPlusMenuOpen(false);
             }}
             className={`flex flex-col items-center justify-center h-full transition-colors cursor-pointer ${
-              pathname === "/shop/boutique"
+              cheminFr === "/shop/boutique"
                 ? "text-[#C8102E] font-bold"
                 : "text-neutral-500 hover:text-neutral-900"
             }`}
@@ -888,13 +901,13 @@ export default function ShopHeader() {
 
           {/* 4. Suivi de commande */}
           <Link
-            href="/shop/suivi"
+            href={lienPage("/shop/suivi", language)}
             onClick={() => {
               setIsMobileCatExplorerOpen(false);
               setIsPlusMenuOpen(false);
             }}
             className={`flex flex-col items-center justify-center h-full transition-colors cursor-pointer ${
-              pathname === "/shop/suivi"
+              cheminFr === "/shop/suivi"
                 ? "text-[#C8102E] font-bold"
                 : "text-neutral-500 hover:text-neutral-900"
             }`}
@@ -997,7 +1010,7 @@ export default function ShopHeader() {
             <div className="grid grid-cols-2 gap-3">
               {/* 1. Promotions */}
               <Link
-                href="/shop/promotions"
+                href={lienPage("/shop/promotions", language)}
                 onClick={() => setIsPlusMenuOpen(false)}
                 className="p-3.5 rounded-2xl bg-amber-50/70 border border-amber-200/80 hover:bg-amber-100/60 transition-all flex flex-col justify-between group cursor-pointer"
               >
@@ -1021,7 +1034,7 @@ export default function ShopHeader() {
 
               {/* 2. À propos magasin */}
               <Link
-                href="/shop/a-propos"
+                href={lienPage("/shop/a-propos", language)}
                 onClick={() => setIsPlusMenuOpen(false)}
                 className="p-3.5 rounded-2xl bg-rose-50/60 border border-rose-200/70 hover:bg-rose-100/50 transition-all flex flex-col justify-between group cursor-pointer"
               >
@@ -1066,7 +1079,7 @@ export default function ShopHeader() {
 
               {/* 4. Contact */}
               <Link
-                href="/shop/contact"
+                href={lienPage("/shop/contact", language)}
                 onClick={() => setIsPlusMenuOpen(false)}
                 className="p-3.5 rounded-2xl bg-blue-50/60 border border-blue-200/70 hover:bg-blue-100/50 transition-all flex flex-col justify-between group cursor-pointer"
               >
@@ -1171,7 +1184,7 @@ export default function ShopHeader() {
                   {/* Banner Header: "Tout [Nom Catégorie] >" */}
                   <div className="flex items-center justify-between pb-3 mb-3.5 border-b border-neutral-100">
                     <Link
-                      href={`/shop/categorie/${mobileActiveCat.slug}`}
+                      href={lienRayon(mobileActiveCat, language)}
                       onClick={() => setIsMobileCatExplorerOpen(false)}
                       className="inline-flex items-center gap-1.5 text-sm font-bold text-neutral-900 hover:text-[#C8102E] transition-colors cursor-pointer"
                     >
@@ -1184,7 +1197,7 @@ export default function ShopHeader() {
                     </Link>
 
                     <Link
-                      href="/shop/categories"
+                      href={lienPage("/shop/categories", language)}
                       onClick={() => setIsMobileCatExplorerOpen(false)}
                       className="text-[11px] font-semibold text-neutral-400 hover:text-[#C8102E] transition-colors"
                     >
@@ -1212,7 +1225,7 @@ export default function ShopHeader() {
                             return (
                               <Link
                                 key={sub.id || sub.slug}
-                                href={`/shop/categorie/${sub.slug}`}
+                                href={lienRayon(sub, language)}
                                 onClick={() => setIsMobileCatExplorerOpen(false)}
                                 className="group flex flex-col items-center text-center p-1.5 rounded-xl bg-neutral-50/70 border border-neutral-200/70 hover:border-[#C8102E] transition-all shadow-2xs active:scale-95 cursor-pointer"
                               >
@@ -1256,7 +1269,7 @@ export default function ShopHeader() {
                               return (
                                 <Link
                                   key={p.id}
-                                  href={`/shop/produit/${p.id}`}
+                                  href={lienProduit(p, language)}
                                   onClick={() => setIsMobileCatExplorerOpen(false)}
                                   className="group flex flex-col bg-white rounded-2xl border border-neutral-200/80 overflow-hidden hover:border-[#C8102E] hover:shadow-md transition-all active:scale-[0.98] shadow-2xs"
                                 >
@@ -1318,7 +1331,7 @@ export default function ShopHeader() {
                           return (
                             <Link
                               key={p.id}
-                              href={`/shop/produit/${p.id}`}
+                              href={lienProduit(p, language)}
                               onClick={() => setIsMobileCatExplorerOpen(false)}
                               className="group flex flex-col bg-white rounded-2xl border border-neutral-200/80 overflow-hidden hover:border-[#C8102E] hover:shadow-md transition-all active:scale-[0.98] shadow-2xs"
                             >
@@ -1372,7 +1385,7 @@ export default function ShopHeader() {
                         {language === 'ar' ? (mobileActiveCat.descriptionAr || 'استكشف منتجات هذا القسم') : (mobileActiveCat.description || 'Découvrez tous les articles de ce rayon')}
                       </p>
                       <Link
-                        href={`/shop/categorie/${mobileActiveCat.slug}`}
+                        href={lienRayon(mobileActiveCat, language)}
                         onClick={() => setIsMobileCatExplorerOpen(false)}
                         className="px-3.5 py-1.5 rounded-full text-xs font-bold text-white bg-[#C8102E] hover:bg-red-700 transition-colors shadow-xs"
                       >

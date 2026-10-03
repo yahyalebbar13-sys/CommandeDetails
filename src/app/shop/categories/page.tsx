@@ -5,6 +5,8 @@ import { useShopProducts } from '@/contexts/shop-products-context';
 import { useLanguage } from '@/contexts/language-context';
 import type { ShopCategory } from '@/lib/shop-types';
 import { texte } from '@/lib/shop-textes';
+import { lienPage, lienRayon } from '@/lib/liens-boutique';
+import { introRayon } from '@/lib/textes-rayons';
 import { ChevronRight, Loader2, Layers } from 'lucide-react';
 
 export default function CategoriesPage() {
@@ -42,7 +44,7 @@ export default function CategoriesPage() {
           {/* Breadcrumb */}
           {/* « › » est un signe miroir : le navigateur l'affiche « ‹ » en arabe */}
           <nav className="flex items-center gap-1.5 text-[11px] text-white/50 mb-2">
-            <Link href="/shop" className="hover:text-white transition-colors">{isAr ? 'الرئيسية' : 'Accueil'}</Link>
+            <Link href={lienPage('/shop', language)} className="hover:text-white transition-colors">{isAr ? 'الرئيسية' : 'Accueil'}</Link>
             <span>›</span>
             <span className="text-white/80">{isAr ? 'الفئات' : 'Catégories'}</span>
           </nav>
@@ -66,11 +68,12 @@ export default function CategoriesPage() {
             const subCatsCount = subCatsSlugs.length;
             const accentColor = cat.color || '#C8102E';
             const nomCat = texte(cat, 'name', language) || cat.name;
-            const descriptionCat = texte(cat, 'description', language);
+            // Résumé : l'introduction du rayon (lib/textes-rayons), sinon sa description
+            const descriptionCat = introRayon(cat, language) || texte(cat, 'description', language);
             return (
               <Link
                 key={cat.id}
-                href={`/shop/categorie/${cat.slug}`}
+                href={lienRayon(cat, language)}
                 className="group relative overflow-hidden rounded-2xl bg-white border border-[#E8E4DF] hover:shadow-xl hover:-translate-y-1 transition-all duration-300 flex flex-col"
               >
                 {/* Image / gradient header */}
@@ -131,7 +134,7 @@ export default function CategoriesPage() {
                     </div>
                   </div>
                   {descriptionCat ? (
-                    <p className="text-gray-500 text-sm leading-relaxed line-clamp-2 flex-1">{descriptionCat}</p>
+                    <p className="text-gray-500 text-sm leading-relaxed line-clamp-3 flex-1">{descriptionCat}</p>
                   ) : (
                     <p className="text-gray-400 text-sm italic flex-1">{isAr ? 'اكتشف التشكيلة' : 'Découvrir la collection'}</p>
                   )}
@@ -155,7 +158,7 @@ export default function CategoriesPage() {
         <p className="text-gray-500 text-sm mb-4">{isAr ? 'تبحث عن منتج معيّن؟' : 'Vous cherchez un produit spécifique ?'}</p>
         <div className="flex flex-col sm:flex-row gap-3 justify-center">
           <Link
-            href="/shop/boutique"
+            href={lienPage('/shop/boutique', language)}
             className="inline-flex items-center justify-center gap-2 px-6 py-3 rounded-xl bg-[#C8102E] text-white font-semibold text-sm hover:bg-[#a00d25] transition-colors"
           >
             {t('all_products')}

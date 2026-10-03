@@ -8,12 +8,14 @@
 import React from 'react';
 import { Send } from 'lucide-react';
 import { useLanguage } from '@/contexts/language-context';
-import { lienProduit } from '@/lib/shop-variantes';
+import { lienComplet, lienProduit } from '@/lib/liens-boutique';
+import type { ShopProduct } from '@/lib/shop-types';
 
-export default function PartagerProduit({ id, nom }: { id: string; nom: string }) {
+// produit : son identifiant et son nom français (l'adresse lisible) ; nom : celui affiché
+export default function PartagerProduit({ produit, nom }: { produit: Pick<ShopProduct, 'id' | 'name'>; nom: string }) {
   const { language } = useLanguage();
   const ar = language === 'ar';
-  const lien = lienProduit(id);
+  const lien = lienComplet(lienProduit(produit, language));
   const texte = ar ? `شاهد هذا المنتج عند LEBTEX: ${nom}` : `Regarde ce produit chez LEBTEX : ${nom}`;
   const lienWhatsApp = `https://wa.me/?text=${encodeURIComponent(`${texte}\n${lien}`)}`;
 

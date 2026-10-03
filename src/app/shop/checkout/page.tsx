@@ -42,6 +42,7 @@ import {
   summarizeCartProduct,
 } from "@/contexts/shop-cart-context";
 import { useLanguage } from "@/contexts/language-context";
+import { lienPage } from "@/lib/liens-boutique";
 import { useShopProducts } from "@/contexts/shop-products-context";
 import {
   formatPrice,
@@ -92,6 +93,7 @@ import {
   type CoordonneesClient,
 } from "@/lib/coordonnees-client";
 import { PLAFOND_ESPECES_COLIS } from "@/lib/commandes-boutique";
+import { effacerMesCommandes, enregistrerCommande } from "@/lib/mes-commandes";
 import { useReglagesReception } from "@/lib/use-reglages-reception";
 import type { ReglagesReception } from "@/lib/reglages-reception";
 import type {
@@ -731,6 +733,8 @@ interface EnvoiCommande {
   id: string;
   numero: string;
   telephone: string;
+  /** Total enregistré dans la commande : gardé dans « Mes commandes sur ce téléphone ». */
+  total: number;
   promesse: Promise<void>;
   fini: "non" | "ok" | "refus";
   erreur?: unknown;
@@ -986,7 +990,7 @@ export default function CheckoutPage() {
   // Panier vraiment vide (une fois relu du navigateur) : retour au panier.
   useEffect(() => {
     if (charge && items.length === 0 && !orderSuccess) {
-      router.replace("/shop/panier");
+      router.replace(lienPage("/shop/panier", language));
     }
   }, [charge, items.length, router, orderSuccess]);
 
@@ -1014,6 +1018,8 @@ export default function CheckoutPage() {
       localStorage.removeItem("lebtex_last_order_id");
       localStorage.removeItem("lebtex_last_order_number");
     } catch { /* navigation privée : rien n'était gardé */ }
+    // … et « Mes commandes sur ce téléphone » (/shop/suivi) : les commandes restent chez LEBTEX.
+    effacerMesCommandes();
     setSouvenir(null);
     aGarder.current = null;
     envoiPrevu.current = {};
@@ -1030,9 +1036,13 @@ export default function CheckoutPage() {
 
   /** La commande est chez nous : une seule fois par page, quel que soit le chemin qui y mène. */
   const reussir = useCallback(
-    (envoi: Pick<EnvoiCommande, "id" | "numero" | "telephone">) => {
+    (envoi: Pick<EnvoiCommande, "id" | "numero" | "telephone" | "total">) => {
       if (terminee.current || !monte.current) return;
       terminee.current = true;
+
+      // « Mes commandes sur ce téléphone » (/shop/suivi), 20 dernières. Avant les clés
+      // ci-dessous : la dernière commande d'avant cette liste y entre aussi. Jamais bloquant.
+      enregistrerCommande({ id: envoi.id, numero: envoi.numero, date: Date.now(), total: envoi.total });
 
       // Save customer info for auto-tracking on suivi page
       // Isolated try/catch: localStorage failure must NOT crash the checkout
@@ -1063,7 +1073,7 @@ export default function CheckoutPage() {
       // If we clearCart first, items.length === 0 causes the component to unmount before navigation
       setOrderSuccess(true);
       clearCart();
-      router.push(`/shop/confirmation/${envoi.id}`);
+      router.push(lienPage(`/shop/confirmation/${envoi.id}`, language));
     },
     [clearCart, router]
   );
@@ -1163,7 +1173,7 @@ export default function CheckoutPage() {
           if (!monte.current || terminee.current) return;
           const suite = suiteRenvoi(existe, memeEnvoi(prevu, signature));
           if (suite === "deja-la") {
-            return reussir({ id: idCommande, numero: numeroCommande ?? "", telephone: contenu.customerPhone });
+            return reussir({ id: idCommande, numero: numeroCommande ?? "", telephone: contenu.customerPhone, total: contenu.total });
           }
           // Une autre commande (déjà arrivée, ou peut-être) : celle-ci en est une nouvelle.
           // La même, sans réponse du serveur : renvoyée sous le même identifiant ; si elle est
@@ -1189,6 +1199,7 @@ export default function CheckoutPage() {
           id: idCommande,
           numero: numeroCommande,
           telephone: contenu.customerPhone,
+          total: contenu.total,
           promesse,
           fini: "non",
         };
@@ -1329,7 +1340,7 @@ export default function CheckoutPage() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 min-h-[64px] py-2 flex items-center justify-between gap-3">
           <div className="flex items-center gap-2 sm:gap-3 min-w-0">
             <Link
-              href="/shop/panier"
+              href={lienPage("/shop/panier", language)}
               aria-label={ar ? "العودة إلى السلة" : "Retour au panier"}
               className="-ms-2 inline-flex min-h-[44px] min-w-[44px] items-center justify-center gap-2 rounded-xl px-2 text-sm text-[#6B6B6B] hover:text-[#C8102E] transition-colors"
             >
@@ -1939,17 +1950,17 @@ export default function CheckoutPage() {
                   {ar ? (
                     <>
                       بتأكيد طلبك، فأنت توافق على{" "}
-                      <Link href="/shop/conditions" className="text-[#C8102E] underline hover:no-underline">شروط البيع</Link>{" "}
+                      <Link href={lienPage("/shop/conditions", language)} className="text-[#C8102E] underline hover:no-underline">شروط البيع</Link>{" "}
                       و
-                      <Link href="/shop/confidentialite" className="text-[#C8102E] underline hover:no-underline">سياسة الخصوصية</Link>{" "}
+                      <Link href={lienPage("/shop/confidentialite", language)} className="text-[#C8102E] underline hover:no-underline">سياسة الخصوصية</Link>{" "}
                       لدينا.
                     </>
                   ) : (
                     <>
                       En confirmant, vous acceptez nos{" "}
-                      <Link href="/shop/conditions" className="text-[#C8102E] underline hover:no-underline">conditions de vente</Link>{" "}
+                      <Link href={lienPage("/shop/conditions", language)} className="text-[#C8102E] underline hover:no-underline">conditions de vente</Link>{" "}
                       et notre{" "}
-                      <Link href="/shop/confidentialite" className="text-[#C8102E] underline hover:no-underline">politique de confidentialité</Link>.
+                      <Link href={lienPage("/shop/confidentialite", language)} className="text-[#C8102E] underline hover:no-underline">politique de confidentialité</Link>.
                     </>
                   )}
                 </p>
@@ -1960,12 +1971,12 @@ export default function CheckoutPage() {
                     {ar ? (
                       <>
                         طلب آمن · {paiement === "carte" ? "الدفع بالبطاقة" : "لا تدفع شيئاً الآن"} ·{" "}
-                        <Link href="/shop/conditions" className="underline hover:text-[#C8102E]">إرجاع خلال 14 يوماً (ما عدا القماش المقصوص)</Link>
+                        <Link href={lienPage("/shop/conditions", language)} className="underline hover:text-[#C8102E]">إرجاع خلال 14 يوماً (ما عدا القماش المقصوص)</Link>
                       </>
                     ) : (
                       <>
                         Commande sécurisée · {paiement === "carte" ? "Paiement par carte" : "Rien à payer maintenant"} ·{" "}
-                        <Link href="/shop/conditions" className="underline hover:text-[#C8102E]">Retour sous 14 jours (sauf tissu coupé)</Link>
+                        <Link href={lienPage("/shop/conditions", language)} className="underline hover:text-[#C8102E]">Retour sous 14 jours (sauf tissu coupé)</Link>
                       </>
                     )}
                   </p>

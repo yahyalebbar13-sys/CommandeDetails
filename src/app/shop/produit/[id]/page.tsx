@@ -3,13 +3,13 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import Link from 'next/link';
 import ProductCard from '@/components/shop/ProductCard';
 import {
-  Heart,
   Sparkles,
   ChevronRight,
   ArrowLeft,
   FileText,
 } from 'lucide-react';
 import ChoixVariante from '@/components/shop/ChoixVariante';
+import CoeurMaListe from '@/components/shop/CoeurMaListe';
 import GaleriePhotos from '@/components/shop/GaleriePhotos';
 import MemeRayon, { produitsDuMemeRayon } from '@/components/shop/MemeRayon';
 import PartagerProduit from '@/components/shop/PartagerProduit';
@@ -21,6 +21,8 @@ import type { ProductVariant, ShopProduct } from '@/lib/shop-types';
 import { nomCategorieProduit, nomProduit, paire, premierTexte, texte, texteFiche } from '@/lib/shop-textes';
 import { libelleModele, libelleTaille } from '@/lib/shop-variantes';
 import { estNouveau } from '@/lib/shop-utils';
+import { trouverRayon } from '@/lib/catalogue-boutique';
+import { idDepuisParametre, lienPage, lienRayon } from '@/lib/liens-boutique';
 
 type OngletFiche = 'description' | 'applications' | 'avantages' | 'entretien' | 'commercial';
 
@@ -33,7 +35,8 @@ function sensDuTexte(valeur: string): 'rtl' | 'ltr' {
 // ─── Main Product Page Component ─────────────────────────────────────────────
 export default function ProductPage({ params }: { params: Promise<{ id: string }> }) {
   const { language } = useLanguage();
-  const { id } = React.use(params);
+  // Adresse lisible « nom-jeton » (ou ancien identifiant brut) → identifiant du produit
+  const id = idDepuisParametre(React.use(params).id);
   const { products, categories, getProductById: ctxGetById, isLoading } = useShopProducts();
 
   const [directProduct, setDirectProduct] = useState<any>(null);
@@ -66,7 +69,6 @@ export default function ProductPage({ params }: { params: Promise<{ id: string }
   // Variante retenue par le sélecteur (null tant que le choix n'est pas complet)
   const [activeVariant, setActiveVariant] = useState<ProductVariant | null>(null);
   const [mainImg, setMainImg] = useState(0);
-  const [wished, setWished] = useState(false);
   const [exploreProducts, setExploreProducts] = useState<ShopProduct[]>([]);
   const [exploreVisibleCount, setExploreVisibleCount] = useState(24);
   const exploreObserverRef = useRef<HTMLDivElement>(null);
@@ -157,7 +159,7 @@ export default function ProductPage({ params }: { params: Promise<{ id: string }
           <p className="text-neutral-500 text-xs mb-6">
             {language === 'ar' ? 'هذا المنتج غير متوفر أو تم حذفه.' : "Le produit demandé n'existe pas ou a été déplacé."}
           </p>
-          <Link href="/shop/boutique" className="px-5 py-2.5 bg-neutral-900 text-white rounded-xl text-xs font-bold hover:bg-black transition-colors">
+          <Link href={lienPage('/shop/boutique', language)} className="px-5 py-2.5 bg-neutral-900 text-white rounded-xl text-xs font-bold hover:bg-black transition-colors">
             {language === 'ar' ? 'العودة للمتجر' : 'Retour à la boutique'}
           </Link>
         </div>
@@ -245,6 +247,9 @@ export default function ProductPage({ params }: { params: Promise<{ id: string }
 
   const nom = nomProduit(product, language);
   const nomCategorie = nomCategorieProduit(product, categories, language);
+  // Lien du rayon du produit ; rayon masqué ou introuvable : la liste des rayons
+  const rayonDuProduit = trouverRayon(categories, product.categorySlug);
+  const lienDuRayon = rayonDuProduit ? lienRayon(rayonDuProduit, language) : lienPage('/shop/categories', language);
 
   // Galerie : photos du produit, suivies des photos propres aux variantes
   const galleryImages: string[] = Array.from(
@@ -275,23 +280,18 @@ export default function ProductPage({ params }: { params: Promise<{ id: string }
             >
               <ArrowLeft className="w-3.5 h-3.5 rtl:rotate-180" />
             </button>
-            <Link href="/shop" className="hover:text-neutral-900 transition-colors whitespace-nowrap">{language === 'ar' ? 'الرئيسية' : 'Accueil'}</Link>
+            <Link href={lienPage('/shop', language)} className="hover:text-neutral-900 transition-colors whitespace-nowrap">{language === 'ar' ? 'الرئيسية' : 'Accueil'}</Link>
             <ChevronRight className="w-3 h-3 text-neutral-300 flex-shrink-0 rtl:rotate-180" />
-            <Link href="/shop/boutique" className="hover:text-neutral-900 transition-colors whitespace-nowrap">{language === 'ar' ? 'المتجر' : 'Boutique'}</Link>
+            <Link href={lienPage('/shop/boutique', language)} className="hover:text-neutral-900 transition-colors whitespace-nowrap">{language === 'ar' ? 'المتجر' : 'Boutique'}</Link>
             <ChevronRight className="w-3 h-3 text-neutral-300 flex-shrink-0 rtl:rotate-180" />
-            <Link href={`/shop/categorie/${product.categorySlug}`} className="hover:text-neutral-900 transition-colors whitespace-nowrap font-medium text-neutral-700">
+            <Link href={lienDuRayon} className="hover:text-neutral-900 transition-colors whitespace-nowrap font-medium text-neutral-700">
               <bdi dir={sensDuTexte(nomCategorie)}>{nomCategorie}</bdi>
             </Link>
           </div>
 
           <div className="hidden sm:flex items-center gap-3">
-            <button
-              onClick={() => setWished(!wished)}
-              aria-label={language === 'ar' ? 'المفضلة' : 'Favoris'}
-              className={`p-1.5 rounded-full border transition-colors cursor-pointer ${wished ? 'bg-rose-50 border-rose-200 text-[#C8102E]' : 'border-neutral-200 text-neutral-400 hover:text-neutral-900 hover:bg-white'}`}
-            >
-              <Heart className={`w-4 h-4 ${wished ? 'fill-current' : ''}`} />
-            </button>
+            {/* Cœur « Ma liste » : garde le produit sur ce téléphone (lib/ma-liste) */}
+            <CoeurMaListe productId={product.id} apparence="bordure" className="w-8 h-8" />
           </div>
         </div>
       </div>
@@ -312,13 +312,7 @@ export default function ProductPage({ params }: { params: Promise<{ id: string }
                   )}
                 </div>
 
-                <button 
-                  onClick={() => setWished(!wished)} 
-                  aria-label={language === 'ar' ? 'أضف إلى المفضلة' : 'Ajouter aux favoris'}
-                  className="sm:hidden absolute top-4 right-4 w-9 h-9 rounded-full bg-white/90 backdrop-blur-xs flex items-center justify-center text-neutral-600 shadow-sm cursor-pointer"
-                >
-                  <Heart className={`w-4 h-4 ${wished ? 'fill-[#C8102E] text-[#C8102E]' : ''}`} />
-                </button>
+                <CoeurMaListe productId={product.id} className="sm:hidden absolute top-4 right-4 w-10 h-10 backdrop-blur-xs" />
               </GaleriePhotos>
             </div>
           </div>
@@ -327,8 +321,8 @@ export default function ProductPage({ params }: { params: Promise<{ id: string }
           <div className="lg:col-span-6 flex flex-col justify-between">
             <div>
               {/* Category */}
-              <Link 
-                href={`/shop/categorie/${product.categorySlug}`}
+              <Link
+                href={lienDuRayon}
                 className="text-xs font-bold uppercase tracking-widest text-[#C8102E] hover:underline mb-1.5 inline-block"
               >
                 <bdi dir={sensDuTexte(nomCategorie)}>{nomCategorie}</bdi>
@@ -358,7 +352,7 @@ export default function ProductPage({ params }: { params: Promise<{ id: string }
 
               {/* ── Envoyer la fiche à un collègue (WhatsApp ou partage du téléphone) ── */}
               <div className="mt-2">
-                <PartagerProduit id={product.id} nom={nom} />
+                <PartagerProduit produit={product} nom={nom} />
               </div>
 
               {/* Plus de frais de livraison sur la fiche (02/10/2026) : ils s'affichent au panier et à la commande */}
@@ -430,7 +424,7 @@ export default function ProductPage({ params }: { params: Promise<{ id: string }
         )}
 
         {/* ── Du même rayon : vrais liens, dans le HTML du serveur ── */}
-        <MemeRayon produits={memeRayon} lienRayon={`/shop/categorie/${product.categorySlug}`} />
+        <MemeRayon produits={memeRayon} lienRayon={lienDuRayon} />
 
         {/* ── Temu-Style: Explorer vos centres d'intérêt ── */}
         {exploreProducts.length > 0 && (
@@ -457,8 +451,8 @@ export default function ProductPage({ params }: { params: Promise<{ id: string }
                 <span className="text-xs font-bold text-neutral-500 bg-neutral-100 px-3 py-1 rounded-full">
                   {exploreProducts.length} {language === 'ar' ? 'منتج' : 'produits'}
                 </span>
-                <Link 
-                  href="/shop/boutique"
+                <Link
+                  href={lienPage('/shop/boutique', language)}
                   className="inline-flex items-center gap-1.5 text-xs font-bold text-[#C8102E] hover:text-[#a00d25] px-3.5 py-1.5 rounded-xl border border-[#C8102E]/20 hover:border-[#C8102E] transition-all cursor-pointer touch-manipulation"
                 >
                   <span>{language === 'ar' ? 'عرض الكتالوج كاملاً ←' : 'Tout le catalogue →'}</span>

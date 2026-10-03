@@ -1,20 +1,12 @@
 import type { Metadata } from 'next';
-import { ShopCartProvider } from '@/contexts/shop-cart-context';
-import { ShopProductsProvider } from '@/contexts/shop-products-context';
-import { LanguageProvider } from '@/contexts/language-context';
-import ShopHeader from '@/components/shop/ShopHeader';
-import ShopFooter from '@/components/shop/ShopFooter';
-import CartDrawer from '@/components/shop/CartDrawer';
-import LocalBusinessSchema from '@/components/shop/LocalBusinessSchema';
-import ChoixLangueAccueil from '@/components/shop/ChoixLangueAccueil';
-import CaptureProvenance from '@/components/shop/CaptureProvenance';
-import CompteurEvenements from '@/components/shop/CompteurEvenements';
+import CoqueBoutique from '@/components/shop/CoqueBoutique';
 import { IMAGE_PARTAGE, SITE_URL } from '@/lib/catalogue-serveur';
 
 // Étiquettes par défaut de la boutique. Chaque page a les siennes (layout.tsx de son
 // dossier) : titre complet « … | LEBTEX », description, adresse canonique. Rien ici
 // ne doit faire croire à Google que toutes les pages sont l'accueil : pas d'adresse
-// canonique, de hreflang ni d'openGraph.url communs (une vraie version /ar viendra plus tard).
+// canonique, de hreflang ni d'openGraph.url communs (chaque page déclare les siens, avec sa
+// version arabe /ar/shop/… : src/app/ar).
 // Pas de modèle de titre « %s | LEBTEX » : conditions, confidentialité et livraison
 // écrivent déjà « | LEBTEX » dans le titre de leur page, il serait doublé.
 export const metadata: Metadata = {
@@ -65,27 +57,7 @@ export const metadata: Metadata = {
   // Search Console : ajouter ici verification: { google: '<code>' } le jour où on l'a
 };
 
+// La coque (fournisseurs, en-tête, pied de page) est partagée avec la version arabe (src/app/ar)
 export default function ShopLayout({ children }: { children: React.ReactNode }) {
-  return (
-    <LanguageProvider>
-      <ShopProductsProvider masquerSansPrix>
-        <ShopCartProvider>
-          <LocalBusinessSchema />
-          <div
-            className="min-h-screen flex flex-col"
-            style={{ fontFamily: "'Inter', sans-serif", background: '#FBF8F3' }}
-          >
-            <ShopHeader />
-            <CartDrawer />
-            <ChoixLangueAccueil />
-            <CaptureProvenance />
-            <CompteurEvenements />
-            <main className="flex-grow pb-16 lg:pb-0">{children}</main>
-            <ShopFooter />
-          </div>
-        </ShopCartProvider>
-      </ShopProductsProvider>
-    </LanguageProvider>
-  );
+  return <CoqueBoutique>{children}</CoqueBoutique>;
 }
-

@@ -2,35 +2,15 @@
 
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { X } from "lucide-react";
-import { useLanguage } from "@/contexts/language-context";
+import { langueDejaProposee, langueEnregistree, marquerLangueProposee, useLanguage } from "@/contexts/language-context";
 import { useShopCartState } from "@/contexts/shop-cart-context";
 import type { Language } from "@/lib/translations";
-
-const CLE_PROPOSEE = "lebtex_langue_proposee";
-
-// Si le navigateur refuse le stockage, la carte ne revient pas avant le prochain chargement complet
-let fermeeCetteSession = false;
-
-function lire(cle: string): string | null {
-  try {
-    return window.localStorage.getItem(cle);
-  } catch {
-    return null;
-  }
-}
-
-function marquerProposee() {
-  fermeeCetteSession = true;
-  try {
-    window.localStorage.setItem(CLE_PROPOSEE, "1");
-  } catch {
-    // stockage bloqué : rien à faire
-  }
-}
 
 /**
  * Petite carte d'accueil, une seule fois par navigateur, pour choisir la langue.
  * Toujours écrite dans les deux langues : on ne sait pas encore laquelle le client lit.
+ * Choisir ouvre la même page dans cette langue (/shop/… ↔ /ar/shop/…, language-context).
+ * Une langue déjà choisie par le bouton de l'en-tête vaut réponse : la carte ne vient plus.
  */
 export default function ChoixLangueAccueil() {
   const { language, setLanguage } = useLanguage();
@@ -40,18 +20,18 @@ export default function ChoixLangueAccueil() {
   const langueALOuverture = useRef<Language | null>(null);
 
   useEffect(() => {
-    if (fermeeCetteSession || lire(CLE_PROPOSEE)) return;
+    if (langueDejaProposee()) return;
     const minuteur = window.setTimeout(() => {
+      if (langueDejaProposee()) return;
       // Première visite d'un navigateur réglé en arabe : on met العربية en avant, sans rien changer
-      const aucunChoix = !lire("shop_language");
-      setSuggereArabe(aucunChoix && /^ar\b/i.test(navigator.language || ""));
+      setSuggereArabe(!langueEnregistree() && /^ar\b/i.test(navigator.language || ""));
       setOuverte(true);
     }, 700);
     return () => window.clearTimeout(minuteur);
   }, []);
 
   const fermer = useCallback(() => {
-    marquerProposee();
+    marquerLangueProposee();
     setOuverte(false);
   }, []);
 

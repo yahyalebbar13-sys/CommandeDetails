@@ -3,6 +3,7 @@
 // doublons écartés, libellés FR / AR, combinaisons possibles, prix (ou « Prix sur demande ») et ligne de panier.
 // Ce fichier n'importe pas shop-utils (qui l'importe) pour éviter un cycle.
 
+import { lienComplet, lienProduit } from './liens-boutique';
 import type { CartItem, ProductVariant, ShopProduct } from './shop-types';
 import type { Language } from './translations';
 
@@ -378,22 +379,16 @@ export function prixVarientDansBloc(analyse: AnalyseVariantes, prixProduit: numb
 
 export const PRIX_SUR_DEMANDE: Record<Language, string> = { fr: 'Prix sur demande', ar: 'السعر عند الطلب' };
 
-const LIEN_SITE = 'https://www.lebtex.ma';
-
-export function lienProduit(id: string): string {
-  return `${LIEN_SITE}/shop/produit/${id}`;
-}
-
 // Aucun prix nulle part : ni sur le produit, ni sur une variante achetable
 export function sansPrix(product: Pick<ShopProduct, 'price' | 'variants'>): boolean {
   return prixProduitAffiche(product).montant <= 0;
 }
 
 // Message WhatsApp prérempli, toujours en français (il est lu par l'équipe) :
-// le produit, le choix fait s'il y en a un, et le lien de la fiche
+// le produit, le choix fait s'il y en a un, et le lien lisible de la fiche (lib/liens-boutique)
 export function messageDemandePrix(product: Pick<ShopProduct, 'id' | 'name'>, choix?: string): string {
   const article = choix ? `${product.name} — ${choix}` : product.name;
-  return `Bonjour LEBTEX, je voudrais connaître le prix de : ${article}\n${lienProduit(product.id)}`;
+  return `Bonjour LEBTEX, je voudrais connaître le prix de : ${article}\n${lienComplet(lienProduit(product))}`;
 }
 
 export type EtatStock = 'en_stock' | 'limite' | 'sur_commande';

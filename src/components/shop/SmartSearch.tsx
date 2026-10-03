@@ -11,6 +11,7 @@ import { sansPrix, PRIX_SUR_DEMANDE } from '@/lib/shop-variantes';
 import type { ShopCategory } from '@/lib/shop-types';
 import { nomProduit, texte } from '@/lib/shop-textes';
 import { chercherProduits, chercherRayons, indexerProduits } from '@/lib/recherche-boutique';
+import { lienPage, lienProduit, lienRayon } from '@/lib/liens-boutique';
 
 // ─── Blur placeholder ─────────────────────────────────────────────────────────
 const BLUR =
@@ -102,11 +103,11 @@ export default function SmartSearch({ variant = 'desktop', onNavigate, autoFocus
   const allItems = useMemo(() => {
     const items: { type: 'category' | 'product' | 'recent' | 'search'; url: string; label: string }[] = [];
     if (q.length >= 2) {
-      matchedCategories.forEach(c => items.push({ type: 'category', url: `/shop/categorie/${c.slug}`, label: nomCategorie(c) }));
-      matchedProducts.forEach(p => items.push({ type: 'product', url: `/shop/produit/${p.id}`, label: nomProduit(p, language) }));
-      if (q.length > 0) items.push({ type: 'search', url: `/shop/boutique?q=${encodeURIComponent(q)}`, label: q });
+      matchedCategories.forEach(c => items.push({ type: 'category', url: lienRayon(c, language), label: nomCategorie(c) }));
+      matchedProducts.forEach(p => items.push({ type: 'product', url: lienProduit(p, language), label: nomProduit(p, language) }));
+      if (q.length > 0) items.push({ type: 'search', url: lienPage(`/shop/boutique?q=${encodeURIComponent(q)}`, language), label: q });
     } else {
-      recentSearches.forEach(s => items.push({ type: 'recent', url: `/shop/boutique?q=${encodeURIComponent(s)}`, label: s }));
+      recentSearches.forEach(s => items.push({ type: 'recent', url: lienPage(`/shop/boutique?q=${encodeURIComponent(s)}`, language), label: s }));
     }
     return items;
   }, [q, matchedCategories, matchedProducts, recentSearches, nomCategorie, language]);
@@ -122,9 +123,9 @@ export default function SmartSearch({ variant = 'desktop', onNavigate, autoFocus
   const handleSubmit = useCallback((e: React.FormEvent) => {
     e.preventDefault();
     if (query.trim()) {
-      navigate(`/shop/boutique?q=${encodeURIComponent(query.trim())}`, query.trim());
+      navigate(lienPage(`/shop/boutique?q=${encodeURIComponent(query.trim())}`, language), query.trim());
     }
-  }, [query, navigate]);
+  }, [query, navigate, language]);
 
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
     if (!showDropdown) return;
@@ -220,7 +221,7 @@ export default function SmartSearch({ variant = 'desktop', onNavigate, autoFocus
               {recentSearches.map((s, i) => (
                 <button
                   key={s}
-                  onClick={() => navigate(`/shop/boutique?q=${encodeURIComponent(s)}`, s)}
+                  onClick={() => navigate(lienPage(`/shop/boutique?q=${encodeURIComponent(s)}`, language), s)}
                   className={`w-full flex items-center gap-2.5 px-3 py-2 text-sm text-gray-600 rounded-lg transition-colors cursor-pointer text-start ${
                     selectedIndex === i ? 'bg-gray-100' : 'hover:bg-gray-50'
                   }`}
@@ -244,7 +245,7 @@ export default function SmartSearch({ variant = 'desktop', onNavigate, autoFocus
                   {matchedCategories.map((cat, i) => (
                     <button
                       key={cat.id}
-                      onClick={() => navigate(`/shop/categorie/${cat.slug}`, nomCategorie(cat))}
+                      onClick={() => navigate(lienRayon(cat, language), nomCategorie(cat))}
                       className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-colors cursor-pointer text-start ${
                         selectedIndex === i ? 'bg-gray-100' : 'hover:bg-gray-50'
                       }`}
@@ -274,7 +275,7 @@ export default function SmartSearch({ variant = 'desktop', onNavigate, autoFocus
                     return (
                       <button
                         key={product.id}
-                        onClick={() => navigate(`/shop/produit/${product.id}`, nomProduit(product, language))}
+                        onClick={() => navigate(lienProduit(product, language), nomProduit(product, language))}
                         className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-colors cursor-pointer text-start ${
                           selectedIndex === idx ? 'bg-gray-100' : 'hover:bg-gray-50'
                         }`}
@@ -317,7 +318,7 @@ export default function SmartSearch({ variant = 'desktop', onNavigate, autoFocus
               {/* See all results link */}
               {q.length > 0 && (
                 <button
-                  onClick={() => navigate(`/shop/boutique?q=${encodeURIComponent(q)}`, q)}
+                  onClick={() => navigate(lienPage(`/shop/boutique?q=${encodeURIComponent(q)}`, language), q)}
                   className={`w-full flex items-center justify-center gap-2 px-4 py-3 text-sm font-semibold border-t border-gray-100 transition-colors cursor-pointer ${
                     selectedIndex === allItems.length - 1 ? 'bg-red-50 text-[#C8102E]' : 'text-[#C8102E] hover:bg-red-50'
                   }`}

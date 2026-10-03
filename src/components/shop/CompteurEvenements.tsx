@@ -9,16 +9,18 @@
 import { useEffect, useRef } from "react";
 import { usePathname } from "next/navigation";
 import { compter, estLienWhatsApp, evenementDuChemin } from "@/lib/compteurs-boutique";
+import { cheminFrancais } from "@/lib/liens-boutique";
+
+// Dernier chemin compté, gardé hors du composant : passer de /shop à /ar remonte la coque
+let dernierChemin: string | null = null;
 
 export default function CompteurEvenements() {
   const chemin = usePathname();
-  // Dernier chemin compté : une page n'est comptée qu'une fois par arrivée
-  const dernier = useRef<string | null>(null);
-
   useEffect(() => {
-    if (!chemin || chemin === dernier.current) return;
-    dernier.current = chemin;
-    const evenement = evenementDuChemin(chemin);
+    const francais = chemin ? cheminFrancais(chemin) : null;
+    if (!francais || francais === dernierChemin) return;
+    dernierChemin = francais;
+    const evenement = evenementDuChemin(francais);
     if (evenement) compter(evenement);
   }, [chemin]);
 

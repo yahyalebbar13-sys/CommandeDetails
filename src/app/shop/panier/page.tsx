@@ -30,6 +30,7 @@ import {
 import { useLanguage } from "@/contexts/language-context";
 import { useShopProducts } from "@/contexts/shop-products-context";
 import { lienWhatsAppPanier } from "@/lib/whatsapp-panier";
+import { lienPage, lienProduit } from "@/lib/liens-boutique";
 import { paire, premierTexte } from "@/lib/shop-textes";
 import { libelleCouleur, libelleModele, libelleTaille, PRIX_A_CONFIRMER } from "@/lib/shop-variantes";
 import {
@@ -193,7 +194,8 @@ function CartProductGroup({
   const name =
     premierTexte(language, { fr: first.productName, ar: first.productNameAr }, paire(getProductById(productId), "name")) ||
     first.productName;
-  const productHref = `/shop/produit/${productId}`;
+  // Adresse lisible : le nom du catalogue, sinon le nom copié à l'ajout (le jeton suffit à la fiche)
+  const productHref = lienProduit({ id: productId, name: getProductById(productId)?.name || first.productName }, language);
   const isSimple = items.length === 1 && !first.variant;
   const { total, minUnit, maxUnit } = summarizeCartProduct(items, productTotalQty);
   const standardLabel = language === "ar" ? "قياسي" : "Standard";
@@ -463,7 +465,7 @@ function CartProductGroup({
 
 // ─── Empty Cart ──────────────────────────────────────────────────────────────
 function EmptyCart() {
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
   return (
     <div className="min-h-screen bg-[#FBF8F3] flex items-center justify-center px-4">
       <div className="text-center max-w-md">
@@ -485,7 +487,7 @@ function EmptyCart() {
         </p>
 
         <Link
-          href="/shop/categories"
+          href={lienPage("/shop/categories", language)}
           className="inline-flex items-center gap-2 px-8 py-4 bg-[#C8102E] hover:bg-[#a00d25] text-white font-semibold rounded-2xl transition-all duration-200 shadow-lg shadow-[#C8102E]/20 hover:shadow-xl hover:shadow-[#C8102E]/30 hover:-translate-y-0.5 shop-btn-press"
         >
           <ShoppingBag className="w-5 h-5" />
@@ -546,7 +548,7 @@ export default function PanierPage() {
         <div className="flex flex-wrap items-end justify-between gap-4 mb-6">
           <div>
             <Link
-              href="/shop/boutique"
+              href={lienPage("/shop/boutique", language)}
               className="inline-flex items-center gap-1.5 text-sm text-[#6B6B6B] hover:text-[#C8102E] transition-colors"
             >
               <ArrowLeft className="w-4 h-4 rtl:rotate-180" />
@@ -621,7 +623,7 @@ export default function PanierPage() {
             ))}
 
             <Link
-              href="/shop/boutique"
+              href={lienPage("/shop/boutique", language)}
               className="flex items-center justify-center gap-1.5 py-3 rounded-2xl border border-dashed border-[#E8E4DF] text-sm font-medium text-[#6B6B6B] hover:text-[#C8102E] hover:border-[#C8102E]/30 hover:bg-white transition-all"
             >
               <Plus className="w-4 h-4" />
@@ -688,7 +690,7 @@ export default function PanierPage() {
 
                 {/* Checkout Button */}
                 <Link
-                  href="/shop/checkout"
+                  href={lienPage("/shop/checkout", language)}
                   className="w-full py-4 bg-[#C8102E] text-white font-bold rounded-xl flex items-center justify-center gap-2 hover:bg-[#a00d25] transition-all shadow-lg shadow-[#C8102E]/20 hover:shadow-[#C8102E]/30 hover:-translate-y-0.5 shop-btn-press"
                 >
                   <ShoppingBag className="w-5 h-5" />
@@ -753,7 +755,7 @@ export default function PanierPage() {
             </p>
           </div>
           <Link
-            href="/shop/checkout"
+            href={lienPage("/shop/checkout", language)}
             className="ms-auto flex-shrink-0 inline-flex items-center gap-1 px-5 py-3 bg-[#C8102E] hover:bg-[#a00d25] text-white text-sm font-bold rounded-xl shadow-lg shadow-[#C8102E]/20 transition-colors shop-btn-press"
           >
             {t('checkout')}

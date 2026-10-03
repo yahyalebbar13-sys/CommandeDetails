@@ -23,6 +23,7 @@ import { FRAIS_ZONE } from '@/lib/livraison-boutique';
 import type { ShopCategory, ShopProduct } from '@/lib/shop-types';
 import { texte } from '@/lib/shop-textes';
 import { sansPrix } from '@/lib/shop-variantes';
+import { lienPage, lienRayon } from '@/lib/liens-boutique';
 import ProductCard from '@/components/shop/ProductCard';
 import { melangerProduits, useGraineMelange } from '@/lib/melange-produits';
 import { useLanguage } from '@/contexts/language-context';
@@ -310,7 +311,7 @@ export default function AccueilBoutique() {
             </p>
             <div className="mt-4 flex flex-col sm:flex-row gap-2.5">
               <Link
-                href="/shop/boutique"
+                href={lienPage('/shop/boutique', language)}
                 className="inline-flex items-center justify-center gap-2 min-h-[44px] px-5 py-2.5 rounded-xl bg-[#C8102E] hover:bg-[#a00d25] text-white font-bold text-sm shadow-lg touch-manipulation"
               >
                 {isAr ? 'تصفح المتجر' : 'Voir la boutique'} <ArrowRight className="w-4 h-4 rtl:rotate-180" />
@@ -357,7 +358,7 @@ export default function AccueilBoutique() {
             return (
               <Link
                 key={cat.id}
-                href={`/shop/categorie/${cat.slug}`}
+                href={lienRayon(cat, language)}
                 className="flex flex-col items-center gap-1.5 flex-shrink-0 snap-start group touch-manipulation"
                 style={{ minWidth: '72px' }}
               >
@@ -408,7 +409,7 @@ export default function AccueilBoutique() {
                     : `Jusqu'à -${vitrines.remiseMax} %`
                   : undefined
               }
-              href="/shop/promotions"
+              href={lienPage('/shop/promotions', language)}
               linkLabel={isAr ? 'كل العروض' : 'Toutes les promos'}
             />
             <ProductRail products={vitrines.promotions} />
@@ -424,7 +425,7 @@ export default function AccueilBoutique() {
               icon={<Layers className="w-5 h-5 text-[#C8102E]" />}
               title={isAr ? 'السحابات' : 'Fermetures éclair'}
               subtitle={isAr ? 'نايلون، بلاستيك، معدن — بالحزمة وباللفافة' : 'Nylon, plastique, métal — en lots et en rouleaux'}
-              href={`/shop/boutique?q=${encodeURIComponent(RECHERCHE_FERMETURES[language])}`}
+              href={lienPage(`/shop/boutique?q=${encodeURIComponent(RECHERCHE_FERMETURES[language])}`, language)}
               linkLabel={isAr ? 'عرض الكل' : 'Voir tout'}
             />
             <ProductRail products={vitrines.fermetures} />
@@ -440,7 +441,7 @@ export default function AccueilBoutique() {
               icon={<Scissors className="w-5 h-5 text-[#C8102E]" />}
               title={famille.titre[language]}
               subtitle={famille.sousTitre[language]}
-              href={`/shop/boutique?q=${encodeURIComponent(famille.recherche[language])}`}
+              href={lienPage(`/shop/boutique?q=${encodeURIComponent(famille.recherche[language])}`, language)}
               linkLabel={isAr ? 'عرض الكل' : 'Voir tout'}
             />
             <ProductRail products={produits} />
@@ -455,7 +456,7 @@ export default function AccueilBoutique() {
             <SectionHeader
               icon={<Zap className="w-5 h-5 text-[#D4A843]" />}
               title={isAr ? 'مختاراتنا' : 'Notre sélection'}
-              href="/shop/boutique"
+              href={lienPage('/shop/boutique', language)}
               linkLabel={isAr ? 'عرض الكل' : 'Voir tout'}
             />
             <ProductRail products={vitrines.selection} />
@@ -506,7 +507,7 @@ export default function AccueilBoutique() {
               icon={<LayoutGrid className="w-5 h-5 text-[#C8102E]" />}
               title={isAr ? 'كل منتجاتنا' : 'Tous nos produits'}
               subtitle={isAr ? `${tousLesProduits.length} منتج` : `${tousLesProduits.length} produits`}
-              href="/shop/boutique"
+              href={lienPage('/shop/boutique', language)}
               linkLabel={isAr ? 'المتجر' : 'Boutique'}
             />
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4">
@@ -561,7 +562,7 @@ export default function AccueilBoutique() {
 
       <div className="px-4 py-6 text-center">
         <Link
-          href="/shop/boutique"
+          href={lienPage('/shop/boutique', language)}
           className="inline-flex items-center gap-2 min-h-[44px] px-6 py-2.5 rounded-xl border-2 border-[#C8102E] text-[#C8102E] font-bold text-sm hover:bg-[#C8102E] hover:text-white touch-manipulation"
         >
           {t('all_products')} <ArrowRight className="w-4 h-4 rtl:rotate-180" />

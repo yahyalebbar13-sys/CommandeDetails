@@ -14,6 +14,7 @@ import { useLanguage } from '@/contexts/language-context';
 import type { ShopProduct } from '@/lib/shop-types';
 import { ajoutRapide, messageDemandePrix, PRIX_SUR_DEMANDE } from '@/lib/shop-variantes';
 import { nomCategorieProduit, nomProduit } from '@/lib/shop-textes';
+import { lienPage, lienProduit } from '@/lib/liens-boutique';
 import { delaiZone, FRAIS_ZONE } from '@/lib/livraison-boutique';
 
 const PromoCard = React.memo(function PromoCard({ product }: { product: ShopProduct }) {
@@ -49,7 +50,7 @@ const PromoCard = React.memo(function PromoCard({ product }: { product: ShopProd
 
   return (
     <Link
-      href={`/shop/produit/${product.id}`}
+      href={lienProduit(product, language)}
       prefetch={false}
       className="bg-white border border-[#E8E4DF] rounded-2xl overflow-hidden shop-product-card relative group flex flex-col h-full no-underline cursor-pointer touch-manipulation"
     >
@@ -212,7 +213,7 @@ export default function PromotionsPage() {
               )}
             </p>
           </div>
-          <Link href="/shop/boutique" className="ms-auto shrink-0 px-4 py-2 bg-[#D4A843] text-white text-sm font-bold rounded-xl hover:bg-[#b8922e] transition-colors">
+          <Link href={lienPage('/shop/boutique', language)} className="ms-auto shrink-0 px-4 py-2 bg-[#D4A843] text-white text-sm font-bold rounded-xl hover:bg-[#b8922e] transition-colors">
             {isAr ? 'عرض الكل' : 'Voir tout'}
           </Link>
         </div>
@@ -238,7 +239,7 @@ export default function PromotionsPage() {
               ? 'اكتشف كتالوجنا الكامل من خردوات الخياطة ولوازم النسيج'
               : 'Découvrez notre catalogue complet de mercerie et accessoires textiles'}
           </p>
-          <Link href="/shop/boutique"
+          <Link href={lienPage('/shop/boutique', language)}
             className="inline-flex items-center gap-2 bg-[#C8102E] hover:bg-[#a00d25] text-white px-8 py-3 rounded-xl font-bold transition-colors">
             <ShoppingBag className="w-5 h-5" /> {isAr ? 'الدخول إلى المتجر' : 'Accéder à la boutique'}
           </Link>

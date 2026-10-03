@@ -1,9 +1,12 @@
 import type { Metadata } from 'next';
-import { notFound } from 'next/navigation';
+import { headers } from 'next/headers';
+import { notFound, permanentRedirect } from 'next/navigation';
 import {
-  catalogueFige, descriptionProduit, donneesProduit, etiquettesPage, filArianeProduit, imageApercu, jsonLd,
-  nettoyer, photoProduit, produitDeLaPage, titrePage, titreProduit,
+  catalogueFige, donneesProduit, etiquettesProduit, filArianeProduit, jsonLd, produitDeLaPage,
 } from '@/lib/catalogue-serveur';
+import {
+  decoderParametre, ENTETE_RECHERCHE, idDepuisParametre, lienProduit, parametreProduit, rechercheAGarder,
+} from '@/lib/liens-boutique';
 import { CompteVueProduit } from '@/components/shop/CompteurEvenements';
 
 // Fiche produit : la page elle-même est un composant client. Ce layout serveur lui donne
@@ -14,40 +17,29 @@ import { CompteVueProduit } from '@/components/shop/CompteurEvenements';
 // un prix) et le chemin « Accueil › Rayon › Produit ». Rien pour un produit masqué.
 // Compteur anonyme « fiche vue » (lib/compteurs-boutique) : seulement quand le produit est
 // trouvé, jamais pour une adresse en 404 ni quand Firestore n'a pas répondu.
+// Adresse lisible (lib/liens-boutique) : une ancienne adresse (identifiant brut) ou un nom
+// périmé redirige (308) vers /shop/produit/<nom>-<jeton> ; seul le jeton désigne le produit.
+// La recherche de l'adresse (?ref=…, ?utm_source=…) suit, si un middleware la recopie
+// dans l'en-tête ENTETE_RECHERCHE (lib/liens-boutique).
+// La version arabe (src/app/ar/shop/produit/[id]/layout.tsx) fait la même chose sous /ar.
 
 type Params = { params: Promise<{ id: string }> };
 
+// Étiquettes (lib/catalogue-serveur), avec l'adresse arabe de la fiche (hreflang)
 export async function generateMetadata({ params }: Params): Promise<Metadata> {
-  const { id } = await params;
-  const chemin = `/shop/produit/${encodeURIComponent(id)}`;
-  const trouve = await produitDeLaPage(id);
-
-  if (trouve.etat === 'absent') return { title: titrePage('Produit introuvable'), robots: { index: false, follow: true } };
-  if (trouve.etat === 'inconnu') {
-    return etiquettesPage({
-      titre: 'Produit',
-      description: 'Mercerie LEBTEX à Casablanca : livraison partout au Maroc, paiement à la livraison.',
-      chemin,
-    });
-  }
-
-  const p = trouve.produit;
-  const photo = imageApercu(photoProduit(p));
-  const etiquettes = etiquettesPage({
-    titre: titreProduit(p),
-    description: descriptionProduit(p, catalogueFige().rayons),
-    chemin,
-    ...(photo && { image: { url: photo, alt: nettoyer(p.name) } }),
-  });
-  // Produit masqué dans l'admin : la fiche reste ouverte (comme avant), mais hors de Google
-  if (trouve.etat === 'firestore' && trouve.masque) etiquettes.robots = { index: false, follow: true };
-  return etiquettes;
+  return etiquettesProduit((await params).id, 'fr');
 }
 
 export default async function ProduitLayout({ children, params }: Params & { children: React.ReactNode }) {
-  const { id } = await params;
+  const { id: parametre } = await params;
+  const id = idDepuisParametre(parametre);
   const trouve = await produitDeLaPage(id);
   if (trouve.etat === 'absent') notFound();
+  // Pas l'adresse lisible du produit : redirection permanente vers elle
+  if (trouve.etat !== 'inconnu' && decoderParametre(parametre) !== parametreProduit(trouve.produit)) {
+    const recherche = rechercheAGarder((await headers()).get(ENTETE_RECHERCHE));
+    permanentRedirect(lienProduit(trouve.produit) + recherche);
+  }
 
   const visible = trouve.etat === 'catalogue' || (trouve.etat === 'firestore' && !trouve.masque);
   const rayons = catalogueFige().rayons;

@@ -15,7 +15,7 @@ export default function CopyProtection() {
   const pathname = usePathname();
   // La boutique (« / » est réécrit vers /shop) n'est plus protégée : les clients
   // doivent pouvoir copier un lien et enregistrer une photo (lot 2, 02/10/2026).
-  const boutique = pathname === '/' || pathname?.startsWith('/shop');
+  const boutique = pathname === '/' || pathname?.startsWith('/shop') || pathname === '/ar' || pathname?.startsWith('/ar/');
 
   useEffect(() => {
     if (boutique) return;

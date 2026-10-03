@@ -4,19 +4,28 @@
 // données structurées (produit avec son prix, fil d'Ariane).
 // Serveur seulement (layouts, plan du site) ; la règle de fusion du catalogue est dans
 // catalogue-boutique, la même que celle du navigateur.
+// Deux langues : chaque fonction d'étiquette prend `langue` ('fr' par défaut). En arabe
+// (pages /ar/shop/…), les textes …Ar du catalogue (lib/shop-textes, sinon le français) et
+// les adresses /ar ; chaque page traduite déclare ses deux adresses (hreflang).
 
 import type { Metadata } from 'next';
 import { cache } from 'react';
 import { firebaseConfig } from '../firebase/config';
 import { fusionnerProduits, fusionnerRayons, trouverRayon, type ProductOverride } from './catalogue-boutique';
+import {
+  cheminFrancais, decoderParametre, idDepuisParametre, lienComplet, lienPage, lienProduit, lienRayon, pageTraduite,
+  rayonDepuisParametre, SITE_URL, type LangueLien, type RayonLien,
+} from './liens-boutique';
 import shopStaticData from './shop-firebase-dump.json';
+import { introRayon } from './textes-rayons';
 import { SHOP_CATEGORIES, SHOP_PRODUCTS_DATA } from './shop-products-data';
+import { nomCategorieProduit, nomProduit, texte } from './shop-textes';
 import type { ShopCategory, ShopProduct } from './shop-types';
 import { getProductDisplayPrice } from './shop-utils';
 import { prixDe, sansPrix, variantesAchetables } from './shop-variantes';
 
-// Une seule adresse : https://lebtex.ma répond 308 vers celle-ci
-export const SITE_URL = 'https://www.lebtex.ma';
+// L'adresse du site vit dans lib/liens-boutique (avec toutes les adresses de la boutique)
+export { SITE_URL };
 
 // Image de partage par défaut (public/og-lebtex.jpg : 1200 × 630, ~100 Ko)
 export const IMAGE_PARTAGE = {
@@ -25,6 +34,9 @@ export const IMAGE_PARTAGE = {
   height: 630,
   alt: 'LEBTEX — mercerie en gros et au détail à Casablanca',
 };
+
+// La même, décrite en arabe : pages /ar
+export const IMAGE_PARTAGE_AR = { ...IMAGE_PARTAGE, alt: 'LEBTEX — خردوات الخياطة بالجملة والتقسيط في الدار البيضاء' };
 
 // ─── Catalogue figé au build ────────────────────────────────────────────────
 
@@ -139,42 +151,69 @@ export function couper(texte: string, max = 155): string {
   return `${(espace > max * 0.6 ? coupe.slice(0, espace) : coupe).replace(/[\s,;:–-]+$/, '')}…`;
 }
 
-// « 60 DH », « 12,5 DH »
-function montantDH(montant: number): string {
-  return `${montant.toLocaleString('fr-MA', { maximumFractionDigits: 2 })} DH`;
+// « 60 DH », « 12,5 DH » ; en arabe « 60 درهم »
+function montantDH(montant: number, langue: LangueLien = 'fr'): string {
+  return `${montant.toLocaleString('fr-MA', { maximumFractionDigits: 2 })} ${langue === 'ar' ? 'درهم' : 'DH'}`;
 }
 
-const PHRASE_BOUTIQUE = 'Commandez chez LEBTEX, mercerie à Casablanca : livraison partout au Maroc, paiement à la livraison.';
+// Les mots des étiquettes, dans les deux langues
+const MOTS = {
+  fr: {
+    produit: 'Produit',
+    aPartirDe: 'à partir de ',
+    conditionnement: 'Conditionnement : ',
+    enGros: ' en gros et au détail.',
+    accueil: 'Accueil',
+    boutique: 'Commandez chez LEBTEX, mercerie à Casablanca : livraison partout au Maroc, paiement à la livraison.',
+  },
+  ar: {
+    produit: 'منتج',
+    aPartirDe: 'ابتداءً من ',
+    conditionnement: 'التعبئة: ',
+    enGros: ' بالجملة والتقسيط.',
+    accueil: 'الرئيسية',
+    boutique: 'اطلب من LEBTEX، خردوات الخياطة في الدار البيضاء: التوصيل لجميع مدن المغرب والدفع عند الاستلام.',
+  },
+} as const;
+
+// Nom d'un produit ou d'un rayon dans la langue (l'arabe s'il est rempli, sinon le français)
+function nomDe(objet: { name: string; nameAr?: string }, langue: LangueLien): string {
+  return nettoyer(texte(objet, 'name', langue) || objet.name);
+}
 
 // Titre d'une fiche : son nom, et son prix affiché s'il en a un (jamais le prix barré)
-export function titreProduit(p: ShopProduct): string {
-  const nom = nettoyer(p.name) || 'Produit';
+export function titreProduit(p: ShopProduct, langue: LangueLien = 'fr'): string {
+  const nom = nettoyer(nomProduit(p, langue)) || MOTS[langue].produit;
   const { amount, isFrom } = getProductDisplayPrice(p);
   if (!(amount > 0)) return nom;
-  return `${nom} – ${isFrom ? 'à partir de ' : ''}${montantDH(amount)}`;
+  return `${nom} – ${isFrom ? MOTS[langue].aPartirDe : ''}${montantDH(amount, langue)}`;
 }
 
-// Description d'une fiche : le début de sa description, sinon une phrase construite
-export function descriptionProduit(p: ShopProduct, rayons: ShopCategory[]): string {
-  const nom = nettoyer(p.name);
-  for (const brut of [p.shortDescription, p.description]) {
-    const texte = nettoyer(brut);
-    if (texte.length >= 40 && texte.toLowerCase() !== nom.toLowerCase()) return couper(texte);
+// Description d'une fiche : le début de sa description (dans la langue), sinon une phrase construite
+export function descriptionProduit(p: ShopProduct, rayons: ShopCategory[], langue: LangueLien = 'fr'): string {
+  const nom = nettoyer(nomProduit(p, langue));
+  const descriptions = langue === 'ar' ? [p.shortDescriptionAr, p.descriptionAr] : [p.shortDescription, p.description];
+  for (const brut of descriptions) {
+    const extrait = nettoyer(brut);
+    if (extrait.length >= 40 && extrait.toLowerCase() !== nom.toLowerCase()) return couper(extrait);
   }
-  const rayon = nettoyer(rayons.find(c => c.slug === p.categorySlug)?.name || p.categoryName);
-  const conditionnement = nettoyer(p.conditionnementUnitaire);
+  const rayon = nettoyer(nomCategorieProduit(p, rayons, langue));
+  const conditionnement = nettoyer(texte(p, 'conditionnementUnitaire', langue));
   return couper([
     `${nom}${rayon ? ` — ${rayon}` : ''}.`,
-    conditionnement && `Conditionnement : ${conditionnement}.`,
-    PHRASE_BOUTIQUE,
+    conditionnement && `${MOTS[langue].conditionnement}${conditionnement}.`,
+    MOTS[langue].boutique,
   ].filter(Boolean).join(' '), 160);
 }
 
-// Description d'un rayon : la sienne, sinon une phrase construite
-export function descriptionRayon(c: ShopCategory): string {
-  const texte = nettoyer(c.description);
-  if (texte.length >= 40) return couper(texte);
-  return couper(`${nettoyer(c.name)} en gros et au détail. ${PHRASE_BOUTIQUE}`, 160);
+// Description d'un rayon : la sienne (dans la langue), sinon une phrase construite
+export function descriptionRayon(c: ShopCategory, langue: LangueLien = 'fr'): string {
+  // Introduction écrite pour le rayon (lib/textes-rayons), sinon sa description de l'admin
+  const intro = introRayon(c, langue);
+  if (intro) return intro;
+  const sienne = nettoyer(langue === 'ar' ? c.descriptionAr : c.description);
+  if (sienne.length >= 40) return couper(sienne);
+  return couper(`${nomDe(c, langue)}${MOTS[langue].enGros} ${MOTS[langue].boutique}`, 160);
 }
 
 // ─── Image d'aperçu ─────────────────────────────────────────────────────────
@@ -217,40 +256,116 @@ export function titrePage(titre: string): string {
 
 type ImagePartage = { url: string; alt?: string; width?: number; height?: number };
 
-// Adresse canonique et aperçu de partage d'une page. Le titre et la description de
-// l'aperçu reprennent ceux de la page (Next les recopie quand openGraph ne les donne pas).
-export function adressePage(chemin: string, image?: ImagePartage): Metadata {
-  const url = `${SITE_URL}${chemin}`;
+// Adresse complète d'une page de la boutique dans une langue. `chemin` : son adresse
+// française (« /shop/faq »). L'accueil français est l'adresse du site (« / » est réécrit
+// vers /shop) ; l'accueil arabe, /ar/shop.
+export function adresseComplete(chemin: string, langue: LangueLien = 'fr'): string {
+  const fr = cheminFrancais(chemin);
+  if (langue === 'fr' && fr === '/shop') return SITE_URL;
+  return lienComplet(lienPage(fr, langue));
+}
+
+// Les deux adresses d'une page traduite, pour Google (hreflang) : fr-MA, ar-MA, et x-default
+// (le français) pour tous les autres. null pour une page pas encore traduite.
+export function adressesLangues(chemin: string): { 'fr-MA': string; 'ar-MA': string; 'x-default': string } | null {
+  if (!pageTraduite(chemin)) return null;
+  const fr = adresseComplete(chemin, 'fr');
+  return { 'fr-MA': fr, 'ar-MA': adresseComplete(chemin, 'ar'), 'x-default': fr };
+}
+
+// Adresse canonique, adresses dans les deux langues et aperçu de partage d'une page.
+// `chemin` : l'adresse française ; `langue` : celle de la page (/ar/shop/… en arabe).
+// Une page pas encore traduite (lib/liens-boutique) n'a qu'une adresse pour Google, la
+// française, même ouverte sous /ar. Le titre et la description de l'aperçu reprennent
+// ceux de la page (Next les recopie quand openGraph ne les donne pas).
+export function adressePage(chemin: string, image?: ImagePartage, langue: LangueLien = 'fr'): Metadata {
+  const langues = adressesLangues(chemin);
+  const ar = langue === 'ar' && langues !== null;
+  const url = adresseComplete(chemin, ar ? 'ar' : 'fr');
   return {
-    alternates: { canonical: url },
+    alternates: { canonical: url, ...(langues && { languages: langues }) },
     openGraph: {
       type: 'website',
-      locale: 'fr_MA',
+      locale: ar ? 'ar_MA' : 'fr_MA',
+      ...(langues && { alternateLocale: ar ? 'fr_MA' : 'ar_MA' }),
       siteName: 'LEBTEX',
       url,
-      images: [image ?? IMAGE_PARTAGE],
+      images: [image ?? (ar ? IMAGE_PARTAGE_AR : IMAGE_PARTAGE)],
     },
     twitter: { card: 'summary_large_image' },
   };
 }
 
-// Titre (complété par « | LEBTEX »), description, adresse canonique et aperçu de partage
-export function etiquettesPage({ titre, description, chemin, image }: {
+// Titre (complété par « | LEBTEX »), description, adresses et aperçu de partage
+export function etiquettesPage({ titre, description, chemin, image, langue }: {
   titre: string;
   description: string;
-  chemin: string; // ex. '/shop/faq'
+  chemin: string; // adresse française, ex. '/shop/faq'
   image?: ImagePartage;
+  langue?: LangueLien;
 }): Metadata {
-  return { title: titrePage(titre), description, ...adressePage(chemin, image) };
+  return { title: titrePage(titre), description, ...adressePage(chemin, image, langue) };
 }
 
-// Page personnelle (panier, commande, compte, suivi) : jamais dans Google
+const HORS_GOOGLE = { index: false, follow: true };
+
+// Page personnelle (panier, commande, compte, suivi) : jamais dans Google, en français
+// comme en arabe (titre et description dans la langue de la page)
 export function etiquettesPrivees(titre: string, description: string): Metadata {
   return {
     title: titrePage(titre),
     description,
-    robots: { index: false, follow: true },
+    robots: HORS_GOOGLE,
   };
+}
+
+// Étiquettes d'une fiche produit (layouts /shop/produit/[id] et /ar/shop/produit/[id]) :
+// nom et prix, description, photo, adresse lisible dans la langue. Rien de précis quand
+// Firestore n'a pas répondu ; hors de Google pour un produit inconnu ou masqué.
+export async function etiquettesProduit(parametre: string, langue: LangueLien = 'fr'): Promise<Metadata> {
+  const ar = langue === 'ar';
+  const trouve = await produitDeLaPage(idDepuisParametre(parametre));
+
+  if (trouve.etat === 'absent') return { title: titrePage(ar ? 'المنتج غير موجود' : 'Produit introuvable'), robots: HORS_GOOGLE };
+  if (trouve.etat === 'inconnu') {
+    return etiquettesPage({
+      titre: MOTS[langue].produit,
+      description: ar
+        ? 'LEBTEX، خردوات الخياطة في الدار البيضاء: التوصيل لجميع مدن المغرب والدفع عند الاستلام.'
+        : 'Mercerie LEBTEX à Casablanca : livraison partout au Maroc, paiement à la livraison.',
+      chemin: `/shop/produit/${encodeURIComponent(decoderParametre(parametre))}`,
+      langue,
+    });
+  }
+
+  const p = trouve.produit;
+  const photo = imageApercu(photoProduit(p));
+  const etiquettes = etiquettesPage({
+    titre: titreProduit(p, langue),
+    description: descriptionProduit(p, catalogueFige().rayons, langue),
+    chemin: lienProduit(p),
+    langue,
+    ...(photo && { image: { url: photo, alt: nomDe(p, langue) } }),
+  });
+  // Produit masqué dans l'admin : la fiche reste ouverte (comme avant), mais hors de Google
+  if (trouve.etat === 'firestore' && trouve.masque) etiquettes.robots = HORS_GOOGLE;
+  return etiquettes;
+}
+
+// Étiquettes d'une page rayon (layouts /shop/categorie/[slug] et /ar/shop/categorie/[slug]),
+// toujours à la nouvelle adresse du rayon, même ouverte par un vieux lien
+export function etiquettesRayon(parametre: string, langue: LangueLien = 'fr'): Metadata {
+  const rayon = rayonDepuisParametre(parametre, catalogueFige().rayons);
+  if (!rayon) return { title: titrePage(langue === 'ar' ? 'الفئة غير موجودة' : 'Rayon introuvable'), robots: HORS_GOOGLE };
+  const nom = nomDe(rayon, langue);
+  const photo = imageApercu(rayon.image);
+  return etiquettesPage({
+    titre: nom,
+    description: descriptionRayon(rayon, langue),
+    chemin: lienRayon(rayon),
+    langue,
+    ...(photo && { image: { url: photo, alt: nom } }),
+  });
 }
 
 // ─── Données structurées pour Google (JSON-LD) ──────────────────────────────
@@ -260,12 +375,13 @@ export function etiquettesPrivees(titre: string, description: string): Metadata 
 
 type DonneesStructurees = Record<string, unknown>;
 
-export function adresseProduit(id: string): string {
-  return `${SITE_URL}/shop/produit/${encodeURIComponent(id)}`;
+// Adresses lisibles (lib/liens-boutique), en adresse complète, dans la langue
+export function adresseProduit(p: Pick<ShopProduct, 'id' | 'name'>, langue: LangueLien = 'fr'): string {
+  return lienComplet(lienProduit(p, langue));
 }
 
-export function adresseRayon(slug: string): string {
-  return `${SITE_URL}/shop/categorie/${encodeURIComponent(slug)}`;
+export function adresseRayon(rayon: RayonLien, langue: LangueLien = 'fr'): string {
+  return lienComplet(lienRayon(rayon, langue));
 }
 
 // Photo en adresse complète (https), sinon rien
@@ -279,11 +395,12 @@ const VENDEUR = { '@type': 'Organization', name: 'LEBTEX', url: SITE_URL };
 
 // Fiche produit avec prix : nom, photos, description, référence, marque et offre au prix affiché.
 // « À partir de » (variantes à prix différents) : une offre groupée, du moins cher au plus cher.
-export function donneesProduit(p: ShopProduct, rayons: ShopCategory[]): DonneesStructurees | null {
+// En arabe : nom et description arabes, adresse /ar.
+export function donneesProduit(p: ShopProduct, rayons: ShopCategory[], langue: LangueLien = 'fr'): DonneesStructurees | null {
   const { amount, isFrom } = getProductDisplayPrice(p);
   if (!(amount > 0)) return null;
 
-  const url = adresseProduit(p.id);
+  const url = adresseProduit(p, langue);
   const photos = [...(p.images || []), ...(p.variants || []).map(v => v?.image)]
     .map(photoAbsolue)
     .filter((x): x is string => !!x);
@@ -305,9 +422,9 @@ export function donneesProduit(p: ShopProduct, rayons: ShopCategory[]): DonneesS
   return {
     '@context': 'https://schema.org',
     '@type': 'Product',
-    name: nettoyer(p.name) || 'Produit',
+    name: nomDe(p, langue) || MOTS[langue].produit,
     ...(photos.length > 0 && { image: Array.from(new Set(photos)).slice(0, 10) }),
-    description: descriptionProduit(p, rayons),
+    description: descriptionProduit(p, rayons, langue),
     sku: p.id,
     brand: { '@type': 'Brand', name: 'LEBTEX' },
     offers: offre,
@@ -324,27 +441,31 @@ function filAriane(etapes: Etape[]): DonneesStructurees {
   };
 }
 
+function etapeAccueil(langue: LangueLien): Etape {
+  return { nom: MOTS[langue].accueil, url: adresseComplete('/shop', langue) };
+}
+
 // Accueil, le rayon parent s'il y en a un (visible), puis le rayon
-function etapesRayon(rayon: ShopCategory, rayons: ShopCategory[]): Etape[] {
+function etapesRayon(rayon: ShopCategory, rayons: ShopCategory[], langue: LangueLien): Etape[] {
   const parent = rayon.parentSlug ? trouverRayon(rayons, rayon.parentSlug) : null;
   return [
-    { nom: 'Accueil', url: SITE_URL },
-    ...(parent ? [{ nom: nettoyer(parent.name), url: adresseRayon(parent.slug) }] : []),
-    { nom: nettoyer(rayon.name), url: adresseRayon(rayon.slug) },
+    etapeAccueil(langue),
+    ...(parent ? [{ nom: nomDe(parent, langue), url: adresseRayon(parent, langue) }] : []),
+    { nom: nomDe(rayon, langue), url: adresseRayon(rayon, langue) },
   ];
 }
 
 // Page rayon : « Accueil › Rayon »
-export function filArianeRayon(rayon: ShopCategory, rayons: ShopCategory[]): DonneesStructurees {
-  return filAriane(etapesRayon(rayon, rayons));
+export function filArianeRayon(rayon: ShopCategory, rayons: ShopCategory[], langue: LangueLien = 'fr'): DonneesStructurees {
+  return filAriane(etapesRayon(rayon, rayons, langue));
 }
 
 // Fiche produit : « Accueil › Rayon › Produit » (sans le rayon s'il est introuvable ou masqué)
-export function filArianeProduit(p: ShopProduct, rayons: ShopCategory[]): DonneesStructurees {
+export function filArianeProduit(p: ShopProduct, rayons: ShopCategory[], langue: LangueLien = 'fr'): DonneesStructurees {
   const rayon = p.categorySlug ? trouverRayon(rayons, p.categorySlug) : null;
   return filAriane([
-    ...(rayon ? etapesRayon(rayon, rayons) : [{ nom: 'Accueil', url: SITE_URL }]),
-    { nom: nettoyer(p.name) || 'Produit', url: adresseProduit(p.id) },
+    ...(rayon ? etapesRayon(rayon, rayons, langue) : [etapeAccueil(langue)]),
+    { nom: nomDe(p, langue) || MOTS[langue].produit, url: adresseProduit(p, langue) },
   ]);
 }
 

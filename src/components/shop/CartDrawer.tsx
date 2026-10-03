@@ -17,6 +17,7 @@ import {
 import { useShopCart, summarizeCartProduct, getCartItemUnitPrice } from "@/contexts/shop-cart-context";
 import { lienWhatsAppPanier } from "@/lib/whatsapp-panier";
 import { useLanguage } from "@/contexts/language-context";
+import { lienPage } from "@/lib/liens-boutique";
 import { useShopProducts } from "@/contexts/shop-products-context";
 import {
   formatPrice,
@@ -253,7 +254,7 @@ function CartProductGroup({
 
 /** Empty cart state */
 function EmptyCartState({ onClose }: { onClose: () => void }) {
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
   return (
     <div className="flex flex-col items-center justify-center flex-1 py-16 px-6 text-center">
       {/* Illustration */}
@@ -303,7 +304,7 @@ function EmptyCartState({ onClose }: { onClose: () => void }) {
       </div>
 
       <Link
-        href="/shop/categories"
+        href={lienPage("/shop/categories", language)}
         onClick={onClose}
         className="flex items-center gap-2 px-6 py-3 rounded-xl text-white text-sm font-semibold transition-all hover:opacity-90 active:scale-[0.98] shadow-lg shadow-red-200"
         style={{ backgroundColor: "#C8102E" }}
@@ -454,7 +455,7 @@ export default function CartDrawer() {
 
               {/* Continue shopping link */}
               <Link
-                href="/shop/categories"
+                href={lienPage("/shop/categories", language)}
                 onClick={closeCart}
                 className="flex items-center gap-1.5 text-xs font-medium mt-3 mb-2 py-2.5 px-3 rounded-xl border border-dashed border-gray-200 text-gray-400 hover:text-[#C8102E] hover:border-[#C8102E]/30 hover:bg-red-50/50 transition-all"
               >
@@ -516,7 +517,7 @@ export default function CartDrawer() {
 
               {/* Aller au panier CTA */}
               <Link
-                href="/shop/panier"
+                href={lienPage("/shop/panier", language)}
                 onClick={closeCart}
                 className="flex items-center justify-center gap-2 w-full py-3 rounded-2xl bg-white border border-gray-200 text-gray-700 font-bold text-sm transition-all hover:bg-gray-50 hover:border-gray-300 active:scale-[0.98]"
               >
@@ -525,7 +526,7 @@ export default function CartDrawer() {
               
               {/* Commander CTA */}
               <Link
-                href="/shop/checkout"
+                href={lienPage("/shop/checkout", language)}
                 onClick={closeCart}
                 className="flex items-center justify-center gap-2 w-full py-4 rounded-2xl text-white font-bold text-base transition-all hover:opacity-92 active:scale-[0.98] shadow-lg"
                 style={{

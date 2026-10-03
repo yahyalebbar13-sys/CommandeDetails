@@ -6,6 +6,9 @@ import { useLanguage } from '@/contexts/language-context';
 import { useShopProducts } from '@/contexts/shop-products-context';
 import type { ShopProduct, ShopCategory } from '@/lib/shop-types';
 import { texte } from '@/lib/shop-textes';
+import { trouverRayon } from '@/lib/catalogue-boutique';
+import { decoderParametre, lienPage, lienRayon, rayonDepuisParametre } from '@/lib/liens-boutique';
+import { introRayon, paragraphesRayon } from '@/lib/textes-rayons';
 import { ShoppingBag, ArrowLeft, Package, Loader2, SlidersHorizontal, X, Layers } from 'lucide-react';
 import ProductCard from '@/components/shop/ProductCard';
 import { getProductDisplayPrice } from '@/lib/shop-utils';
@@ -16,8 +19,8 @@ import { comparerNouveautes, melangerProduits, useGraineMelange } from '@/lib/me
 export default function CategoryPage({ params }: { params: Promise<{ slug: string }> }) {
   const router = useRouter();
   const rawSlug: string = React.use(params).slug;
-  // Decode URL encoding (e.g. %20 → space) AND normalize to match stored slugs
-  const slug = decodeURIComponent(rawSlug);
+  // Adresse décodée (%20 → espace), pour le message « introuvable »
+  const slug = decoderParametre(rawSlug);
   const [sort, setSort] = useState('pertinence');
   const [activeSubCat, setActiveSubCat] = useState<string | null>(null);
   const { language } = useLanguage();
@@ -27,9 +30,10 @@ export default function CategoryPage({ params }: { params: Promise<{ slug: strin
 
   const { products: allContextProducts, categories: allContextCategories, isLoading, getProductForCategory } = useShopProducts();
 
-  // Find the category by slug OR by id (to handle old/broken slugs stored in Firestore)
-  const category = allContextCategories.find(c => c.slug === slug || c.id === slug) ?? null;
-  // Use the canonical slug from the found category (not from the URL) for lookups
+  // Le rayon de l'adresse : la nouvelle (nom du rayon), l'ancien slug Firestore ou l'identifiant
+  // (lib/liens-boutique, même règle que le layout serveur)
+  const category = rayonDepuisParametre(rawSlug, allContextCategories);
+  // Le slug enregistré du rayon (pas celui de l'adresse) relie produits et sous-rayons
   const canonicalSlug = category?.slug ?? slug;
   const categoryId = category?.id ?? slug;
 
@@ -124,7 +128,7 @@ export default function CategoryPage({ params }: { params: Promise<{ slug: strin
           </p>
         </div>
         <Link
-          href="/shop/boutique"
+          href={lienPage('/shop/boutique', language)}
           prefetch={false}
           className="flex items-center gap-2 px-6 py-3 bg-[#C8102E] text-white rounded-xl font-semibold hover:bg-[#a00d25] transition-colors active:scale-95 touch-manipulation"
         >
@@ -137,13 +141,19 @@ export default function CategoryPage({ params }: { params: Promise<{ slug: strin
   const accentColor = category?.color || '#C8102E';
   const nomCategorie = category ? nomCat(category) : '';
   const descriptionCategorie = category ? texte(category, 'description', language) : '';
-  const parent = category?.parentSlug ? allContextCategories.find(c => c.slug === category.parentSlug) : undefined;
+  // Texte du rayon (lib/textes-rayons) : son introduction remplace la description sous le
+  // titre, le texte complet s'affiche sous les produits. Rayon sans texte : rien ne change.
+  const resumeCategorie = introRayon(category, language) || descriptionCategorie;
+  const texteCategorie = paragraphesRayon(category, language);
+  const parent = category?.parentSlug ? trouverRayon(allContextCategories, category.parentSlug) : null;
   const sousCatActive = activeSubCat ? subCats.find(c => c.slug === activeSubCat) : undefined;
 
   return (
     <div style={{ fontFamily: 'Inter, sans-serif', background: '#FBF8F3' }} className="min-h-screen">
       {/* ─── Hero ─────────────────────────────────────────────────────────── */}
-      <div className="relative h-56 sm:h-72 lg:h-80 overflow-hidden">
+      {/* Hauteur minimale, pas fixe : avec l'introduction du rayon, le haut de page grandit
+          au lieu de cacher le fil d'Ariane (sur téléphone surtout) */}
+      <div className="relative min-h-[14rem] sm:min-h-[18rem] lg:min-h-[20rem] overflow-hidden flex flex-col">
         {/* Background image or gradient */}
         {category?.image ? (
           <img
@@ -163,18 +173,19 @@ export default function CategoryPage({ params }: { params: Promise<{ slug: strin
         <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/40 to-black/20" />
 
         {/* Content */}
-        <div className="relative h-full max-w-7xl mx-auto px-5 sm:px-6 flex flex-col justify-end pb-8">
+        <div className="relative flex-1 w-full max-w-7xl mx-auto px-5 sm:px-6 flex flex-col justify-end pt-6 pb-8">
           {/* Breadcrumb */}
           <nav className="flex items-center gap-2 text-xs text-white/60 mb-3">
             {/* « › » est un signe miroir : le navigateur l'affiche « ‹ » en arabe */}
-            <Link href="/shop" prefetch={false} className="hover:text-white transition-colors">{isAr ? 'الرئيسية' : 'Accueil'}</Link>
+            <Link href={lienPage('/shop', language)} prefetch={false} className="hover:text-white transition-colors">{isAr ? 'الرئيسية' : 'Accueil'}</Link>
             <span>›</span>
-            <Link href="/shop/categories" prefetch={false} className="hover:text-white transition-colors">{isAr ? 'الفئات' : 'Catégories'}</Link>
+            <Link href={lienPage('/shop/categories', language)} prefetch={false} className="hover:text-white transition-colors">{isAr ? 'الفئات' : 'Catégories'}</Link>
             <span>›</span>
-            {category?.parentSlug && (
+            {/* Rayon parent masqué ou introuvable : pas d'étape (le lien mènerait à une page introuvable) */}
+            {parent && (
               <>
-                <Link href={`/shop/categorie/${category.parentSlug}`} prefetch={false} className="hover:text-white transition-colors">
-                  {(parent && nomCat(parent)) || category.parentSlug}
+                <Link href={lienRayon(parent, language)} prefetch={false} className="hover:text-white transition-colors">
+                  {nomCat(parent)}
                 </Link>
                 <span>›</span>
               </>
@@ -193,9 +204,9 @@ export default function CategoryPage({ params }: { params: Promise<{ slug: strin
               >
                 {nomCategorie}
               </h1>
-              {descriptionCategorie && (
-                <p className="text-white/70 mt-1.5 max-w-xl text-sm leading-relaxed">
-                  {descriptionCategorie}
+              {resumeCategorie && (
+                <p className="text-white/70 mt-1.5 max-w-xl text-sm leading-relaxed line-clamp-3 sm:line-clamp-none">
+                  {resumeCategorie}
                 </p>
               )}
             </div>
@@ -257,7 +268,7 @@ export default function CategoryPage({ params }: { params: Promise<{ slug: strin
         <div className="max-w-7xl mx-auto px-5 sm:px-6 py-3 flex items-center justify-between gap-4">
           <div className="flex items-center gap-3">
             <button
-              onClick={() => window.history.length > 1 ? window.history.back() : router.push('/shop/categories')}
+              onClick={() => window.history.length > 1 ? window.history.back() : router.push(lienPage('/shop/categories', language))}
               aria-label={isAr ? 'رجوع' : 'Retour'}
               title={isAr ? 'رجوع' : 'Retour'}
               className="w-10 h-10 flex items-center justify-center bg-white border border-[#E8E4DF] rounded-full hover:bg-[#FBF8F3] hover:border-[#C8102E] transition-all shadow-sm flex-shrink-0 text-[#1A1A1A] hover:text-[#C8102E] active:scale-90 cursor-pointer touch-manipulation"
@@ -313,11 +324,11 @@ export default function CategoryPage({ params }: { params: Promise<{ slug: strin
             {subCats.map(cat => {
               const count = allContextProducts.filter(p => p.categorySlug === cat.slug || p.categorySlug === cat.id).length;
               const catAccentColor = cat.color || accentColor;
-              const descriptionSousCat = texte(cat, 'description', language);
+              const descriptionSousCat = introRayon(cat, language) || texte(cat, 'description', language);
               return (
                 <Link
                   key={cat.id}
-                  href={`/shop/categorie/${cat.slug}`}
+                  href={lienRayon(cat, language)}
                   prefetch={false}
                   className="group relative overflow-hidden rounded-2xl bg-white border border-[#E8E4DF] hover:shadow-xl hover:-translate-y-1 transition-all duration-300 flex flex-col active:scale-[0.98] touch-manipulation"
                 >
@@ -396,7 +407,7 @@ export default function CategoryPage({ params }: { params: Promise<{ slug: strin
               </button>
             ) : (
               <Link
-                href="/shop/boutique"
+                href={lienPage('/shop/boutique', language)}
                 prefetch={false}
                 className="mt-2 px-6 py-3 bg-[#C8102E] text-white rounded-xl font-semibold hover:bg-[#a00d25] transition-colors text-sm active:scale-95 touch-manipulation"
               >
@@ -406,6 +417,23 @@ export default function CategoryPage({ params }: { params: Promise<{ slug: strin
           </div>
         ) : null}
       </div>
+
+      {/* ─── À propos de ce rayon (lib/textes-rayons) ──────────────────── */}
+      {texteCategorie.length > 0 && (
+        <section className="max-w-7xl mx-auto px-5 sm:px-6 pb-10" dir={isAr ? 'rtl' : 'ltr'} lang={language}>
+          <div className="max-w-3xl rounded-2xl bg-white border border-[#E8E4DF] p-5 sm:p-7">
+            <div className="w-10 h-1 rounded-full mb-3" style={{ background: accentColor }} />
+            <h2 className="text-lg sm:text-xl font-bold text-[#1A1A1A]" style={{ fontFamily: 'Outfit, sans-serif' }}>
+              {isAr ? 'عن هذا القسم' : 'À propos de ce rayon'}
+            </h2>
+            {texteCategorie.map((paragraphe, i) => (
+              <p key={i} className="mt-3 text-sm sm:text-[15px] leading-relaxed text-[#4A4A4A]">
+                {paragraphe}
+              </p>
+            ))}
+          </div>
+        </section>
+      )}
 
       {/* ─── Related categories — horizontal scroll ────────────────────── */}
       <div className="bg-white border-t border-[#E8E4DF] pt-10 pb-12">
@@ -418,7 +446,7 @@ export default function CategoryPage({ params }: { params: Promise<{ slug: strin
               {language === 'ar' ? 'تصفح فئات أخرى' : 'Explorer d\'autres catégories'}
             </h2>
             <Link
-              href="/shop/categories"
+              href={lienPage('/shop/categories', language)}
               prefetch={false}
               className="text-xs font-semibold text-[#C8102E] hover:text-[#a00d25] uppercase tracking-wider transition-colors hidden sm:block"
             >
@@ -426,12 +454,12 @@ export default function CategoryPage({ params }: { params: Promise<{ slug: strin
             </Link>
           </div>
           <div className="flex gap-3 sm:gap-4 overflow-x-auto pb-2 scrollbar-hide snap-x snap-mandatory">
-            {allContextCategories.filter(c => c.slug !== slug && !c.parentSlug).map(cat => {
+            {allContextCategories.filter(c => c.slug !== canonicalSlug && !c.parentSlug).map(cat => {
               const catColor = cat.color || '#C8102E';
               return (
                 <Link
                   key={cat.id}
-                  href={`/shop/categorie/${cat.slug}`}
+                  href={lienRayon(cat, language)}
                   prefetch={false}
                   className="group flex-shrink-0 w-36 sm:w-44 snap-start rounded-2xl overflow-hidden bg-white border border-[#E8E4DF] hover:shadow-lg hover:-translate-y-0.5 transition-all duration-300 touch-manipulation active:scale-95"
                 >
@@ -466,7 +494,7 @@ export default function CategoryPage({ params }: { params: Promise<{ slug: strin
             <p className="text-gray-500 text-sm mb-4">{language === 'ar' ? 'تبحث عن منتج معين؟' : 'Vous cherchez un produit spécifique ?'}</p>
             <div className="flex flex-col sm:flex-row gap-3 justify-center">
               <Link
-                href="/shop/boutique"
+                href={lienPage('/shop/boutique', language)}
                 prefetch={false}
                 className="inline-flex items-center justify-center gap-2 px-6 py-3 rounded-xl bg-[#C8102E] text-white font-semibold text-sm hover:bg-[#a00d25] transition-colors active:scale-95 touch-manipulation"
               >

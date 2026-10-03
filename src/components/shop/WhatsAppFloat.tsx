@@ -13,16 +13,17 @@ import { usePathname } from "next/navigation";
 import { useLanguage } from "@/contexts/language-context";
 import { useShopProducts } from "@/contexts/shop-products-context";
 import { getWhatsAppContact } from "@/lib/shop-utils";
-import { lienProduit } from "@/lib/shop-variantes";
+import { cheminFrancais, idDepuisParametre, lienComplet, lienProduit } from "@/lib/liens-boutique";
 import { nomProduit } from "@/lib/shop-textes";
 import type { Language } from "@/lib/translations";
 
 const PAGES_SANS_BOUTON = ["/shop/checkout", "/shop/confirmation"];
 
-// Message prérempli : le produit de la fiche s'il y en a un, sinon une prise de contact
-export function messageFlottant(language: Language, produit?: { id: string; nom: string } | null): string {
+// Message prérempli : le produit de la fiche s'il y en a un (son nom affiché et l'adresse
+// complète de sa fiche), sinon une prise de contact
+export function messageFlottant(language: Language, produit?: { lien: string; nom: string } | null): string {
   if (produit) {
-    const lien = lienProduit(produit.id);
+    const { lien } = produit;
     const article = produit.nom ? `${produit.nom} — ${lien}` : lien;
     return language === "ar"
       ? `السلام عليكم LEBTEX، أريد معلومات عن: ${article}`
@@ -37,6 +38,8 @@ export default function WhatsAppFloat() {
   const { language } = useLanguage();
   const { getProductById } = useShopProducts();
   const pathname = usePathname() || "";
+  // Même règle en arabe : /ar/shop/… se lit comme /shop/…
+  const chemin = cheminFrancais(pathname);
   const [visible, setVisible] = useState(false);
   const [pulse, setPulse] = useState(true);
 
@@ -47,21 +50,18 @@ export default function WhatsAppFloat() {
   }, []);
 
   if (!visible) return null;
-  if (PAGES_SANS_BOUTON.some(page => pathname === page || pathname.startsWith(`${page}/`))) return null;
+  if (PAGES_SANS_BOUTON.some(page => chemin === page || chemin.startsWith(`${page}/`))) return null;
 
-  // Fiche produit : /shop/produit/<id>
-  const idProduit = pathname.match(/^\/shop\/produit\/([^/]+)/)?.[1] || "";
-  let id = idProduit;
-  try {
-    id = decodeURIComponent(idProduit);
-  } catch {
-    // adresse mal encodée : on garde l'identifiant tel quel
-  }
+  // Fiche produit : /shop/produit/<nom>-<jeton> (ou l'ancien identifiant brut)
+  const parametre = chemin.match(/^\/shop\/produit\/([^/]+)/)?.[1] || "";
+  const id = parametre ? idDepuisParametre(parametre) : "";
   const produit = id ? getProductById(id) : undefined;
-  const message = messageFlottant(language, id ? { id, nom: produit ? nomProduit(produit, language) : "" } : null);
+  // Produit hors du catalogue chargé (ajouté depuis) : l'adresse de la page, déjà la bonne
+  const lien = lienComplet(produit ? lienProduit(produit, language) : pathname);
+  const message = messageFlottant(language, id ? { lien, nom: produit ? nomProduit(produit, language) : "" } : null);
 
   // Pages avec une barre collante en bas sur téléphone : le bouton passe au-dessus
-  const auDessusDUneBarre = pathname === "/shop/panier" || Boolean(id);
+  const auDessusDUneBarre = chemin === "/shop/panier" || Boolean(id);
   const libelle = language === "ar" ? "تواصل معنا عبر واتساب" : "Écrivez-nous sur WhatsApp";
 
   return (

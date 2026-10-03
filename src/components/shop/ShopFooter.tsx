@@ -22,6 +22,7 @@ import { delaiZone, FRAIS_ZONE } from "@/lib/livraison-boutique";
 import { useShopProducts } from "@/contexts/shop-products-context";
 import { useLanguage } from "@/contexts/language-context";
 import { texte } from "@/lib/shop-textes";
+import { lienPage, lienRayon } from "@/lib/liens-boutique";
 import {
   ADRESSE_SIEGE,
   ligneNumerosLegaux,
@@ -39,6 +40,7 @@ const SERVICE_LINKS = [
   { fr: "FAQ", ar: "الأسئلة الشائعة", href: "/shop/faq" },
   { fr: "Livraison & Retours", ar: "التوصيل والإرجاع", href: "/shop/livraison" },
   { fr: "Suivi de commande", ar: "تتبع الطلب", href: "/shop/suivi" },
+  { fr: "Ma liste", ar: "قائمتي", href: "/shop/ma-liste" },
   { fr: "À propos de LEBTEX", ar: "من نحن", href: "/shop/a-propos" },
   { fr: "Service Import", ar: "خدمة الاستيراد", href: "/shop/precommande" },
   { fr: "Promotions en cours", ar: "العروض الحالية", href: "/shop/promotions" },
@@ -119,8 +121,8 @@ export default function ShopFooter() {
     ...categories
       .filter((c) => !c.parentSlug)
       .slice(0, FOOTER_CATEGORY_COUNT)
-      .map((c) => ({ label: texte(c, "name", language) || c.name, href: `/shop/categorie/${c.slug}`, highlight: false })),
-    { label: ar ? "عرض الكل ←" : "Voir tout →", href: "/shop/categories", highlight: true },
+      .map((c) => ({ label: texte(c, "name", language) || c.name, href: lienRayon(c, language), highlight: false })),
+    { label: ar ? "عرض الكل ←" : "Voir tout →", href: lienPage("/shop/categories", language), highlight: true },
   ];
 
   return (
@@ -344,7 +346,7 @@ export default function ShopFooter() {
               {SERVICE_LINKS.map((link) => (
                 <li key={link.href}>
                   <Link
-                    href={link.href}
+                    href={lienPage(link.href, language)}
                     className="text-sm hover:text-white transition-colors flex items-center gap-1 group"
                     style={{ color: "#9CA3AF" }}
                   >
@@ -466,14 +468,14 @@ export default function ShopFooter() {
           {/* Legal links */}
           <div className="flex items-center gap-1 text-xs" style={{ color: "#9CA3AF" }}>
             <Link
-              href="/shop/confidentialite"
+              href={lienPage("/shop/confidentialite", language)}
               className="inline-flex items-center min-h-[44px] px-2 hover:text-white transition-colors"
             >
               {ar ? "الخصوصية" : "Confidentialité"}
             </Link>
             <span aria-hidden="true">·</span>
             <Link
-              href="/shop/conditions"
+              href={lienPage("/shop/conditions", language)}
               className="inline-flex items-center min-h-[44px] px-2 hover:text-white transition-colors"
             >
               {ar ? "شروط البيع" : "Conditions de vente"}

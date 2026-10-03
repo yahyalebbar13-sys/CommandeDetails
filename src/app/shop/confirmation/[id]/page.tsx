@@ -3,14 +3,14 @@ import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import {
   CheckCircle, MessageCircle, ShoppingBag, Package, Truck, MapPin, Phone, ArrowRight, Clock,
-  Store, Landmark, Copy, Check, ShieldAlert, Info,
+  Store, Landmark, Copy, Check, ShieldAlert, Info, XCircle,
 } from 'lucide-react';
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import { getFirestore, doc, getDoc } from 'firebase/firestore';
 import { firebaseConfig } from '@/firebase/config';
 import { formatPrice, getWhatsAppContact } from '@/lib/shop-utils';
 import {
-  fraisColisAnnonces, lignesSansPrix, moyenPaiementDe, numeroCommandeAffichable, prixUnitaireLigne, receptionDe, texteClientSur,
+  dateDe, fraisColisAnnonces, lignesSansPrix, moyenPaiementDe, numeroCommandeAffichable, prixUnitaireLigne, receptionDe, texteClientSur,
   totalLigne, transportPrevu, varianteLisible, type ReceptionLue,
 } from '@/lib/commandes-boutique';
 import { delaiColis, libelleFrais, TEXTE_TRANSPORT_VOLUMINEUX, TEXTE_TRANSPORT_VOLUMINEUX_AR } from '@/lib/livraison-boutique';
@@ -22,6 +22,10 @@ import { useLanguage } from '@/contexts/language-context';
 import { useShopProducts } from '@/contexts/shop-products-context';
 import { paire, premierTexte } from '@/lib/shop-textes';
 import { libelleLignePanier } from '@/lib/shop-variantes';
+import { commandeTerminee, statutCommande } from '@/lib/mes-commandes';
+import { EtapesCommande, etapesCommande, libelleEtat } from '@/components/shop/EtatCommande';
+import BoutonRecommander from '@/components/shop/BoutonRecommander';
+import { lienPage } from '@/lib/liens-boutique';
 
 const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
 const db = getFirestore(app);
@@ -300,7 +304,7 @@ export default function ConfirmationPage({ params }: { params: Promise<{ id: str
           <p className="text-5xl mb-4">😕</p>
           <h1 className="text-2xl font-black text-[#1A1A1A] mb-2" style={{ fontFamily: 'Outfit, sans-serif' }}>{ar ? 'الطلب غير موجود' : 'Commande introuvable'}</h1>
           <p className="text-[#6B6B6B] mb-6">{ar ? 'لم نجد هذا الطلب.' : "Nous n'avons pas trouvé cette commande."}</p>
-          <Link href="/shop/boutique" className="px-6 py-3 bg-[#C8102E] text-white rounded-xl font-semibold hover:bg-[#a00d25] transition-colors inline-block">
+          <Link href={lienPage('/shop/boutique', language)} className="px-6 py-3 bg-[#C8102E] text-white rounded-xl font-semibold hover:bg-[#a00d25] transition-colors inline-block">
             {ar ? 'العودة إلى المتجر' : 'Retour à la boutique'}
           </Link>
         </div>
@@ -324,6 +328,18 @@ export default function ConfirmationPage({ params }: { params: Promise<{ id: str
   // Transport d'un rouleau : prix donné au téléphone. Tant que l'équipe ne l'a pas ajouté, il reste « à confirmer ».
   const transportAConfirmer = reception.mode === 'transport' && fraisLivraison === 0;
   const steps = etapesPour(reception, transport, paiement, ville, reglages, language);
+
+  // L'état réel : la page sert aussi à suivre la commande (« Mes commandes sur ce téléphone »).
+  // En attente : la page d'après-commande, telle quelle ; ensuite, les étapes de son parcours.
+  const statut = statutCommande(order.status);
+  const enAttente = statut === 'pending';
+  const annulee = statut === 'cancelled' || statut === 'returned';
+  // « Nous vous appelons aujourd'hui… » ne vaut que le jour de la commande : passé 24 h, une
+  // commande encore en attente montre son état, comme les autres (date inconnue : récente).
+  const creeLe = dateDe(order.createdAt)?.getTime() ?? NaN;
+  const recente = !Number.isFinite(creeLe) || Date.now() - creeLe < 24 * 3600_000;
+  const apresCommande = enAttente && recente;
+  const etapesEtat = etapesCommande({ mode: reception.mode, lieu: reception.lieu, transport }, reglages, language);
 
   // Colis à 0 : « Offerte » seulement pour une commande d'avant le 30/09/2026 qui y avait droit.
   const offerte = reception.mode === 'domicile' && fraisLivraison <= 0 && fraisColisAnnonces(order) === 'offerte';
@@ -443,19 +459,43 @@ export default function ConfirmationPage({ params }: { params: Promise<{ id: str
 
         {/* Success header */}
         <div className="text-center mb-8">
-          <div className="scale-in w-20 h-20 bg-[#10B981] rounded-full flex items-center justify-center mx-auto mb-5 shadow-lg shadow-green-200">
-            <CheckCircle className="w-10 h-10 text-white" strokeWidth={2.5} />
+          <div className={`scale-in w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-5 shadow-lg ${annulee ? 'bg-[#6B7280] shadow-gray-200' : 'bg-[#10B981] shadow-green-200'}`}>
+            {annulee
+              ? <XCircle className="w-10 h-10 text-white" strokeWidth={2.5} />
+              : <CheckCircle className="w-10 h-10 text-white" strokeWidth={2.5} />}
           </div>
-          <h1 className="text-3xl font-black text-[#1A1A1A] mb-2" style={{ fontFamily: 'Outfit, sans-serif' }}>{ar ? 'تم استلام طلبك!' : 'Commande reçue !'}</h1>
-          <p className="text-[#6B6B6B] mb-4">{introduction}</p>
+          <h1 className="text-3xl font-black text-[#1A1A1A] mb-2" style={{ fontFamily: 'Outfit, sans-serif' }}>
+            {apresCommande ? (ar ? 'تم استلام طلبك!' : 'Commande reçue !') : (ar ? 'طلبك' : 'Votre commande')}
+          </h1>
+          {apresCommande ? (
+            <p className="text-[#6B6B6B] mb-4">{introduction}</p>
+          ) : (
+            <p className="text-[#6B6B6B] mb-4">
+              {ar ? 'الحالة: ' : 'État : '}
+              <span className="font-bold text-[#1A1A1A]">{libelleEtat(statut, etapesEtat, language)}</span>
+            </p>
+          )}
           <div className="inline-flex items-center gap-2 bg-[#0F0F0F] text-white px-5 py-2.5 rounded-full">
             <span className="text-[#D4A843] text-xs font-black uppercase tracking-widest">{ar ? 'رقم الطلب' : 'N° Commande'}</span>
             <bdi dir="ltr" className="font-black text-base tracking-wider break-all">{numeroAffiche}</bdi>
           </div>
         </div>
 
-        {/* Confirmer d'un geste : message déjà écrit, le client n'a qu'à l'envoyer. */}
-        <a
+        {/* Confirmer d'un geste : message déjà écrit, le client n'a qu'à l'envoyer.
+            Seulement le jour de la commande : ensuite, elle est déjà confirmée (ou close),
+            ou toujours en attente — alors un simple lien, sous l'état. */}
+        {enAttente && !recente && (
+          <a
+            href={lienConfirmerWhatsApp}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="mb-6 flex min-h-[48px] w-full items-center justify-center gap-2 rounded-2xl border border-green-200 bg-green-50 px-4 py-3 text-center text-sm font-semibold text-green-800 transition-colors hover:bg-green-100"
+          >
+            <MessageCircle className="w-5 h-5 flex-shrink-0 text-green-600" />
+            {ar ? 'لم نتصل بك بعد؟ راسلنا عبر واتساب' : 'Pas encore eu notre appel ? Écrivez-nous sur WhatsApp'}
+          </a>
+        )}
+        {apresCommande && <a
           href={lienConfirmerWhatsApp}
           target="_blank"
           rel="noopener noreferrer"
@@ -470,7 +510,7 @@ export default function ConfirmationPage({ params }: { params: Promise<{ id: str
               {ar ? 'الرسالة جاهزة: اضغط فقط على «إرسال».' : 'Le message est prêt : appuyez simplement sur « Envoyer ».'}
             </span>
           </span>
-        </a>
+        </a>}
 
         {/* Rouleau entier : la notice du transport (transport à organiser, ou ancienne commande
             « à domicile ») ; pour un retrait, une phrase courte qui ne parle pas de transport. */}
@@ -485,8 +525,8 @@ export default function ConfirmationPage({ params }: { params: Promise<{ id: str
           </div>
         )}
 
-        {/* Payer par virement */}
-        {paiement === 'virement' && (
+        {/* Payer par virement (plus rien à virer pour une commande livrée, annulée ou retournée) */}
+        {paiement === 'virement' && !commandeTerminee(statut) && (
           <div className="bg-white border-2 border-[#1A1A1A] rounded-2xl p-6 mb-5">
             <h2 className="font-black text-[#1A1A1A] mb-1 text-base flex items-center gap-2" style={{ fontFamily: 'Outfit, sans-serif' }}>
               <Landmark className="w-5 h-5 text-[#C8102E]" /> {ar ? 'الدفع بالتحويل البنكي' : 'Payer par virement'}
@@ -569,8 +609,16 @@ export default function ConfirmationPage({ params }: { params: Promise<{ id: str
           </div>
         )}
 
-        {/* Steps */}
-        <div className="bg-white border border-[#E8E4DF] rounded-2xl p-6 mb-5">
+        {/* Où en est la commande, dès que l'équipe l'a fait avancer (ou passé le jour de la commande) */}
+        {!apresCommande && (
+          <div className="bg-white border border-[#E8E4DF] rounded-2xl p-6 mb-5">
+            <h2 className="font-black text-[#1A1A1A] mb-5 text-sm uppercase tracking-wider" style={{ fontFamily: 'Outfit, sans-serif' }}>{ar ? 'أين وصل طلبك' : 'Où en est votre commande'}</h2>
+            <EtapesCommande statut={statut} etapes={etapesEtat} language={language} />
+          </div>
+        )}
+
+        {/* Steps — le jour de la commande, tant qu'elle attend notre appel */}
+        {apresCommande && <div className="bg-white border border-[#E8E4DF] rounded-2xl p-6 mb-5">
           <h2 className="font-black text-[#1A1A1A] mb-5 text-sm uppercase tracking-wider" style={{ fontFamily: 'Outfit, sans-serif' }}>{ar ? 'الخطوات التالية' : 'Prochaines étapes'}</h2>
           <div className="space-y-4">
             {steps.map(({ icon: Icon, title, desc, status }) => (
@@ -590,7 +638,7 @@ export default function ConfirmationPage({ params }: { params: Promise<{ id: str
               </div>
             ))}
           </div>
-        </div>
+        </div>}
 
         {/* Order summary */}
         <div className="bg-white border border-[#E8E4DF] rounded-2xl p-6 mb-5">
@@ -708,13 +756,21 @@ export default function ConfirmationPage({ params }: { params: Promise<{ id: str
           <p className="text-xs text-gray-400 mt-3">{ar ? 'المرجع: ' : 'Réf. '}<bdi dir="ltr">{numeroAffiche}</bdi></p>
         </div>
 
+        {/* Commander la même chose : les mêmes articles, au prix du jour, puis le panier s'ouvre.
+            Pas juste après la commande : le panier vient d'être vidé, un client hésitant la referait. */}
+        {!apresCommande && (
+          <div className="mb-4">
+            <BoutonRecommander lignes={Array.isArray(order.items) ? order.items : []} />
+          </div>
+        )}
+
         {/* Actions */}
         <div className="grid grid-cols-2 gap-4">
-          <Link href="/shop/boutique"
+          <Link href={lienPage('/shop/boutique', language)}
             className="flex items-center justify-center gap-2 py-3 bg-white border border-[#E8E4DF] rounded-xl font-semibold text-[#1A1A1A] hover:border-[#C8102E] hover:text-[#C8102E] transition-all text-sm">
             <ShoppingBag className="w-4 h-4" /> {ar ? 'مواصلة التسوق' : 'Continuer les achats'}
           </Link>
-          <Link href="/shop/suivi"
+          <Link href={lienPage('/shop/suivi', language)}
             className="flex items-center justify-center gap-2 py-3 bg-[#C8102E] text-white rounded-xl font-semibold hover:bg-[#a00d25] transition-colors text-sm">
             {ar ? 'تتبع طلبي' : 'Suivre ma commande'} <ArrowRight className="w-4 h-4 rtl:rotate-180" />
           </Link>

@@ -14,6 +14,7 @@ import { ChevronRight, ImageOff } from 'lucide-react';
 import { useLanguage } from '@/contexts/language-context';
 import { optimisable } from '@/components/shop/GaleriePhotos';
 import { formatPrice } from '@/lib/shop-utils';
+import { lienProduit } from '@/lib/liens-boutique';
 import { nomProduit } from '@/lib/shop-textes';
 import { PRIX_SUR_DEMANDE, prixProduitAffiche, sansPrix } from '@/lib/shop-variantes';
 import type { ShopCategory, ShopProduct } from '@/lib/shop-types';
@@ -106,7 +107,7 @@ export default function MemeRayon({ produits, lienRayon }: { produits: ShopProdu
           return (
             <li key={p.id}>
               <Link
-                href={`/shop/produit/${p.id}`}
+                href={lienProduit(p, language)}
                 prefetch={false}
                 className="group block h-full rounded-2xl border border-[#E8E4DF] bg-white overflow-hidden hover:border-neutral-400"
               >

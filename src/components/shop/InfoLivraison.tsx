@@ -4,6 +4,7 @@ import React from "react";
 import Link from "next/link";
 import { Banknote, ChevronRight, Store, Truck } from "lucide-react";
 import { useLanguage } from "@/contexts/language-context";
+import { lienPage } from "@/lib/liens-boutique";
 import {
   FRAIS_ZONE, LIBELLE_ZONE, LIBELLE_ZONE_AR, RESUME_FRAIS, RESUME_FRAIS_AR,
   TEXTE_TRANSPORT_VOLUMINEUX, TEXTE_TRANSPORT_VOLUMINEUX_AR, TEXTE_VOLUMINEUX_COURT, TEXTE_VOLUMINEUX_COURT_AR,
@@ -75,7 +76,7 @@ export default function InfoLivraison({
           <Banknote className="size-5 shrink-0 text-[#0F7A55]" />
           {ar ? "الدفع عند الاستلام" : "Paiement à la livraison"}
         </p>
-        <Link href="/shop/livraison" className="inline-flex items-center gap-1 min-h-11 text-sm font-bold text-[#C8102E] hover:underline">
+        <Link href={lienPage("/shop/livraison", language)} className="inline-flex items-center gap-1 min-h-11 text-sm font-bold text-[#C8102E] hover:underline">
           {ar ? "لائحة المدن والآجال" : "Liste des villes et des délais"}
           <ChevronRight className="size-4 rtl:rotate-180" />
         </Link>

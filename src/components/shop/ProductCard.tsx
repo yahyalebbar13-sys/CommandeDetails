@@ -6,6 +6,8 @@ import Image from 'next/image';
 import { ShoppingCart, Star, StarHalf, AlertCircle, CheckCircle2, MessageCircle } from 'lucide-react';
 import { useShopCartActions } from '@/contexts/shop-cart-context';
 import { useLanguage } from '@/contexts/language-context';
+import { useShopProducts } from '@/contexts/shop-products-context';
+import { lienProduit } from '@/lib/liens-boutique';
 import {
   estNouveau,
   formatPrice,
@@ -16,6 +18,7 @@ import {
 import type { ShopProduct } from '@/lib/shop-types';
 import { ajoutRapide, messageDemandePrix, PRIX_SUR_DEMANDE } from '@/lib/shop-variantes';
 import { nomProduit } from '@/lib/shop-textes';
+import CoeurMaListe from '@/components/shop/CoeurMaListe';
 
 // Tiny base64 blur placeholder (1×1 px gris clair) — évite le layout shift
 const BLUR_DATA_URL =
@@ -71,6 +74,7 @@ interface ProductCardProps {
 export default React.memo(function ProductCard({ product, showAddToCart = true }: ProductCardProps) {
   const { language } = useLanguage();
   const { addItem } = useShopCartActions();
+  const { getProductById } = useShopProducts();
   const [added, setAdded] = useState(false);
   const [imgLoaded, setImgLoaded] = useState(false);
 
@@ -110,7 +114,8 @@ export default React.memo(function ProductCard({ product, showAddToCart = true }
     [addItem, ajout, product.inStock, primaryImage]
   );
 
-  const productUrl = `/shop/produit/${product.id}`;
+  // Adresse lisible, toujours avec le nom du catalogue (pas celui d'un alias de rayon)
+  const productUrl = lienProduit(getProductById(product.id) ?? product, language);
 
   return (
     <Link
@@ -159,6 +164,9 @@ export default React.memo(function ProductCard({ product, showAddToCart = true }
             </span>
           </div>
         )}
+
+        {/* Cœur « Ma liste » : garde le produit sur ce téléphone (lib/ma-liste) */}
+        <CoeurMaListe productId={product.id} className="absolute bottom-1.5 end-1.5 z-10 w-9 h-9" />
       </div>
 
       {/* ── Content — Temu style ───────────────────────────────── */}

@@ -31,7 +31,6 @@ import {
   libelleLignePanier,
   libelleValeur,
   libelleVariante,
-  lienProduit,
   messageDemandePrix,
   optionCompatible,
   PRIX_SUR_DEMANDE,
@@ -49,6 +48,7 @@ import {
   type DimVariante,
   type Selection,
 } from '@/lib/shop-variantes';
+import { lienComplet, lienProduit } from '@/lib/liens-boutique';
 
 const QTE_MAX_SANS_STOCK = 9999;
 
@@ -408,7 +408,7 @@ export default function ChoixVariante({ product, onSelectionChange, onImagePrevi
 
   // ── WhatsApp
   const nomProduit = language === 'ar' && product.nameAr ? product.nameAr : product.name;
-  const lienFiche = lienProduit(product.id);
+  const lienFiche = lienComplet(lienProduit(product, language));
   const messageWhatsApp = (() => {
     if (modeListe && totalListe > 0) {
       const lignes = variantesTriees
