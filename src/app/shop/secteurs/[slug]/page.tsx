@@ -21,6 +21,8 @@ import {
   compteArticles,
   lienSecteurs,
   photosSecteur,
+  adressePhotoSecteur,
+  creditPhotoSecteur,
   secteurDepuisParametre,
   secteursVisibles,
 } from '@/lib/secteurs-boutique';
@@ -50,6 +52,16 @@ export default function SecteurPage({ params }: { params: Promise<{ slug: string
     <div className="min-h-screen bg-[#FBF8F3]" style={{ fontFamily: 'Inter, sans-serif' }}>
       {/* ═══ Bandeau : photos du secteur en fond assombri ═══ */}
       <section className="relative overflow-hidden bg-[#0F0F0F]">
+        {secteur.photo ? (
+          <Image
+            src={adressePhotoSecteur(secteur.photo, 1600, 700)}
+            alt=""
+            fill
+            unoptimized
+            priority
+            className="object-cover"
+          />
+        ) : (
         <div className="absolute inset-0 grid grid-cols-2 grid-rows-2 sm:grid-cols-4 sm:grid-rows-1" aria-hidden="true">
           {photos.map((src, i) => (
             <div key={src} className="relative">
@@ -65,7 +77,20 @@ export default function SecteurPage({ params }: { params: Promise<{ slug: string
             </div>
           ))}
         </div>
-        <div className="absolute inset-0 bg-[#0F0F0F]/75" />
+        )}
+        <div className="absolute inset-0 bg-[#0F0F0F]/65" />
+        {secteur.photo && (
+          <p className="absolute bottom-1.5 end-2 z-10 text-[9px] text-white/55">
+            {isAr ? 'صورة: ' : 'Photo : '}
+            <a href={creditPhotoSecteur(secteur.photo).lienAuteur} target="_blank" rel="noopener noreferrer" className="underline hover:text-white">
+              {secteur.photo.auteur}
+            </a>
+            {' / '}
+            <a href={creditPhotoSecteur(secteur.photo).lienUnsplash} target="_blank" rel="noopener noreferrer" className="underline hover:text-white">
+              Unsplash
+            </a>
+          </p>
+        )}
 
         <div className="relative z-10 max-w-6xl mx-auto px-4 sm:px-6 py-8 sm:py-14">
           {/* « › » est un signe miroir : le navigateur l'affiche « ‹ » en arabe */}

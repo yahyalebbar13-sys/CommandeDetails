@@ -61,6 +61,28 @@ export interface Secteur {
   familles: readonly FamilleSecteur[];
   /** Début du message WhatsApp de la demande de devis */
   devis: Bilingue;
+  /** Photo du métier (carte et bandeau). Sans photo : mosaïque des produits du secteur. */
+  photo?: PhotoSecteur;
+}
+
+/** Photo Unsplash (licence Unsplash : usage commercial gratuit) ; l'auteur est crédité sur la page. */
+export interface PhotoSecteur {
+  /** Adresse de base sur le CDN d'Unsplash, sans paramètres */
+  url: string;
+  auteur: string;
+  /** Identifiant de l'auteur sur unsplash.com (lien de crédit) */
+  profil: string;
+}
+
+/** La photo à la largeur voulue (le CDN d'Unsplash recadre et compresse) */
+export function adressePhotoSecteur(photo: PhotoSecteur, largeur: number, hauteur?: number): string {
+  return `${photo.url}?w=${largeur}${hauteur ? `&h=${hauteur}` : ''}&q=60&auto=format&fit=crop`;
+}
+
+/** Lien de crédit vers l'auteur (règles d'Unsplash : nom + lien, paramètres utm) */
+export function creditPhotoSecteur(photo: PhotoSecteur): { auteur: string; lienAuteur: string; lienUnsplash: string } {
+  const utm = '?utm_source=lebtex&utm_medium=referral';
+  return { auteur: photo.auteur, lienAuteur: `https://unsplash.com/@${photo.profil}${utm}`, lienUnsplash: `https://unsplash.com/${utm}` };
 }
 
 // Un secteur n'est montré qu'à partir de ce nombre de produits (avec prix)
@@ -93,6 +115,7 @@ export const SECTEURS: readonly Secteur[] = [
   // ─── Tapisserie (demandé en premier, 03/10/2026) ────────────────────────────
   {
     slug: 'tapisserie-et-canapes',
+    photo: { url: 'https://images.unsplash.com/photo-1517858818796-d31fc694c92a', auteur: 'Joshua Hoehne', profil: 'joshua_hoehne' },
     nom: { fr: 'Tapisserie et canapés', ar: 'التنجيد والكنبات' },
     titreGoogle: { fr: 'Fournitures de tapisserie et canapés', ar: 'لوازم التنجيد والكنبات' },
     accroche: {
@@ -156,6 +179,7 @@ export const SECTEURS: readonly Secteur[] = [
   // ─── Couture traditionnelle ─────────────────────────────────────────────────
   {
     slug: 'caftan-djellaba-et-takchita',
+    photo: { url: 'https://images.unsplash.com/photo-1772411535291-aa5884035934', auteur: 'Youssef Mubarak', profil: 'youssmub' },
     nom: { fr: 'Caftan, djellaba et takchita', ar: 'القفطان والجلابة والتكشيطة' },
     titreGoogle: { fr: 'Mercerie pour caftan, djellaba et takchita', ar: 'خردوات القفطان والجلابة والتكشيطة' },
     accroche: {
@@ -217,6 +241,7 @@ export const SECTEURS: readonly Secteur[] = [
   // ─── Ateliers de confection ─────────────────────────────────────────────────
   {
     slug: 'confection-et-pret-a-porter',
+    photo: { url: 'https://images.unsplash.com/photo-1768746350424-ee28a364dcf5', auteur: 'Luba Glazunova', profil: 'l_glazunova' },
     nom: { fr: 'Confection et prêt-à-porter', ar: 'الخياطة والملابس الجاهزة' },
     titreGoogle: { fr: 'Fournitures pour ateliers de confection', ar: 'لوازم معامل الخياطة والملابس الجاهزة' },
     accroche: {
@@ -297,6 +322,7 @@ export const SECTEURS: readonly Secteur[] = [
   // ─── Vêtements de travail, uniformes, sport ─────────────────────────────────
   {
     slug: 'vetements-de-travail-uniformes-et-sport',
+    photo: { url: 'https://images.unsplash.com/photo-1662309376159-b95fb193d96b', auteur: 'Tanya Paquet', profil: 'tanyapaquet' },
     nom: { fr: 'Vêtements de travail, uniformes et sport', ar: 'ملابس العمل واللباس الموحد والرياضة' },
     titreGoogle: {
       fr: 'Mercerie pour vêtements de travail et uniformes',
@@ -364,6 +390,7 @@ export const SECTEURS: readonly Secteur[] = [
   // ─── Lingerie, enfants ──────────────────────────────────────────────────────
   {
     slug: 'lingerie-et-vetements-d-enfants',
+    photo: { url: 'https://images.unsplash.com/photo-1560506840-ec148e82a604', auteur: 'Baby Natur', profil: 'babynatur' },
     nom: { fr: "Lingerie et vêtements d'enfants", ar: 'الملابس الداخلية وملابس الأطفال' },
     titreGoogle: { fr: "Fournitures pour lingerie et vêtements d'enfants", ar: 'لوازم الملابس الداخلية وملابس الأطفال' },
     accroche: {
@@ -410,6 +437,7 @@ export const SECTEURS: readonly Secteur[] = [
   // ─── Merceries, revendeurs, petit matériel ──────────────────────────────────
   {
     slug: 'etiquetage-finition-et-atelier',
+    photo: { url: 'https://images.unsplash.com/photo-1775740396818-782b84979f4f', auteur: 'Haberdoedas', profil: 'haberdoedas' },
     nom: { fr: 'Étiquetage, finition et atelier', ar: 'الإتيكيت والتشطيب والمعمل' },
     titreGoogle: { fr: "Étiquetage, finition et petit matériel d'atelier", ar: 'الإتيكيت والتشطيب وأدوات المعمل' },
     accroche: {

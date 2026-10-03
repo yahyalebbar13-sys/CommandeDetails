@@ -18,7 +18,7 @@ import {
 } from './liens-boutique';
 import shopStaticData from './shop-firebase-dump.json';
 import {
-  CHEMIN_SECTEURS, cheminSecteur, photosSecteur, secteurDepuisParametre, secteursVisibles,
+  adressePhotoSecteur, CHEMIN_SECTEURS, cheminSecteur, photosSecteur, secteurDepuisParametre, secteursVisibles,
   type Secteur, type SecteurRempli,
 } from './secteurs-boutique';
 import { introRayon } from './textes-rayons';
@@ -523,6 +523,8 @@ const MOTS_SECTEURS = {
 
 // Image d'aperçu d'un secteur : la photo de son premier produit
 function imageSecteur(rempli: SecteurRempli, langue: LangueLien): ImagePartage | undefined {
+  const { photo: photoMetier } = rempli.secteur;
+  if (photoMetier) return { url: adressePhotoSecteur(photoMetier, 1200, 630), width: 1200, height: 630, alt: rempli.secteur.nom[langue] };
   const photo = imageApercu(photosSecteur(rempli, 1)[0]);
   return photo ? { url: photo, alt: rempli.secteur.nom[langue] } : undefined;
 }

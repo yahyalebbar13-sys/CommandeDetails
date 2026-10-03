@@ -17,6 +17,7 @@ import {
   lienSecteur,
   lienSecteurs,
   photosSecteur,
+  adressePhotoSecteur,
   secteursVisibles,
   type SecteurRempli,
 } from '@/lib/secteurs-boutique';
@@ -55,6 +56,24 @@ export function MosaiqueSecteur({
   );
 }
 
+// ─── Photo du métier (carte) ───────────────────────────────────────────────
+// Image décorative (alt vide) : le nom du secteur est écrit sur la carte. Servie par le CDN
+// d'Unsplash à la bonne taille (pas par l'optimiseur du site).
+function PhotoCarte({ secteur, largeur, className = '' }: { secteur: SecteurRempli['secteur']; largeur: number; className?: string }) {
+  if (!secteur.photo) return null;
+  return (
+    <div className={`relative aspect-square overflow-hidden bg-[#E8E4DF] ${className}`}>
+      <Image
+        src={adressePhotoSecteur(secteur.photo, largeur, largeur)}
+        alt=""
+        fill
+        unoptimized
+        className="object-cover transition-transform duration-500 group-hover:scale-105"
+      />
+    </div>
+  );
+}
+
 // ─── Grande carte (page des secteurs) ───────────────────────────────────────
 export function CarteSecteur({ rempli }: { rempli: SecteurRempli }) {
   const { language } = useLanguage();
@@ -65,7 +84,7 @@ export function CarteSecteur({ rempli }: { rempli: SecteurRempli }) {
       href={lienSecteur(secteur, language)}
       className="group flex flex-col h-full overflow-hidden rounded-2xl bg-white border border-[#E8E4DF] hover:shadow-lg transition-shadow touch-manipulation"
     >
-      <MosaiqueSecteur photos={photos} sizes="(max-width: 1024px) 25vw, 190px" />
+      {secteur.photo ? <PhotoCarte secteur={secteur} largeur={480} /> : <MosaiqueSecteur photos={photos} sizes="(max-width: 1024px) 25vw, 190px" />}
       <div className="flex flex-col flex-1 p-3 sm:p-4">
         <h2
           className="font-bold text-[#0F0F0F] text-sm sm:text-lg leading-snug group-hover:text-[#C8102E] transition-colors"
@@ -97,7 +116,7 @@ export function CarteSecteurCompacte({ rempli }: { rempli: SecteurRempli }) {
       href={lienSecteur(secteur, language)}
       className="group flex flex-col h-full overflow-hidden rounded-xl bg-white border border-[#E8E4DF] hover:border-[#C8102E] transition-colors touch-manipulation"
     >
-      <MosaiqueSecteur photos={photos} sizes="(max-width: 1024px) 72px, 100px" />
+      {secteur.photo ? <PhotoCarte secteur={secteur} largeur={240} /> : <MosaiqueSecteur photos={photos} sizes="(max-width: 1024px) 72px, 100px" />}
       <div className="px-2 py-2 flex flex-col flex-1">
         <p className="text-xs font-bold text-[#0F0F0F] leading-tight line-clamp-2 group-hover:text-[#C8102E] transition-colors">
           {secteur.nom[language]}
