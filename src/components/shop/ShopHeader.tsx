@@ -21,6 +21,7 @@ import {
   Percent,
   Globe,
   Layers,
+  Briefcase,
 } from "lucide-react";
 import { useShopCart } from "@/contexts/shop-cart-context";
 import { useLanguage } from "@/contexts/language-context";
@@ -34,6 +35,7 @@ import { delaiZone, FRAIS_ZONE } from "@/lib/livraison-boutique";
 import { nomProduit, texte } from "@/lib/shop-textes";
 import { PRIX_SUR_DEMANDE, sansPrix } from "@/lib/shop-variantes";
 import { cheminDansLaLangue, cheminFrancais, lienPage, lienProduit, lienRayon } from "@/lib/liens-boutique";
+import { CHEMIN_SECTEURS, lienSecteurs } from "@/lib/secteurs-boutique";
 import type { ShopProduct } from "@/lib/shop-types";
 import type { Language } from "@/lib/translations";
 
@@ -49,6 +51,8 @@ const NAV_LINKS: NavLink[] = [
   { labelKey: "nav_home", href: "/shop" },
   { labelKey: "nav_categories", href: "/shop/categories", hasDropdown: true },
   { labelKey: "nav_shop", href: "/shop/boutique" },
+  // Secteurs d'activité (lib/secteurs-boutique) : tapisserie, caftan, confection…
+  { labelKey: "nav_secteurs", href: CHEMIN_SECTEURS },
   { labelKey: "nav_promos", href: "/shop/promotions" },
   { labelKey: "nav_precommande", href: "/shop/precommande" },
   { labelKey: "nav_boutiques", href: "/shop/a-propos" },
@@ -407,8 +411,8 @@ export default function ShopHeader() {
         <div className="hidden lg:block border-t border-gray-100 bg-white">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <nav className="flex items-center h-14 relative">
-              {/* Centered nav links */}
-              <div className="flex-1 flex items-center justify-center gap-10 lg:gap-20">
+              {/* Centered nav links (8 liens depuis « Secteurs » : écart réduit pour tenir dès 1024 px) */}
+              <div className="flex-1 flex items-center justify-center gap-5 xl:gap-12">
               {NAV_LINKS.map((link) =>
                 link.hasDropdown ? (
                   <div key={link.labelKey} ref={dropdownRef} className="relative h-full flex items-center">
@@ -1008,6 +1012,26 @@ export default function ShopHeader() {
 
             {/* 4 Cards Grid (À propos magasin, Contact, Promotion, Service import) */}
             <div className="grid grid-cols-2 gap-3">
+              {/* 0. Secteurs d'activité : toute la largeur, en tête */}
+              <Link
+                href={lienSecteurs(language)}
+                onClick={() => setIsPlusMenuOpen(false)}
+                className="col-span-2 p-3.5 rounded-2xl bg-neutral-900 border border-neutral-900 hover:bg-neutral-800 transition-all flex items-center gap-3 group cursor-pointer"
+              >
+                <div className="w-9 h-9 rounded-xl bg-[#D4A843] text-neutral-900 flex items-center justify-center shadow-xs flex-shrink-0">
+                  <Briefcase className="w-4 h-4" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <h4 className="text-xs font-bold text-white">
+                    {t('secteurs_titre')}
+                  </h4>
+                  <p className="text-[10px] text-neutral-300 mt-0.5 leading-tight">
+                    {language === 'ar' ? 'التنجيد، القفطان، الخياطة، ملابس العمل…' : 'Tapisserie, caftan, confection, tenues de travail…'}
+                  </p>
+                </div>
+                <ChevronRight className="w-4 h-4 text-neutral-400 rtl:rotate-180 flex-shrink-0" />
+              </Link>
+
               {/* 1. Promotions */}
               <Link
                 href={lienPage("/shop/promotions", language)}

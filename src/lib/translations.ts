@@ -17,6 +17,18 @@ export const translations: Translations = {
   nav_all_cats:     { fr: 'Toutes les catégories', ar: 'كل الفئات' },
   nav_more:         { fr: 'Plus...', ar: 'المزيد...' },
   nav_catalogue:    { fr: 'Catalogue', ar: 'كتالوج' },
+  nav_secteurs:     { fr: 'Secteurs', ar: 'القطاعات' },
+
+  // ── Secteurs d'activité (/shop/secteurs) ──────────────────────────────────
+  secteurs_titre:     { fr: "Secteurs d'activité", ar: 'قطاعات النشاط' },
+  secteurs_phrase:    { fr: 'Trouvez les fournitures de votre métier', ar: 'اعثر على لوازم حرفتك' },
+  secteurs_par_secteur: { fr: "Par secteur d'activité", ar: 'حسب قطاع النشاط' },
+  secteurs_tous:      { fr: 'Tous les secteurs', ar: 'كل القطاعات' },
+  secteurs_autres:    { fr: 'Voir les autres secteurs', ar: 'شاهد القطاعات الأخرى' },
+  secteurs_lire_suite: { fr: 'Lire la suite', ar: 'اقرأ المزيد' },
+  secteurs_lire_moins: { fr: 'Réduire', ar: 'إخفاء' },
+  secteurs_commande_atelier: { fr: 'Commande pour votre atelier', ar: 'طلبية لمعملك' },
+  secteurs_devis:     { fr: 'Demander un devis sur WhatsApp', ar: 'اطلب عرض سعر عبر واتساب' },
 
   // ── Hero section ──────────────────────────────────────────────────────────
   hero_badge:    { fr: 'Mercerie Professionnelle', ar: 'خردوات خياطة احترافية' },

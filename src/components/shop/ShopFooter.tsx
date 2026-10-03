@@ -23,6 +23,7 @@ import { useShopProducts } from "@/contexts/shop-products-context";
 import { useLanguage } from "@/contexts/language-context";
 import { texte } from "@/lib/shop-textes";
 import { lienPage, lienRayon } from "@/lib/liens-boutique";
+import { lienSecteurs } from "@/lib/secteurs-boutique";
 import {
   ADRESSE_SIEGE,
   ligneNumerosLegaux,
@@ -123,6 +124,8 @@ export default function ShopFooter() {
       .slice(0, FOOTER_CATEGORY_COUNT)
       .map((c) => ({ label: texte(c, "name", language) || c.name, href: lienRayon(c, language), highlight: false })),
     { label: ar ? "عرض الكل ←" : "Voir tout →", href: lienPage("/shop/categories", language), highlight: true },
+    // Secteurs d'activité (lib/secteurs-boutique) : les fournitures classées par métier
+    { label: ar ? "قطاعات النشاط ←" : "Secteurs d'activité →", href: lienSecteurs(language), highlight: true },
   ];
 
   return (

@@ -25,11 +25,13 @@ import { texte } from '@/lib/shop-textes';
 import { sansPrix } from '@/lib/shop-variantes';
 import { lienPage, lienRayon } from '@/lib/liens-boutique';
 import ProductCard from '@/components/shop/ProductCard';
+import { RangeeSecteurs } from '@/components/shop/CartesSecteurs';
 import { melangerProduits, useGraineMelange } from '@/lib/melange-produits';
 import { useLanguage } from '@/contexts/language-context';
 import { useShopProducts } from '@/contexts/shop-products-context';
 
-// Accueil grossiste (02/10/2026). Haut de page validé par le patron, rayons, PROMOTIONS
+// Accueil grossiste (02/10/2026). Haut de page validé par le patron, rayons, secteurs
+// d'activité (une rangée de petites cartes, 03/10/2026), PROMOTIONS
 // (produits dont l'admin a saisi un « Prix barré »), une vitrine par grande famille
 // (fermetures d'abord), commande en gros, puis TOUS les produits en grille (« Voir plus ») :
 // l'accueil doit montrer beaucoup de produits (demande du 02/10/2026 au soir).
@@ -390,6 +392,10 @@ export default function AccueilBoutique() {
           })}
         </div>
       </section>
+
+      {/* ═══ 3 (suite). PAR SECTEUR D'ACTIVITÉ : petites cartes qui défilent (03/10/2026) ═══ */}
+      {/* Chaque carte mène à la page du métier (tapisserie, caftan, confection…) */}
+      <RangeeSecteurs />
 
       {/* ═══ 3 bis. PROMOTIONS : prix barré saisi dans l'admin (vrai ancien prix) ═══ */}
       {vitrines.promotions.length > 0 && (

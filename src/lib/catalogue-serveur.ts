@@ -17,6 +17,10 @@ import {
   rayonDepuisParametre, SITE_URL, type LangueLien, type RayonLien,
 } from './liens-boutique';
 import shopStaticData from './shop-firebase-dump.json';
+import {
+  CHEMIN_SECTEURS, cheminSecteur, photosSecteur, secteurDepuisParametre, secteursVisibles,
+  type Secteur, type SecteurRempli,
+} from './secteurs-boutique';
 import { introRayon } from './textes-rayons';
 import { SHOP_CATEGORIES, SHOP_PRODUCTS_DATA } from './shop-products-data';
 import { nomCategorieProduit, nomProduit, texte } from './shop-textes';
@@ -473,4 +477,162 @@ export function filArianeProduit(p: ShopProduct, rayons: ShopCategory[], langue:
 // « </script> » dans un nom ou une description ne puisse pas fermer la balise
 export function jsonLd(donnees: DonneesStructurees): string {
   return JSON.stringify(donnees).replace(/</g, '\\u003c');
+}
+
+// ─── Secteurs d'activité (lib/secteurs-boutique) ────────────────────────────
+// Pages /shop/secteurs et /shop/secteurs/<slug> (et /ar) : les secteurs montrés sont ceux
+// qui ont assez de produits dans le catalogue figé, le même que celui du navigateur.
+
+let secteursCatalogue: SecteurRempli[] | null = null;
+
+// Secteurs montrés, avec leurs familles et leurs produits (sans les produits sans prix)
+export function secteursDuCatalogue(): SecteurRempli[] {
+  if (!secteursCatalogue) {
+    const { produits, rayons } = catalogueFige();
+    secteursCatalogue = secteursVisibles(produits, rayons);
+  }
+  return secteursCatalogue;
+}
+
+// Le secteur d'une adresse, s'il est montré ; null pour un secteur inconnu ou sans assez
+// de produits (vraie 404)
+export function secteurDeLaPage(parametre: string): SecteurRempli | null {
+  const secteur = secteurDepuisParametre(parametre);
+  if (!secteur) return null;
+  return secteursDuCatalogue().find(s => s.secteur.slug === secteur.slug) ?? null;
+}
+
+const MOTS_SECTEURS = {
+  fr: {
+    titre: "Secteurs d'activité",
+    description:
+      "Tapisserie, caftan, confection, vêtements de travail : les fournitures LEBTEX classées par métier. Livraison partout au Maroc, retrait gratuit à Casablanca.",
+    introuvable: 'Secteur introuvable',
+    fin: 'Livraison partout au Maroc, retrait gratuit à Casablanca.',
+    finCourte: 'Livraison partout au Maroc.',
+  },
+  ar: {
+    titre: 'قطاعات النشاط',
+    description:
+      'التنجيد، والقفطان والجلابة، والخياطة، وملابس العمل: لوازم LEBTEX مرتبة حسب الحرفة. التوصيل لجميع مدن المغرب، والاستلام مجاني في الدار البيضاء.',
+    introuvable: 'القطاع غير موجود',
+    fin: 'التوصيل لجميع مدن المغرب، والاستلام مجاني في الدار البيضاء.',
+    finCourte: 'التوصيل لجميع مدن المغرب.',
+  },
+} as const;
+
+// Image d'aperçu d'un secteur : la photo de son premier produit
+function imageSecteur(rempli: SecteurRempli, langue: LangueLien): ImagePartage | undefined {
+  const photo = imageApercu(photosSecteur(rempli, 1)[0]);
+  return photo ? { url: photo, alt: rempli.secteur.nom[langue] } : undefined;
+}
+
+// Description Google d'un secteur (160 caractères au plus) : l'accroche et la phrase de
+// livraison entière ; si c'est trop long, la phrase courte (« Livraison partout au
+// Maroc. »), jamais une promesse coupée en plein mot
+function descriptionSecteur(secteur: Secteur, langue: LangueLien): string {
+  const mots = MOTS_SECTEURS[langue];
+  for (const fin of [mots.fin, mots.finCourte]) {
+    const description = `${secteur.accroche[langue]} ${fin}`;
+    if (description.length <= 160) return description;
+  }
+  return couper(secteur.accroche[langue], 160);
+}
+
+// Étiquettes de la liste des secteurs (layouts /shop/secteurs et /ar/shop/secteurs)
+export function etiquettesSecteurs(langue: LangueLien = 'fr'): Metadata {
+  const premier = secteursDuCatalogue()[0];
+  const image = premier ? imageSecteur(premier, langue) : undefined;
+  return etiquettesPage({
+    titre: MOTS_SECTEURS[langue].titre,
+    description: MOTS_SECTEURS[langue].description,
+    chemin: CHEMIN_SECTEURS,
+    langue,
+    ...(image && { image }),
+  });
+}
+
+// Étiquettes d'une page secteur : son titre, son accroche, sa photo, son adresse dans les
+// deux langues ; hors de Google pour une adresse inconnue
+export function etiquettesSecteur(parametre: string, langue: LangueLien = 'fr'): Metadata {
+  const rempli = secteurDeLaPage(parametre);
+  if (!rempli) return { title: titrePage(MOTS_SECTEURS[langue].introuvable), robots: HORS_GOOGLE };
+  const { secteur } = rempli;
+  const image = imageSecteur(rempli, langue);
+  return etiquettesPage({
+    titre: secteur.titreGoogle[langue],
+    description: descriptionSecteur(secteur, langue),
+    chemin: cheminSecteur(secteur),
+    langue,
+    ...(image && { image }),
+  });
+}
+
+function etapeSecteurs(langue: LangueLien): Etape {
+  return { nom: MOTS_SECTEURS[langue].titre, url: adresseComplete(CHEMIN_SECTEURS, langue) };
+}
+
+// Liste des secteurs : « Accueil › Secteurs »
+export function filArianeSecteurs(langue: LangueLien = 'fr'): DonneesStructurees {
+  return filAriane([etapeAccueil(langue), etapeSecteurs(langue)]);
+}
+
+// Page secteur : « Accueil › Secteurs › Secteur »
+export function filArianeSecteur(secteur: Secteur, langue: LangueLien = 'fr'): DonneesStructurees {
+  return filAriane([
+    etapeAccueil(langue),
+    etapeSecteurs(langue),
+    { nom: secteur.nom[langue], url: adresseComplete(cheminSecteur(secteur), langue) },
+  ]);
+}
+
+// Une page qui réunit des liens : nom, description, adresse, langue, et la liste de ce
+// qu'elle montre (sans prix ni avis : seulement les noms et les adresses)
+function pageCollection(
+  nom: string,
+  description: string,
+  chemin: string,
+  elements: { nom: string; url: string }[],
+  langue: LangueLien,
+): DonneesStructurees {
+  return {
+    '@context': 'https://schema.org',
+    '@type': 'CollectionPage',
+    name: nom,
+    description,
+    url: adresseComplete(chemin, langue),
+    inLanguage: langue === 'ar' ? 'ar-MA' : 'fr-MA',
+    isPartOf: { '@type': 'WebSite', name: 'LEBTEX', url: SITE_URL },
+    mainEntity: {
+      '@type': 'ItemList',
+      numberOfItems: elements.length,
+      itemListElement: elements.map((e, i) => ({ '@type': 'ListItem', position: i + 1, name: e.nom, url: e.url })),
+    },
+  };
+}
+
+// Liste des secteurs : la page et ses secteurs
+export function donneesSecteurs(langue: LangueLien = 'fr'): DonneesStructurees {
+  return pageCollection(
+    MOTS_SECTEURS[langue].titre,
+    MOTS_SECTEURS[langue].description,
+    CHEMIN_SECTEURS,
+    secteursDuCatalogue().map(({ secteur }) => ({
+      nom: secteur.nom[langue],
+      url: adresseComplete(cheminSecteur(secteur), langue),
+    })),
+    langue,
+  );
+}
+
+// Page secteur : la page et ses produits
+export function donneesSecteur(rempli: SecteurRempli, langue: LangueLien = 'fr'): DonneesStructurees {
+  const { secteur, produits } = rempli;
+  return pageCollection(
+    secteur.nom[langue],
+    secteur.accroche[langue],
+    cheminSecteur(secteur),
+    produits.map(p => ({ nom: nomDe(p, langue) || MOTS[langue].produit, url: adresseProduit(p, langue) })),
+    langue,
+  );
 }

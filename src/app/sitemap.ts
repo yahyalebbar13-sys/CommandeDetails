@@ -1,9 +1,12 @@
 import type { MetadataRoute } from 'next';
-import { adresseComplete, adressesLangues, catalogueFige, photoProduit, SITE_URL } from '@/lib/catalogue-serveur';
+import {
+  adresseComplete, adressesLangues, catalogueFige, photoProduit, secteursDuCatalogue, SITE_URL,
+} from '@/lib/catalogue-serveur';
 import { lienProduit, lienRayon } from '@/lib/liens-boutique';
+import { CHEMIN_SECTEURS, cheminSecteur } from '@/lib/secteurs-boutique';
 
 // Plan du site pour Google (/sitemap.xml), refait à chaque build depuis le catalogue figé :
-// l'accueil, les pages d'information publiques, les rayons et les fiches visibles
+// l'accueil, les pages d'information publiques, les secteurs d'activité, les rayons et les fiches visibles
 // (sans les masqués), à leur adresse lisible (lib/liens-boutique), en français et en arabe
 // (/ar/shop/…). Chaque page traduite donne ses deux adresses (hreflang fr-MA, ar-MA,
 // x-default). Une page pas encore traduite (lib/liens-boutique) n'y est qu'en français.
@@ -47,6 +50,9 @@ export default function sitemap(): MetadataRoute.Sitemap {
   return [
     ...entrees('/shop'),
     ...PAGES_INFO.flatMap(chemin => entrees(chemin)),
+    // Secteurs d'activité : la liste, puis chaque secteur montré (assez de produits)
+    ...entrees(CHEMIN_SECTEURS),
+    ...secteursDuCatalogue().flatMap(({ secteur }) => entrees(cheminSecteur(secteur))),
     ...rayons.flatMap(c => entrees(lienRayon(c))),
     ...produits.flatMap(p => {
       const photo = photoProduit(p);
