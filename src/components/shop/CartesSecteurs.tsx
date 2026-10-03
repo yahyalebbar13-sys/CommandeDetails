@@ -18,6 +18,7 @@ import {
   lienSecteurs,
   photosSecteur,
   adressePhotoSecteur,
+  photoDuSite,
   secteursVisibles,
   type SecteurRempli,
 } from '@/lib/secteurs-boutique';
@@ -57,8 +58,8 @@ export function MosaiqueSecteur({
 }
 
 // ─── Photo du métier (carte) ───────────────────────────────────────────────
-// Image décorative (alt vide) : le nom du secteur est écrit sur la carte. Servie par le CDN
-// d'Unsplash à la bonne taille (pas par l'optimiseur du site).
+// Image décorative (alt vide) : le nom du secteur est écrit sur la carte. Photo du site :
+// optimisée par Next ; photo Unsplash : servie par son CDN à la bonne taille.
 function PhotoCarte({ secteur, largeur, className = '' }: { secteur: SecteurRempli['secteur']; largeur: number; className?: string }) {
   if (!secteur.photo) return null;
   return (
@@ -67,7 +68,9 @@ function PhotoCarte({ secteur, largeur, className = '' }: { secteur: SecteurRemp
         src={adressePhotoSecteur(secteur.photo, largeur, largeur)}
         alt=""
         fill
-        unoptimized
+        unoptimized={!photoDuSite(secteur.photo)}
+        sizes={`${largeur / 2}px`}
+        quality={70}
         className="object-cover transition-transform duration-500 group-hover:scale-105"
       />
     </div>

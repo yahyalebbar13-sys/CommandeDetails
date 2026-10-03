@@ -23,6 +23,7 @@ import {
   photosSecteur,
   adressePhotoSecteur,
   creditPhotoSecteur,
+  photoDuSite,
   secteurDepuisParametre,
   secteursVisibles,
 } from '@/lib/secteurs-boutique';
@@ -57,7 +58,9 @@ export default function SecteurPage({ params }: { params: Promise<{ slug: string
             src={adressePhotoSecteur(secteur.photo, 1600, 700)}
             alt=""
             fill
-            unoptimized
+            unoptimized={!photoDuSite(secteur.photo)}
+            sizes="100vw"
+            quality={70}
             priority
             className="object-cover"
           />
@@ -79,14 +82,14 @@ export default function SecteurPage({ params }: { params: Promise<{ slug: string
         </div>
         )}
         <div className="absolute inset-0 bg-[#0F0F0F]/65" />
-        {secteur.photo && (
+        {secteur.photo && creditPhotoSecteur(secteur.photo) && (
           <p className="absolute bottom-1.5 end-2 z-10 text-[9px] text-white/55">
             {isAr ? 'صورة: ' : 'Photo : '}
-            <a href={creditPhotoSecteur(secteur.photo).lienAuteur} target="_blank" rel="noopener noreferrer" className="underline hover:text-white">
+            <a href={creditPhotoSecteur(secteur.photo)!.lienAuteur} target="_blank" rel="noopener noreferrer" className="underline hover:text-white">
               {secteur.photo.auteur}
             </a>
             {' / '}
-            <a href={creditPhotoSecteur(secteur.photo).lienUnsplash} target="_blank" rel="noopener noreferrer" className="underline hover:text-white">
+            <a href={creditPhotoSecteur(secteur.photo)!.lienUnsplash} target="_blank" rel="noopener noreferrer" className="underline hover:text-white">
               Unsplash
             </a>
           </p>

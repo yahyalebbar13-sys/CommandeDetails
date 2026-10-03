@@ -524,7 +524,10 @@ const MOTS_SECTEURS = {
 // Image d'aperçu d'un secteur : la photo de son premier produit
 function imageSecteur(rempli: SecteurRempli, langue: LangueLien): ImagePartage | undefined {
   const { photo: photoMetier } = rempli.secteur;
-  if (photoMetier) return { url: adressePhotoSecteur(photoMetier, 1200, 630), width: 1200, height: 630, alt: rempli.secteur.nom[langue] };
+  if (photoMetier) {
+    if (photoMetier.url.startsWith('/')) return { url: `${SITE_URL}${photoMetier.url}`, alt: rempli.secteur.nom[langue] };
+    return { url: adressePhotoSecteur(photoMetier, 1200, 630), width: 1200, height: 630, alt: rempli.secteur.nom[langue] };
+  }
   const photo = imageApercu(photosSecteur(rempli, 1)[0]);
   return photo ? { url: photo, alt: rempli.secteur.nom[langue] } : undefined;
 }

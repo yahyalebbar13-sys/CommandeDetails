@@ -65,22 +65,35 @@ export interface Secteur {
   photo?: PhotoSecteur;
 }
 
-/** Photo Unsplash (licence Unsplash : usage commercial gratuit) ; l'auteur est crédité sur la page. */
+/**
+ * Photo du métier. Deux sortes :
+ * - photo LEBTEX, dans public/secteurs/ (url « /secteurs/<slug>.jpg ») : optimisée par Next, sans crédit ;
+ * - photo Unsplash (licence Unsplash : usage commercial gratuit) : CDN d'Unsplash, auteur crédité.
+ */
 export interface PhotoSecteur {
-  /** Adresse de base sur le CDN d'Unsplash, sans paramètres */
+  /** « /secteurs/… » (photo du site) ou adresse de base sur le CDN d'Unsplash, sans paramètres */
   url: string;
-  auteur: string;
-  /** Identifiant de l'auteur sur unsplash.com (lien de crédit) */
-  profil: string;
+  /** Unsplash seulement */
+  auteur?: string;
+  /** Unsplash seulement : identifiant de l'auteur sur unsplash.com (lien de crédit) */
+  profil?: string;
 }
 
-/** La photo à la largeur voulue (le CDN d'Unsplash recadre et compresse) */
+/** Photo hébergée par le site (public/secteurs) plutôt que par Unsplash */
+export function photoDuSite(photo: PhotoSecteur): boolean {
+  return photo.url.startsWith('/');
+}
+
+/** La photo à la largeur voulue : telle quelle pour une photo du site (Next l'optimise), sinon
+ *  recadrée et compressée par le CDN d'Unsplash */
 export function adressePhotoSecteur(photo: PhotoSecteur, largeur: number, hauteur?: number): string {
+  if (photoDuSite(photo)) return photo.url;
   return `${photo.url}?w=${largeur}${hauteur ? `&h=${hauteur}` : ''}&q=60&auto=format&fit=crop`;
 }
 
 /** Lien de crédit vers l'auteur (règles d'Unsplash : nom + lien, paramètres utm) */
-export function creditPhotoSecteur(photo: PhotoSecteur): { auteur: string; lienAuteur: string; lienUnsplash: string } {
+export function creditPhotoSecteur(photo: PhotoSecteur): { auteur: string; lienAuteur: string; lienUnsplash: string } | null {
+  if (photoDuSite(photo) || !photo.auteur || !photo.profil) return null;
   const utm = '?utm_source=lebtex&utm_medium=referral';
   return { auteur: photo.auteur, lienAuteur: `https://unsplash.com/@${photo.profil}${utm}`, lienUnsplash: `https://unsplash.com/${utm}` };
 }
@@ -179,7 +192,7 @@ export const SECTEURS: readonly Secteur[] = [
   // ─── Couture traditionnelle ─────────────────────────────────────────────────
   {
     slug: 'caftan-djellaba-et-takchita',
-    photo: { url: 'https://images.unsplash.com/photo-1772411535291-aa5884035934', auteur: 'Youssef Mubarak', profil: 'youssmub' },
+    photo: { url: '/secteurs/caftan-djellaba-et-takchita.jpg' },
     nom: { fr: 'Caftan, djellaba et takchita', ar: 'القفطان والجلابة والتكشيطة' },
     titreGoogle: { fr: 'Mercerie pour caftan, djellaba et takchita', ar: 'خردوات القفطان والجلابة والتكشيطة' },
     accroche: {
@@ -322,7 +335,7 @@ export const SECTEURS: readonly Secteur[] = [
   // ─── Vêtements de travail, uniformes, sport ─────────────────────────────────
   {
     slug: 'vetements-de-travail-uniformes-et-sport',
-    photo: { url: 'https://images.unsplash.com/photo-1662309376159-b95fb193d96b', auteur: 'Tanya Paquet', profil: 'tanyapaquet' },
+    photo: { url: '/secteurs/vetements-de-travail-uniformes-et-sport.jpg' },
     nom: { fr: 'Vêtements de travail, uniformes et sport', ar: 'ملابس العمل واللباس الموحد والرياضة' },
     titreGoogle: {
       fr: 'Mercerie pour vêtements de travail et uniformes',
@@ -390,7 +403,7 @@ export const SECTEURS: readonly Secteur[] = [
   // ─── Lingerie, enfants ──────────────────────────────────────────────────────
   {
     slug: 'lingerie-et-vetements-d-enfants',
-    photo: { url: 'https://images.unsplash.com/photo-1560506840-ec148e82a604', auteur: 'Baby Natur', profil: 'babynatur' },
+    photo: { url: '/secteurs/lingerie-et-vetements-d-enfants.jpg' },
     nom: { fr: "Lingerie et vêtements d'enfants", ar: 'الملابس الداخلية وملابس الأطفال' },
     titreGoogle: { fr: "Fournitures pour lingerie et vêtements d'enfants", ar: 'لوازم الملابس الداخلية وملابس الأطفال' },
     accroche: {
@@ -437,7 +450,7 @@ export const SECTEURS: readonly Secteur[] = [
   // ─── Merceries, revendeurs, petit matériel ──────────────────────────────────
   {
     slug: 'etiquetage-finition-et-atelier',
-    photo: { url: 'https://images.unsplash.com/photo-1775740396818-782b84979f4f', auteur: 'Haberdoedas', profil: 'haberdoedas' },
+    photo: { url: '/secteurs/etiquetage-finition-et-atelier.jpg' },
     nom: { fr: 'Étiquetage, finition et atelier', ar: 'الإتيكيت والتشطيب والمعمل' },
     titreGoogle: { fr: "Étiquetage, finition et petit matériel d'atelier", ar: 'الإتيكيت والتشطيب وأدوات المعمل' },
     accroche: {

@@ -31,9 +31,9 @@ import { useLanguage } from '@/contexts/language-context';
 import { useShopProducts } from '@/contexts/shop-products-context';
 
 // Accueil grossiste (02/10/2026). Haut de page validé par le patron, rayons, secteurs
-// d'activité (une rangée de petites cartes, 03/10/2026), PROMOTIONS
-// (produits dont l'admin a saisi un « Prix barré »), une vitrine par grande famille
-// (fermetures d'abord), commande en gros, puis TOUS les produits en grille (« Voir plus ») :
+// d'activité (une rangée de petites cartes, 03/10/2026), une vitrine par grande famille
+// (fermetures d'abord), puis les PROMOTIONS (produits dont l'admin a saisi un « Prix barré » ;
+// descendues sous les familles le 03/10/2026, le haut était trop chargé), commande en gros, puis TOUS les produits en grille (« Voir plus ») :
 // l'accueil doit montrer beaucoup de produits (demande du 02/10/2026 au soir).
 
 /** Produits par vitrine (une ligne qui défile). */
@@ -397,32 +397,6 @@ export default function AccueilBoutique() {
       {/* Chaque carte mène à la page du métier (tapisserie, caftan, confection…) */}
       <RangeeSecteurs />
 
-      {/* ═══ 3 bis. PROMOTIONS : prix barré saisi dans l'admin (vrai ancien prix) ═══ */}
-      {vitrines.promotions.length > 0 && (
-        <section className="pt-6 px-4 sm:px-6 lg:px-12">
-          <div className="container mx-auto rounded-2xl bg-white border-2 border-[#C8102E]/15 p-3 sm:p-4">
-            <SectionHeader
-              icon={
-                <span className="w-7 h-7 rounded-lg bg-[#C8102E] flex items-center justify-center">
-                  <Percent className="w-4 h-4 text-white" />
-                </span>
-              }
-              title={isAr ? 'العروض' : 'Promotions'}
-              subtitle={
-                vitrines.remiseMax > 0
-                  ? isAr
-                    ? `تخفيض يصل إلى ${vitrines.remiseMax}%`
-                    : `Jusqu'à -${vitrines.remiseMax} %`
-                  : undefined
-              }
-              href={lienPage('/shop/promotions', language)}
-              linkLabel={isAr ? 'كل العروض' : 'Toutes les promos'}
-            />
-            <ProductRail products={vitrines.promotions} />
-          </div>
-        </section>
-      )}
-
       {/* ═══ 4. VITRINE : FERMETURES ═══ */}
       {vitrines.fermetures.length > 0 && (
         <section className="pt-6 px-4 sm:px-6 lg:px-12">
@@ -454,6 +428,32 @@ export default function AccueilBoutique() {
           </div>
         </section>
       ))}
+
+      {/* ═══ 5 (suite). PROMOTIONS : prix barré saisi dans l'admin (vrai ancien prix). Placées après les vitrines par famille (03/10/2026 : le haut de l'accueil était trop chargé) ═══ */}
+      {vitrines.promotions.length > 0 && (
+        <section className="pt-6 px-4 sm:px-6 lg:px-12">
+          <div className="container mx-auto">
+            <SectionHeader
+              icon={
+                <span className="w-7 h-7 rounded-lg bg-[#C8102E] flex items-center justify-center">
+                  <Percent className="w-4 h-4 text-white" />
+                </span>
+              }
+              title={isAr ? 'العروض' : 'Promotions'}
+              subtitle={
+                vitrines.remiseMax > 0
+                  ? isAr
+                    ? `تخفيض يصل إلى ${vitrines.remiseMax}%`
+                    : `Jusqu'à -${vitrines.remiseMax} %`
+                  : undefined
+              }
+              href={lienPage('/shop/promotions', language)}
+              linkLabel={isAr ? 'كل العروض' : 'Toutes les promos'}
+            />
+            <ProductRail products={vitrines.promotions} />
+          </div>
+        </section>
+      )}
 
       {/* ═══ 5 bis. VITRINE : NOTRE SÉLECTION (ce qui n'est pas déjà montré) ═══ */}
       {vitrines.selection.length > 0 && (
